@@ -2,7 +2,11 @@
 Purpose: Fast orientation for AI agents contributing to VMT (PyQt6 desktop app embedding a Pygame surface). Focus on implemented functionality (Gates 1-2 complete) and enforced gate workflow discipline.
 
 ### Architecture Snapshot
-Single process, single event loop. PyQt6 `QApplication` hosts a main window (`econsim.main:create_window`) whose central widget is `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`). Widget owns a QTimer (~16ms) that updates an off‑screen Pygame Surface (320x240) then repaints via `paintEvent` (Surface→RGBA bytes→`QImage`→draw). No threading, no background loops; all timing via QTimer + `app.processEvents()` in tests/perf. Preferences module (`src/econsim/preferences/`) provides Cobb-Douglas, Perfect Substitutes, and Leontief utility formulations with validation/serialization.
+Single process, single event loop. PyQt6 `QApplication` hosts a main window (`econsim.main:create_window`) whose central widget is `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`). Widget owns a QTimer (~16ms) that updates an off‑screen Pygame Surface (320x240) then repaints via `paintEvent` (Surface→RGBA bytes→`QImage`→draw). No threading, no background loops; all timing via QTimer + `app.processEvents()` in tests/perf. 
+
+**Educational Mission**: Transform abstract utility maximization into observable spatial agent behavior for microeconomics learning. Three preference types (Cobb-Douglas, Perfect Substitutes, Leontief) demonstrate different economic behaviors through grid-based collection visualization.
+
+**Preferences Architecture**: Complete factory pattern in `src/econsim/preferences/` with unified interface (`utility()`, `update_params()`, `serialize()`), strict validation via `PreferenceError`, and round-trip serialization. All three preference types fully implemented with economic correctness tests.
 
 ### Current Scope (Gates 1-2 Complete; Gate 3 Planning)
 In-scope: widget maintenance, preferences system, performance/stability, documentation, test robustness, Gate 3 scaffolding (grid/agent foundations).
@@ -21,14 +25,33 @@ Out-of-scope until later gates: agent decision logic, advanced UI (menus/toolbar
 **Violation = Scope creep risk**. Always document what was delivered vs promised, performance impact, technical debt created, and readiness for next gate.
 
 ### Core Developer Workflow
-Activate env then use Make targets:
-`make dev` (run GUI), `make test` (25 tests pass), `make lint` (ruff+black check), `make format`, `make type` (mypy), `make perf` (runs `scripts/perf_stub.py --mode widget`). Headless CI sets `SDL_VIDEODRIVER=dummy` and `QT_QPA_PLATFORM=offscreen` (see perf & tests). Prefer adding new Make targets rather than ad-hoc scripts.
+**Environment Setup**: Always activate `vmt-dev/bin/activate` before development. All dependencies managed via `pyproject.toml` with dev extras.
 
-### Key Files
-`src/econsim/main.py` – entry + window factory.
-`src/econsim/gui/embedded_pygame.py` – core Gate 1 widget (timer, frame loop, paint, teardown).
-`scripts/perf_stub.py` – performance harness (synthetic + real widget modes).
-`tests/unit/*` – smoke (`test_embedded_widget`), render progression (`test_render_smoke`), perf threshold (`test_perf_widget`), clean shutdown (`test_shutdown`). Use existing patterns when adding tests (headless env guards, short durations, skip instead of hard fail for flaky perf edge cases).
+**Make Targets** (primary interface):
+- `make dev` → Launch GUI (`python -m econsim.main`)  
+- `make test` → Run 25 unit tests (pytest)
+- `make lint` → Validate with ruff + black  
+- `make format` → Auto-format code (black + ruff --fix)
+- `make type` → Type checking (mypy)  
+- `make perf` → Performance validation (`scripts/perf_stub.py --mode widget`)
+
+**Headless Environment**: CI/tests auto-set `SDL_VIDEODRIVER=dummy` and `QT_QPA_PLATFORM=offscreen`. Mirror this pattern in new test files. Prefer Make targets over direct script execution.
+
+### Key Files & Patterns
+**Core Architecture:**
+- `src/econsim/main.py` → Entry point + QMainWindow factory with `EmbeddedPygameWidget` central widget
+- `src/econsim/gui/embedded_pygame.py` → QTimer-driven render loop, pygame Surface → QImage conversion
+- `src/econsim/preferences/` → Factory pattern with `base.py` interface, implementations for economic preference types
+
+**Development Tools:**
+- `scripts/perf_stub.py` → Performance harness (synthetic + real widget modes), supports `--mode widget --duration N --json`
+- `pyproject.toml` → Dependencies, build config, tool settings (black line-length=100, ruff select/ignore)
+- `Makefile` → Primary development interface, prefer adding targets over ad-hoc commands
+
+**Testing Patterns:**
+- `tests/unit/test_embedded_widget.py` → Widget lifecycle (construct, show, processEvents loop, close)  
+- `tests/unit/test_preferences_*.py` → Economic math validation, parameter bounds, serialization round-trips
+- Always include headless guards (`SDL_VIDEODRIVER=dummy`), use short test durations, prefer skip over hard fail for perf edge cases
 
 ### Patterns & Conventions
 Environment adaptation: before initializing Pygame or Qt in headless context, set `SDL_VIDEODRIVER=dummy`, `QT_QPA_PLATFORM=offscreen` (mirror existing tests & perf script). No global while-loops; rely on QTimer or explicit `app.processEvents()` loops with small sleeps. Internal widget counters (e.g., `_frame`) can be probed in performance/testing, but keep underscore prefix and avoid public API commitment yet.

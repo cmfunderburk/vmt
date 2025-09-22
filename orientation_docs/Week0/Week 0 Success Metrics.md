@@ -5,6 +5,8 @@ Concrete, measurable criteria for determining Week 0 validation success and trac
 
 ## Sequential Validation Gates (Must Complete in Order)
 
+> Scope Alignment Note (Added 2025-09-22): Some originally listed metrics assumed earlier introduction of prices, optimization, and interactive UI. Gates 1 & 2 intentionally focused on: (a) stable PyQt6 + Pygame render loop, (b) validated preference utility evaluation & serialization. Items involving price-based optimization, corner solution classification, GUI controls, and zero-price edge handling are formally rescheduled to Gate 4 (Educational Interface) after spatial grid + agents (Gate 3) establish economic interaction context. This prevents premature abstraction and reduces rework risk.
+
 ### Gate 1: Technical Environment Foundation
 **Prerequisites:** None - Starting point for validation
 - [ ] **PyQt6 window displays** without errors
@@ -43,11 +45,11 @@ Proposed Checkbox Mapping Update:
 
 ### Gate 2: Economic Theory Implementation
 **Prerequisites:** Gate 1 complete - Need working GUI for parameter testing
-- [ ] **Cobb-Douglas optimization** matches analytical solutions (3+ test cases)
-- [ ] **Perfect Substitutes corner solutions** correctly identified (3+ test cases)
-- [ ] **Leontief fixed proportions** maintained in all scenarios (3+ test cases)
-- [ ] **Parameter sensitivity** shows expected directional effects
-- [ ] **Edge cases** (zero prices, extreme preferences) handled gracefully
+- [ ] **Cobb-Douglas optimization** matches analytical solutions (Rescheduled → Gate 4)
+- [ ] **Perfect Substitutes corner solutions** correctly identified (Rescheduled → Gate 4)
+- [ ] **Leontief fixed proportions** maintained in all scenarios (Covered by current utility & validation tests)
+- [ ] **Parameter sensitivity** shows expected directional effects (Partial: directional tests added Gate 2 extension)
+- [ ] **Edge cases** (zero prices, extreme preferences) handled gracefully (Rescheduled → Gate 4; price model not yet introduced)
 
 **Measurement Method:** Automated test suite with numerical precision validation
 **Pass Criteria:** 100% test pass rate with <0.01% numerical error tolerance
