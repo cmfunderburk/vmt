@@ -4,11 +4,14 @@ Gate 1 Objective: Launch a PyQt6 window (no embedded pygame yet) to verify
 basic event loop and packaging skeleton. Pygame integration will be added in
 `gui/embedded_pygame.py` in a subsequent increment.
 """
+
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QApplication, QMainWindow
-from econsim.gui.embedded_pygame import EmbeddedPygameWidget
 import sys
+
+from PyQt6.QtWidgets import QApplication, QMainWindow
+
+from econsim.gui.embedded_pygame import EmbeddedPygameWidget
 
 
 def create_window() -> QMainWindow:

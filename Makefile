@@ -1,4 +1,4 @@
-PYTHON ?= python
+PYTHON ?= python3
 PACKAGE = econsim
 
 .PHONY: install dev lint format type test perf clean

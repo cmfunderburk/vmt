@@ -1,7 +1,6 @@
-import pytest
+from PyQt6.QtWidgets import QApplication
 
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
-from PyQt6.QtWidgets import QApplication
 
 
 def test_widget_construct_and_close():

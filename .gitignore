@@ -37,6 +37,9 @@ Thumbs.db
 # Temporary
 .tmp/
 
+# Virtual environments (project-specific)
+vmt-dev/
+
 # Additional standard Python ignores
 
 # Virtual environment variants

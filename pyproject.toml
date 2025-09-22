@@ -30,8 +30,6 @@ dev = [
   "black>=24.0.0",
   "ruff>=0.5.0",
   "mypy>=1.8.0",
-  "types-PyQt6",
-  "types-Pygame",
 ]
 
 [tool.black]
@@ -40,8 +38,10 @@ target-version = ["py311"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
-ignore = ["E501"]
+ignore = ["E501", "SIM105"]  # Allow try-except-pass for now
 
 [tool.mypy]
 python_version = "3.11"

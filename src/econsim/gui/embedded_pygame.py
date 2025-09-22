@@ -7,13 +7,15 @@ embedding complexity while validating frame update + paint path.
 Out-of-scope in Gate 1: agents, economics, grid logic, advanced rendering,
 logging, threading.
 """
+
 from __future__ import annotations
 
+from time import perf_counter
+
 import pygame
-from PyQt6.QtCore import QTimer, QRect, Qt
+from PyQt6.QtCore import QRect, QTimer
 from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtWidgets import QWidget
-from time import perf_counter
 
 
 class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested separately)
@@ -22,9 +24,24 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        # Set SDL video driver for headless environments before pygame.init()
+        import os
+
+        if not os.environ.get("DISPLAY"):
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+
         pygame.init()
-        # Off-screen surface (no window). Using SRCALPHA for lightweight transparency experiments later.
-        self._surface = pygame.Surface(self.SURFACE_SIZE).convert_alpha()
+        # Always set a display mode to ensure Surface creation works
+        try:
+            pygame.display.set_mode((1, 1))  # Minimal display mode
+        except pygame.error:
+            pass  # Continue if display setup fails
+
+        # Off-screen surface (no window). Create without convert_alpha() if needed
+        try:
+            self._surface = pygame.Surface(self.SURFACE_SIZE).convert_alpha()
+        except pygame.error:
+            self._surface = pygame.Surface(self.SURFACE_SIZE)  # Fallback without alpha
         self._frame = 0
         self._start = perf_counter()
         self._fps_last_report = self._start
@@ -54,7 +71,9 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         rect_w, rect_h = 50, 30
         x = (self._frame * 3) % (w - rect_w)
         y = (self._frame * 2) % (h - rect_h)
-        pygame.draw.rect(self._surface, (255 - phase, 200, phase), pygame.Rect(x, y, rect_w, rect_h))
+        pygame.draw.rect(
+            self._surface, (255 - phase, 200, phase), pygame.Rect(x, y, rect_w, rect_h)
+        )
 
     # --- Paint Path ------------------------------------------------------
     def paintEvent(self, event):  # type: ignore[override]
