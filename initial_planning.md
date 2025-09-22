@@ -1,8 +1,9 @@
 # Economic Simulation Platform: Project Skeleton Plan
 
 **Project Name**: EconSim Platform  
-**Project Type**: Python Library with Educational Focus  
-**Development Philosophy**: Visualization-First Agent-Based Economic Modeling
+**Project Type**: Desktop GUI Application with Educational Focus  
+**Development Philosophy**: Self-Contained Visualization-First Agent-Based Economic Modeling  
+**Target Platforms**: macOS/Linux (cross-platform expandable later)
 
 ---
 
@@ -15,13 +16,13 @@
 **Core Educational and Research Mission**: Establish the fundamental relationship between preference relations, choice functions, and utility functions through immediate spatial visualization, then build systematically through consumer theory, market equilibrium, game theory, information economics, and beyond. The platform serves as both an educational tool for building intuition about abstract economic concepts through concrete spatial interactions, and as a research instrument enabling investigation of advanced microeconomic phenomena, mechanism design, and spatial economic behavior for graduate students and researchers.
 
 **Success Metrics** (≤120 words):
-- **R-01**: Students demonstrate improved comprehension of preference-choice-utility relationships through spatial visualization exercises and assessments
+- **R-01**: Solo developer can accurately predict agent spatial behavior for all three preference types within 95% accuracy in blind testing scenarios
 - **R-02**: Interactive parameter adjustments (preferences, constraints, spatial costs) produce immediate visual feedback and statistical updates within 1 second
-- **R-03**: Platform generates exportable economic insights, statistical dashboards, and publication-quality visualizations for classroom and research use
-- **R-04**: Spatial grid simulations work seamlessly across educational computing environments with consistent visual behavior
+- **R-03**: Platform exports simulation data in standard formats (CSV, JSON) with statistical summaries that match theoretical calculations within 99% accuracy
+- **R-04**: Spatial grid simulations run consistently at 30+ FPS on development machine with identical agent behavior patterns across 10 test runs
 - **R-05**: Foundational spatial architecture scales from simple utility maximization to complex multi-agent economic models and game theory
 - **R-06**: Economic simulations reproduce theoretical predictions with mathematical accuracy while maintaining visual clarity and educational intuition
-- **R-07**: Students can differentiate between preference types (Cobb-Douglas, Perfect Substitutes, Leontief) and predict corresponding spatial behaviors, addressing "people don't behave like that" criticism
+- **R-07**: Solo developer can correctly identify preference type from agent spatial behavior in blind tests with 90%+ accuracy, and visual behaviors are measurably distinct using spatial pattern metrics
 
 ### 2. Key User Scenarios (3-5 flows)
 
@@ -343,10 +344,14 @@ Test Example: `test_cross_platform_visual_consistency()` validates identical scr
 
 **Core Dependencies**:
 - **Python 3.11+**: Type hints, dataclasses, performance improvements for educational responsiveness
-- **Pygame 2.5+**: Cross-platform real-time visualization, educational graphics capabilities
+- **PyQt6**: Professional desktop GUI framework with OpenGL integration for Pygame embedding
+- **Pygame 2.5+**: Real-time visualization engine embedded within PyQt6 interface
 - **NumPy 1.24+**: Efficient numerical computation for economic calculations
 - **SciPy 1.10+**: Optimization algorithms for equilibrium solving, statistical analysis
-- **Matplotlib 3.7+**: Static analysis plots, publication-quality educational diagrams
+
+**Desktop Application Dependencies**:
+- **PyInstaller 6.0+**: Cross-platform application packaging for self-contained distribution
+- **Pillow**: Image processing for icons, splash screens, and visual assets
 
 **Development Dependencies**:
 - **pytest 7.4+**: Testing framework with visual testing extensions
@@ -631,6 +636,16 @@ jobs:
 
 ### 14. Implementation Roadmap (MVP focus)
 
+**Week 0: Technology Validation** (5-7 days)
+- **Core Goal**: Validate PyQt6 + Pygame integration and critical technical assumptions
+- **Day 1-2**: PyQt6 main window with embedded Pygame widget (QOpenGLWidget), basic 10x10 grid rendering
+- **Day 3-4**: PyQt6 parameter controls (sliders, radio buttons) connected to Pygame simulation with three minimal preference types
+- **Day 5-6**: Real-time parameter switching between preference types with <0.5 second GUI response time
+- **Day 7**: Performance stress test with GUI + spatial optimization (maintain 30+ FPS), basic packaging test
+- **Success Criteria**: Smooth PyQt6-Pygame integration, visual distinction between preference types, GUI responsiveness
+- **Risk Mitigation**: Proves desktop GUI architecture viable before full commitment, validates packaging approach
+- **Pass/Fail Gate**: If PyQt6 integration fails, fallback to Tkinter; if performance fails, consider simplified visualization
+
 **MVP Milestone 1: Spatial Foundation** (Week 1-2)
 - **MVP Components**: S-03, S-04, S-06, S-02 - NxN grid, spatial agents, visualization, application entry
 - **Success Criteria**: Grid renders with agents at 30+ FPS, agents move smoothly with spatial constraints
@@ -694,15 +709,25 @@ jobs:
 
 ### 15. Decision Log & Next Steps
 
-#### D-01: Visualization Technology Choice
-- **Context & Forces**: Need cross-platform, high-performance educational visualization with Python integration
-- **Options**: (1) Pygame + Python, (2) Web technologies (Three.js, Canvas), (3) Native GUI (tkinter, PyQt)
-- **Criteria**: Educational deployment ease, performance, cross-platform consistency, development velocity
-- **Decision**: Pygame + Python for desktop-first educational platform
-- **Rationale**: Best balance of performance, educational accessibility, and Python ecosystem integration
-- **Consequences**: (+) Excellent performance and educational control, (-) Desktop-only deployment initially
-- **Revisit Conditions**: If web deployment becomes critical or performance insufficient
-- **Review Date**: After MVP completion and educator feedback
+#### D-01: Interface Architecture Choice
+- **Context & Forces**: Need educational software that's self-contained, professional, and doesn't require Python knowledge from users
+- **Options**: (1) Jupyter Integration, (2) Python Library + Scripts, (3) Desktop GUI Application, (4) Hybrid Library + GUI
+- **Criteria**: Solo developer feasibility, self-contained distribution, skill development opportunity, user accessibility
+- **Decision**: Desktop GUI Application (PyQt6 + embedded Pygame)
+- **Rationale**: Self-contained distribution, professional appearance, skill development aligned with project goals, no user Python setup required
+- **Consequences**: (+) Easy distribution, professional UX, no user tech barriers, (-) GUI framework learning curve, desktop-only initially
+- **Revisit Conditions**: If GUI complexity becomes overwhelming or web distribution becomes critical
+- **Review Date**: After Week 0 technology validation
+
+#### D-02: Visualization Technology Choice  
+- **Context & Forces**: Need high-performance real-time visualization embedded within desktop GUI framework
+- **Options**: (1) Pure PyQt6 graphics, (2) Pygame embedded in PyQt6, (3) OpenGL within PyQt6
+- **Criteria**: Performance for real-time simulation, educational visual clarity, solo developer learning curve
+- **Decision**: Pygame embedded in PyQt6 QOpenGLWidget
+- **Rationale**: Combines Pygame's educational visualization strengths with PyQt6's professional GUI capabilities
+- **Consequences**: (+) Best of both frameworks, (-) Integration complexity during development
+- **Revisit Conditions**: If PyQt6-Pygame integration proves too complex during Week 0 validation
+- **Review Date**: End of Week 0 technology validation
 
 #### D-02: Economic Theory Validation Strategy  
 - **Context & Forces**: Must ensure mathematical correctness for educational integrity while maintaining development velocity
