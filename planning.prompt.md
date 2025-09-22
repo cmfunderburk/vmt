@@ -1,12 +1,12 @@
 # Scaffold: Project Skeleton Planner (Solo + AI)
 
 ## Intent
-Create a **practical project skeleton** for **${input:projectName:your project}** through iterative discovery. Focus on rapid validation and implementation readiness rather than comprehensive documentation. Generate scaffolding that enables immediate development start while maintaining quality engineering principles.
+Create a **practical project skeleton** for **${input:projectName:your project}** through iterative discovery. Generate scaffolding that enables immediate development start while maintaining quality engineering principles.
 
 ## Three-Phase Approach
-**Phase 1: Core Understanding (30 min)** - Problem clarity + key scenarios + risk radar  
-**Phase 2: Design Contracts (45 min)** - Data model + core interfaces + testing strategy  
-**Phase 3: Implementation Readiness (30 min)** - Detailed scaffolding + quality gates + roadmap
+**Phase 1: Core Understanding** - Problem clarity + key scenarios + risk radar  
+**Phase 2: Design Contracts** - Data model + core interfaces + testing strategy  
+**Phase 3: Implementation Readiness** - Detailed scaffolding + quality gates + roadmap
 
 ## Inputs
 - Project name: ${input:projectName}
