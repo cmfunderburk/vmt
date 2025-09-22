@@ -1,25 +1,25 @@
-# Desktop GUI Application: Updated Development Plan
+# Desktop GUI Application: Progressive Validation Approach
 
 ## **✅ What We've Updated in Your Planning Document**
 1. **Project Type**: Changed to "Desktop GUI Application"
-2. **Week 0 Validation**: Now includes PyQt6 + Pygame integration testing
+2. **Validation Framework**: Now uses progressive gate-based validation approach
 3. **Dependencies**: Added PyQt6, PyInstaller for desktop app development
 4. **Decision Records**: Documented interface architecture choice and rationale
 
 ## **🎯 Desktop GUI Skill Development Path**
 
-**Week 0 Learning Goals:**
+**Foundation Skills (Gate 1 Prerequisites):**
 - **PyQt6 Basics**: Windows, layouts, signals/slots
 - **Pygame Integration**: Embedding Pygame in QOpenGLWidget
 - **GUI-Simulation Communication**: How parameter changes trigger simulation updates
 
-**Progressive Skill Building:**
-- **Week 1-2**: Master PyQt6 layouts and basic controls
-- **Week 3-4**: Advanced GUI patterns (MVC separation, custom widgets)
-- **Week 5-6**: Polish and user experience design
-- **Week 7-8**: Application packaging and distribution
+**Progressive Skill Building Path:**
+- **Implementation Phase 1**: Master PyQt6 layouts and basic controls
+- **Implementation Phase 2**: Advanced GUI patterns (MVC separation, custom widgets)
+- **Implementation Phase 3**: Polish and user experience design
+- **Implementation Phase 4**: Application packaging and distribution
 
-## **🛠️ Recommended Learning Resources (Pre-Week 0)**
+## **🛠️ Recommended Learning Resources (Pre-Validation)**
 
 **PyQt6 Fundamentals** (2-3 hours):
 - Official PyQt6 tutorial: Basic windows, layouts, signals
@@ -29,9 +29,9 @@
 - Look up "pygame QOpenGLWidget" examples
 - Key concept: Pygame surface → OpenGL texture → PyQt widget
 
-## **📋 Week 0 Validation Checklist**
+## **📋 Progressive Validation Checklist**
 
-**Day 1 Success Criteria:**
+**Gate 1: Technical Foundation**
 ```python
 # Can you create this basic structure?
 class EconSimApp(QMainWindow):
@@ -42,7 +42,7 @@ class EconSimApp(QMainWindow):
         # Basic Pygame rendering works in widget
 ```
 
-**Day 3 Success Criteria:**
+**Gate 2-4: Advanced Integration**
 ```python
 # Can you connect GUI controls to simulation?
 self.preference_combo = QComboBox()
@@ -50,7 +50,7 @@ self.preference_combo.currentTextChanged.connect(self.change_preference)
 
 def change_preference(self, preference_type):
     self.pygame_widget.set_preference(preference_type)
-    # Pygame simulation updates in <0.5 seconds
+    # Pygame simulation updates in <100ms
 ```
 
 ## **🚀 Key Desktop GUI Advantages You'll Gain**
@@ -61,7 +61,7 @@ def change_preference(self, preference_type):
 4. **Offline Capability**: Works in classrooms without internet
 5. **Skill Development**: PyQt6 is excellent for future desktop projects
 
-## **⚠️ Week 0 Risk Mitigation Plan**
+## **⚠️ Validation Risk Mitigation Plan**
 
 **If PyQt6 + Pygame integration is too complex:**
 - **Fallback Option 1**: Pure PyQt6 graphics (no Pygame)
@@ -73,7 +73,7 @@ def change_preference(self, preference_type):
 - **Optimization 2**: Lower frame rate (15 FPS instead of 30)
 - **Optimization 3**: Simplify visual effects
 
-## **📦 Distribution Strategy (Week 8+)**
+## **📦 Distribution Strategy (Post-Implementation)**
 
 **Packaging Approach:**
 ```bash
@@ -95,6 +95,6 @@ pyinstaller --onefile --windowed econsim_app.py
 4. **Solo Developer Friendly**: Clear scope, no API design burden
 5. **macOS/Linux Focus**: Simpler than full cross-platform (Windows can come later)
 
-**Ready to start Week 0 validation? The first step would be installing PyQt6 and creating a basic window with an embedded widget placeholder.**
+**Ready to start validation? The first step would be installing PyQt6 and creating a basic window with an embedded widget placeholder.**
 
 Want me to help you set up the initial development environment, or do you have other planning questions to resolve first?
