@@ -1,9 +1,7 @@
 ---
-applyTo: '**'
----
-
 name: Scaffold: Project Skeleton Planner (Solo + AI)
 description: Generate and lint a complete project skeleton specification for a solo developer + AI pairing—including directory tree, stubs, contracts, tooling, and quality gates—before any real code is written.
+---
 
 # Scaffold: Project Skeleton Planner (Solo + AI)
 
