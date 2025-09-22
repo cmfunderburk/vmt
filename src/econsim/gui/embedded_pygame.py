@@ -11,6 +11,7 @@ logging, threading.
 from __future__ import annotations
 
 from time import perf_counter
+from typing import Protocol
 
 import pygame
 from PyQt6.QtCore import QRect, QTimer
@@ -18,12 +19,21 @@ from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtWidgets import QWidget
 
 
+class _SimulationProto(Protocol):  # pragma: no cover - typing helper only
+    def step(self, rng) -> None: ...
+
+
 class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested separately)
     FRAME_INTERVAL_MS = 16  # ~60 FPS target
     SURFACE_SIZE = (320, 240)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, simulation: _SimulationProto | None = None) -> None:
         super().__init__(parent)
+        # Optional injected simulation (Gate 3). Avoid hard dependency to keep
+        # earlier tests stable. If provided, it must expose step(rng) with a
+        # deterministic RNG argument. We'll internally manage a Random instance.
+        self._simulation: _SimulationProto | None = simulation
+        self._sim_rng = None  # lazily created random.Random
         # Set SDL video driver for headless environments before pygame.init()
         import os
 
@@ -52,6 +62,17 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
 
     # --- Frame Loop -----------------------------------------------------
     def _on_tick(self) -> None:
+        # Step simulation first (if present) using a lazily-created RNG.
+        if self._simulation is not None:
+            import random
+
+            if self._sim_rng is None:
+                # Seed based on start time fractional part for repeatable session if needed.
+                self._sim_rng = random.Random(12345)
+            try:
+                self._simulation.step(self._sim_rng)
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"[SimulationWarning] Step error: {exc}")
         self._update_scene()
         self.update()  # trigger paintEvent
         self._frame += 1

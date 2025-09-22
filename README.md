@@ -2,12 +2,13 @@
 
 **An Educational Economic Simulation Platform for Microeconomics Learning**
 
-## Project Status: GATE 2 COMPLETE — PREF ARCH READY 🎯
+## Project Status: GATE 3 IN PROGRESS — SPATIAL & AGENT FOUNDATIONS ⚙️
 
 **Gate 1 Technical Validation**: ✅ COMPLETE – PyQt6 + Pygame integration working at ~62 FPS (headless-capable)
 **Gate 2 Preference Architecture**: ✅ COMPLETE – Cobb-Douglas, Perfect Substitutes, Leontief fully implemented with validation & serialization
+**Gate 3 Spatial / Agent Foundations**: 🚧 IN PROGRESS – Grid, Agent, Simulation coordinator, and optional widget integration implemented with deterministic & performance tests
 
-**Current Phase**: Transitioning to Gate 3 planning (Grid + Agents + Tick decoupling)
+**Current Phase**: Gate 3 implementation (Grid + Agents + Simulation integration)
 
 **Confidence Level**: Maximum - Working implementation validates all technical assumptions and educational approach.
 
@@ -33,19 +34,19 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 - **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
 - **Development Environment**: Complete vmt-dev virtual environment with all dependencies
 
-### **🚀 Current Capabilities (Post Gate 2)**
+### **🚀 Current Capabilities (Mid Gate 3)**
 ```bash
 # Working demonstration
 source vmt-dev/bin/activate
 make dev                     # Launches GUI at 62.5 FPS
-make test                    # 25 tests pass  
+make test                    # 37 tests pass  
 make lint                    # Code quality enforced
 python3 scripts/perf_stub.py --mode widget  # Performance validation
 ```
 
 ### **📊 Performance Metrics (Updated)**
-- **Frame Rate**: ~62 FPS (≈200% above 30 FPS requirement)
-- **Tests**: 25 unit tests passing (preferences + core widget)
+- **Frame Rate**: ~62 FPS (≈200% above 30 FPS requirement) with simulation enabled (≥30 FPS perf test passes)
+- **Tests**: 37 unit tests passing (preferences + core widget + grid/agent/simulation + perf integration)
 - **Code Quality**: Zero linting errors, formatted codebase
 - **CI Pipeline**: Fully functional with headless execution
 
@@ -96,12 +97,20 @@ Gate-based technical validation approach:
 - **Quality Gates**: Automated linting, formatting, type checking, unit testing
 - **Performance Monitoring**: Widget-based FPS measurement and synthetic benchmarking
 
-### **🎯 Upcoming (Gate 3 Planning)**
-- **Spatial Grid System**: NxN grid world abstraction + rendering overlay
-- **Agent Framework**: Position, inventory, preference reference (no decision policy yet)
-- **Tick Decoupling**: Separate simulation tick frequency from render loop
-- **Resource Placement**: Deterministic initial resource nodes
-- **Preference Integration**: Utility deltas computed after hypothetical collection (foundation for future decisions)
+### **🔄 Gate 3 Progress (Implemented So Far)**
+- **Grid System**: 2D bounded grid with O(1) resource membership via set, bounds validation, serialization
+- **Agent Framework**: Position, simple inventory (two goods), preference reference, random bounded movement, resource collection
+- **Simulation Coordinator**: Deterministic step (move then collect) with reproducible RNG seeding in tests
+- **Widget Integration**: Optional simulation stepping each frame without FPS regression
+- **Performance Guard**: Integration perf test (10 agents / 50 resources) asserts ≥30 FPS & step advancement
+- **Determinism Tests**: Re-seeded simulations produce identical trajectories & inventories
+
+### **🎯 Upcoming (Gate 4 Planning Preview)**
+- **Decision Logic**: Utility-driven movement / action selection replacing random walk
+- **Resource Typing**: Multiple resource categories mapping to differentiated goods
+- **Visualization Enhancements**: Rendering agent positions & resource nodes in widget
+- **Preference-Driven Metrics**: Track marginal utilities / opportunity cost during collection steps
+- **Tick Policy**: Potential decoupling of simulation rate from render loop (if needed for complexity)
 
 ## Preferences Architecture (Gate 2 Foundation)
 
