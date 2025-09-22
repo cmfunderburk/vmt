@@ -1,16 +1,28 @@
 ## VMT Copilot Quick Instructions (Keep Responses Lean & Actionable)
-Purpose: Fast orientation for AI agents contributing to VMT (PyQt6 desktop app embedding a Pygame surface). Focus on what is implemented NOW (Gate 1 baseline) and enforced guardrails.
+Purpose: Fast orientation for AI agents contributing to VMT (PyQt6 desktop app embedding a Pygame surface). Focus on implemented functionality (Gates 1-2 complete) and enforced gate workflow discipline.
 
 ### Architecture Snapshot
-Single process, single event loop. PyQt6 `QApplication` hosts a main window (`econsim.main:create_window`) whose central widget is `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`). Widget owns a QTimer (~16ms) that updates an off‑screen Pygame Surface (320x240) then repaints via `paintEvent` (Surface→RGBA bytes→`QImage`→draw). No threading, no background loops; all timing via QTimer + `app.processEvents()` in tests/perf.
+Single process, single event loop. PyQt6 `QApplication` hosts a main window (`econsim.main:create_window`) whose central widget is `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`). Widget owns a QTimer (~16ms) that updates an off‑screen Pygame Surface (320x240) then repaints via `paintEvent` (Surface→RGBA bytes→`QImage`→draw). No threading, no background loops; all timing via QTimer + `app.processEvents()` in tests/perf. Preferences module (`src/econsim/preferences/`) provides Cobb-Douglas, Perfect Substitutes, and Leontief utility formulations with validation/serialization.
 
-### Current Scope (Do NOT Exceed)
-In-scope: maintaining widget, minor perf or stability tweaks, documentation, test robustness.
-Out-of-scope until later gates: grid/agents, economic preference math, persistence, advanced UI (menus/toolbars), threading, packaging, logging layers, analytics.
+### Current Scope (Gates 1-2 Complete; Gate 3 Planning)
+In-scope: widget maintenance, preferences system, performance/stability, documentation, test robustness, Gate 3 scaffolding (grid/agent foundations).
+Out-of-scope until later gates: agent decision logic, advanced UI (menus/toolbars), threading, packaging, logging layers, analytics.
+
+### Mandatory Gate Workflow (ENFORCE BEFORE ANY GIT PUSH)
+**CRITICAL**: All gate work must follow this sequence. NO exceptions.
+
+1. **Generate Todo List**: Create `Gate_N_todos.md` with scope, acceptance criteria, step-by-step plan
+2. **Create Checklist**: Extract acceptance criteria into checkable `GATE_N_CHECKLIST.md` 
+3. **Discuss & Agree**: Review scope, risks, timeline with stakeholder before implementation
+4. **Execute Systematically**: Work through agreed steps; update todos/checklist as completed
+5. **Write Retrospective Eval**: Create `GATE_N_EVAL.md` in critical evaluation style (map criteria to evidence, identify gaps/risks, assess readiness)
+6. **ONLY THEN**: Git commit/push after retrospective eval documents the gate completion
+
+**Violation = Scope creep risk**. Always document what was delivered vs promised, performance impact, technical debt created, and readiness for next gate.
 
 ### Core Developer Workflow
 Activate env then use Make targets:
-`make dev` (run GUI), `make test` (pytest headless), `make lint` (ruff+black check), `make format`, `make type` (mypy), `make perf` (runs `scripts/perf_stub.py --mode widget`). Headless CI sets `SDL_VIDEODRIVER=dummy` and `QT_QPA_PLATFORM=offscreen` (see perf & tests). Prefer adding new Make targets rather than ad-hoc scripts.
+`make dev` (run GUI), `make test` (25 tests pass), `make lint` (ruff+black check), `make format`, `make type` (mypy), `make perf` (runs `scripts/perf_stub.py --mode widget`). Headless CI sets `SDL_VIDEODRIVER=dummy` and `QT_QPA_PLATFORM=offscreen` (see perf & tests). Prefer adding new Make targets rather than ad-hoc scripts.
 
 ### Key Files
 `src/econsim/main.py` – entry + window factory.
