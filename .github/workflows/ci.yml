@@ -30,3 +30,4 @@ jobs:
         run: pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
+          SDL_VIDEODRIVER: dummy

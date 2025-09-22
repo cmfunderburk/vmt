@@ -75,10 +75,15 @@ make clean     # remove caches
 
 ## 7. File Landmarks (Early Stage)
 - src/econsim/main.py – entry point
-- src/econsim/gui/embedded_pygame.py – widget (planned)
+- src/econsim/gui/embedded_pygame.py – embedded widget (implemented Gate 1)
 - scripts/perf_stub.py – FPS probe
 - tests/unit/test_imports.py – smoke
 - .github/workflows/ci.yml – automation
+
+### Pending Validation Artifacts (in progress)
+- tests/unit/test_perf_widget.py – automated FPS threshold check (≥25 CI, aiming ≥30 manual)
+- tests/unit/test_shutdown.py – ensures clean pygame teardown
+- tmp_plans/Gate_1_retrospective.md – closure + metrics documentation scaffold
 
 ## 8. AI Response Protocol
 Each assistant response should supply:

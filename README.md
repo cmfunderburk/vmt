@@ -48,6 +48,16 @@ python3 scripts/perf_stub.py --mode widget  # Performance validation
 - **Code Quality**: Zero linting errors, formatted codebase
 - **CI Pipeline**: Fully functional with headless execution
 
+#### Gate 1 Performance Validation Details
+Authoritative 5s run (2025-09-22):
+```json
+{"frames": 310.0, "duration_s": 5.000980996999715, "avg_fps": 61.98783802337605}
+```
+Interpretation:
+- Sustained ~62 FPS (stretch goal met; ≥30 requirement exceeded with large margin)
+- Headless path stable (CI uses SDL_VIDEODRIVER=dummy + QT_QPA_PLATFORM=offscreen)
+- Current automated perf test uses a conservative ≥25 FPS threshold to avoid flakiness; may be tightened after observing CI stability.
+
 ## Documentation Organization
 
 ### **📁 Complete Planning Documentation** (`orientation_docs/`)

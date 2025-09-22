@@ -63,8 +63,8 @@ def run_widget(duration_s: float = 5.0) -> dict[str, float]:
             "duration_s": elapsed,
             "avg_fps": frame_count / elapsed if elapsed > 0 else 0.0
         }
-    except Exception:  # Broad exception for robustness
-        # Return failure result with proper typing
+    except Exception as exc:  # Broad exception for robustness
+        print(f"[perf_stub] widget mode failed: {exc}", file=sys.stderr)
         return {"frames": 0.0, "duration_s": duration_s, "avg_fps": 0.0}
 
 
@@ -73,33 +73,33 @@ def run(duration_s: float = 2.0, target_fps: float = 60.0) -> dict[str, float]:
     return run_synthetic(duration_s, target_fps)
 
 
-if __name__ == "__main__":
+def main() -> None:  # pragma: no cover - simple script
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="VMT Performance Test")
     parser.add_argument("--mode", choices=["synthetic", "widget"], default="synthetic",
-                       help="Test mode: synthetic simulation or real widget")
+                        help="Test mode: synthetic simulation or real widget")
     parser.add_argument("--duration", type=float, default=5.0,
-                       help="Test duration in seconds")
+                        help="Test duration in seconds")
     parser.add_argument("--target-fps", type=float, default=60.0,
-                       help="Target FPS for synthetic mode")
+                        help="Target FPS for synthetic mode")
     parser.add_argument("--json", action="store_true",
-                       help="Output JSON format")
-    
+                        help="Output JSON format")
+
     args = parser.parse_args()
-    
+
     if args.mode == "widget":
         result = run_widget(args.duration)
     else:
         result = run_synthetic(args.duration, args.target_fps)
-    
+
     if args.json:
         print(json.dumps(result))
     else:
         print(f"Frames: {result['frames']:.0f}")
         print(f"Duration: {result['duration_s']:.2f}s")
         print(f"Avg FPS: {result['avg_fps']:.1f}")
-        
+
         # Gate 1 success criteria check
         fps = result['avg_fps']
         if fps >= 30:
@@ -108,10 +108,5 @@ if __name__ == "__main__":
             print(f"✗ Gate 1 FPS requirement failed (<30 FPS: {fps:.1f})")
 
 
-def main() -> None:  # pragma: no cover - simple script
-    data = run()
-    print(json.dumps(data))
-
-
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

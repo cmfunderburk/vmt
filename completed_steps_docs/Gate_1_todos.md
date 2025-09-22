@@ -51,6 +51,8 @@ Step-by-step plan
    - Update `README.md` and `orientation_docs/Week0/Week 0 Success Metrics.md` with results and instructions.
    - Run the acceptance checklist and finalize Gate 1 status in docs.
 
+8) Critically evaluate and discuss what has been accomplished, including a final to-do list to begin Week 1 prep. Write that evaluation and discussion to the file tmp_plans/Gate_1_retrospective
+
 Estimated total: 10-18 hours (spread across 1-3 days depending on interruptions)
 
 Quick commands

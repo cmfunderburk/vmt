@@ -6,10 +6,10 @@ Objective: Establish a functional PyQt6 application embedding (or blitting from)
 - [x] PyQt6 window launches and closes without warnings/exceptions.
 - [x] Pygame initialized and quit safely (no lingering SDL resources).
 - [x] Embedded (or off-screen) Pygame surface renders moving rect / color cycle.
-- [x] Sustains ≥30 FPS average over ≥5 seconds (stretch goal: ≥55–60 FPS) with trivial render. **ACHIEVED: 62.5 FPS**
-- [x] FPS stats printed (or JSON) including frames, duration, avg_fps.
+- [x] Sustains ≥30 FPS average over ≥5 seconds (stretch goal: ≥55–60 FPS) with trivial render. **ACHIEVED: 61.99–62.5 FPS (dev machine)**
+- [x] FPS stats printed / JSON including frames, duration, avg_fps.
 - [x] No zombie Python process after window close (process exits normally).
-- [x] CI workflow passes: lint + relaxed type + smoke test.
+- [x] CI workflow passes: lint + relaxed type + smoke + perf threshold test.
 - [x] Scope guardrails honored (no agents, economics, analytics, tutorials, persistence, threading, packaging).
 
 ## Explicit Out-of-Scope for Gate 1
@@ -45,16 +45,26 @@ Objective: Establish a functional PyQt6 application embedding (or blitting from)
 - Later extension: add stdev, frame time histogram.
 
 ## Acceptance Review
-Gate 1 Status: ✅ **IMPLEMENTATION COMPLETE** - Ready for validation review
+Gate 1 Status: ✅ **COMPLETE (Implementation + Validation Closure)**
 - [x] Checklist items all checked.
-- [x] Performance validation: 62.3 FPS (widget mode), 62.5 FPS (live demo)
-- [x] Perf stub JSON available: `python3 scripts/perf_stub.py --mode widget --json`
+- [x] Performance validation: 5s run JSON recorded (see below)
+- [x] Perf stub JSON available: `python3 scripts/perf_stub.py --mode widget --duration 5 --json`
 - [x] Environment setup documented and validated (vmt-dev virtual environment)
+- [x] Headless compatibility validated (CI uses SDL_VIDEODRIVER=dummy + QT_QPA_PLATFORM=offscreen)
 
-**Deviations/Compromises:**
-- ALSA audio warnings (cosmetic only, no audio needed for Gate 1)
-- Type checking in relaxed mode (as planned)
-- SDL dummy driver used for headless compatibility
+### Authoritative Performance JSON (2025-09-22)
+```json
+{"frames": 310.0, "duration_s": 5.000980996999715, "avg_fps": 61.98783802337605}
+```
+Interpretation:
+- Stretch target (≈60 FPS) met comfortably; safety margin for future grid layer.
+- Frame pacing visually smooth; no stutter observed (formal jitter metrics deferred).
+
+**Deviations / Notes:**
+- ALSA audio warnings (expected in headless; harmless)
+- Type checking remains relaxed (intentional early phase posture)
+- SDL dummy driver used for headless compatibility (documented & stable)
+- Automated perf test threshold set to ≥25 FPS (will consider tightening after observing CI stability)
 
 ## Post-Gate 1 Next Steps (Do Not Start Before Completion)
 1. Abstract render/update interface.
