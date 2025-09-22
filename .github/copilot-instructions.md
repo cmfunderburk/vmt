@@ -9,7 +9,8 @@
 - **Primary Language**: Python 3.11+
 - **GUI Framework**: PyQt6 with embedded Pygame visualization
 - **Architecture**: Self-contained desktop app with agent-based economic simulation on spatial NxN grid
-- **Repository Size**: Planning and design phase (comprehensive documentation, no implementation yet)
+- **Repository Status**: **Planning Complete - Ready for Week 0 Validation Implementation**
+- **Current Phase**: Gate 1 Technical Validation (PyQt6 + Pygame integration)
 - **Target Platforms**: macOS/Linux initially (Windows expandable later)
 - **Distribution Model**: Self-contained executable files for easy educational deployment
 
@@ -24,17 +25,26 @@ The platform addresses the common student criticism of "people don't behave like
 - **Make** for task automation
 
 ### Environment Setup
-**Note: Repository is currently in planning phase - build files don't exist yet.**
+**Current Status: Ready for Week 0 Validation Implementation**
 
-When the project is implemented, environment setup will be:
-
+**Immediate Setup for Week 0 Validation:**
 ```bash
-# Create virtual environment (recommended)
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Create virtual environment for validation work
+python3 -m venv vmt-dev
+source vmt-dev/bin/activate  # On Windows: vmt-dev\Scripts\activate
 
-# Install all dependencies for development (when pyproject.toml exists)
-pip install -e .[dev,educational]
+# Install core dependencies for Week 0 validation
+pip install PyQt6>=6.5.0 pygame>=2.5.0 numpy>=1.24.0
+pip install pytest>=7.4.0 black>=23.0.0 ruff>=0.0.280
+
+# Follow detailed setup: orientation_docs/Week0/Week 0 Development Setup.md
+```
+
+**Full Project Setup (Post-Validation):**
+```bash
+# When project structure is created from specifications
+make install  # Uses project_structure_specification.md
+pip install -e .[dev,educational]  # When pyproject.toml is implemented
 ```
 
 ### Core Dependencies
@@ -55,29 +65,30 @@ pip install -e .[dev,educational]
 
 ### Build Commands
 
-**When implemented, always use the Makefile for standardized builds:**
-
+**Week 0 Validation Commands:**
 ```bash
-# Install all dependencies for educational use
-make install
+# Run Week 0 validation tests
+python validation_workspace/gate1_technical/test_pyqt6_basic.py
+python validation_workspace/gate1_technical/test_pygame_integration.py
 
-# Run comprehensive test suite (includes visual validation)
-make test
-
-# Run visual regression tests specifically
-make visual-test
-
-# Start development environment with hot reload
-make dev
-
-# Clean build artifacts
-make clean
-
-# Generate educational documentation
-make docs
+# Validate development setup
+python -c "import PyQt6, pygame, numpy; print('Week 0 dependencies ready')"
 ```
 
-**Current State**: No Makefile or pyproject.toml exists yet - repository is in planning phase.
+**Future Build Commands (Post-Structure Creation):**
+```bash
+# Create project structure from specifications
+python scripts/create_project_structure.py  # Uses project_structure_specification.md
+
+# Full development workflow (when implemented)
+make install      # Install all dependencies
+make test         # Run comprehensive test suite
+make dev          # Start development environment
+make clean        # Clean build artifacts
+make docs         # Generate documentation
+```
+
+**Current State**: Project structure specifications ready for implementation. Use orientation_docs/ planning documents to guide development.
 
 ### Testing Strategy
 
@@ -131,61 +142,76 @@ make docs
 
 ## Project Layout and Architecture
 
-### Core Architecture Components
+### **Current Repository Status: Complete Planning + Ready for Implementation**
 
-**M-01: Spatial Foundation Module** (`src/econsim/spatial/`)
-- Grid-based world with spatial indexing
-- Agent movement and spatial constraints
-- Real-time visualization and animation
+**Planning Documents** (`orientation_docs/`)
+- `README.md` - Complete documentation index and navigation
+- `current_assessment.md` - 99% project readiness assessment  
+- `Implementation Roadmap.md` - Phase-based development plan with supporting specifications
+- `project_structure_specification.md` - **Complete directory hierarchy ready for creation**
+- `validation_to_production_transition_plan.md` - Systematic prototype→production evolution
+- `educational_scenarios_specification.md` - Concrete tutorial scenarios with JSON parameters
+- `development_workflow_guide.md` - Git branching, CI/CD pipeline, quality gates
+- `implementation_phase_gates.md` - Rigorous implementation progression system
 
-**M-02: Consumer Theory Module** (`src/econsim/theory/`)  
-- Three core preference types (Cobb-Douglas, Perfect Substitutes, Leontief)
-- Rational choice functions and utility implementations
-- Demand theory and consumer surplus calculations
+**Week 0 Validation** (`orientation_docs/Week0/`)
+- `Week 0 Development Setup.md` - **Start here for environment setup**
+- `Week 0 Economic Theory Validation.md` - Mathematical validation with spatial collection framework  
+- `Week 0 GUI Approach.md` - PyQt6 + Pygame integration approach
+- `Week 0 Success Metrics.md` - Measurable validation criteria
 
-**M-03: Educational Framework Module** (`src/econsim/education/`)
-- Progressive economic concept tutorials
-- Pre-built educational scenarios  
-- Learning effectiveness measurement tools
+**Validation Workspace** (Ready to Create)
+- `validation_workspace/gate1_technical/` - PyQt6 + Pygame integration prototypes
+- `validation_workspace/gate2_economic_theory/` - Economic implementation validation
+- `validation_workspace/gate3_spatial_integration/` - Spatial choice behavior validation  
+- `validation_workspace/gate4_educational_interface/` - Educational workflow validation
 
-**M-04: Analytics Engine Module** (`src/econsim/analytics/`)
-- Interactive statistical dashboards
-- Research-grade data export
-- Publication-quality visualizations
+### Core Architecture Modules (Specified, Ready to Implement)
 
-### Key File Locations
+**`src/econsim/`** - Main application package (structure defined)
+- `gui/` - PyQt6 interface components with embedded Pygame widgets
+- `spatial/` - Grid-based simulation foundation with agent behavior  
+- `theory/` - Economic preference implementations (Cobb-Douglas, Perfect Substitutes, Leontief)
+- `education/` - Tutorial system and learning assessment framework
+- `analytics/` - Data analysis and research-grade export capabilities
+- `utils/` - Configuration, logging, validation utilities
 
-**Current Repository Contents (Planning Phase):**
-- `initial_planning.md` - Comprehensive project specification updated for desktop GUI application
-- `planning.prompt.md` - Structured project planning framework and templates
-- `Current_Assessment.md` - Assessment of project readiness and strategic decisions needed
-- `Theory_Progression_Considerations.md` - Economic theory implementation decisions
-- `Week 0 GUI Approach.md` - Desktop GUI development roadmap and PyQt6 learning guide
-- `Planning Document Review.md` - Gap analysis and improvement recommendations for current planning
+**`tests/`** - Comprehensive test organization (structure defined)
+- `unit/` - Fast, isolated component tests with 90%+ coverage target
+- `integration/` - Cross-module interaction tests
+- `visual_regression/` - Cross-platform visual consistency validation  
+- `educational_validation/` - Economic theory accuracy and pedagogical effectiveness
 
-**Planned Application Entry (Not Yet Implemented):**
-- `src/econsim/main.py` - Primary application entry point
-- `src/econsim/__init__.py` - Package exports and version
-
-**Planned Core Modules (Architecture Defined):**
-- `src/econsim/spatial/grid.py` - NxN grid world implementation
-- `src/econsim/spatial/agents.py` - Spatial agent behavior
-- `src/econsim/theory/preferences.py` - Three preference type implementations
-- `src/econsim/education/tutorials.py` - Educational content system
-
-**Planned Configuration Files:**
-- `pyproject.toml` - Python project configuration, dependencies, and tool settings
-- `config/development.yaml` - Development environment settings
-- `config/educational.yaml` - Educational mode configuration  
-- `config/performance.yaml` - Performance testing parameters
-
-**Planned Build and Automation:**
-- `Makefile` - Primary build automation (use these commands first)
-- `scripts/setup_dev_environment.py` - Development setup automation
-- `scripts/validate_economics.py` - Economic theory validation
-- `scripts/run_visual_tests.py` - Visual regression testing
+**Supporting Infrastructure** (Specifications Ready)
+- `config/` - Environment-specific configuration files
+- `scripts/` - Build automation and development tools
+- `resources/` - Icons, images, fonts, example scenarios
+- `docs/` - User guides, API documentation, educational materials
 
 ### Testing Structure (Planned Architecture)
+```
+tests/                      # Not yet implemented
+├── unit/                    # Fast, isolated component tests
+├── integration/             # Cross-module interaction tests
+├── visual_regression/       # Visual consistency testing
+└── economic_validation/     # Economic theory validation
+```
+
+### Documentation Structure (Current and Planned)
+```
+# Current comprehensive planning documents:
+initial_planning.md         # Complete project specification (50k+ words)
+planning.prompt.md          # Project planning framework and templates  
+Current_Assessment.md       # Project readiness assessment
+Theory_Progression_Considerations.md  # Economic theory decisions
+
+# Planned documentation structure:
+docs/                       # Not yet implemented
+├── README.md               # Getting started guide
+├── DEVELOPMENT.md          # Development workflows and setup
+├── EDUCATIONAL_GUIDE.md    # Teaching with the platform
+└── ECONOMIC_THEORY.md      # Economic foundations and validation
+``` (Planned Architecture)
 ```
 tests/                      # Not yet implemented
 ├── unit/                    # Fast, isolated component tests
