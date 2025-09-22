@@ -19,7 +19,7 @@ Acceptance Criteria (must pass all)
 4. At least one fully implemented preference (Cobb‑Douglas) with correct analytical utility for 2-good bundle; others may start as structured stubs with TODO markers unless time permits.
 5. Round‑trip serialization (dict) works for implemented preferences (create → serialize → deserialize → equivalent behavior).
 6. Unit tests cover: factory creation, parameter mutation, validation errors, serialization symmetry, basic utility correctness.
-7. Optional preview hook: simple adapter function can supply dynamic color/intensity value to existing widget (no agent logic) without harming FPS (perf test still ≥30 FPS in widget mode for 2s run).
+7. (Deferred) Preview hook: Will be implemented post grid/agent introduction so visualization can reflect meaningful state (removed from Gate 2 required scope).
 8. Documentation comments (module & class docstrings) explain economic meaning & parameter constraints (concise, non‑tutorial).
 9. All quality gates pass: `make lint`, `make type` (mypy clean for new modules), `make test` (new tests included), `make perf` unaffected.
 10. No introduction of threading or long blocking loops; event loop discipline preserved.

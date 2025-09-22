@@ -2,11 +2,12 @@
 
 **An Educational Economic Simulation Platform for Microeconomics Learning**
 
-## Project Status: WEEK 0 COMPLETE - IMPLEMENTATION PHASE 🎯
+## Project Status: GATE 2 COMPLETE — PREF ARCH READY 🎯
 
-**Gate 1 Technical Validation**: ✅ **COMPLETE** - PyQt6 + Pygame integration working at 62.5 FPS with full headless compatibility.
+**Gate 1 Technical Validation**: ✅ COMPLETE – PyQt6 + Pygame integration working at ~62 FPS (headless-capable)
+**Gate 2 Preference Architecture**: ✅ COMPLETE – Cobb-Douglas, Perfect Substitutes, Leontief fully implemented with validation & serialization
 
-**Current Phase**: Implementation Gate 1 - Building spatial foundation and agent framework on validated technical base.
+**Current Phase**: Transitioning to Gate 3 planning (Grid + Agents + Tick decoupling)
 
 **Confidence Level**: Maximum - Working implementation validates all technical assumptions and educational approach.
 
@@ -32,19 +33,19 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 - **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
 - **Development Environment**: Complete vmt-dev virtual environment with all dependencies
 
-### **🚀 Current Capabilities**
+### **🚀 Current Capabilities (Post Gate 2)**
 ```bash
 # Working demonstration
 source vmt-dev/bin/activate
 make dev                     # Launches GUI at 62.5 FPS
-make test                    # All 3 tests pass  
+make test                    # 25 tests pass  
 make lint                    # Code quality enforced
 python3 scripts/perf_stub.py --mode widget  # Performance validation
 ```
 
-### **📊 Performance Metrics**
-- **Frame Rate**: 62.5 FPS (208% above minimum 30 FPS requirement)
-- **Test Coverage**: 3/3 unit tests passing
+### **📊 Performance Metrics (Updated)**
+- **Frame Rate**: ~62 FPS (≈200% above 30 FPS requirement)
+- **Tests**: 25 unit tests passing (preferences + core widget)
 - **Code Quality**: Zero linting errors, formatted codebase
 - **CI Pipeline**: Fully functional with headless execution
 
@@ -95,11 +96,74 @@ Gate-based technical validation approach:
 - **Quality Gates**: Automated linting, formatting, type checking, unit testing
 - **Performance Monitoring**: Widget-based FPS measurement and synthetic benchmarking
 
-### **🎯 Next Phase (Implementation Gate 1)**
-- **Spatial Grid System**: NxN grid world with configurable dimensions
-- **Agent Framework**: Lifecycle management with state persistence  
-- **Economic Preferences**: Cobb-Douglas, Perfect Substitutes, Leontief implementations
-- **Educational Progression**: Tutorial system with measurable learning outcomes
+### **🎯 Upcoming (Gate 3 Planning)**
+- **Spatial Grid System**: NxN grid world abstraction + rendering overlay
+- **Agent Framework**: Position, inventory, preference reference (no decision policy yet)
+- **Tick Decoupling**: Separate simulation tick frequency from render loop
+- **Resource Placement**: Deterministic initial resource nodes
+- **Preference Integration**: Utility deltas computed after hypothetical collection (foundation for future decisions)
+
+## Preferences Architecture (Gate 2 Foundation)
+
+Gate 2 establishes a lightweight but extensible preference system enabling multiple utility formulations without committing yet to full agent/grid complexity.
+
+### Implemented Preference Types
+- **Cobb-Douglas**: U(x, y) = x^α * y^(1-α)
+- **Perfect Substitutes**: U(x, y) = a·x + b·y
+- **Leontief (Perfect Complements)**: U(x, y) = min(x/a, y/b)
+
+All concrete preferences share the abstract `Preference` contract:
+- `utility(bundle: tuple[float, float]) -> float`
+- `describe_parameters() -> dict[str, float]`
+- `update_params(**kwargs)` with validation
+- `serialize() / @classmethod deserialize(data)`
+
+### Usage Example
+```python
+from econsim.preferences import (
+	PreferenceFactory,
+	CobbDouglasPreference,
+	PerfectSubstitutesPreference,
+	LeontiefPreference,
+)
+
+# Direct instantiation
+cd = CobbDouglasPreference(alpha=0.4)
+u_cd = cd.utility((4.0, 9.0))
+
+# Factory creation (string driven)
+ps = PreferenceFactory.create("perfect_substitutes", a=2.0, b=1.0)
+u_ps = ps.utility((3.0, 5.0))  # 2*3 + 1*5 = 11
+
+leo = PreferenceFactory.create("leontief", a=2.0, b=4.0)
+u_leo = leo.utility((6.0, 20.0))  # min(6/2, 20/4) = 3
+
+# Safe parameter update
+cd.update_params(alpha=0.6)
+
+# Serialization round trip
+payload = cd.serialize()
+cd_clone = PreferenceFactory.from_serialized(payload)
+assert abs(cd_clone.utility((2.0, 5.0)) - cd.utility((2.0, 5.0))) < 1e-12
+```
+
+### Design Notes
+- Two-good bundle fixed for now (`tuple[float, float]`) for simplicity & performance
+- Negative quantities raise `PreferenceError`
+- Additional forms can be added by subclassing and registering (≈50 lines including tests)
+- Visualization preview hooks intentionally deferred until agents/grid give contextual meaning
+
+### Performance & Testing
+- 25 unit tests cover utility correctness, parameter validation, and serialization symmetry
+- No measurable FPS regression (still ~62 FPS vs ≥30 requirement)
+- See `completed_steps_docs/GATE2_EVAL.md` and `completed_steps_docs/Gate_2_acceptance_note.md` for evidence mapping
+
+### Future Extension (Later Gates)
+- Generalize to N-good bundles
+- Introduce stochastic or adaptive preference variants for advanced educational scenarios
+- Integrate with agent decision loop + spatial resource acquisition
+
+---
 
 ## Quick Start
 
@@ -197,20 +261,23 @@ All major technical risks eliminated through working implementation:
 - **⭐ Professional Standards**: Code quality, testing, and CI/CD exceeding industry practices
 - **🎓 Educational Ready**: Technical platform validated for microeconomics learning objectives
 
-## Next Steps: Implementation Gate 1
+## Next Steps: Gate 3 (Planned)
 
-**Technical validation complete** - Ready for spatial foundation development.
+Gate 2 accepted. Preparing spatial + agent scaffold.
 
-1. **Grid System Implementation**: Build configurable NxN spatial grid with visualization
-2. **Agent Framework**: Implement agent lifecycle, state management, and movement
-3. **Economic Preferences**: Add Cobb-Douglas, Perfect Substitutes, Leontief behavior types
-4. **Educational Integration**: Tutorial system with measurable learning outcome tracking
+1. Grid abstraction + optional overlay rendering
+2. TickController decoupling (simulation vs render cadence)
+3. Agent model (id, position, inventory, preference)
+4. Resource placement (static list of coordinates)
+5. Inventory update + utility recompute hook
+6. Tests: grid bounds, tick progression, agent spawn/remove, inventory increment, preference call integration
+7. Perf harness extension: report sim ticks alongside FPS
 
-**Current Performance**: 62.5 FPS provides substantial headroom for complex agent simulations and educational features.
+Performance Headroom: ~62 FPS baseline leaves ample margin for logic layering.
 
 ---
 
-**Project Status**: Week 0 Complete - Implementation Gate 1 In Progress  
-**Technical Validation**: ✅ PyQt6 + Pygame Integration at 62.5 FPS  
+**Project Status**: Gate 2 Complete — Transitioning to Gate 3 Planning  
+**Technical Validation**: ✅ PyQt6 + Pygame (Gate 1) | ✅ Preferences (Gate 2)  
 **Last Updated**: September 22, 2025  
 **Repository**: [github.com/cmfunderburk/vmt](https://github.com/cmfunderburk/vmt)
