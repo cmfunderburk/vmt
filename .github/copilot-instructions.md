@@ -2,15 +2,16 @@
 
 ## Repository Overview
 
-**VMT** is an educational **Economic Simulation Platform** (EconSim) designed to teach microeconomic theory through spatial agent-based visualizations. This is a **Python-based educational tool** that uses visualization-first development to help students understand abstract economic concepts through concrete spatial interactions.
+**VMT** is an educational **Economic Simulation Platform** (EconSim) designed to teach microeconomic theory through spatial agent-based visualizations. This is a **Desktop GUI Application** built with PyQt6 that uses visualization-first development to help students understand abstract economic concepts through concrete spatial interactions.
 
 ### Key Repository Information
-- **Project Type**: Python educational library/application with GUI components
+- **Project Type**: Desktop GUI Application with Educational Focus
 - **Primary Language**: Python 3.11+
-- **Main Framework**: Pygame for real-time visualization
-- **Architecture**: Agent-based economic simulation with spatial NxN grid
-- **Repository Size**: Early-stage planning repository (mostly documentation currently)
-- **Target Runtime**: Desktop applications for educational environments
+- **GUI Framework**: PyQt6 with embedded Pygame visualization
+- **Architecture**: Self-contained desktop app with agent-based economic simulation on spatial NxN grid
+- **Repository Size**: Planning and design phase (comprehensive documentation, no implementation yet)
+- **Target Platforms**: macOS/Linux initially (Windows expandable later)
+- **Distribution Model**: Self-contained executable files for easy educational deployment
 
 ### Educational Mission
 The platform addresses the common student criticism of "people don't behave like that" by demonstrating multiple preference types (Cobb-Douglas, Perfect Substitutes, Leontief) through spatial agent behavior, showing that economic theory provides a flexible framework rather than rigid assumptions.
@@ -37,16 +38,20 @@ pip install -e .[dev,educational]
 ```
 
 ### Core Dependencies
-- **pygame>=2.5.0**: Real-time educational visualization
+- **PyQt6**: Professional desktop GUI framework with OpenGL integration
+- **pygame>=2.5.0**: Real-time visualization engine (embedded in PyQt6 widgets)
 - **numpy>=1.24.0**: Efficient economic computation  
 - **scipy>=1.10.0**: Optimization for equilibrium solving
-- **matplotlib>=3.7.0**: Educational plotting and analysis
+
+### Desktop Application Dependencies
+- **PyInstaller 6.0+**: Cross-platform application packaging for self-contained distribution
+- **Pillow**: Image processing for icons, splash screens, and visual assets
 
 ### Development Dependencies
-- **pytest>=7.4.0**: Testing framework with visual testing extensions
+- **pytest>=7.4.0**: Testing framework with GUI and visual testing extensions
 - **black>=23.0.0**: Code formatting for educational code clarity
 - **ruff>=0.0.280**: Fast, comprehensive linting
-- **mypy>=1.5.0**: Type checking for educational software reliability
+- **mypy>=1.5.0**: Type checking for desktop application reliability
 
 ### Build Commands
 
@@ -151,11 +156,12 @@ make docs
 ### Key File Locations
 
 **Current Repository Contents (Planning Phase):**
-- `initial_planning.md` - Comprehensive 50k+ word project specification and architecture
+- `initial_planning.md` - Comprehensive project specification updated for desktop GUI application
 - `planning.prompt.md` - Structured project planning framework and templates
 - `Current_Assessment.md` - Assessment of project readiness and strategic decisions needed
 - `Theory_Progression_Considerations.md` - Economic theory implementation decisions
-- `PLANNING_DOCUMENT.md` - Empty placeholder for future planning
+- `Week 0 GUI Approach.md` - Desktop GUI development roadmap and PyQt6 learning guide
+- `Planning Document Review.md` - Gap analysis and improvement recommendations for current planning
 
 **Planned Application Entry (Not Yet Implemented):**
 - `src/econsim/main.py` - Primary application entry point
@@ -256,13 +262,23 @@ docs/                       # Not yet implemented
 
 ## Working with Current Repository State
 
-### What You Can Do Now
-Since the repository is in planning phase, focus on:
+### Current Phase: Planning and Design (September 2025)
+The repository is actively in **planning refinement phase** with recent major decisions:
 
-1. **Review comprehensive planning documents** - `initial_planning.md` contains detailed architecture
-2. **Understand educational philosophy** - Read about addressing "people don't behave like that" criticism
-3. **Prepare implementation** - Use planning documents to create initial project structure
-4. **Validate planning** - Check if planning assumptions still hold
+**Recent Updates**:
+- ✅ **Interface Decision**: Chose Desktop GUI Application (PyQt6 + embedded Pygame) over library approach
+- ✅ **Success Metrics**: Updated to be solo-developer measurable and testable
+- ✅ **Week 0 Validation**: Added technology validation phase for PyQt6-Pygame integration
+- ✅ **Target Platforms**: Focused on macOS/Linux for initial MVP (Windows later)
+
+### What You Can Do Now
+Since the repository is in active planning phase, focus on:
+
+1. **Review recent planning updates** - `initial_planning.md` contains desktop GUI architecture decisions
+2. **Understand desktop GUI approach** - `Week 0 GUI Approach.md` has PyQt6 development roadmap  
+3. **Address planning gaps** - `Planning Document Review.md` identifies specific improvement areas
+4. **Refine educational content** - Help define specific tutorial scenarios for each preference type
+5. **Prepare for Week 0** - Assist with technology validation planning and GUI architecture design
 
 ### Creating Initial Implementation
 When starting implementation:
@@ -273,13 +289,13 @@ When starting implementation:
 4. **Implement build automation** before writing core logic
 
 ### Expected Implementation Timeline
-According to planning documents:
-- **Week 0**: Technology validation (Pygame + 3 preference types)
-- **Week 1-2**: Spatial foundation (grid, agents, basic rendering)
-- **Week 3-4**: Preference system (Cobb-Douglas, Perfect Substitutes, Leontief)
-- **Week 5-6**: Educational content and tutorials
-- **Week 7**: Integration and testing
-- **Week 8**: Polish and validation
+According to current planning documents:
+- **Week 0**: Technology validation (PyQt6 + Pygame integration, 3 preference types proof-of-concept)
+- **Week 1-2**: Spatial foundation (grid, agents, basic PyQt6 GUI with embedded Pygame)
+- **Week 3-4**: Flexible preference architecture and parameter controls
+- **Week 5-6**: Three core preference types (Cobb-Douglas, Perfect Substitutes, Leontief)
+- **Week 7**: Spatial choice integration and comprehensive testing
+- **Week 8**: Educational interface, tutorials, and application packaging
 
 ### Build Command Timing Expectations
 When implemented, expect these timing requirements:
@@ -288,6 +304,13 @@ When implemented, expect these timing requirements:
 - **Unit tests**: <5 minutes for comprehensive suite
 - **Visual regression tests**: <10 minutes across platforms
 - **Educational validation**: <15 minutes for all economic scenarios
+
+### Desktop Application Packaging
+When ready for distribution:
+- **PyInstaller packaging**: 2-5 minutes per platform
+- **Application size**: ~50-100MB self-contained executable
+- **Startup time**: <3 seconds from click to functional GUI
+- **Cross-platform testing**: Manual testing required on macOS/Linux
 
 ### When Making Changes to Economic Models
 - **Always validate against analytical solutions** using `scripts/validate_economics.py`
@@ -306,6 +329,13 @@ When implemented, expect these timing requirements:
 - **Test with realistic agent counts** (50+ for education, 1000+ for research)
 - **Run visual regression tests** to prevent unintended visual changes
 - **Verify pygame compatibility** across platforms
+
+### When Working on Desktop GUI Components
+- **PyQt6 Layout Management**: Use proper layout managers (QVBoxLayout, QHBoxLayout) for responsive design
+- **Signal-Slot Connections**: Connect GUI controls to simulation updates using PyQt6 signal/slot mechanism
+- **Threading Considerations**: Keep simulation updates on main thread or use QTimer for smooth integration
+- **Resource Management**: Use Qt resource system for icons, images, and UI assets
+- **Cross-Platform GUI**: Test layout and appearance on both macOS and Linux
 
 ### Performance Considerations
 - **Spatial partitioning** is used for efficient agent management
@@ -329,6 +359,12 @@ When implemented, expect these timing requirements:
 - Students often struggle with "unrealistic" assumptions - emphasize framework flexibility
 - Visual complexity can overwhelm - use progressive disclosure
 - Parameter adjustment UI becomes complex with three preference types
+
+**Desktop Application Packaging:**
+- PyInstaller platform differences can cause runtime issues
+- Always test packaged applications on clean systems without Python installed
+- File path handling differs between development and packaged environments
+- Icon and resource loading requires special attention in packaged apps
 
 ## Repository State and Dependencies
 
