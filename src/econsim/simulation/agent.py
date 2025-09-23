@@ -166,7 +166,9 @@ class Agent:
         best: tuple[float, int, int, int] | None = None  # key = (-delta_u, dist, x, y)
         best_meta: tuple[int, int] | None = None
         max_dist = default_PERCEPTION_RADIUS
-        for rx, ry, rtype in grid.iter_resources():
+        # Use sorted iteration (Gate 5 deterministic ordering scaffold)
+        iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
+        for rx, ry, rtype in iterator:
             dist = self._manhattan(self.x, self.y, rx, ry)
             if dist > max_dist:
                 continue

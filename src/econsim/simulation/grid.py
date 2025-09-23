@@ -88,6 +88,11 @@ class Grid:
         for (x, y), rtype in self._resources.items():
             yield x, y, rtype
 
+    # Gate 5 scaffold: stable sorted iteration (used for deterministic scoring order)
+    def iter_resources_sorted(self):  # pragma: no cover (simple)
+        for (x, y), rtype in sorted(self._resources.items()):
+            yield x, y, rtype
+
     def serialize(self) -> dict[str, Any]:
         return {
             "width": self.width,
