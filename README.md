@@ -2,14 +2,15 @@
 
 **An Educational Economic Simulation Platform for Microeconomics Learning**
 
-## Project Status: GATE 4 IN PROGRESS — PREFERENCE-INFORMED DECISION LOGIC & VISUALIZATION 🔍
+## Project Status: GATE 5 COMPLETE — DYNAMICS, METRICS & DETERMINISM ✅
 
 **Gate 1 Technical Validation**: ✅ COMPLETE – PyQt6 + Pygame integration working at ~62 FPS (headless-capable)
 **Gate 2 Preference Architecture**: ✅ COMPLETE – Cobb-Douglas, Perfect Substitutes, Leontief fully implemented with validation & serialization
 **Gate 3 Spatial / Agent Foundations**: ✅ COMPLETE – Grid, Agent core, Simulation coordinator, deterministic harness
-**Gate 4 Decision & Visualization**: 🚧 IN PROGRESS – Utility-driven target selection, typed resources, epsilon bootstrap, competition & preference-shift behavior, rendering overlays, performance guards
+**Gate 4 Decision & Visualization**: ✅ COMPLETE – Utility-driven target selection, typed resources, epsilon bootstrap, competition & preference-shift behavior, rendering overlays, performance guards
+**Gate 5 Dynamics & Metrics Spine**: ✅ COMPLETE – Respawn scheduler (target density), MetricsCollector (per-step aggregates + determinism hash), snapshot & replay, performance overhead guard (<0.30ms/tick), reproducible hash replay
 
-**Current Phase**: Gate 4 implementation (Decision logic + Rendering overlays + Behavioral tests)
+**Current Phase**: Preparing for next gate (post-Gate 5 refinement / upcoming feature planning)
 
 **Confidence Level**: Maximum - Working implementation validates all technical assumptions and educational approach.
 
@@ -35,21 +36,24 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 - **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
 - **Development Environment**: Complete vmt-dev virtual environment with all dependencies
 
-### **🚀 Current Capabilities (Gate 4 Mid-Phase)**
+### **🚀 Current Capabilities (Post Gate 5)**
 ```bash
-# Working demonstration (Gate 4)
+# Working demonstration (Gate 5)
 source vmt-dev/bin/activate
 make dev                               # Launch GUI with overlay-capable widget
-make test                              # 47 tests pass (preferences + grid + agents + decision + perf + rendering)
+make test                              # 62 tests pass (preferences + grid + agents + decision + respawn + metrics + snapshot + perf)
 make lint                              # Code quality enforced
 python3 scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
 ```
 
-### **📊 Performance Metrics (Gate 4 Snapshot)**
+### **📊 Performance Metrics (Gate 5 Snapshot)**
 - **Frame Rate (widget)**: ~62 FPS baseline retained after overlays & decision logic
 - **Decision Throughput**: >6000 decision ticks/sec (20 agents / 120 resources scenario; guard ≥2000)
 - **Target Selection Micro-Overhead**: <3,000 µs guard, currently well below threshold
-- **Tests**: 47 unit tests (preferences, serialization, grid typing, agent modes, epsilon bootstrap, competition, preference shift, rendering overlays, performance guards)
+- **Respawn + Metrics Overhead**: ~200µs per tick (absolute guard 300µs; relative noisy due to micro baseline) via `test_perf_overhead.py`
+- **Density Convergence**: Respawn reaches target density within ±5% (no overshoot)
+- **Determinism Hash**: Stable across identical seeds; diverges on state perturbation; snapshot replay reproduces stepwise hash
+- **Tests**: 62 unit tests (adds respawn density, metrics integrity, determinism hash, snapshot replay, perf overhead)
 - **Code Quality**: Zero linting errors, formatted codebase
 - **CI Pipeline**: Fully functional with headless execution
 
@@ -112,11 +116,10 @@ Gate-based technical validation approach:
 - **Performance Guards**: Decision throughput + micro benchmark preventing latent regression
 - **Testing Surface Access**: Added `get_surface_bytes()` for safe render assertions
 
-### **🎯 Remaining Gate 4 Tasks (Active)**
-- Gate 4 Evaluation & Evidence Mapping document
-- README completion (this section partially fulfills)
-- Final checklist closure & retrospective
-- (Deferred to later gates): multi-agent interaction policies, respawn dynamics, simulation/render decoupling
+### **🎯 Post Gate 5 Next Focus**
+- Gate 5 retrospective narrative polish (risks/mitigations – partially in GATE5_EVAL)
+- Plan Gate 6 scope (e.g., trade interactions, richer utility adaptation, UI scenario configuration)
+- Expand educational overlays (utility contours, marginal rate visualization)
 
 ## Preferences Architecture (Gate 2 Foundation)
 

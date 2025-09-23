@@ -11,6 +11,7 @@ Headless safe: sets QT_QPA_PLATFORM=offscreen if DISPLAY absent.
 from __future__ import annotations
 
 import os
+import time
 
 import pygame
 from PyQt6.QtWidgets import QApplication
@@ -37,12 +38,15 @@ def test_widget_teardown_with_simulation():
     widget = EmbeddedPygameWidget(simulation=sim)
     widget.show()
 
-    # Process a few event cycles so timer fires
-    for _ in range(20):
+    # Process event cycles allowing QTimer (~16ms) to fire; break early if a frame appears
+    frame_count = 0
+    for _ in range(50):
         app.processEvents()
-    # Sanity: some frames rendered
-    frame_count = getattr(widget, "_frame", 0)
-    assert frame_count > 0, "Expected widget frame counter to advance with simulation attached"
+        time.sleep(0.005)  # allow timer to elapse in headless CI
+        frame_count = getattr(widget, "_frame", 0)
+        if frame_count > 0:
+            break
+    assert frame_count > 0, "Expected widget frame counter to advance with simulation attached (after waits)"
 
     # Close & process teardown
     widget.close()

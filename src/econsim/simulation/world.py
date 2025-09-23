@@ -36,6 +36,7 @@ class Simulation:
     config: Optional[Any] = None  # SimConfig when available (Gate 5)
     _rng: _random.Random | None = None      # Internal RNG (respawn/metrics later)
     respawn_scheduler: Any | None = None    # Gate 5: optional RespawnScheduler
+    metrics_collector: Any | None = None    # Gate 5: optional MetricsCollector
 
     def __post_init__(self) -> None:  # pragma: no cover (simple init)
         if self.config is not None and self._rng is None:
@@ -66,7 +67,12 @@ class Simulation:
                 self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)
             except Exception as exc:  # pragma: no cover - defensive placeholder
                 print(f"[RespawnWarning] scheduler error: {exc}")
-        # Gate 5 placeholder: respawn & metrics hooks will be inserted here using self._rng
+        # Metrics hook (placeholder logic handled inside collector)
+        if self.metrics_collector is not None:
+            try:
+                self.metrics_collector.record(self._steps, self)
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"[MetricsWarning] record error: {exc}")
         self._steps += 1
 
     @property
