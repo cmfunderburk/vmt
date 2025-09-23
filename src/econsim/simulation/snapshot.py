@@ -81,4 +81,14 @@ class Snapshot:
         return sim
 
 
-__all__ = ["Snapshot"]
+def take_snapshot(sim: Simulation) -> Snapshot:
+    """Public helper to create a Snapshot (convenience wrapper)."""
+    return Snapshot.from_sim(sim)
+
+
+def restore_snapshot(snapshot: Snapshot) -> Simulation:
+    """Public helper to restore a Simulation from an existing Snapshot."""
+    return Snapshot.restore(snapshot.serialize())
+
+
+__all__ = ["Snapshot", "take_snapshot", "restore_snapshot"]

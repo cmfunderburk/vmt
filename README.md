@@ -210,6 +210,42 @@ make lint                    # Code quality
 make format                  # Code formatting
 ```
 
+### **Deterministic Preference Demo (New)**
+Run a lightweight, headless-friendly demonstration comparing agent trajectories under different preference types. Produces per-step positions, inventories, and a determinism hash (stable for identical seeds).
+
+```bash
+source vmt-dev/bin/activate
+python scripts/demo_single_agent.py --pref all --steps 20 --agents 1 --seed 1234 --replay
+```
+
+Sample (truncated) output:
+```
+=== Preference: CobbDouglas ===
+step,id,x,y,carry_g1,carry_g2,home_g1,home_g2
+0,0,0,0,0,0,0,0
+1,0,2,0,1,0,0,0
+...
+Final hash: 0d9f4c5b... (example)
+Replay hash: 0d9f4c5b... (MATCH)
+
+=== Preference: PerfectSubstitutes ===
+step,id,x,y,carry_g1,carry_g2,home_g1,home_g2
+...
+Final hash: 6ab1c2e3...
+
+=== Preference: Leontief ===
+...
+```
+
+Flags:
+- `--pref {cd,subs,leontief,all}` choose preference(s)
+- `--steps N` number of decision steps (default 25)
+- `--agents N` number of agents (default 1; small recommended for clarity)
+- `--seed SEED` deterministic base seed
+- `--replay` run snapshot+restore parity check (hash must MATCH)
+
+Use this script in teaching contexts to highlight differing resource acquisition paths driven purely by utility structure.
+
 ### **Performance Testing**
 ```bash
 # Activate environment
