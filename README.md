@@ -255,7 +255,7 @@ python scripts/demo_single_agent.py --gui --turn-mode --steps 25 --seed 1234 --d
 ```
 
 #### Visual Preview (5 Turns)
-![Turn Mode 5-Turn Demo](images/visualdemo-snakonomicus.gif)
+![Turn Mode 5-Turn Demo](https://i.imgur.com/CwKVgxd.gif)
 
 _Animated excerpt: static background, 1 Hz autoplay, resource fade-outs, tails, HUD overlay._
 
