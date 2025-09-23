@@ -73,8 +73,3 @@ Proposed Immediate Action Set (If You Approve)
 - Scaffold grid, tick controller, agent model, and resource placement
 - Integrate preference reference into agent structure (no decisions yet)
 - Add baseline tests and perf sanity check including tick counting
-
-Reply with:
-"Approve Gate 3 scaffold" (I’ll outline concrete files & start)  
-"Adjust first" (specify changes)  
-Or add constraints you want enforced.
