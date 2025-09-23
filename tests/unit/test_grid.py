@@ -1,5 +1,6 @@
-from econsim.simulation.grid import Grid
 import pytest
+
+from econsim.simulation.grid import Grid
 
 
 def test_grid_add_and_query():
@@ -32,6 +33,6 @@ def test_grid_serialize_round_trip():
     data = g.serialize()
     g2 = Grid.deserialize(data)
     assert g2.width == 5 and g2.height == 5
-    for (x, y) in [(0, 0), (2, 3)]:
+    for x, y in [(0, 0), (2, 3)]:
         assert g2.has_resource(x, y)
     assert g2.resource_count() == 2

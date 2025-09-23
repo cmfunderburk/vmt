@@ -3,12 +3,15 @@
 Utility function: U(x, y) = x**alpha * y**(1 - alpha) with 0 < alpha < 1.
 Edge handling: if x == 0 or y == 0 => utility 0 (standard convention).
 """
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Dict, Mapping
 
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
+
+from .base import Preference, PreferenceError, PreferenceMeta
 from .types import Bundle
-from .base import Preference, PreferenceMeta, PreferenceError
 
 _ALPHA_EPS = 1e-9
 
@@ -31,8 +34,8 @@ class CobbDouglasPreference(Preference):
         # Accept numeric (int/float); rely on float conversion and range check
         try:
             f = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError):  # pragma: no cover (defensive)
-            raise PreferenceError("alpha must be numeric")
+        except (TypeError, ValueError) as exc:  # pragma: no cover (defensive)
+            raise PreferenceError("alpha must be numeric") from exc
         if not (0.0 < f < 1.0):
             raise PreferenceError("alpha must be in (0,1)")
         return f
@@ -44,7 +47,7 @@ class CobbDouglasPreference(Preference):
         if x <= 0.0 or y <= 0.0:
             return 0.0
         a = self._params.alpha
-        return (x ** a) * (y ** (1.0 - a))
+        return (x**a) * (y ** (1.0 - a))
 
     def describe_parameters(self):  # type: ignore[override]
         return {"alpha": "share parameter in (0,1) controlling x vs y weight"}
@@ -57,7 +60,7 @@ class CobbDouglasPreference(Preference):
         if unknown:
             raise PreferenceError(f"Unknown parameter(s): {', '.join(sorted(unknown))}")
 
-    def serialize(self) -> Dict[str, Any]:  # type: ignore[override]
+    def serialize(self) -> dict[str, Any]:  # type: ignore[override]
         return {"type": self.TYPE_NAME, "params": {"alpha": self._params.alpha}}
 
     @classmethod
@@ -66,7 +69,7 @@ class CobbDouglasPreference(Preference):
         alpha_val: float = 0.5
         if isinstance(params_obj, Mapping):
             # Copy into a plain dict[str, Any] to help type checker
-            tmp: Dict[str, Any] = dict(params_obj)  # type: ignore[arg-type]
+            tmp: dict[str, Any] = dict(params_obj)  # type: ignore[arg-type]
             raw_alpha_any = tmp.get("alpha", 0.5)
             try:
                 alpha_val = float(raw_alpha_any)  # type: ignore[arg-type]

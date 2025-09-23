@@ -4,10 +4,13 @@ A Preference encapsulates a utility representation over a 2-good bundle.
 The minimal Gate 2 contract intentionally omits optimization logic; it
 focuses on utility evaluation, parameter management, and serialization.
 """
+
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict, Any, Mapping
+from typing import Any
 
 from .types import Bundle
 
@@ -54,12 +57,12 @@ class Preference(ABC):
         """
 
     @abstractmethod
-    def serialize(self) -> Dict[str, Any]:
+    def serialize(self) -> dict[str, Any]:
         """Return canonical dict: {"type": str, "params": {...}}"""
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, payload: Mapping[str, Any]) -> "Preference":
+    def deserialize(cls, payload: Mapping[str, Any]) -> Preference:
         """Reconstruct instance from serialize() output."""
 
     # --- Helpers ------------------------------------------------------

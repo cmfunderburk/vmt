@@ -1,12 +1,10 @@
 import random
 
-from econsim.preferences.cobb_douglas import CobbDouglasPreference
-from econsim.simulation.grid import Grid
-from econsim.simulation.agent import Agent
-from econsim.simulation.world import Simulation
-
-
 from econsim.preferences.base import Preference
+from econsim.preferences.cobb_douglas import CobbDouglasPreference
+from econsim.simulation.agent import Agent
+from econsim.simulation.grid import Grid
+from econsim.simulation.world import Simulation
 
 
 def build_agents(n: int, pref: Preference):
@@ -27,7 +25,7 @@ def test_simulation_deterministic():
         sim2.step(rng2)
     assert sim1.steps == sim2.steps == 15
     # Compare agent positions and inventory
-    for a1, a2 in zip(sim1.agents, sim2.agents):
+    for a1, a2 in zip(sim1.agents, sim2.agents, strict=False):
         assert a1.pos == a2.pos
         assert a1.inventory == a2.inventory
     # Remaining resources identical state

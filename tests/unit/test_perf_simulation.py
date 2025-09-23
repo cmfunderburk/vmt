@@ -3,17 +3,18 @@
 Headless guard aligns with existing perf tests. Ensures that embedding a
 Simulation does not drop FPS below threshold and that steps advance.
 """
+
 import os
-import time
 import random
+import time
 
 from PyQt6.QtWidgets import QApplication
 
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
-from econsim.simulation.grid import Grid
-from econsim.simulation.agent import Agent
-from econsim.simulation.world import Simulation
 from econsim.preferences.cobb_douglas import CobbDouglasPreference
+from econsim.simulation.agent import Agent
+from econsim.simulation.grid import Grid
+from econsim.simulation.world import Simulation
 
 
 def test_simulation_widget_perf():
@@ -29,7 +30,10 @@ def test_simulation_widget_perf():
     # Seed some resources
     for _ in range(50):
         grid.add_resource(rng.randrange(0, 20), rng.randrange(0, 15))
-    agents = [Agent(id=i, x=rng.randrange(0, 20), y=rng.randrange(0, 15), preference=pref) for i in range(10)]
+    agents = [
+        Agent(id=i, x=rng.randrange(0, 20), y=rng.randrange(0, 15), preference=pref)
+        for i in range(10)
+    ]
     sim = Simulation(grid, agents)
 
     w = EmbeddedPygameWidget(simulation=sim)

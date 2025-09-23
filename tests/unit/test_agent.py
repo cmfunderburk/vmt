@@ -1,8 +1,8 @@
 import random
 
 from econsim.preferences.cobb_douglas import CobbDouglasPreference
-from econsim.simulation.grid import Grid
 from econsim.simulation.agent import Agent
+from econsim.simulation.grid import Grid
 
 
 def test_agent_movement_stays_in_bounds():

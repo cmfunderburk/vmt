@@ -1,12 +1,12 @@
 import pytest
 
 from econsim.preferences import (
-    PreferenceFactory,
     CobbDouglasPreference,
+    PreferenceFactory,
     list_preferences,
 )
+from econsim.preferences.base import PreferenceError
 from econsim.preferences.factory import register_preference
-from econsim.preferences.base import PreferenceError, Preference
 
 
 def test_factory_creates_cobb_douglas():

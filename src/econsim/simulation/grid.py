@@ -12,6 +12,7 @@ Deferrals (still):
 - Dynamic respawn.
 - Spatial indexing optimizations (unnecessary at current scale).
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -28,7 +29,12 @@ class Grid:
     height: int
     _resources: dict[Coord, ResourceType]
 
-    def __init__(self, width: int, height: int, resources: Iterable[tuple[int, int] | tuple[int, int, ResourceType]] | None = None) -> None:
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        resources: Iterable[tuple[int, int] | tuple[int, int, ResourceType]] | None = None,
+    ) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("Grid dimensions must be positive")
         self.width = width
@@ -48,7 +54,9 @@ class Grid:
     # --- Validation -------------------------------------------------
     def _check_bounds(self, x: int, y: int) -> None:
         if not (0 <= x < self.width and 0 <= y < self.height):
-            raise ValueError(f"Coordinate ({x},{y}) out of bounds for {self.width}x{self.height} grid")
+            raise ValueError(
+                f"Coordinate ({x},{y}) out of bounds for {self.width}x{self.height} grid"
+            )
 
     # --- Core API ---------------------------------------------------
     def add_resource(self, x: int, y: int, rtype: ResourceType = "A") -> None:
@@ -74,6 +82,11 @@ class Grid:
     # --- Introspection / Serialization ------------------------------
     def resource_count(self) -> int:
         return len(self._resources)
+
+    # Lightweight iterator for (x,y,type) to support decision logic without exposing internal dict
+    def iter_resources(self):  # pragma: no cover (simple generator)
+        for (x, y), rtype in self._resources.items():
+            yield x, y, rtype
 
     def serialize(self) -> dict[str, Any]:
         return {
@@ -104,5 +117,6 @@ class Grid:
     # --- Representation ---------------------------------------------
     def __repr__(self) -> str:  # pragma: no cover (debug convenience)
         return f"Grid({self.width}x{self.height}, resources={len(self._resources)})"
+
 
 __all__ = ["Grid", "Coord", "ResourceType"]

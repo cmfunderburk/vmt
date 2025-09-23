@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 import pytest
 
@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = PROJECT_ROOT / "scripts" / "perf_stub.py"
 
 
-def _run_perf_widget(duration: float = 1.5) -> Dict[str, Any]:
+def _run_perf_widget(duration: float = 1.5) -> dict[str, Any]:
     env = os.environ.copy()
     # Encourage headless stability in CI
     if not env.get("DISPLAY"):
@@ -40,4 +40,3 @@ def test_widget_perf_minimum_threshold() -> None:
     # Provide informative assertion if close to target
     if fps < 30:
         pytest.skip(f"Performance below ideal 30 FPS target (got {fps:.1f}) but above CI minimum")
-

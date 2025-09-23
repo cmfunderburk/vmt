@@ -122,17 +122,18 @@ Status Snapshot:
 Delta vs Plan:
 - No scope drift. Implementation order preserved. Minor adjustment: introduced typed collection test earlier than originally listed (beneficial guard for upcoming state refactors).
 
-Upcoming Focus (Next Sequence):
-1. Complete Phase P2: Introduce agent state fields (mode enum: forage/return_home/idle; home_pos; target optional; carrying vs home_inventory) + deposit method. Add unit tests covering deposit & mode transitions.
-2. Phase P3 Decision Logic: Implement scoring (ΔU/(dist+ε)), tie-breaking, greedy single-step movement. Add determinism and selection tests.
-3. Phase P4 Rendering: Draw resources (A,B distinct colors) + agents; smoke test verifying pixel changes.
-4. Phase P5 Competition & Preference Shift: Race scenario + Cobb-Douglas marginal utility switch test.
-5. Phase P6 Performance: FPS threshold test (20 agents,120 resources) + decision micro-benchmark (<0.3 ms/agent target; informational log if below threshold). Optimize only if regression >10% FPS drop.
-6. Phase P7 Documentation & Evaluation: README update, finalize `GATE4_EVAL.md`, checklist closure.
+Upcoming Focus (Next Sequence) [Revised for Epsilon Augmentation]:
+1. Decision Logic Correction: Implement epsilon augmentation bootstrap for Cobb-Douglas zero-good states. Approach: lift bundle with ε (const, e.g., 1e-6) added to both goods when computing base & marginal utilities so first acquisitions yield positive ΔU. Retain exact utility function after both goods >0 (no epsilon injection in delta stage if both >0).
+2. Target Reselection Optimization: Only re-run `select_target` when (a) target is None, (b) resource collected previous tick, or (c) mode transition (FORAGE↔RETURN_HOME/IDLE). Avoid per-tick full scan to preserve performance headroom.
+3. Determinism Test Update: Adjust determinism test to assert non-idle progression and at least one collection event with epsilon bootstrap active.
+4. Competition & Preference Shift Tests: After stable ΔU bootstrap, implement race scenario & switch test (ensure agent diversifies once both goods positive—Cobb-Douglas will produce positive marginal utilities natively then).
+5. Rendering & Performance Phases remain unchanged sequence-wise (P4–P6) once decision stability confirmed.
+6. Documentation: Add short note in README & evaluation doc explaining epsilon augmentation as educational modeling choice (assumes strictly positive baseline endowment approaching zero).
 
 Risk Watch Items:
 - Decision loop complexity creep: keep perception radius constant (R=8) and short-circuit if best possible score cannot be exceeded by remaining candidates.
 - Test brittleness: use state tuple snapshots rather than asserting exact paths beyond first few steps.
+ - Epsilon sensitivity: choose ε small enough (e.g., 1e-6) that post-bootstrap ΔU comparisons remain dominated by real differences; document constant to allow future experimental tuning.
 
 ## Exit Condition
 All acceptance criteria satisfied, evaluation document completed, and performance/determinism evidence recorded.

@@ -1,6 +1,7 @@
 import os
-from PyQt6.QtWidgets import QApplication
 from time import sleep
+
+from PyQt6.QtWidgets import QApplication
 
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
 
@@ -22,6 +23,7 @@ def test_render_smoke_minimal_cycle():
     if getattr(w, "_frame", 0) == 0:
         # In extremely constrained CI timing, skip rather than fail hard
         import pytest
+
         pytest.skip("No frame advanced during short smoke window")
     assert getattr(w, "_frame", 0) > 0
     w.close()

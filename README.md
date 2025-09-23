@@ -2,13 +2,14 @@
 
 **An Educational Economic Simulation Platform for Microeconomics Learning**
 
-## Project Status: GATE 3 IN PROGRESS — SPATIAL & AGENT FOUNDATIONS ⚙️
+## Project Status: GATE 4 IN PROGRESS — PREFERENCE-INFORMED DECISION LOGIC & VISUALIZATION 🔍
 
 **Gate 1 Technical Validation**: ✅ COMPLETE – PyQt6 + Pygame integration working at ~62 FPS (headless-capable)
 **Gate 2 Preference Architecture**: ✅ COMPLETE – Cobb-Douglas, Perfect Substitutes, Leontief fully implemented with validation & serialization
-**Gate 3 Spatial / Agent Foundations**: 🚧 IN PROGRESS – Grid, Agent, Simulation coordinator, and optional widget integration implemented with deterministic & performance tests
+**Gate 3 Spatial / Agent Foundations**: ✅ COMPLETE – Grid, Agent core, Simulation coordinator, deterministic harness
+**Gate 4 Decision & Visualization**: 🚧 IN PROGRESS – Utility-driven target selection, typed resources, epsilon bootstrap, competition & preference-shift behavior, rendering overlays, performance guards
 
-**Current Phase**: Gate 3 implementation (Grid + Agents + Simulation integration)
+**Current Phase**: Gate 4 implementation (Decision logic + Rendering overlays + Behavioral tests)
 
 **Confidence Level**: Maximum - Working implementation validates all technical assumptions and educational approach.
 
@@ -34,19 +35,21 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 - **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
 - **Development Environment**: Complete vmt-dev virtual environment with all dependencies
 
-### **🚀 Current Capabilities (Mid Gate 3)**
+### **🚀 Current Capabilities (Gate 4 Mid-Phase)**
 ```bash
-# Working demonstration
+# Working demonstration (Gate 4)
 source vmt-dev/bin/activate
-make dev                     # Launches GUI at 62.5 FPS
-make test                    # 37 tests pass  
-make lint                    # Code quality enforced
-python3 scripts/perf_stub.py --mode widget  # Performance validation
+make dev                               # Launch GUI with overlay-capable widget
+make test                              # 47 tests pass (preferences + grid + agents + decision + perf + rendering)
+make lint                              # Code quality enforced
+python3 scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
 ```
 
-### **📊 Performance Metrics (Updated)**
-- **Frame Rate**: ~62 FPS (≈200% above 30 FPS requirement) with simulation enabled (≥30 FPS perf test passes)
-- **Tests**: 37 unit tests passing (preferences + core widget + grid/agent/simulation + perf integration)
+### **📊 Performance Metrics (Gate 4 Snapshot)**
+- **Frame Rate (widget)**: ~62 FPS baseline retained after overlays & decision logic
+- **Decision Throughput**: >6000 decision ticks/sec (20 agents / 120 resources scenario; guard ≥2000)
+- **Target Selection Micro-Overhead**: <3,000 µs guard, currently well below threshold
+- **Tests**: 47 unit tests (preferences, serialization, grid typing, agent modes, epsilon bootstrap, competition, preference shift, rendering overlays, performance guards)
 - **Code Quality**: Zero linting errors, formatted codebase
 - **CI Pipeline**: Fully functional with headless execution
 
@@ -97,20 +100,23 @@ Gate-based technical validation approach:
 - **Quality Gates**: Automated linting, formatting, type checking, unit testing
 - **Performance Monitoring**: Widget-based FPS measurement and synthetic benchmarking
 
-### **🔄 Gate 3 Progress (Implemented So Far)**
-- **Grid System**: 2D bounded grid with O(1) resource membership via set, bounds validation, serialization
-- **Agent Framework**: Position, simple inventory (two goods), preference reference, random bounded movement, resource collection
-- **Simulation Coordinator**: Deterministic step (move then collect) with reproducible RNG seeding in tests
-- **Widget Integration**: Optional simulation stepping each frame without FPS regression
-- **Performance Guard**: Integration perf test (10 agents / 50 resources) asserts ≥30 FPS & step advancement
-- **Determinism Tests**: Re-seeded simulations produce identical trajectories & inventories
+### **🔄 Gate 4 Additions (Beyond Gate 3)**
+- **Typed Resources**: Grid upgraded from boolean presence to typed (A,B) mapping to goods (good1, good2)
+- **Agent State Expansion**: Distinct carrying vs home inventory, modes (FORAGE, RETURN_HOME, IDLE), target tracking
+- **Utility-Driven Decision Logic**: ΔU scoring with tie-break (−ΔU, distance, x, y) and greedy 1-step movement
+- **Epsilon Bootstrap**: Addresses Cobb-Douglas zero-product stall by lifting zero bundles with ε=1e-6 for initial marginal utility
+- **Deterministic Behavior**: Advanced determinism test ensures identical (mode,pos,target,inventory) trajectories across runs
+- **Competition Resolution**: Contested resource test validates single-winner & loser retargeting without deadlock
+- **Preference Shift Behavior**: After unbalanced collection, agent switches to complementary good to raise utility
+- **Rendering Overlays**: Resources colored (A=yellow, B=cyan); agents color-blended by inventory composition
+- **Performance Guards**: Decision throughput + micro benchmark preventing latent regression
+- **Testing Surface Access**: Added `get_surface_bytes()` for safe render assertions
 
-### **🎯 Upcoming (Gate 4 Planning Preview)**
-- **Decision Logic**: Utility-driven movement / action selection replacing random walk
-- **Resource Typing**: Multiple resource categories mapping to differentiated goods
-- **Visualization Enhancements**: Rendering agent positions & resource nodes in widget
-- **Preference-Driven Metrics**: Track marginal utilities / opportunity cost during collection steps
-- **Tick Policy**: Potential decoupling of simulation rate from render loop (if needed for complexity)
+### **🎯 Remaining Gate 4 Tasks (Active)**
+- Gate 4 Evaluation & Evidence Mapping document
+- README completion (this section partially fulfills)
+- Final checklist closure & retrospective
+- (Deferred to later gates): multi-agent interaction policies, respawn dynamics, simulation/render decoupling
 
 ## Preferences Architecture (Gate 2 Foundation)
 
@@ -270,23 +276,23 @@ All major technical risks eliminated through working implementation:
 - **⭐ Professional Standards**: Code quality, testing, and CI/CD exceeding industry practices
 - **🎓 Educational Ready**: Technical platform validated for microeconomics learning objectives
 
-## Next Steps: Gate 3 (Planned)
+## Next Steps: Gate 4 Completion → Gate 5 Preview
 
-Gate 2 accepted. Preparing spatial + agent scaffold.
+Immediate (Gate 4 wrap-up):
+1. Draft `GATE4_EVAL.md` mapping acceptance criteria to implemented evidence
+2. Finalize checklist & retrospective evaluation
+3. Expand README educational example (optional) with decision trace excerpt
 
-1. Grid abstraction + optional overlay rendering
-2. TickController decoupling (simulation vs render cadence)
-3. Agent model (id, position, inventory, preference)
-4. Resource placement (static list of coordinates)
-5. Inventory update + utility recompute hook
-6. Tests: grid bounds, tick progression, agent spawn/remove, inventory increment, preference call integration
-7. Perf harness extension: report sim ticks alongside FPS
-
-Performance Headroom: ~62 FPS baseline leaves ample margin for logic layering.
+Upcoming (Gate 5 preview – NOT yet implemented):
+1. Resource regeneration / respawn mechanics
+2. Agent interaction (trading or sharing) primitives
+3. Enhanced visualization (paths, utility heat overlays)
+4. Configurable simulation pacing (decoupled tick rate)
+5. Extended preference diagnostics (marginal utility logging)
 
 ---
 
-**Project Status**: Gate 2 Complete — Transitioning to Gate 3 Planning  
-**Technical Validation**: ✅ PyQt6 + Pygame (Gate 1) | ✅ Preferences (Gate 2)  
+**Project Status**: Gate 4 In Progress — Decision Logic & Visualization  
+**Technical Validation**: ✅ Gate 1 (Integration) | ✅ Gate 2 (Preferences) | ✅ Gate 3 (Spatial Core)  
 **Last Updated**: September 22, 2025  
 **Repository**: [github.com/cmfunderburk/vmt](https://github.com/cmfunderburk/vmt)

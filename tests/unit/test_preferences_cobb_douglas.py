@@ -19,7 +19,7 @@ def test_cobb_douglas_alpha_validation():
     except PreferenceError:
         pass
     else:
-        assert False, "Expected PreferenceError for alpha=0.0"
+        raise AssertionError("Expected PreferenceError for alpha=0.0")
 
 
 def test_cobb_douglas_update_params():

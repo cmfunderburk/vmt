@@ -4,12 +4,15 @@ Planned utility (future): U(x,y) = a*x + b*y with a,b > 0.
 Current Gate 2 scope: parameter schema + NotImplemented utility to keep
 focus on core architecture until at least one full implementation is stable.
 """
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Dict, Mapping
 
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
+
+from .base import Preference, PreferenceError, PreferenceMeta
 from .types import Bundle
-from .base import Preference, PreferenceMeta, PreferenceError
 
 
 @dataclass
@@ -29,8 +32,8 @@ class PerfectSubstitutesPreference(Preference):
     def _validate_coeff(value: float) -> float:
         try:
             f = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError):  # pragma: no cover
-            raise PreferenceError("coefficient must be numeric")
+        except (TypeError, ValueError) as exc:  # pragma: no cover
+            raise PreferenceError("coefficient must be numeric") from exc
         if f <= 0:
             raise PreferenceError("coefficient must be > 0")
         return f
@@ -58,7 +61,7 @@ class PerfectSubstitutesPreference(Preference):
         if not updated and params:
             raise PreferenceError("No valid parameters provided")
 
-    def serialize(self) -> Dict[str, Any]:  # type: ignore[override]
+    def serialize(self) -> dict[str, Any]:  # type: ignore[override]
         return {"type": self.TYPE_NAME, "params": {"a": self._params.a, "b": self._params.b}}
 
     @classmethod

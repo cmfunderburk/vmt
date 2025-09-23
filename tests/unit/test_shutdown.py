@@ -1,6 +1,7 @@
 import os
-from PyQt6.QtWidgets import QApplication
+
 import pygame
+from PyQt6.QtWidgets import QApplication
 
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
 

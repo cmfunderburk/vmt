@@ -3,28 +3,31 @@
 Central construction point so future agent/grid code depends only on
 string identifiers, not concrete class definitions.
 """
+
 from __future__ import annotations
-from typing import Dict, Type, List, Any, Mapping
+
+from collections.abc import Mapping
+from typing import Any
 
 from .base import Preference, PreferenceError
 from .cobb_douglas import CobbDouglasPreference
-from .perfect_substitutes import PerfectSubstitutesPreference
 from .leontief import LeontiefPreference
+from .perfect_substitutes import PerfectSubstitutesPreference
 
-_REGISTRY: Dict[str, Type[Preference]] = {
+_REGISTRY: dict[str, type[Preference]] = {
     CobbDouglasPreference.TYPE_NAME: CobbDouglasPreference,
     PerfectSubstitutesPreference.TYPE_NAME: PerfectSubstitutesPreference,
     LeontiefPreference.TYPE_NAME: LeontiefPreference,
 }
 
 
-def register_preference(name: str, cls: Type[Preference]) -> None:
+def register_preference(name: str, cls: type[Preference]) -> None:
     if name in _REGISTRY:
         raise PreferenceError(f"Preference type '{name}' already registered")
     _REGISTRY[name] = cls
 
 
-def list_preferences() -> List[str]:
+def list_preferences() -> list[str]:
     return sorted(_REGISTRY)
 
 

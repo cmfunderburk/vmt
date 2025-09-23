@@ -19,7 +19,7 @@ def test_cobb_douglas_alpha_weight_shift():
         u_sym = pref.utility(bundle_sym)
         ratios.append(u_heavy / u_sym)
     # Ratios should be monotonically non-decreasing (allow tiny float noise)
-    for earlier, later in zip(ratios, ratios[1:]):
+    for earlier, later in zip(ratios, ratios[1:], strict=False):
         assert later + 1e-9 >= earlier
 
 
@@ -38,5 +38,5 @@ def test_perfect_substitutes_weight_increase():
         ua = pref.utility(bundle_a)
         ub = pref.utility(bundle_b)
         diffs.append(ua - ub)
-    for earlier, later in zip(diffs, diffs[1:]):
+    for earlier, later in zip(diffs, diffs[1:], strict=False):
         assert later + 1e-9 >= earlier
