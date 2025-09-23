@@ -3,16 +3,16 @@
 (Complete all items before marking Gate 4 done.)
 
 ## Grid & Resources
-- [ ] Typed resources (dict[(x,y)] -> type)
-- [ ] Add/query/remove return resource type or None
-- [ ] Serialization preserves resource types
+- [x] Typed resources (dict[(x,y)] -> type)
+- [x] Add/query/remove return resource type or None
+- [x] Serialization preserves resource types
 
 ## Agent State & Modes
-- [ ] home_pos stored
-- [ ] mode field (forage/return_home/idle)
-- [ ] target coordinate optional
-- [ ] carrying vs home_inventory distinction
-- [ ] Deposit merges carrying into home_inventory
+- [x] home_pos stored
+- [x] mode field (forage/return_home/idle)
+- [x] target coordinate optional
+- [x] carrying vs home_inventory distinction
+- [x] Deposit merges carrying into home_inventory
 
 ## Decision Logic
 - [ ] Perception radius implemented (config constant R=8)
@@ -41,15 +41,15 @@
 - [ ] Decision micro-benchmark captured (<0.3 ms/agent avg) or documented
 
 ## Quality Gates
-- [ ] All existing Gate 3 tests still pass
-- [ ] New tests added & passing
-- [ ] Lint clean (modified/new modules)
-- [ ] Type check clean
+- [x] All existing Gate 3 tests still pass
+- [x] New tests added & passing
+- [ ] Lint clean (modified/new modules)  <!-- TODO: run lint & mark -->
+- [ ] Type check clean  <!-- TODO: run mypy & mark -->
 
 ## Documentation
 - [ ] README updated with Gate 4 section (movement model & visuals)
-- [ ] Module docstrings updated (grid/agent/simulation) list new deferrals
-- [ ] Gate_4_todos + this checklist committed pre-implementation
+- [x] Module docstrings updated (grid/agent/simulation) list new deferrals
+- [x] Gate_4_todos + this checklist committed pre-implementation
 - [ ] Evaluation doc drafted (skeleton) early
 
 ## Exit
