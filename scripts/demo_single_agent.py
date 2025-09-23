@@ -480,13 +480,48 @@ def main() -> int:
             widget = TurnWidget(wrapper)
             wrapper.on_pre_step = widget._capture_pre
             wrapper.on_post_step = widget._capture_post
-            print("[TurnMode] Controls: SPACE=1 step, ENTER=5 steps, A=auto toggle, Q=quit")
+            # Container with play/pause button
+            from PyQt6.QtWidgets import QWidget as _QW, QPushButton as _QPB, QVBoxLayout as _QVL, QHBoxLayout as _QHL, QLabel as _QL
+            from PyQt6.QtCore import QTimer as _QT
+            container = _QW()
+            vlayout = _QVL(container)
+            hlayout = _QHL()
+            play_button = _QPB("Pause")  # start in playing mode
+            status_label = _QL("1 tps")
+            hlayout.addWidget(play_button)
+            hlayout.addWidget(status_label)
+            hlayout.addStretch(1)
+            vlayout.addLayout(hlayout)
+            vlayout.addWidget(widget, 1)
+            # 1 turn per second timer
+            play_timer = _QT(container)
+            play_interval_ms = 1000
+            def _tick():
+                # Only enqueue if no pending steps to keep 1Hz pacing
+                if wrapper.pending_steps == 0:
+                    wrapper.enqueue(1)
+            play_timer.timeout.connect(_tick)  # type: ignore[arg-type]
+            play_timer.start(play_interval_ms)
+            def _toggle():
+                if play_timer.isActive():
+                    play_timer.stop()
+                    play_button.setText("Play")
+                    status_label.setText("paused")
+                else:
+                    play_timer.start(play_interval_ms)
+                    play_button.setText("Pause")
+                    status_label.setText("1 tps")
+            play_button.clicked.connect(_toggle)  # type: ignore[arg-type]
+            # Suppress legacy keyboard guidance; provide succinct hint
+            print("[TurnMode] Play/Pause button active (1 turn/sec). Keys still work: SPACE, ENTER, A, Q.")
+            host_widget = container
         else:
             widget = EmbeddedPygameWidget(simulation=wrapper)
+            host_widget = widget
         # Grid lines default on in turn mode unless user omitted flag (future: add explicit no-grid flag)
         widget.show_grid_lines = bool(args.grid_lines or args.turn_mode)
         widget.show_overlay = not args.no_overlay and args.turn_mode
-        win.setCentralWidget(widget)
+        win.setCentralWidget(host_widget)
         win.resize(640, 480)
         win.show()
         return app.exec()
