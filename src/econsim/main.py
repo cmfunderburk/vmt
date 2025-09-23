@@ -12,9 +12,21 @@ import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
+try:  # feature flag import (optional during transition)
+    from econsim.gui.main_window import MainWindow, should_use_new_gui
+except Exception:  # pragma: no cover - fallback if new GUI not present
+    MainWindow = None  # type: ignore
+    def should_use_new_gui() -> bool:  # type: ignore
+        return False
 
 
 def create_window() -> QMainWindow:
+    # Feature flag path
+    if should_use_new_gui():
+        if MainWindow is None:  # defensive
+            raise RuntimeError("New GUI requested but unavailable")
+        return MainWindow()
+    # Legacy bootstrap
     window = QMainWindow()
     window.setWindowTitle("EconSim – Gate 1 Bootstrap")
     widget = EmbeddedPygameWidget()

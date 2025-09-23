@@ -1,48 +1,55 @@
-## VMT Copilot Instructions (Gate 6 Integration Pass – 40‑Line Target)
-Purpose: Rapid orientation for AI agents contributing to a PyQt6 desktop app embedding a 320x240 Pygame surface plus a deterministic spatial economic simulation (Gates 1–5 complete; Gate 6 = integration & minimal factory/overlay wiring).
+## VMT Copilot Instructions (Post Gate 6)
+Concise high-signal guide for AI agents working on a PyQt6 desktop app embedding a fixed 320x240 Pygame surface + deterministic spatial economic simulation.
 
-### Core Architecture
-1. Single Qt event loop (no threads/while True). Frame cadence: `QTimer` 16ms in `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`).
-2. Rendering path: off-screen `pygame.Surface` → `pygame.image.tostring(..., 'RGBA')` → `QImage` in `paintEvent`. Do NOT resize surface or add per-frame heap churn.
-3. Simulation tick: `Simulation.step(rng, use_decision=...)` in `simulation/world.py` with legacy random walk vs deterministic greedy decision (`Agent.step_decision`).
-	• Widget defaults to decision mode; set env `ECONSIM_LEGACY_RANDOM=1` or pass `decision_mode=False` to revert for legacy tests.
-4. Hooks (optional): `respawn_scheduler`, `metrics_collector`; attach only when present—logic must remain inert if absent.
-5. Preferences: contract in `src/econsim/preferences/` (pure `utility(bundle)`; no mutation). Factory-driven creation via `PreferenceFactory`.
-6. Factory (Gate 6): `Simulation.from_config(config, preference_factory, agent_positions)` seeds deterministic RNG, builds grid, conditionally wires hooks.
+### 1. Core Loop & Rendering (Do NOT Break)
+1. Single Qt event loop; frame pacing via `QTimer` 16 ms inside `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`). No while True, no extra threads.
+2. Render pipeline: off-screen `pygame.Surface` → `pygame.image.tostring(...,'RGBA')` → `QImage` in `paintEvent`. Keep surface size + pixel format constant; never allocate new surface per frame.
+3. Simulation step invoked from timer: `Simulation.step(rng, use_decision=...)` (world). Widget default = decision mode; legacy random walk only when env `ECONSIM_LEGACY_RANDOM=1` or widget param `decision_mode=False`.
 
-### Determinism & Invariants
-• Target tie-break key EXACT: (−ΔU, distance, x, y). Never alter ordering semantics.
-• Perception & epsilon: `default_PERCEPTION_RADIUS`, `EPSILON_UTILITY` in `simulation/constants.py`—retain bootstrap to avoid zero-utility stalls.
-• Agent list index resolves simultaneous contests (see `test_competition`).
-• Resource iteration order stable (sorted) – do not replace with set/dict iteration without ordering guarantee.
+### 2. Determinism Invariants (Must Stay Exact)
+Tie-break ordering key: (−ΔU, distance, x, y). Do not alter sign, field order, or append fields.
+Stable resource iteration (sorted) & agent list order decide conflicts (`tests/unit` competition test). Do not introduce unordered structures.
+Epsilon bootstrap constants: `EPSILON_UTILITY`, `default_PERCEPTION_RADIUS` in `simulation/constants.py`—unchanged unless gate-scoped.
+Metrics determinism: hash from `metrics_collector` must remain identical for unchanged scenarios; update tests if and only if intentional model change.
 
-### Performance Guardrails
-• Baseline ~62 FPS (floor ≥30). If regression: check (a) surface size (b) new allocations in `_on_tick`/`paintEvent` (c) blocking I/O or sleeps.
-• Quick perf: `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json`.
-• Keep `FRAME_INTERVAL_MS` & `SURFACE_SIZE` unchanged unless explicitly gate-scoped.
+### 3. Construction Pattern
+Use `Simulation.from_config(SimConfig, preference_factory, agent_positions)` for new scenarios—this seeds RNG, wires optional `respawn_scheduler` & `metrics_collector`, and enforces defaults. Direct `Simulation(...)` only for legacy tests or narrow probes.
+Preferences: pure `utility(bundle)` (no mutation); defined in `src/econsim/preferences/*`. Register new subclasses via `PreferenceFactory` with minimal diff + tests.
 
-### Complexity Constraints
-• Any per-step feature O(agents + resources); avoid nested scans beyond current patterns.
-• Hooks must early-exit fast when disabled (None check only).
+### 4. Optional Hooks (Remain Inert When Absent)
+`respawn_scheduler` and `metrics_collector` are attached conditionally; any extension must be O(agents + resources) per tick and early-exit with a single None check.
 
-### Testing & Headless
-• Headless: if `DISPLAY` unset ensure `SDL_VIDEODRIVER=dummy` & `QT_QPA_PLATFORM=offscreen` (already handled in widget/tests—mirror in new scripts).
-• Drive GUI in tests via `app.processEvents()` bursts; never spin custom loops.
-• Access protected members only in tests (e.g. `_frame`, `_surface`).
+### 5. Performance Guardrails
+Baseline: ~62 FPS (floor ≥30). If regression, first inspect: (a) surface reallocation (b) per-frame Python object churn in `_on_tick` / `paintEvent` (c) blocking I/O / sleeps.
+Quick perf commands: `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json`.
+Do not change `FRAME_INTERVAL_MS`, `SURFACE_SIZE` without explicit gate rationale.
 
-### Gate Workflow (Enforced)
-1. Create `Gate_N_todos.md` + `GATE_N_CHECKLIST.md` before coding.
-2. Implement minimal diff; document deferrals in gate docs.
-3. After completion write `GATE_N_EVAL.md` mapping criteria → evidence before push.
+### 6. Snapshot / Replay & Testing
+Snapshot + restore parity (hash match) used for determinism validation. Maintain serialization shape when adding state (extend, don’t reorder existing keys if dict-based).
+GUI/headless tests drive events via `app.processEvents()` bursts—never spin custom loops or sleeps. Headless safety: ensure new scripts mirror existing env guard (`SDL_VIDEODRIVER=dummy`, `QT_QPA_PLATFORM=offscreen` when `DISPLAY` absent).
+Access protected members only inside tests (e.g., `_surface`, `_frame`). Keep new introspection helpers lightweight and documented.
 
-### Allowed vs Forbidden
-OK: new preference subclass + tests; overlay toggle wiring; metrics extension via optional collector; small doc corrections.
-NOT OK: threads, blocking loops, enlarging surface, changing tie-break or perception constants silently, mutating state inside `utility`.
+### 7. Complexity & Algorithmic Limits
+Per-step work must remain O(agents + resources). Avoid nested all-pairs scans or pathfinding explosions. If evaluating new search logic, gate with feature flag + micro-benchmark.
 
-### Teardown & Resource Safety
-In widget `closeEvent`: stop `QTimer`, then `pygame.quit()`. Replicate sequence for any new managed subsystem.
+### 8. Allowed vs Forbidden
+Allowed: new preference type + tests; small overlay or metrics extensions; deterministic factory config additions; doc sync; low-overhead visualization toggle.
+Forbidden: threads / custom loops; enlarging surface; silent change to tie-break or perception constants; mutating preference internal state during `utility`; unordered iteration replacing deterministic order.
 
-### AI Contribution Style
-State intent → act → summarize (Goal | Actions | Result | Next). When uncertain, give 2–3 smallest viable options with recommendation; never expand scope silently.
+### 9. Teardown Discipline
+`closeEvent`: stop timer before `pygame.quit()`. Replicate ordering for any added subsystem (stop → dispose → quit). No lingering timers after window close.
 
-Forward plan details: see `ROADMAP_REVISED.md` (Gates 6–9) & top-level `README.md` for implemented vs pending matrix.
+### 10. Contribution Style (Expectations)
+State intent → perform minimal diff → summarize (Goal | Actions | Result | Next). Offer 2–3 smallest options when ambiguity exists. Never widen scope without an explicit gate or user request.
+
+### 11. Quick Command Index
+Env setup: `pip install -e .[dev]`
+Run GUI: `make dev`
+Run tests: `make test` (determinism, competition, respawn, metrics, snapshot, overlay, perf)
+Perf sample: `python scripts/perf_stub.py --mode widget --duration 2 --json`
+Legacy random walk: `ECONSIM_LEGACY_RANDOM=1 make dev`
+
+### 12. When Extending
+Add new state? Update snapshot & determinism test; keep backward order. Add preference? Provide serialize/deserialize + parameter validation test. Add overlay? Prove negligible FPS impact (<~2% diff) or document rationale.
+
+Forward plan reference: `ROADMAP_REVISED.md` (active gates) and top-level `README.md` (implemented vs pending matrix).

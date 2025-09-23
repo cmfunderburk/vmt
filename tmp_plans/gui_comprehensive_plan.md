@@ -1,6 +1,18 @@
-# Comprehensive GUI Plan (Draft v0.1) – Post Gate 6 Foundation
+dataclass SimulationSessionDescriptor:
+    name: str                # scenario name key
+    mode: str                # 'continuous' | 'turn' | 'perf' | 'pref_compare' | 'legacy'
+    seed: int
+    grid_size: tuple[int,int]
+    agents: int
+    density: float | None
+    enable_respawn: bool
+    enable_metrics: bool
+    preference_type: str | list[str]
+    turn_auto_interval_ms: int | None
+```
+# Comprehensive GUI Plan (Draft v0.2) – Post Gate 6 Foundation
 
-Status: DRAFT (to iterate). Scope: Define a scalable, deterministic, educational GUI that launches to a menu before any simulation starts.
+Status: UPDATED with Phase A decisions (Baseline Decision, Turn Mode, Legacy Random Walk; free-form advanced mode; dual hash display; early overlays: grid + agent IDs + target arrow; single preference per run; simple metrics panel).
 
 ---
 ## 1. Grounding Constraints (Must Not Break)
@@ -15,188 +27,128 @@ Status: DRAFT (to iterate). Scope: Define a scalable, deterministic, educational
 
 ## 2. High-Level GUI Objectives
 Educational:
-1. Let users select distinct “visual runs” (scenarios) illustrating economic concepts (preferences, decision vs random, density/respawn dynamics, turn mode pacing).
-2. Provide transparent, inspectable state (agent inventories, utility values, chosen targets, resource counts) without polluting core simulation purity.
-3. Support controlled stepping (pause, single-step, multi-step burst) for classroom explanation.
-4. Enable consistent reproducibility (display seed & scenario parameters; export/share config snapshot).
+1. Illustrate discrete economic concepts via selectable “visual runs”.
+2. Reveal internal state (inventories, targets, utility) without polluting core logic.
+3. Support classroom pacing (pause, step, small bursts).
+4. Uphold reproducibility (seed + scenario descriptor surfaced, exportable).
 
 Operational:
-1. Launch to a **Start Menu** (no simulation created yet) → choose scenario type, parameters template, and run mode.
-2. Allow returning to menu (dispose existing simulation cleanly) to load another run.
-3. Modular panels: simulation viewport, controls panel, metrics/inspector panel, optional log/output panel.
-4. Keep integration friction low (wrap existing `EmbeddedPygameWidget`, not rewrite rendering path).
+1. Launch to Start Menu (no simulation yet) → explicit scenario selection.
+2. Return-to-menu navigation with safe teardown (stop timer → dispose → show menu).
+3. Modular panels: viewport, controls, metrics/inspector (log deferred).
+4. Integrate by wrapping existing widget—avoid altering core loop.
 
-## 3. First-Class Requirement (New): Start Menu
-Purpose: Avoid auto-starting a default simulation; encourage explicit selection & parameterization.
-Menu Features (Phase 1):
-- Scenario list (cards or list view) with short description & icon.
-- Run modes (toggle / dropdown): Continuous (current), Turn Mode (educational pacing), Performance Probe, Preference Comparison (single-agent demos), Legacy Random Walk.
-- Basic parameter presets: grid size, agents count, resource density, enable respawn/metrics.
-- Seed entry (with randomize button) + deterministic indicator.
-- Launch button (validates selections → build config → instantiate simulation window stack page).
-- Footer: version, gates summary, link to docs.
-
-Back Navigation:
-- In-run toolbar “Return to Menu” → confirm dialog → destroys active simulation widget (ensuring timer stopped before disposal) → shows menu page.
+## 3. Start Menu (Phase A Scope)
+Features:
+- Scenario list (Baseline Decision / Turn Mode / Legacy Random Walk).
+- Mode selection inside scenario (Turn Mode implies queued stepping).
+- Presets + free-form advanced input (grid size, agents, density, seed, respawn/metrics toggles, preference type).
+- Seed field + randomize button + deterministic badge.
+- Launch button (validates, constructs descriptor → session factory → simulation page).
+- Footer: version, gate summary link(s).
+Back Nav: Toolbar "Return to Menu" (confirmation) triggers controller teardown (stop timer first).
 
 ## 4. Functional Requirements (Aggregated)
-Controls (In-Run):
-- Run / Pause toggle
-- Step 1, Step N (configurable, e.g., 5)
-- Speed selector (0.25×, 1×, 2×, 5×) – modifies decision step cadence (NOT frame timer)
-- Overlay toggles: grid, resource labels, agent IDs, utility values, target arrow, heat/contour (future)
-- Metrics snapshot: compute & display determinism hash + counts
-- Export: Save current simulation snapshot (JSON) & optional replay script stub
-- Scenario reset (same seed) & reseed (new seed) buttons
+Controls:
+- Run/Pause, Step 1, Step 5.
+- Determinism hash (full + 8-char truncated) manual refresh.
+- Overlays toggles (Phase A): grid lines, agent IDs, target arrow.
+- Simple metrics mini-panel: ticks, remaining resources, steps/sec (decision) estimate.
+- (Deferred) Speed selector, utility text overlay, snapshot export, reseed/reset.
 
-Inspector / Panels:
-- Agent list panel: select agent → detail view (position, inventories, target, last ΔU, preference parameters)
-- Resource summary: remaining counts per type, density estimate, respawn stats (if enabled)
-- Metrics panel: ticks elapsed, steps/sec (decision), FPS (optional), determinism hash, respawn events
-- Event log (optional deferred): structured entries for resource collection, tie-break contest outcomes, respawns
+Inspector / Panels (Deferred to later phases except mini metrics):
+- Agent inspector, resource summary, extended metrics, event log.
 
-Menu Scenario Types (Initial Set):
+Menu Scenario Types (Phase A Implemented):
 1. Baseline Decision Mode (multi-agent)
 2. Turn Mode (pedagogical stepping overlays)
-3. Preference Comparison (runs small single-agent sequences sequentially in tabs or composite view)
-4. Respawn Dynamics (density vs time visualization)
-5. Performance Probe (high agent/resource count; collects throughput numbers)
-6. Legacy Random Walk (for contrast / regression)
+3. Legacy Random Walk (contrast / regression)
 
-## 5. Proposed Architecture
-Top-Level Window (`MainWindow`):
-- Central `QStackedWidget` with pages: `StartMenuPage`, `SimulationPage`.
-- Menu builds a `SimulationSessionDescriptor` (pure dataclass) → passed to a `SessionFactory` which:
-  1. Translates selection → `SimConfig`
-  2. Picks/constructs `preference_factory` (single or set)
-  3. Seeds RNG, invokes `Simulation.from_config`
-  4. Returns `SimulationController` (GUI wrapper + references)
+Deferred: Preference Comparison, Respawn Dynamics, Performance Probe.
 
-Simulation Page Layout (Horizontal Split):
-- Left: `EmbeddedPygameWidget` (existing) inside a frame
-- Right (tabbed or stacked panel): Controls | Inspector | Metrics | (optional Log)
-- Status bar: seed, tick, steps/sec, determinism hash (live, throttled)
+## 5. Architecture Overview
+`MainWindow` (QStackedWidget pages): StartMenuPage | SimulationPage.
+Session flow: StartMenu builds `SimulationSessionDescriptor` → `SessionFactory` returns `SimulationController` → SimulationPage wires controller + widget + panels.
 
 Controllers & Separation:
-- `SimulationController`: owns simulation instance, RNG, timing policy (decision cadence), step queue for Turn Mode.
-- `OverlayManager`: resolves which overlays to render (flag state only; drawing still inside Pygame widget or sub-surface pass).
-- `InspectorModel`: cached read-only snapshots (poll at throttled interval e.g., 4 Hz) to avoid per-frame heavy UI updates.
-- `EventBus` (lightweight): Qt signals (e.g., step_completed, snapshot_ready, agent_selected) – avoid custom loop.
+- `SimulationController`: orchestrates stepping (continuous vs turn queue), stores descriptor, exposes read-only views.
+- `OverlayManager`: simple flag container consumed by widget (no simulation coupling).
+- `InspectorModel` (later): periodic snapshot builder (throttled QTimer ~250 ms).
+- Signals (Qt): step_completed, hash_updated, metrics_updated, teardown_requested.
 
-Navigation Flow:
-1. Launch → `StartMenuPage`
-2. User selects scenario & parameters → “Launch” → build descriptor → instantiate session → push to `SimulationPage`.
-3. Return to Menu → controller `.teardown()` (stop timer → detach hooks → release refs) → delete widget(s) → show menu.
-
-## 6. State Management & Data Flow
-- Simulation state is canonical inside `Simulation` object (no duplication in GUI objects).
-- Read access only for UI; transformations occur in read-only snapshot structs (e.g., `AgentView`, `ResourceStatsView`).
-- Update cadence:
-  - Frame (≈62 Hz): render only (no UI model rebuild except cheap counters)
-  - Stats / inspector poll (e.g., every 250 ms via separate QTimer) to refresh heavy panels
-  - Decision steps triggered by: continuous cadence timer OR Turn Mode queued steps
-- Turn Mode: queue ensures only one step can be “pending”; autoplay enqueues one after previous finishes to preserve deterministic ordering.
+## 6. State & Data Flow
+- Single source of truth: `Simulation` object.
+- GUI never mutates simulation directly; actions call controller methods (which call `Simulation.step`).
+- Frame loop unchanged (widget timer). Turn Mode: controller enqueues one step at a time—no parallel stepping timers.
+- Hash refresh: user-triggered button (later optional auto mode).
 
 ## 7. Performance & Determinism Safeguards
-- Budget: Additional GUI overhead < 2 ms cumulative per 16 ms frame (soft target).
-- Inspector polling: capped object allocations; reuse view objects or simple tuples.
-- Overlay toggles: boolean flags; avoid branching explosion in main loop—compose into a single render pass that conditionally draws.
-- Determinism Test Hook: Provide `--gui-smoketest` headless invocation that launches a scenario, runs N steps, outputs hash.
-- Prohibited: per-agent Qt widgets inside hot step path, cross-thread simulation stepping, dynamic resizing of base surface.
+- Added GUI CPU/frame budget < 2 ms average.
+- Metrics/ID/target overlays: draw conditionally in existing pass; no extra surfaces.
+- Free-form validation rejects pathological grid sizes or agent counts early.
+- No threads; timers only: frame timer (existing) + optional low-frequency metrics poll.
+- Test hook: headless scenario launch producing hash (future smoke test).
 
-## 8. Phased Implementation Roadmap (Aligned to Future Gates)
-Phase A (Gate 7 Adjacent – Foundations):
-- Start Menu (Baseline scenarios list + seed + launch)
-- SessionFactory + SimulationPage skeleton
-- Return to Menu teardown path
-- Basic controls: Run/Pause, Step 1, Step 5
-- Determinism hash display (manual refresh button)
+## 8. Phase Roadmap (Revised)
+Phase A (now defined): Start Menu, free-form advanced mode, Baseline/Turn/Legacy scenarios, single preference, basic controls, overlays (grid/IDs/target), metrics mini-panel, hash dual display.
+Phase B: Agent inspector, speed selector, snapshot export, full metrics panel, reseed/reset.
+Phase C: Preference Comparison, Turn Mode autoplay polish (queue UX), overlay utility text.
+Phase D: Respawn Dynamics & Performance Probe scenarios, event log, scenario reset UI.
+Phase E: Advanced overlays (utility contours), scenario save/load, multi-run comparison view.
 
-Phase B:
-- Agent inspector panel (read-only)
-- Metrics panel (steps/sec, FPS, respawn stats)
-- Speed selector & configurable step burst size
-- Snapshot export (JSON)
-
-Phase C:
-- Preference Comparison scenario orchestration
-- Turn Mode integration (queue + autoplay + overlay adaptors)
-- Overlay toggles (grid, IDs, targets, utility text)
-
-Phase D:
-- Performance Probe scenario (auto run & summarized stats)
-- Event log (structured) with optional filtering
-- Scenario reset & reseed actions
-
-Phase E:
-- Advanced overlays (utility contours, heatmaps) – perf gated
-- Scenario save/load (persist descriptor + seed)
-- Multi-window “compare two runs” view (optional stretch)
-
-Acceptance per Phase: tests (headless), reproduction of determinism hash, no FPS regression (> -5%).
-
-## 9. Testing Strategy
-Headless GUI Tests:
-- Use `QT_QPA_PLATFORM=offscreen` + `SDL_VIDEODRIVER=dummy` to launch menu, programmatically select scenario, run N steps.
-- Hash parity test: menu launch → run → snapshot → restart same descriptor → verify identical hash.
-Component Tests:
-- `SessionFactory` produces expected `SimConfig` for presets.
-- Turn queue ensures single outstanding step; burst stepping integrity.
-Performance:
-- Automated perf baseline: measure steps/sec pre/post GUI expansion (allow small fixed overhead).
-Regression Visual (Optional Later):
-- Byte diff overlay test remains (extend cases for new overlays with tolerant thresholds).
+## 9. Testing Strategy (Initial)
+- Headless smoke: construct descriptor → build simulation via factory (no window) → N steps → compute hash.
+- Menu automation (later): programmatically select fields (QtTest) offscreen.
+- Determinism: repeat same descriptor twice, verify identical hash + resource counts.
+- Perf guard: measure decision steps/sec with / without overlays (allow <2% diff Phase A).
 
 ## 10. Risks & Mitigations
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Over-updating UI each frame | FPS drop | Throttle inspector refresh; diff-based updates |
-| Determinism break via UI ordering | Invalid tests | All simulation actions funneled through controller single method; no parallel timers |
-| Overlay complexity bloat | Render slowdown | Group draw calls; precompute static layers |
-| Memory churn from snapshots | GC pauses | Reuse structs / namedtuples; limit allocations per poll |
-| Multi-scenario menu sprawl | UX confusion | Categorize scenario types + concise descriptors |
-| Turn Mode step race | Ordering instability | Single queue + processing flag; tests for order |
+| Free-form inputs degrade perf | Large grids reduce FPS | Clamp & warn; preset defaults prominent |
+| Turn queue error races | Determinism break | Single queue flag + test ordering |
+| Overlay expansion creep | Render slowdown | Gate new overlays; perf test each addition |
+| Hash confusion (dual display) | UX clutter | Truncate inline; full on hover / details pane |
+| Metrics poll too frequent | Frame stutter | Throttle to 4 Hz; reuse objects |
 
-## 11. Implementation Artifacts (Planned Modules)
-- `src/econsim/gui/main_window.py` (new)
+## 11. Implementation Artifacts (Planned)
+- `src/econsim/gui/main_window.py`
 - `src/econsim/gui/start_menu.py`
 - `src/econsim/gui/session_factory.py`
 - `src/econsim/gui/simulation_controller.py`
 - `src/econsim/gui/panels/controls_panel.py`
-- `src/econsim/gui/panels/inspector_panel.py`
-- `src/econsim/gui/panels/metrics_panel.py`
-- `src/econsim/gui/overlays/` (future advanced overlays)
+- `src/econsim/gui/panels/metrics_panel.py` (mini panel)
+- (Deferred) inspector_panel, overlays/, log panel
 
-## 12. Data Structures (Draft)
-`SimulationSessionDescriptor`:
+## 12. Data Structures
 ```python
-dataclass SimulationSessionDescriptor:
-    name: str                # scenario name key
-    mode: str                # 'continuous' | 'turn' | 'perf' | 'pref_compare' | 'legacy'
+@dataclass
+class SimulationSessionDescriptor:
+    name: str                 # scenario key
+    mode: str                 # 'continuous' | 'turn' | 'legacy'
     seed: int
-    grid_size: tuple[int,int]
+    grid_size: tuple[int, int]
     agents: int
     density: float | None
     enable_respawn: bool
     enable_metrics: bool
-    preference_type: str | list[str]
+    preference_type: str      # single preference only Phase A
     turn_auto_interval_ms: int | None
 ```
+`InspectorSnapshot` (later): agent tuples, resource counts, timestamp.
 
-`InspectorSnapshot` (polled): positions, inventories, targets (immutable tuples), resource counts.
+## 13. Open Questions (Next Iteration)
+1. Turn Mode polish scope (tails/fade) include now or Phase B?
+2. Preset naming & exact param matrix (provide or accept proposed defaults?).
+3. Advanced mode validation style (inline vs modal) & error messaging tone.
+4. Auto hash refresh toggle (default off) priority? Add in Phase A or B?
+5. Metrics expansion trigger: which additional indicators justify full panel (respawn stats, decision throughput history)?
 
-## 13. Open Questions (For Next Iteration)
-1. Do we prioritize Preference Comparison or Turn Mode polish first in Gate 7 context?
-2. Should the menu allow custom arbitrary parameter editing (expert mode) or only presets initially?
-3. Required minimal overlay set for first public educational demo?
-4. Is a compact deterministic hash (8 chars) sufficient in UI vs full hex?
-5. Do we show utility values live per agent, or only on selection (performance tradeoff)?
-
-## 14. Immediate Next Steps (Suggested)
-1. Approve scope of Phase A (menu + session factory + core controls + hash display).
-2. Confirm initial scenario catalog (baseline, turn, legacy, perf?).
-3. Decide on parameter preset names (e.g., "Small Lab", "Crowded", "Sparse").
-4. Greenlight data structure for `SimulationSessionDescriptor`.
+## 14. Immediate Next Steps
+1. Scaffold Phase A modules (empty shells + docstrings + TODO markers).
+2. Add `SimulationSessionDescriptor` + `SessionFactory.build()` mapping descriptor → `Simulation`.
+3. Provide headless smoke test for descriptor→simulation path.
+4. (Optional) Env flag to opt-in new MainWindow until stabilized.
 
 ---
-Feedback Focus Request: Which Phase A items (if any) should be trimmed or expanded before code scaffolding? Any additional mandatory menu fields?
+Feedback: Confirm whether Turn Mode visual polish should slip into Phase A before coding scaffolds. If no change, scaffolding proceeds as above.
