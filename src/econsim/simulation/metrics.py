@@ -19,9 +19,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import hashlib
-from typing import Any, Iterable, List, Dict
+from typing import Any, Iterable, List, Dict, TYPE_CHECKING
 
-from .world import Simulation  # type: ignore (circular safe at runtime since only used type-wise)
+if TYPE_CHECKING:  # pragma: no cover
+    from .world import Simulation
 
 
 @dataclass(slots=True)
@@ -44,7 +45,7 @@ class MetricsCollector:
         if self._hash is not None:
             self._hash.update(payload.encode())
 
-    def record(self, step: int, sim: Simulation) -> None:  # pragma: no cover (exercised indirectly)
+    def record(self, step: int, sim: "Simulation") -> None:  # pragma: no cover (exercised indirectly)
         if not self.enabled or self._hash is None:
             return
 

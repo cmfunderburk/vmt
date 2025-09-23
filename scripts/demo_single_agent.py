@@ -20,11 +20,12 @@ from __future__ import annotations
 import argparse
 import os
 import random
-from typing import Iterable, Optional, Callable, Any
+from typing import Optional, Callable, Any
 from time import perf_counter
 from collections import deque
 
 from econsim.simulation.world import Simulation
+from econsim.simulation.config import SimConfig
 from econsim.simulation.grid import Grid
 from econsim.simulation.agent import Agent
 from econsim.simulation.metrics import MetricsCollector
@@ -75,17 +76,17 @@ def build_grid(width: int = 20, height: int = 15, *, density: Optional[float] = 
     return grid
 
 
-def build_agents(n: int, preference: "Preference") -> list[Agent]:  # type: ignore[name-defined]
+def build_agents(n: int, preference: Any) -> list[Agent]:  # loose typing; preference implements utility()
     agents: list[Agent] = []
     for i in range(n):
         # Spread agents diagonally; wrap if exceeding bounds at runtime
-        agents.append(Agent(id=i, x=i, y=i, preference=preference))
+    agents.append(Agent(id=i, x=i, y=i, preference=preference))  # type: ignore[arg-type]
     return agents
 
 
 def run_demo(
     pref_name: str,
-    preference: "Preference",  # type: ignore[name-defined]
+    preference: Any,
     steps: int,
     n_agents: int,
     seed: int,
@@ -229,12 +230,24 @@ def main() -> int:
     if args.gui:
         # GUI mode: only the first preference is visualized (warn if more requested)
         name, pref = prefs[0]
-        # Build simulation and attach internal RNG + metrics for optional hash (not printed here)
-        grid = build_grid(density=args.density, seed=args.seed)
-        agents = build_agents(args.agents, pref)
-        sim = Simulation(grid=grid, agents=agents, config=None)
-        sim._rng = random.Random(args.seed)  # type: ignore[attr-defined]
-        sim.metrics_collector = MetricsCollector()
+        # Build via factory (Gate 6)
+        grid_tmp = build_grid(density=args.density, seed=args.seed)
+        # Extract initial resources from temporary grid for config (serialize -> resources list)
+        init_resources = grid_tmp.serialize()["resources"]
+        cfg = SimConfig(
+            grid_size=(grid_tmp.width, grid_tmp.height),
+            initial_resources=init_resources,
+            perception_radius=8,
+            respawn_target_density=0.18 if args.density is None else 0.25,
+            respawn_rate=0.5,
+            max_spawn_per_tick=4,
+            seed=args.seed,
+            enable_respawn=False,  # respawn optionally added via --respawn-every gating logic below
+            enable_metrics=True,
+        )
+        # Build list of agent positions (simple diagonal pattern)
+        agent_positions = [(i, i) for i in range(args.agents)]
+        sim = Simulation.from_config(cfg, agent_positions=agent_positions)
 
         # Wrap simulation so widget's RNG-based step triggers decision mode each tick
         class DecisionWrapper:
@@ -259,7 +272,7 @@ def main() -> int:
                 if self.turn_mode and not args.pause_start:
                     self.pending_steps = 1
                 if self._respawn_every:
-                    # Attach scheduler but we'll invoke manually to respect gating
+                    # Attach scheduler manually (factory disabled respawn by flag) so gating logic remains identical
                     sim.respawn_scheduler = RespawnScheduler(
                         target_density=0.18 if args.density is None else min(1.0, max(0.0, args.density)),
                         max_spawn_per_tick=4,
@@ -292,7 +305,7 @@ def main() -> int:
                         self.auto_timer.stop()
                     print("[TurnMode] Auto-run OFF")
 
-            def step(self, rng):  # signature expected by widget
+            def step(self, rng: random.Random):  # signature expected by widget
                 # In continuous mode: always advance one decision step.
                 # In turn mode: only advance if pending_steps > 0.
                 if self.turn_mode:
@@ -343,7 +356,7 @@ def main() -> int:
             def _capture_pre(self):
                 if self._fade_duration_ms <= 0:
                     return
-                sim_obj = self._wrapper._sim
+                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
                 grid = getattr(sim_obj, "grid", None)
                 if not grid:
                     return
@@ -353,7 +366,7 @@ def main() -> int:
                     self._pre_resources = set()
 
             def _capture_post(self):
-                sim_obj = self._wrapper._sim
+                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
                 agents = getattr(sim_obj, "agents", [])
                 grid = getattr(sim_obj, "grid", None)
                 moved: set[int] = set()
@@ -374,7 +387,7 @@ def main() -> int:
                     try:
                         post = set((x, y, t) for x, y, t in grid.iter_resources())  # type: ignore[arg-type]
                     except Exception:
-                        post = set()
+                        post = set()  # type: ignore[assignment]
                     removed = self._pre_resources - post
                     now = perf_counter()
                     for x, y, t in removed:
@@ -387,7 +400,7 @@ def main() -> int:
             def _draw_tails_and_highlights(self):
                 if self._tail_length <= 0:
                     return
-                sim_obj = self._wrapper._sim
+                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
                 grid = getattr(sim_obj, "grid", None)
                 agents = getattr(sim_obj, "agents", None)
                 if not grid or not agents:
@@ -421,7 +434,7 @@ def main() -> int:
             def _draw_fading_resources(self):
                 if self._fade_duration_ms <= 0 or not self._fading:
                     return
-                sim_obj = self._wrapper._sim
+                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
                 grid = getattr(sim_obj, "grid", None)
                 if not grid:
                     return
@@ -451,7 +464,7 @@ def main() -> int:
                 self._fading = new_list
 
             def keyPressEvent(self, event):  # type: ignore[override]
-                key = event.key()
+                key = event.key()  # type: ignore[assignment]
                 # Qt key codes: use Qt enums indirectly to avoid import clutter
                 from PyQt6.QtCore import Qt  # type: ignore
                 if key == Qt.Key.Key_Space:  # single step
@@ -464,8 +477,14 @@ def main() -> int:
                     app = QApplication.instance()
                     if app is not None:
                         app.quit()
+                elif key == Qt.Key.Key_O:
+                    # Toggle overlay HUD
+                    current = getattr(self, 'show_overlay', False)
+                    self.show_overlay = not current
+                    state = 'ON' if self.show_overlay else 'OFF'
+                    print(f"[Overlay] Overlay toggled {state}")
                 else:
-                    super().keyPressEvent(event)
+                    super().keyPressEvent(event)  # type: ignore[arg-type]
 
             def _update_scene(self):  # override to inject fading, tails, highlights
                 super()._update_scene()
@@ -478,8 +497,8 @@ def main() -> int:
         wrapper = DecisionWrapper(sim, args.steps, args.turn_mode)
         if args.turn_mode:
             widget = TurnWidget(wrapper)
-            wrapper.on_pre_step = widget._capture_pre
-            wrapper.on_post_step = widget._capture_post
+            wrapper.on_pre_step = widget._capture_pre  # type: ignore[assignment]
+            wrapper.on_post_step = widget._capture_post  # type: ignore[assignment]
             # Container with play/pause button
             from PyQt6.QtWidgets import QWidget as _QW, QPushButton as _QPB, QVBoxLayout as _QVL, QHBoxLayout as _QHL, QLabel as _QL
             from PyQt6.QtCore import QTimer as _QT

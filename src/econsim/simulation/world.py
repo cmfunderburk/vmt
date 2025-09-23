@@ -33,6 +33,8 @@ except Exception:  # pragma: no cover
 
 from .agent import Agent
 from .grid import Grid
+from .respawn import RespawnScheduler  # type: ignore
+from .metrics import MetricsCollector  # type: ignore
 
 
 @dataclass(slots=True)
@@ -92,6 +94,76 @@ class Simulation:
             "agents": [a.serialize() for a in self.agents],
             "steps": self._steps,
         }
+
+    # --- Factory (Gate 6) -------------------------------------------------
+    @classmethod
+    def from_config(
+        cls,
+        config: Any,  # SimConfig (forward reference; kept Any to avoid circular import issues for type checkers)
+        preference_factory: Any | None = None,
+        *,
+        agent_positions: list[tuple[int, int]] | None = None,
+    ) -> "Simulation":
+        """Construct a Simulation from a SimConfig.
+
+        Parameters
+        ----------
+        config : SimConfig
+            Configuration instance (validated here).
+        preference_factory : callable | None
+            Callable returning a Preference instance per agent (signature: (agent_index) -> Preference).
+            If None, uses a default Cobb-Douglas (alpha=0.5) if available, else raises.
+        agent_positions : list[(x,y)] | None
+            Explicit spawn coordinates; if None, agents list derived implicitly from distinct
+            home positions of size len(...) not yet specified (Gate 6 keeps existing manual agent creation
+            outside; this factory currently focuses on hooks + grid construction). For now, if None, creates
+            zero agents (callers may extend in later gate revisions). This keeps scope minimal and avoids
+            assumptions about desired agent count at factory call sites during incremental adoption.
+
+        Notes
+        -----
+        * Keeps deterministic seeding via config.seed.
+        * Attaches respawn & metrics hooks only if enable flags True.
+        * Leaves perception radius un-applied (agents still reference existing constant) — unification deferred.
+        """
+        config.validate()
+
+        # Build grid with initial resources
+        grid = Grid(config.grid_size[0], config.grid_size[1], config.initial_resources)
+
+        agents: list[Agent] = []
+        if agent_positions:
+            # Resolve preference factory (lazy import default)
+            _pref_factory = preference_factory
+            if _pref_factory is None:
+                try:
+                    from econsim.preferences.cobb_douglas import CobbDouglasPreference  # type: ignore
+                except Exception as exc:  # pragma: no cover
+                    raise RuntimeError(
+                        "Default preference factory unavailable; provide preference_factory explicitly"
+                    ) from exc
+                _pref_factory = lambda i: CobbDouglasPreference(alpha=0.5)  # type: ignore
+
+            for idx, (x, y) in enumerate(agent_positions):
+                pref = _pref_factory(idx)  # type: ignore[misc]
+                agents.append(Agent(id=idx, x=int(x), y=int(y), preference=pref))
+
+        sim = cls(grid=grid, agents=agents, config=config)
+
+        # Internal RNG (deterministic) always seeded for future systems
+        sim._rng = _random.Random(int(config.seed))
+
+        # Conditional hook attachment
+        if getattr(config, "enable_respawn", False):
+            sim.respawn_scheduler = RespawnScheduler(
+                target_density=float(config.respawn_target_density),
+                max_spawn_per_tick=int(config.max_spawn_per_tick),
+                respawn_rate=float(config.respawn_rate),
+            )
+        if getattr(config, "enable_metrics", False):
+            sim.metrics_collector = MetricsCollector()
+
+        return sim
 
 
 __all__ = ["Simulation"]

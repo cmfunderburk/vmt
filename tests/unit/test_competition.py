@@ -1,7 +1,6 @@
-from econsim.preferences.cobb_douglas import CobbDouglasPreference
-from econsim.simulation.agent import Agent
 from econsim.simulation.grid import Grid
 from econsim.simulation.world import Simulation
+from econsim.simulation.config import SimConfig
 
 """Competition test (Gate 4):
 Two agents equidistant from a single resource. Deterministic path should cause exactly
@@ -12,11 +11,21 @@ another resource if available). We seed an additional resource to verify retarge
 
 def test_competition_single_resource_resolution():
     # Grid with two resources so loser can retarget second one (B)
-    grid = Grid(7, 7, resources=[(3, 3, "A"), (5, 5, "B")])
-    # Agents placed symmetrically around (3,3) at equal Manhattan distance 4
-    a1 = Agent(id=1, x=0, y=3, preference=CobbDouglasPreference(alpha=0.5))  # dist 3 (0,3)->(3,3)
-    a2 = Agent(id=2, x=6, y=3, preference=CobbDouglasPreference(alpha=0.5))  # dist 3 (6,3)->(3,3)
-    sim = Simulation(grid, [a1, a2])
+    _ = Grid(7, 7, resources=[(3, 3, "A"), (5, 5, "B")])  # legacy construction kept for narrative
+    cfg = SimConfig(
+        grid_size=(7, 7),
+        initial_resources=[(3, 3, "A"), (5, 5, "B")],
+        perception_radius=8,
+        respawn_target_density=0.0,
+        respawn_rate=0.0,
+        max_spawn_per_tick=0,
+        seed=0,
+        enable_respawn=False,
+        enable_metrics=False,
+    )
+    sim = Simulation.from_config(cfg, agent_positions=[(0,3),(6,3)])
+    # Access agents constructed by factory (ids 0,1)
+    a1, a2 = sim.agents[0], sim.agents[1]
 
     import random
 
@@ -42,12 +51,12 @@ def test_competition_single_resource_resolution():
     # Advance a few more ticks so loser retargets toward remaining resource (5,5)
     for _ in range(12):
         sim.step(rng, use_decision=True)
-        if grid.resource_count() == 0:
+        if sim.grid.resource_count() == 0:
             break
 
     # Both resources should eventually be collected
     assert (
-        grid.resource_count() == 0
+        sim.grid.resource_count() == 0
     ), "Both resources should be collected after continued decision steps"
     # Total goods carried should be 2 (one each or both by one agent acceptable, but no duplication)
     total_collected = (

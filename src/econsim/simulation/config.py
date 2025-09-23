@@ -28,16 +28,19 @@ ResourceEntry = Union[tuple[int, int], tuple[int, int, str]]
 class SimConfig:
     grid_size: tuple[int, int]
     initial_resources: Sequence[ResourceEntry]
-    perception_radius: int
-    respawn_target_density: float
-    respawn_rate: float
-    max_spawn_per_tick: int
-    seed: int
+    perception_radius: int = 8
+    respawn_target_density: float = 0.25
+    respawn_rate: float = 0.1
+    max_spawn_per_tick: int = 3
+    seed: int = 0
+    enable_respawn: bool = True
+    enable_metrics: bool = True
 
     def validate(self) -> None:
-        """Perform lightweight invariant checks.
+        """Perform lightweight invariant checks (Gate 6 integration).
 
-        Strict enforcement deferred until full Gate 5 implementation.
+        Keeps validation minimal to avoid premature rigidity; expands in later gates
+        if configuration surface grows.
         """
         gw, gh = self.grid_size
         if gw <= 0 or gh <= 0:
@@ -48,6 +51,7 @@ class SimConfig:
             raise ValueError("respawn_rate must be non-negative")
         if self.max_spawn_per_tick < 0:
             raise ValueError("max_spawn_per_tick must be non-negative")
+        # Boolean flags implicitly validated; could add type checks if untrusted sources used.
 
 
 __all__ = ["SimConfig", "ResourceEntry"]
