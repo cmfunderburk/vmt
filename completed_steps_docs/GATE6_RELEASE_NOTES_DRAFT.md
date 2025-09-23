@@ -18,6 +18,7 @@ Date: 2025-09-23
 ## Performance
 - 2s perf sample: ~60.98 FPS (target >=60 typical) with overlay code path present
 - No regression vs historical baseline; no new per-frame allocations identified
+- Later Phase A GUI fast-path comparison (legacy vs feature-flag UI) shows neutral delta (+0.025% FPS) — see `completed_steps_docs/perf_gate_gui_comparison.json`.
 
 ## Demo Run Reference (Sample Variations)
 Executed variations to validate deterministic hashes under different flags:
@@ -54,6 +55,7 @@ Executed variations to validate deterministic hashes under different flags:
 ## Deferred / Known Gaps
 - Automated overlay keypress test (manual verification only this gate)
 - Environment variable shortcut for legacy random mode (consider future minor enhancement)
+- Consolidated README evidence (perf/hash) centralization (artifacts exist separately)
 
 ## Risks & Mitigations
 - Risk: Hidden dependence on manual wiring in downstream user scripts → Mitigation: Clear API guide, deprecation note

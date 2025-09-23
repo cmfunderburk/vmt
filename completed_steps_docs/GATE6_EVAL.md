@@ -20,6 +20,7 @@ Factory integration, overlay toggle, decision-mode default with legacy env fallb
 - Meets target: ≥60 typical, floor ≥30 preserved.
 - No per-frame allocations introduced: factory occurs once; overlay text surfaces only when toggled.
 - Evidence file: `tmp_perf_gate6.json` (captured during this gate)
+- Phase A GUI fast-path follow-up comparison (legacy vs feature-flag UI) neutral delta (+0.025% FPS) — `completed_steps_docs/perf_gate_gui_comparison.json`.
 
 ## Test Run Summary
 Full suite execution (date: 2025-09-23): 72 passed, 0 failed, 0 skipped in ~5.01s (quiet mode). Confirms all determinism, competition, metrics, respawn, GUI smoke, and performance guard tests remain green post-factory integration.
@@ -30,6 +31,7 @@ Determinism unaffected: overlay rendering path reads state only.
 Performance overhead minimal (<5% threshold) inferred from stable FPS vs historical baseline (avg_fps ~60.98 with overlay code present).
 Automated HUD toggle test deferred (manual verification only this gate) – scheduled for Gate 7 to assert HUD text bytes appear when enabled.
 	* Rationale: Avoid adding Qt key event synthesis harness complexity in final hours of integration gate; feature read-only and isolated from simulation state.
+ Additional Phase A tooling: hash repeat confirmation script `scripts/hash_repeat_demo.py` (post-gate) corroborates stability.
 
 ## GUI Default Decision Mode
 Implemented default deterministic decision movement in `EmbeddedPygameWidget` (calls `step(..., use_decision=True)` unless env override).

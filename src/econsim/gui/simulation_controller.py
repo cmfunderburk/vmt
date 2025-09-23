@@ -8,7 +8,9 @@ Phase A responsibilities:
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Deque
+from collections import deque
+from time import perf_counter
 
 from econsim.simulation.world import Simulation
 
@@ -17,16 +19,35 @@ class SimulationController:
     def __init__(self, simulation: Simulation):
         self.simulation = simulation
         self._hash_cache: Optional[str] = None
+        self._paused: bool = False
+        self._step_times: Deque[float] = deque(maxlen=64)
 
-    # Note: EmbeddedPygameWidget drives continuous stepping already. Turn mode
-    # manual stepping could later gate calls; Phase A defers gating.
-    def manual_step(self) -> None:
+    def pause(self) -> None:
+        self._paused = True
+
+    def resume(self) -> None:
+        self._paused = False
+
+    def is_paused(self) -> bool:
+        return self._paused
+
+    def manual_step(self, count: int = 1) -> None:
         import random
-        # Use deterministic flag from main widget external control; assume decision mode
-        rng = random.Random(999)  # stable external rng for legacy path if needed
-        self.simulation.step(rng, use_decision=True)
+        rng = random.Random(999)  # stable manual stepping RNG
+        for _ in range(max(1, count)):
+            self.simulation.step(rng, use_decision=True)
+            self._record_step_timestamp()
 
     def determinism_hash(self) -> str:
+        collector = getattr(self.simulation, "metrics_collector", None)
+        if collector is None:
+            return "(metrics disabled)"
+        # Return cached if already computed
+        if self._hash_cache is not None:
+            return self._hash_cache
+        return self.refresh_hash()
+
+    def refresh_hash(self) -> str:
         collector = getattr(self.simulation, "metrics_collector", None)
         if collector is None:
             return "(metrics disabled)"
@@ -50,8 +71,19 @@ class SimulationController:
             return 0
 
     def steps_per_second_estimate(self) -> float:
-        # Placeholder: to be wired to perf metrics later
-        return 0.0
+        times = self._step_times
+        if len(times) < 2:
+            return 0.0
+        span = times[-1] - times[0]
+        if span <= 0:
+            return 0.0
+        return (len(times) - 1) / span
+
+    # Internal hook used by widget when auto-stepping
+    def _record_step_timestamp(self) -> None:
+        self._step_times.append(perf_counter())
+        # Invalidate hash cache (new step implies potential hash change)
+        self._hash_cache = None
 
     def teardown(self) -> None:
         # Placeholder for future resource clean shutdown hooks

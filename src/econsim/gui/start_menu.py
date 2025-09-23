@@ -58,24 +58,41 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         self.pref_box = QComboBox()
         self.pref_box.addItems(["cobb_douglas", "perfect_substitutes", "leontief"])
         layout.addWidget(self.pref_box)
-
+        # Grid size inputs
         grid_row = QHBoxLayout()
-        self.grid_w = QSpinBox(); self.grid_w.setRange(4, 128); self.grid_w.setValue(12)
-        self.grid_h = QSpinBox(); self.grid_h.setRange(4, 128); self.grid_h.setValue(12)
-        grid_row.addWidget(QLabel("Grid W")); grid_row.addWidget(self.grid_w)
-        grid_row.addWidget(QLabel("Grid H")); grid_row.addWidget(self.grid_h)
+        self.grid_w = QSpinBox()
+        self.grid_w.setRange(4, 128)
+        self.grid_w.setValue(12)
+        self.grid_h = QSpinBox()
+        self.grid_h.setRange(4, 128)
+        self.grid_h.setValue(12)
+        grid_row.addWidget(QLabel("Grid W"))
+        grid_row.addWidget(self.grid_w)
+        grid_row.addWidget(QLabel("Grid H"))
+        grid_row.addWidget(self.grid_h)
         layout.addLayout(grid_row)
 
+        # Agent count input
         agent_row = QHBoxLayout()
-        self.agents_box = QSpinBox(); self.agents_box.setRange(1, 200); self.agents_box.setValue(4)
-        agent_row.addWidget(QLabel("Agents")); agent_row.addWidget(self.agents_box)
+        self.agents_box = QSpinBox()
+        self.agents_box.setRange(1, 200)
+        self.agents_box.setValue(4)
+        agent_row.addWidget(QLabel("Agents"))
+        agent_row.addWidget(self.agents_box)
         layout.addLayout(agent_row)
 
+        # Density input
         density_row = QHBoxLayout()
-        self.density_box = QDoubleSpinBox(); self.density_box.setDecimals(3); self.density_box.setRange(0.0,1.0); self.density_box.setSingleStep(0.05); self.density_box.setValue(0.25)
-        density_row.addWidget(QLabel("Density")); density_row.addWidget(self.density_box)
+        self.density_box = QDoubleSpinBox()
+        self.density_box.setDecimals(3)
+        self.density_box.setRange(0.0, 1.0)
+        self.density_box.setSingleStep(0.05)
+        self.density_box.setValue(0.25)
+        density_row.addWidget(QLabel("Density"))
+        density_row.addWidget(self.density_box)
         layout.addLayout(density_row)
 
+        # Seed controls
         seed_row = QHBoxLayout()
         self.seed_edit = QLineEdit(str(1234))
         rand_btn = QPushButton("Randomize Seed")
@@ -85,6 +102,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         seed_row.addWidget(rand_btn)
         layout.addLayout(seed_row)
 
+        # Launch
         launch_btn = QPushButton("Launch Simulation")
         launch_btn.clicked.connect(self._emit_selection)  # type: ignore[arg-type]
         layout.addWidget(launch_btn)
@@ -97,17 +115,42 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
     def _emit_selection(self) -> None:
         scenario = self.scenario_box.currentText()
         mode = "legacy" if scenario == "legacy_random" else ("turn" if scenario == "turn_mode" else "continuous")
+        # Extract raw values
+        seed_text = self.seed_edit.text().strip()
+        try:
+            seed_val = int(seed_text)
+        except ValueError:
+            # Fallback to random deterministic-ish seed path; could surface UI error later
+            seed_val = 0
+        grid_w = self.grid_w.value()
+        grid_h = self.grid_h.value()
+        agents = int(self.agents_box.value())
+        density_val = float(self.density_box.value())
+        self._validate_inputs(grid_w, grid_h, agents, density_val)
         selection = MenuSelection(
             scenario=scenario,
             mode=mode,
-            seed=int(self.seed_edit.text() or 0),
-            grid_size=(self.grid_w.value(), self.grid_h.value()),
-            agents=int(self.agents_box.value()),
-            density=float(self.density_box.value()),
+            seed=seed_val,
+            grid_size=(grid_w, grid_h),
+            agents=agents,
+            density=density_val,
             enable_respawn=True,
             enable_metrics=True,
             preference_type=self.pref_box.currentText(),
         )
         self._on_launch(selection)
+
+    # --- Validation ---------------------------------------------------------
+    def _validate_inputs(self, w: int, h: int, agents: int, density: float) -> None:
+        """Raise ValueError if any input outside allowed fast-path bounds.
+
+        Bounds intentionally conservative to protect perf & determinism expectations.
+        """
+        if not (4 <= w <= 64 and 4 <= h <= 64):
+            raise ValueError(f"Grid size out of bounds (4-64): {w}x{h}")
+        if not (1 <= agents <= 64):
+            raise ValueError(f"Agents out of bounds (1-64): {agents}")
+        if not (0.0 <= density <= 1.0):
+            raise ValueError(f"Density out of bounds [0,1]: {density}")
 
 __all__ = ["StartMenuPage", "MenuSelection"]

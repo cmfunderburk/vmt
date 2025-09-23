@@ -82,6 +82,12 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self._overlay_font = None  # lazy init
         # When True, disable legacy animated background & moving rectangle for pedagogical clarity
         self.static_background = False
+        # External overlay state container (set by controller / GUI). If absent, all False.
+        try:
+            from .overlay_state import OverlayState  # local import to avoid mandatory dependency elsewhere
+            self.overlay_state: "OverlayState | None" = OverlayState()
+        except Exception:  # pragma: no cover - defensive import guard
+            self.overlay_state = None
 
     # --- Frame Loop -----------------------------------------------------
     def _on_tick(self) -> None:
@@ -92,11 +98,24 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             if self._sim_rng is None:
                 # Seed based on start time fractional part for repeatable session if needed.
                 self._sim_rng = random.Random(12345)
-            try:
-                # Use cached decision/default mode flag; can be overridden per-instance via constructor.
-                self._simulation.step(self._sim_rng, use_decision=self._use_decision_default)
-            except Exception as exc:  # pragma: no cover - defensive
-                print(f"[SimulationWarning] Step error: {exc}")
+            # If a SimulationController is attached (parent chain), check pause state
+            controller = getattr(self, "_controller_ref", None)
+            paused = False
+            if controller is not None:
+                try:
+                    paused = controller.is_paused()  # type: ignore[attr-defined]
+                except Exception:
+                    paused = False
+            if not paused:
+                try:
+                    self._simulation.step(self._sim_rng, use_decision=self._use_decision_default)
+                    if controller is not None:
+                        try:
+                            controller._record_step_timestamp()  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
+                except Exception as exc:  # pragma: no cover - defensive
+                    print(f"[SimulationWarning] Step error: {exc}")
         self._update_scene()
         self.update()  # trigger paintEvent
         self._frame += 1
@@ -134,8 +153,14 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 # Determine cell size (fit entire grid). Ensure >=2 pixels for visibility when possible.
                 cell_w = max(2, w // max(1, gw))
                 cell_h = max(2, h // max(1, gh))
-                # Optional grid lines (Bundle 3 enhancement hook) - drawn before resources
-                if getattr(self, "show_grid_lines", False):
+                # Optional grid lines - phase out legacy flag in favor of overlay_state.show_grid
+                overlay_state = getattr(self, "overlay_state", None)
+                use_grid = False
+                if overlay_state is not None:
+                    use_grid = getattr(overlay_state, "show_grid", False)
+                else:
+                    use_grid = getattr(self, "show_grid_lines", False)
+                if use_grid:
                     line_color = (40, 40, 40)
                     # Vertical lines
                     for gx in range(gw + 1):
@@ -162,7 +187,8 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 except Exception:  # pragma: no cover - defensive
                     pass
                 # Draw agents (small squares with outline) - deterministic order
-                for agent in sorted(agents, key=lambda a: getattr(a, "id", 0)):
+                sorted_agents = list(sorted(agents, key=lambda a: getattr(a, "id", 0)))
+                for agent in sorted_agents:
                     ax = getattr(agent, "x", 0)
                     ay = getattr(agent, "y", 0)
                     inv = getattr(agent, "carrying", {})
@@ -178,58 +204,72 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     pygame.draw.rect(self._surface, agent_color, rect)
                     # Outline for visibility
                     pygame.draw.rect(self._surface, (20, 20, 20), rect, 1)
-                # Overlay HUD (Bundle 3) - lightweight text; avoid impacting perf heavily
-                if getattr(self, "show_overlay", False):
+                # Overlay HUD (legacy full stats) + Phase A overlays (agent IDs / target arrow)
+                if getattr(self, "show_overlay", False) or (
+                    overlay_state is not None and (overlay_state.show_agent_ids or overlay_state.show_target_arrow)
+                ):
                     try:
                         if self._overlay_font is None:
                             pygame.font.init()
-                            # Use a small default font; fallback to SysFont if needed
                             self._overlay_font = pygame.font.Font(None, 14)
                         font = self._overlay_font
-                        # Derive step count if simulation wrapper exposes _count
-                        step_count = getattr(sim, "_count", 0)
-                        remaining = 0
-                        try:
-                            remaining = sum(1 for _ in grid.iter_resources())  # type: ignore[arg-type]
-                        except Exception:
-                            pass
-                        lines: list[str] = [f"Turn: {step_count}", f"Resources: {remaining}"]
-                        # Per-agent stats
-                        for agent in sorted(agents, key=lambda a: getattr(a, "id", 0)):
-                            carry = getattr(agent, "carrying", {})
-                            home = getattr(agent, "home_inventory", {})
-                            g1c = carry.get("good1", 0)
-                            g2c = carry.get("good2", 0)
-                            g1h = home.get("good1", 0)
-                            g2h = home.get("good2", 0)
-                            pref = getattr(agent, "preference", None)
-                            util_val = None
+                        # HUD lines only if legacy show_overlay flag set
+                        if getattr(self, "show_overlay", False):
+                            step_count = getattr(sim, "_count", 0)
+                            remaining = 0
                             try:
-                                if pref is not None and hasattr(pref, "utility"):
-                                    # Utility over home+carrying combined (pedagogical clarity)
-                                    goods_map = {
-                                        "good1": g1c + g1h,
-                                        "good2": g2c + g2h,
-                                    }
-                                    util_val = pref.utility(goods_map)  # type: ignore[arg-type]
+                                remaining = sum(1 for _ in grid.iter_resources())  # type: ignore[arg-type]
                             except Exception:
+                                pass
+                            lines: list[str] = [f"Turn: {step_count}", f"Resources: {remaining}"]
+                            for agent in sorted_agents:
+                                carry = getattr(agent, "carrying", {})
+                                home = getattr(agent, "home_inventory", {})
+                                g1c = carry.get("good1", 0)
+                                g2c = carry.get("good2", 0)
+                                g1h = home.get("good1", 0)
+                                g2h = home.get("good2", 0)
+                                pref = getattr(agent, "preference", None)
                                 util_val = None
-                            if util_val is not None:
-                                lines.append(
-                                    f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h}) U={util_val:.2f}"
-                                )
-                            else:
-                                lines.append(
-                                    f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h})"
-                                )
-                        # Render lines with shadow for readability
-                        y_off = 4
-                        for txt in lines:
-                            surf = font.render(txt, True, (250, 250, 250))
-                            shadow = font.render(txt, True, (0, 0, 0))
-                            self._surface.blit(shadow, (5, y_off + 1))
-                            self._surface.blit(surf, (4, y_off))
-                            y_off += surf.get_height() + 2
+                                try:
+                                    if pref is not None and hasattr(pref, "utility"):
+                                        goods_map = {"good1": g1c + g1h, "good2": g2c + g2h}
+                                        util_val = pref.utility(goods_map)  # type: ignore[arg-type]
+                                except Exception:
+                                    util_val = None
+                                if util_val is not None:
+                                    lines.append(
+                                        f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h}) U={util_val:.2f}"
+                                    )
+                                else:
+                                    lines.append(
+                                        f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h})"
+                                    )
+                            # Render lines
+                            y_off = 4
+                            for txt in lines:
+                                surf = font.render(txt, True, (250, 250, 250))
+                                shadow = font.render(txt, True, (0, 0, 0))
+                                self._surface.blit(shadow, (5, y_off + 1))
+                                self._surface.blit(surf, (4, y_off))
+                                y_off += surf.get_height() + 2
+                        # Agent IDs / target arrows from overlay_state
+                        if overlay_state is not None:
+                            for agent in sorted_agents:
+                                ax = getattr(agent, "x", 0)
+                                ay = getattr(agent, "y", 0)
+                                if overlay_state.show_agent_ids:
+                                    label_surf = font.render(f"A{getattr(agent,'id',0)}", True, (255, 255, 255))
+                                    self._surface.blit(label_surf, (ax * cell_w + 2, ay * cell_h + 2))
+                                if overlay_state.show_target_arrow:
+                                    tgt = getattr(agent, "_target", None) or getattr(agent, "target", None)
+                                    if isinstance(tgt, tuple) and len(tgt) == 2:
+                                        tx, ty = tgt
+                                        sx = ax * cell_w + cell_w // 2
+                                        sy = ay * cell_h + cell_h // 2
+                                        ex = tx * cell_w + cell_w // 2
+                                        ey = ty * cell_h + cell_h // 2
+                                        pygame.draw.line(self._surface, (255, 255, 0), (sx, sy), (ex, ey), 1)
                     except Exception:
                         pass
 

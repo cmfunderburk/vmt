@@ -335,7 +335,7 @@ Final hash: 6ab1c2e3...
 ```
 
 Flags:
-- `--pref {cd,subs,leontief,all}` choose preference(s)
+- `--pref {cd, subs, leontief, all}` choose preference(s)
 - `--steps N` number of decision steps (default 25)
 - `--agents N` number of agents (default 1; small recommended for clarity)
 - `--seed SEED` deterministic base seed
@@ -496,3 +496,43 @@ All major technical risks eliminated through working implementation:
 **Active Planning**: Gate 7 (interaction + GUI enrichment)  
 **Repository**: [github.com/cmfunderburk/vmt](https://github.com/cmfunderburk/vmt)  
 **Last Updated**: 2025-09-23
+
+## 11. Experimental GUI (Feature-Flagged Phase A)
+
+The next-generation GUI shell is available behind an environment flag while legacy behavior remains the default for stability.
+
+### Activate
+```bash
+ECONSIM_NEW_GUI=1 make dev
+```
+
+### Components (Phase A)
+- Start Menu (scenario + parameters + Randomize Seed)
+- Simulation Page:
+  - Embedded 320x240 Pygame viewport
+  - Controls Panel (Pause/Resume, Step 1, Step 5, Hash Refresh)
+  - Metrics Panel (ticks, remaining resources, steps/sec, hash via refresh) + optional auto-refresh
+  - Overlays Panel (Grid, Agent IDs, Target Arrows)
+  - Back to Menu (safe teardown & new session launch)
+
+### Overlay Toggles
+Tied to a shared `OverlayState` dataclass; rendering path is read-only and deterministic.
+
+### Metrics Auto-Refresh (Optional)
+Environment flags:
+- `ECONSIM_METRICS_AUTO=1` enables periodic refresh
+- `ECONSIM_METRICS_AUTO_INTERVAL_MS=500` custom interval (clamped to minimum 250ms to keep ≤4 Hz)
+
+### Other Environment Flags
+- `ECONSIM_LEGACY_RANDOM=1` – forces legacy random walk (disables decision logic per step)
+
+### Determinism & Performance Safeguards
+- Pause aware stepping (controller gate) – no hidden loops introduced
+- Hash caching avoids redundant recomputation between manual refreshes
+- Steps/sec estimator uses a rolling 64 timestamp window (O(1) append)
+- Overlay off baseline stability validated; overlay on path pixel-diff tested
+
+### Example: Launch New GUI + Auto Metrics
+```bash
+ECONSIM_NEW_GUI=1 ECONSIM_METRICS_AUTO=1 ECONSIM_METRICS_AUTO_INTERVAL_MS=750 make dev
+```

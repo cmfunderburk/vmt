@@ -28,6 +28,7 @@ from .session_factory import SessionFactory, SimulationSessionDescriptor
 from .simulation_controller import SimulationController
 from .panels.controls_panel import ControlsPanel
 from .panels.metrics_panel import MetricsPanel
+from .panels.overlays_panel import OverlaysPanel
 from .embedded_pygame import EmbeddedPygameWidget  # reuse existing rendering widget
 
 
@@ -90,11 +91,19 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
             simulation=controller.simulation,
             decision_mode=(descriptor.mode != "legacy"),
         )
+        # Attach back-reference so widget can consult controller pause state / record timestamps
+        setattr(pygame_widget, "_controller_ref", controller)
+        # If turn mode, start paused (Phase A behavior)
+        if descriptor.mode == "turn":
+            controller.pause()
         controls = ControlsPanel(on_back=self._request_return_to_menu, controller=controller)
         metrics = MetricsPanel(controller=controller)
+        overlay_panel = OverlaysPanel(pygame_widget.overlay_state) if pygame_widget.overlay_state else None
         layout.addWidget(pygame_widget)
         layout.addWidget(controls)
         layout.addWidget(metrics)
+        if overlay_panel is not None:
+            layout.addWidget(overlay_panel)
         self._session = _SimulationPageBundle(
             container=sim_container,
             controller=controller,

@@ -1,0 +1,4 @@
+pygame 2.6.1 (SDL 2.28.4, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+[Gate1] Frames=63 AvgFPS=62.5
+{"frames": 125.0, "duration_s": 2.0006534329986607, "avg_fps": 62.479586888092314}
