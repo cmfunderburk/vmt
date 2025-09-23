@@ -246,6 +246,47 @@ Flags:
 
 Use this script in teaching contexts to highlight differing resource acquisition paths driven purely by utility structure.
 
+### **Turn Mode Visualization (Bundle 3 Additions)**
+Enhanced pedagogical visualization is available via GUI turn mode with discrete step control and richer overlays.
+
+Launch example:
+```bash
+python scripts/demo_single_agent.py --gui --turn-mode --steps 40 --agents 1 --seed 1234 \
+	--density 0.18 --grid-lines --tail-length 6 --fade-ms 600 --respawn-every 5
+```
+
+Interactive controls (turn mode):
+- SPACE: advance 1 step
+- ENTER: advance 5 steps
+- A: toggle auto-run (interval controlled by --auto-interval)
+- Q: quit
+
+Key flags:
+- `--turn-mode` enable discrete stepping (otherwise continuous)
+- `--density FLOAT` deterministic random initial resource layout (overrides checkerboard)
+- `--grid-lines` show grid cell boundaries (auto-enabled in turn mode if omitted)
+- `--tail-length N` breadcrumb tail length per agent (0 disables)
+- `--no-tails` force-disable tails
+- `--fade-ms MS` fade-out duration for recently collected resources (0 disables)
+- `--respawn-every N` gated respawn every N turns (0 disables); uses target density = density or default 0.18
+- `--no-overlay` hide HUD (turn count, resources, inventories, utility)
+- `--pause-start` (planned) start with zero pending steps (manual first step)
+
+HUD Contents:
+- Turn number (decision steps executed)
+- Remaining resources
+- Per-agent: position, carrying inventory, home inventory, combined utility
+
+Determinism Notes:
+- Visual effects (fade, tails, overlay) do not influence the determinism hash
+- Initial resource scatter deterministic given `--density` and `--seed`
+
+Performance Impact:
+- Gridlines, overlay text, and tails add negligible overhead for small grids
+- Fading resources use a short list pruned each turn; safe under existing perf guards
+
+Future Enhancements (not yet implemented): path previews, utility change deltas, interactive placement.
+
 ### **Performance Testing**
 ```bash
 # Activate environment

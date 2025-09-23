@@ -109,9 +109,3 @@ Scaffold core/tick.py, core/grid.py, core/agent.py, core/preferences/base.py.
 Add grid overlay rendering path (conditional).
 Add new tests for grid, tick, and agent spawn.
 Adjust widget to consult TickController for logic step vs render frame.
-Reply with:
-
-“Approve Gate 2 scaffold” (and I’ll implement step 1–4)
-“Refine first” (and specify focus)
-Or list any additional constraints you want enforced.
-Your move.

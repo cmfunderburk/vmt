@@ -63,6 +63,12 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self._timer.timeout.connect(self._on_tick)  # type: ignore[arg-type]
         self._timer.start(self.FRAME_INTERVAL_MS)
         self.setMinimumSize(*self.SURFACE_SIZE)
+        # Bundle 3 forthcoming enhancement flags (kept simple for forward compatibility)
+        self.show_grid_lines = False
+        self.show_overlay = False
+        self._overlay_font = None  # lazy init
+        # When True, disable legacy animated background & moving rectangle for pedagogical clarity
+        self.static_background = False
 
     # --- Frame Loop -----------------------------------------------------
     def _on_tick(self) -> None:
@@ -87,18 +93,21 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             self._fps_last_report = now
 
     def _update_scene(self) -> None:
-        # Base background (retain Gate 1 simple animation for continuity)
+        # Background
         w, h = self.SURFACE_SIZE
-        phase = (self._frame // 5) % 255
-        bg_color = (phase, 50, 255 - phase)
-        self._surface.fill(bg_color)
-        # Moving rectangle (legacy visual heartbeat)
-        rect_w, rect_h = 50, 30
-        x = (self._frame * 3) % (w - rect_w)
-        y = (self._frame * 2) % (h - rect_h)
-        pygame.draw.rect(
-            self._surface, (255 - phase, 200, phase), pygame.Rect(x, y, rect_w, rect_h)
-        )
+        if self.static_background:
+            self._surface.fill((30, 30, 35))  # neutral dark
+        else:
+            phase = (self._frame // 5) % 255
+            bg_color = (phase, 50, 255 - phase)
+            self._surface.fill(bg_color)
+            # Legacy moving rectangle (kept only when not static)
+            rect_w, rect_h = 50, 30
+            x = (self._frame * 3) % (w - rect_w)
+            y = (self._frame * 2) % (h - rect_h)
+            pygame.draw.rect(
+                self._surface, (255 - phase, 200, phase), pygame.Rect(x, y, rect_w, rect_h)
+            )
         # Overlay simulation elements if a compatible simulation is attached (Gate 4 visual aid)
         sim = self._simulation
         if sim is not None:
@@ -111,6 +120,17 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 # Determine cell size (fit entire grid). Ensure >=2 pixels for visibility when possible.
                 cell_w = max(2, w // max(1, gw))
                 cell_h = max(2, h // max(1, gh))
+                # Optional grid lines (Bundle 3 enhancement hook) - drawn before resources
+                if getattr(self, "show_grid_lines", False):
+                    line_color = (40, 40, 40)
+                    # Vertical lines
+                    for gx in range(gw + 1):
+                        x_pix = gx * cell_w
+                        pygame.draw.line(self._surface, line_color, (x_pix, 0), (x_pix, gh * cell_h), 1)
+                    # Horizontal lines
+                    for gy in range(gh + 1):
+                        y_pix = gy * cell_h
+                        pygame.draw.line(self._surface, line_color, (0, y_pix), (gw * cell_w, y_pix), 1)
                 # Resource color map
                 RES_COLORS = {
                     "A": (240, 240, 60),  # yellowish
@@ -144,6 +164,60 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     pygame.draw.rect(self._surface, agent_color, rect)
                     # Outline for visibility
                     pygame.draw.rect(self._surface, (20, 20, 20), rect, 1)
+                # Overlay HUD (Bundle 3) - lightweight text; avoid impacting perf heavily
+                if getattr(self, "show_overlay", False):
+                    try:
+                        if self._overlay_font is None:
+                            pygame.font.init()
+                            # Use a small default font; fallback to SysFont if needed
+                            self._overlay_font = pygame.font.Font(None, 14)
+                        font = self._overlay_font
+                        # Derive step count if simulation wrapper exposes _count
+                        step_count = getattr(sim, "_count", 0)
+                        remaining = 0
+                        try:
+                            remaining = sum(1 for _ in grid.iter_resources())  # type: ignore[arg-type]
+                        except Exception:
+                            pass
+                        lines: list[str] = [f"Turn: {step_count}", f"Resources: {remaining}"]
+                        # Per-agent stats
+                        for agent in sorted(agents, key=lambda a: getattr(a, "id", 0)):
+                            carry = getattr(agent, "carrying", {})
+                            home = getattr(agent, "home_inventory", {})
+                            g1c = carry.get("good1", 0)
+                            g2c = carry.get("good2", 0)
+                            g1h = home.get("good1", 0)
+                            g2h = home.get("good2", 0)
+                            pref = getattr(agent, "preference", None)
+                            util_val = None
+                            try:
+                                if pref is not None and hasattr(pref, "utility"):
+                                    # Utility over home+carrying combined (pedagogical clarity)
+                                    goods_map = {
+                                        "good1": g1c + g1h,
+                                        "good2": g2c + g2h,
+                                    }
+                                    util_val = pref.utility(goods_map)  # type: ignore[arg-type]
+                            except Exception:
+                                util_val = None
+                            if util_val is not None:
+                                lines.append(
+                                    f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h}) U={util_val:.2f}"
+                                )
+                            else:
+                                lines.append(
+                                    f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h})"
+                                )
+                        # Render lines with shadow for readability
+                        y_off = 4
+                        for txt in lines:
+                            surf = font.render(txt, True, (250, 250, 250))
+                            shadow = font.render(txt, True, (0, 0, 0))
+                            self._surface.blit(shadow, (5, y_off + 1))
+                            self._surface.blit(surf, (4, y_off))
+                            y_off += surf.get_height() + 2
+                    except Exception:
+                        pass
 
     # --- Paint Path ------------------------------------------------------
     def paintEvent(self, event):  # type: ignore[override]
