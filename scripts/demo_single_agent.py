@@ -1,10 +1,12 @@
-"""Deterministic multi-preference demo (Gate 5 showcase).
+"""Deterministic multi-preference demo (Gate 5/6 showcase).
 
 Run a small simulation under different preference specifications and emit
 per-step agent state plus a determinism hash derived from the MetricsCollector.
 
-Example:
-    python scripts/demo_single_agent.py --pref all --steps 25
+Default (no flags): Launch GUI visualization with grid lines & overlay (turn mode off).
+
+Headless example (text output):
+    python scripts/demo_single_agent.py --headless --pref all --steps 25
 
 Outputs a section per preference with:
 - Step table (step,id,x,y,c_g1,c_g2,h_g1,h_g2)
@@ -79,8 +81,8 @@ def build_grid(width: int = 20, height: int = 15, *, density: Optional[float] = 
 def build_agents(n: int, preference: Any) -> list[Agent]:  # loose typing; preference implements utility()
     agents: list[Agent] = []
     for i in range(n):
-        # Spread agents diagonally; wrap if exceeding bounds at runtime
-    agents.append(Agent(id=i, x=i, y=i, preference=preference))  # type: ignore[arg-type]
+        # Spread agents diagonally; wrap if exceeding bounds at runtime (handled during simulation if needed)
+        agents.append(Agent(id=i, x=i, y=i, preference=preference))  # type: ignore[arg-type]
     return agents
 
 
@@ -158,7 +160,10 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--seed", type=int, default=1234, help="Base seed for deterministic systems")
     p.add_argument("--replay", action="store_true", help="Perform snapshot+replay hash parity check")
-    p.add_argument("--gui", action="store_true", help="Launch GUI visualization instead of printing table")
+    # GUI is now the default; provide --headless to opt into text mode.
+    p.add_argument("--headless", action="store_true", help="Run in headless text mode (was default previously)")
+    # Deprecated flag kept for backward compatibility; no action needed other than warn if used.
+    p.add_argument("--gui", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--turn-mode", action="store_true", help="GUI: enable discrete turn stepping (space=1 step, enter=5 steps, a=auto toggle, q=quit)")
     p.add_argument("--auto-interval", type=int, default=500, help="GUI turn mode: interval (ms) when auto-run toggled on")
     # Bundle 3 visualization / pedagogical enhancement flags (implementation staged)
@@ -227,7 +232,17 @@ def main() -> int:
         else:
             prefs = [("Leontief", LeontiefPreference(a=1.0, b=1.0))]
 
-    if args.gui:
+    # Backward compatibility: if legacy --gui specified, ignore (GUI already default)
+    if getattr(args, 'gui', False):  # pragma: no cover - warning path
+        print("[Deprecation] --gui flag no longer needed; GUI is the default. Use --headless for text mode.")
+
+    run_gui = not args.headless
+    # Force headless if DISPLAY missing
+    if run_gui and not os.environ.get("DISPLAY"):
+        print("[Info] DISPLAY not set; falling back to headless mode.")
+        run_gui = False
+
+    if run_gui:
         # GUI mode: only the first preference is visualized (warn if more requested)
         name, pref = prefs[0]
         # Build via factory (Gate 6)
@@ -537,9 +552,9 @@ def main() -> int:
         else:
             widget = EmbeddedPygameWidget(simulation=wrapper)
             host_widget = widget
-        # Grid lines default on in turn mode unless user omitted flag (future: add explicit no-grid flag)
-        widget.show_grid_lines = bool(args.grid_lines or args.turn_mode)
-        widget.show_overlay = not args.no_overlay and args.turn_mode
+        # Grid lines default on now for all GUI runs; overlay default on unless user disables
+        widget.show_grid_lines = True
+        widget.show_overlay = not args.no_overlay
         win.setCentralWidget(host_widget)
         win.resize(640, 480)
         win.show()

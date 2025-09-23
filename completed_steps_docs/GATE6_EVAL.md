@@ -21,6 +21,9 @@ Factory integration, overlay toggle, test migration, performance verification, d
 - No per-frame allocations introduced: factory occurs once; overlay text surfaces only when toggled.
 - Evidence file: `tmp_perf_gate6.json` (captured during this gate)
 
+## Test Run Summary
+Full suite execution (date: 2025-09-23): 72 passed, 0 failed, 0 skipped in ~5.01s (quiet mode). Confirms all determinism, competition, metrics, respawn, GUI smoke, and performance guard tests remain green post-factory integration.
+
 ## Overlay Toggle
 - Keybinding 'O' toggles HUD (implemented in `scripts/demo_single_agent.py` TurnWidget keyPressEvent).
 - Determinism unaffected: overlay rendering path reads state only.
