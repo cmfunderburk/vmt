@@ -2,11 +2,14 @@
 
 This guide documents how to use the simulation components with the Gate 6+ factory plus the legacy
 manual wiring path (deprecated for new code). It reflects recent increments: alternating multi-type
-respawn (A/B baseline), square grid cell rendering, and agent metrics UI accessors. Python 3.11+ assumed.
+respawn (A/B baseline), square grid cell rendering, agent metrics UI accessors, and randomized
+non-overlapping agent home placement with on-grid home labels. Python 3.11+ assumed.
 
 ## 1. Core Concepts
 - `Grid`: typed resource storage (A,B) at integer coordinates; deterministic iteration.
-- `Agent`: preference-driven collector with carrying vs home inventory, decision or random movement.
+- `Agent`: preference-driven collector with carrying vs home inventory, decision or random movement. Each
+    agent has a deterministic randomized home (non-overlapping) chosen once at session build; home cell is
+    rendered with a small `H{id}` label in the bottom-left for spatial reference.
 - `Simulation`: orchestrates agents + grid per step; optional hooks for respawn & metrics.
 - `Preferences`: pluggable utility forms (Cobb-Douglas, Perfect Substitutes, Leontief) via factory.
 - Hooks (manual wiring now): `RespawnScheduler`, `MetricsCollector`.
@@ -125,6 +128,8 @@ Parameter validation raises `PreferenceError` on invalid input.
 - Epsilon bootstrap (`EPSILON_UTILITY`) lifts zero bundles to avoid stall.
 - Metrics hash canonical ordering: sorted agents + sorted resources.
 - Respawn diversity: simple alternating A/B sequence (seed + spawn order fully determines types; no extra RNG draws).
+- Agent home placement: deterministic `random.sample` of all grid cells using secondary RNG seeded with `seed+9973`.
+    Changing the offset or introducing additional draws would alter home distribution for a given seed; gate any such change.
 
 ## 9. Performance Notes
 - Frame target ~60 FPS (GUI path). Avoid enlarging 320x240 surface or adding per-tick allocations.

@@ -16,6 +16,7 @@ Focus: Make the *current* components discoverable and default; consolidate basel
 - Square grid rendering (uniform cell geometry) for clearer spatial reasoning (no logic impact).
 - Agent metrics panel (dropdown selection → carry bundle + utility) via new controller accessors (`list_agent_ids`, `agent_carry_bundle`, `agent_carry_utility`).
 - Alternating multi‑type respawn baseline (A ↔ B) eliminating single‑type drift while remaining O(1) toggle; documented policy + diversity test.
+- Deterministic randomized non-overlapping agent home placement + on-grid home labels (H{id}) for spatial clarity (single pass at session build; negligible perf impact).
 - Tests moved off private internals; adopt factory; new UI + respawn diversity tests (suite size now 104).
 - Docs updated (README, API_GUIDE, copilot instructions, this roadmap) reflecting new baseline capabilities.
 - Performance parity (overlay + metrics panel overhead negligible; FPS guard maintained).

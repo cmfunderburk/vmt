@@ -24,6 +24,7 @@ Per step stays linear in agents + resources. Avoid all‑pairs scans (agent↔re
 
 ### Rendering Rules
 Keep conversion pipeline: `pygame.image.tostring(surface,'RGBA')` → `QImage` → `QPainter.drawImage`. No scaling intermediate surfaces, no per‑pixel Python loops. Overlay additions must reuse existing Surface and cached fonts.
+Home Label Overlay: Each agent's home cell may display a small `H{id}` label. Font must be cached (reuse existing overlay font) and drawn after agent rectangles. Do not introduce per-frame font creation or variable-length text measurement loops beyond the minimal blit. Maintain O(agents) overlay complexity.
 
 ### Teardown Discipline
 `closeEvent`: stop timer → `pygame.quit()` → super call. Mirror this order for new subsystems (stop → dispose → quit). Ensure no active timers post‑close.
@@ -41,6 +42,7 @@ State intent → minimal diff → verify (tests/perf/hash) → summarize (Goal |
 New state: append serialize fields + update replay/hash tests. New preference: add type, register in factory, add serialization + parameter validation test. New overlay: prove negligible FPS hit. Maintain determinism first; performance second; pedagogy visuals third.
 
 Reference anchors: `README.md` (current scope), `ROADMAP_REVISED.md` (forward gates), `tests/unit/*` (behavioral guarantees).
+Home Placement: Random non-overlapping agent home positions chosen once using deterministic secondary RNG seed (`seed+9973`) via `random.sample` over ordered cell list. Any change to seed offset or sampling order is a determinism-impacting modification and must be gated (update roadmap + tests).
 
 ### Respawn Policy (Baseline Alternation)
 Current respawn implementation (Gate Docs Update increment) introduces deterministic multi-type diversity:

@@ -227,6 +227,23 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     pygame.draw.rect(self._surface, agent_color, rect)
                     # Outline for visibility
                     pygame.draw.rect(self._surface, (20, 20, 20), rect, 1)
+                # Draw home labels (H{id}) in bottom-left corner of each agent's home cell.
+                # Cache a small font to avoid per-frame creation. Deterministic pure text based on agent id.
+                try:
+                    if self._overlay_font is None:  # reuse existing font cache if previously created
+                        pygame.font.init()
+                        self._overlay_font = pygame.font.Font(None, 14)
+                    font = self._overlay_font
+                    for agent in sorted_agents:
+                        hx = int(getattr(agent, "home_x", getattr(agent, "x", 0)))
+                        hy = int(getattr(agent, "home_y", getattr(agent, "y", 0)))
+                        label = font.render(f"H{getattr(agent, 'id', 0)}", True, (200, 200, 210))
+                        # Position label at bottom-left inside cell (2px padding) without affecting surface size.
+                        lx = hx * cell_w + 2
+                        ly = hy * cell_h + max(0, cell_h - label.get_height() - 1)
+                        self._surface.blit(label, (lx, ly))
+                except Exception:
+                    pass  # defensive; label rendering is non-critical
                 # Overlay HUD (legacy full stats) + Phase A overlays (agent IDs / target arrow)
                 if getattr(self, "show_overlay", False) or (
                     overlay_state is not None and (overlay_state.show_agent_ids or overlay_state.show_target_arrow)

@@ -67,12 +67,21 @@ class SessionFactory:
                 return LeontiefPreference(a=1.0, b=1.0)
             raise ValueError(f"Unknown preference type: {descriptor.preference_type}")
 
-        # Agent spawn positions: simple spread along diagonal then wrap
+        # Agent spawn positions: deterministic random non-overlapping homes.
+        # Use a secondary RNG keyed off seed+constant so resource layout (above) remains identical
+        # to historical behavior for a given seed (avoids silent test drift tied to RNG draw order).
         positions: List[tuple[int, int]] = []
-        for i in range(descriptor.agents):
-            x = i % gw
-            y = (i // gw) % gh
-            positions.append((x, y))
+        if descriptor.agents > 0:
+            agent_rng = random.Random(descriptor.seed + 9973)
+            # Population ordered lexicographically (y,x) for stability.
+            population: list[tuple[int, int]] = [(x, y) for y in range(gh) for x in range(gw)]
+            if descriptor.agents > len(population):  # defensive: clamp to available cells
+                take = len(population)
+            else:
+                take = descriptor.agents
+            # random.sample preserves deterministic order under fixed seed & population ordering.
+            positions = agent_rng.sample(population, take)
+            # Assign remaining agents (if any due to clamp) none – but current descriptors shouldn't exceed grid.
 
         sim = Simulation.from_config(cfg, pref_factory, agent_positions=positions)
         from .simulation_controller import SimulationController  # local import to avoid cycle

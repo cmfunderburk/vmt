@@ -11,7 +11,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 | Rendering Core | PyQt6 window + embedded 320x240 Pygame surface (~62 FPS) | GUI controls / menus / scenario panels |
 | Preferences | Cobb-Douglas, Perfect Substitutes, Leontief + factory | N-good generalization, adaptive forms |
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
-| Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism | Trading, production/consumption, richer behaviors |
+| Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism, randomized non-overlapping home placement + on-grid home labels (H{id}) | Trading, production/consumption, richer behaviors |
 | Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests; GUI default ON; env / param override | Multi-step planning |
 | Respawn | Density-based scheduler (factory flag) + deterministic alternating A/B type spawning (baseline) | Weighted / adaptive multi-type distribution, richer policies |
 | Metrics | Factory-attached collector + determinism hash | Additional economic metrics suite |
@@ -121,15 +121,16 @@ See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
 | Copilot Instructions | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
 
 ---
-Last updated: 2025-09-23 (Docs alignment gate – adds alternating respawn + agent metrics UI + square grid cells).
+Last updated: 2025-09-23 (Docs alignment gate – adds alternating respawn + agent metrics UI + square grid cells + randomized homes & home labels).
 
-### Recent Increment (Square Grid, Agent Metrics UI, Alternating Respawn)
+### Recent Increment (Square Grid, Agent Metrics UI, Alternating Respawn, Randomized Homes)
 Added:
 * Square grid cell rendering (cell size unified to min dimension; preserves existing coordinate mapping; unused margin left blank to avoid extra math).
 * Controls panel agent inspection: dropdown (stable ID sort) + live carrying bundle & utility (4 Hz lightweight timer). Pure read-only; determinism hash unaffected (`test_agent_metrics_ui.py`).
 * Multi-type respawn baseline: scheduler now alternates resource types A/B deterministically (internal toggle) ensuring diversity without added per-step complexity (`test_respawn_type_diversity.py`).
-Performance: negligible overhead (alternation is O(1) per spawn; UI timer low-frequency, no added per-frame loops).
-Determinism: preserved (respawn type sequence fully determined by seed + toggle ordering; no change to tie-break key or metrics hash semantics for identical seeds).
+* Randomized non-overlapping agent home placement (deterministic secondary RNG seeded by `seed+9973`) replacing clustered top-left spawn; each home labeled `H{id}` rendered in its cell bottom-left (font cached; negligible overhead).
+Performance: negligible overhead (alternation O(1) per spawn; UI timer low-frequency; home labels reuse cached font; random placement done once at session build).
+Determinism: preserved (agent home set drawn deterministically from ordered population with fixed seed offset; rendering pure function of state; no hash drift expected or observed).
 
 
 ## Project Overview
