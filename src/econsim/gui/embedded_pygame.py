@@ -134,8 +134,11 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self._frame += 1
         now = perf_counter()
         if now - self._fps_last_report >= 1.0:
-            fps = self._frame / (now - self._start)
-            print(f"[Gate1] Frames={self._frame} AvgFPS={fps:.1f}")
+            # Gate legacy diagnostic FPS print behind explicit env flag to avoid log spam in normal runs.
+            import os as _os_dbg
+            if _os_dbg.environ.get("ECONSIM_DEBUG_FPS") == "1":
+                fps = self._frame / (now - self._start)
+                print(f"[FPS] Frames={self._frame} AvgFPS={fps:.1f}")
             self._fps_last_report = now
 
     def _update_scene(self) -> None:
@@ -164,9 +167,15 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 # Scaling: map simulation grid to surface; simple uniform scale (integer) or fallback 1.
                 gw = getattr(grid, "width", 1)
                 gh = getattr(grid, "height", 1)
-                # Determine cell size (fit entire grid). Ensure >=2 pixels for visibility when possible.
+                # Determine provisional cell size (fit entire grid height/width independently), then
+                # enforce square cells by taking the smaller dimension to avoid stretching.
+                # This preserves determinism (pure arithmetic) and avoids reallocating the surface.
                 cell_w = max(2, w // max(1, gw))
                 cell_h = max(2, h // max(1, gh))
+                cell_size = min(cell_w, cell_h)
+                cell_w = cell_h = cell_size
+                # Note: This may leave un-used margin on one axis; we keep it blank (no centering) to
+                # minimize per-frame math and preserve existing coordinate mapping semantics.
                 # Optional grid lines - phase out legacy flag in favor of overlay_state.show_grid
                 overlay_state = getattr(self, "overlay_state", None)
                 use_grid = False

@@ -99,6 +99,16 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         controls = ControlsPanel(on_back=self._request_return_to_menu, controller=controller)
         metrics = MetricsPanel(controller=controller)
         overlay_panel = OverlaysPanel(pygame_widget.overlay_state) if pygame_widget.overlay_state else None
+        # Align controller decision mode with widget decision mode (for manual steps determinism)
+        try:
+            controller.set_decision_mode(descriptor.mode != "legacy")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        # Configure initial playback pacing per mode (turn vs continuous/legacy)
+        try:
+            controls.configure_for_mode(descriptor.mode)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         layout.addWidget(pygame_widget)
         layout.addWidget(controls)
         layout.addWidget(metrics)

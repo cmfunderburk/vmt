@@ -48,6 +48,7 @@ class RespawnScheduler:
     target_density: float
     max_spawn_per_tick: int
     respawn_rate: float  # conceptual: fraction of deficit addressed each tick (0..1]
+    _next_type_flag: bool = False  # internal alternating flag (not externally exposed)
 
     def __post_init__(self) -> None:  # pragma: no cover (simple validation)
         if self.max_spawn_per_tick < 0:
@@ -56,6 +57,10 @@ class RespawnScheduler:
             raise ValueError("target_density must be >=0")
         if not (self.respawn_rate >= 0.0):
             raise ValueError("respawn_rate must be >=0")
+        # Internal deterministic toggle to alternate resource types (A,B) for diversity.
+        # Not serialized (scheduler not part of snapshot yet); parity derivable from total spawns if needed.
+        # _next_type_flag already part of dataclass; ensure boolean
+        self._next_type_flag = bool(self._next_type_flag)
 
     def step(self, grid: Grid, rng: random.Random, *, step_index: int) -> int:  # noqa: ARG002
         """Spawn resources, moving the grid toward the target density.
@@ -114,7 +119,9 @@ class RespawnScheduler:
 
         spawned = 0
         for (x, y) in spawn_list:
-            grid.add_resource(x, y, "A")  # default type A for now
+            rtype = "B" if self._next_type_flag else "A"
+            grid.add_resource(x, y, rtype)
+            self._next_type_flag = not self._next_type_flag
             spawned += 1
 
         # Ensure we never overshoot target (defensive assertion)

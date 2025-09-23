@@ -13,7 +13,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
 | Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism | Trading, production/consumption, richer behaviors |
 | Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests; GUI default ON; env / param override | Multi-step planning |
-| Respawn | Density-based scheduler (factory flag) | Multi-type spawning, richer policies |
+| Respawn | Density-based scheduler (factory flag) + deterministic alternating A/B type spawning (baseline) | Weighted / adaptive multi-type distribution, richer policies |
 | Metrics | Factory-attached collector + determinism hash | Additional economic metrics suite |
 | Snapshot / Replay | Serialize + restore + hash parity tests | Scenario library management |
 | Configuration | `SimConfig` + `Simulation.from_config` factory | Extended scenario descriptors |
@@ -121,7 +121,16 @@ See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
 | Copilot Instructions | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
 
 ---
-Last updated: 2025-09-23 (Documentation remediation – foundation for Gate 6).
+Last updated: 2025-09-23 (Docs alignment gate – adds alternating respawn + agent metrics UI + square grid cells).
+
+### Recent Increment (Square Grid, Agent Metrics UI, Alternating Respawn)
+Added:
+* Square grid cell rendering (cell size unified to min dimension; preserves existing coordinate mapping; unused margin left blank to avoid extra math).
+* Controls panel agent inspection: dropdown (stable ID sort) + live carrying bundle & utility (4 Hz lightweight timer). Pure read-only; determinism hash unaffected (`test_agent_metrics_ui.py`).
+* Multi-type respawn baseline: scheduler now alternates resource types A/B deterministically (internal toggle) ensuring diversity without added per-step complexity (`test_respawn_type_diversity.py`).
+Performance: negligible overhead (alternation is O(1) per spawn; UI timer low-frequency, no added per-frame loops).
+Determinism: preserved (respawn type sequence fully determined by seed + toggle ordering; no change to tie-break key or metrics hash semantics for identical seeds).
+
 
 ## Project Overview
 
@@ -145,22 +154,22 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 - **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
 - **Development Environment**: Complete vmt-dev virtual environment with all dependencies
 
-### **🚀 Current Capabilities (Post Gate 6)**
+### **🚀 Current Capabilities (Post Alternating Respawn Increment)**
 ```bash
-# Working demonstration (Gate 5)
+# Working demonstration
 source vmt-dev/bin/activate
-make dev                               # Launch GUI with overlay-capable widget
-make test                              # 62 tests pass (preferences + grid + agents + decision + respawn + metrics + snapshot + perf)
+make dev                               # Launch GUI (agent metrics panel + alternating respawn)
+make test                              # 104 tests pass (determinism, decision, respawn diversity, metrics, snapshot, perf, GUI pacing, overlays)
 make lint                              # Code quality enforced
-python3 scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
+python scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
 ```
 
-### **📊 Performance & Determinism (Gate 6 Snapshot)**
+### **📊 Performance & Determinism (Current Snapshot)**
 - **Frame Rate (widget)**: ~61–62 FPS typical (floor safeguard ≥25 CI / ≥30 target)
 - **Decision Throughput Test**: 4000 steps <1.0s (floor ≥4000 steps/sec; typical much higher)
 - **Overlay Regression Test**: Byte-diff ≥2% when enabled, <15% after disabling (ensures draw path active, inert to state)
 - **Respawn & Metrics Overhead**: Negligible; hooks no-op when disabled
-- **Determinism Hash**: Unchanged across Gate 6 integration (see `completed_steps_docs/GATE6_EVAL.md`)
+- **Determinism Hash**: Stable across alternating respawn introduction (hash parity for identical seeds preserved; see tests + `GATE6_EVAL.md` for prior baseline)
 - **Private Access**: General tests avoid internals; controlled replay/density exceptions documented
 - **Suite Coverage**: Determinism, competition, hash, respawn density, metrics, snapshot, overlay regression, widget & raw perf
 
@@ -213,10 +222,19 @@ Gate-based technical validation approach:
 - **Performance Guards**: Decision throughput + micro benchmark preventing latent regression
 - **Testing Surface Access**: Added `get_surface_bytes()` for safe render assertions
 
-### **🎯 Post Gate 5 Next Focus**
-- Gate 5 retrospective narrative polish (risks/mitigations – partially in GATE5_EVAL)
-- Plan Gate 6 scope (e.g., trade interactions, richer utility adaptation, UI scenario configuration)
-- Expand educational overlays (utility contours, marginal rate visualization)
+### **🎯 Upcoming Focus**
+-- Weighted / adaptive multi-type respawn strategies (beyond simple alternation)
+-- Trade interactions & richer economic behaviors
+-- Utility contour & marginal rate visualization overlays
+-- Parameterized scenario loading & persistence
+
+### Agent Metrics Panel (Usage)
+The Controls panel now includes:
+* Agent dropdown: deterministic list of agent IDs (sorted)
+* Carry label: current in-hand goods (good1, good2)
+* Utility label: utility of carrying bundle (not including home inventory)
+
+Update cadence is 4 Hz (separate lightweight timer). No mutation or stepping occurs via this panel.
 
 ## Preferences Architecture (Gate 2 Foundation)
 

@@ -126,7 +126,12 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         grid_h = self.grid_h.value()
         agents = int(self.agents_box.value())
         density_val = float(self.density_box.value())
-        self._validate_inputs(grid_w, grid_h, agents, density_val)
+        try:
+            self._validate_inputs(grid_w, grid_h, agents, density_val)
+        except ValueError as exc:  # pragma: no cover - GUI feedback path
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Input Error", str(exc))
+            return
         selection = MenuSelection(
             scenario=scenario,
             mode=mode,

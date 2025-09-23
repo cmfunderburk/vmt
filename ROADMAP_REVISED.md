@@ -9,15 +9,18 @@ This roadmap resets expectations to align with implemented reality. It sequences
 - Explicit deferrals documented at each gate boundary.
 
 ## Gate 6 – Integration & Minimal Overlay Toggle
-Focus: Make the *current* components discoverable and default.
+Focus: Make the *current* components discoverable and default; consolidate baseline visual & introspection improvements without expanding core economics.
 - Factory: `Simulation.from_config(SimConfig)` attaches RNG, respawn, metrics.
 - Default decision mode in GUI; legacy random behind env flag.
 - Minimal overlay toggle (HUD on/off) – no advanced visuals.
-- Tests moved off private internals; adopt factory.
-- Docs updated (README, API_GUIDE, this roadmap).
-- Performance parity (overlay cost negligible).
+- Square grid rendering (uniform cell geometry) for clearer spatial reasoning (no logic impact).
+- Agent metrics panel (dropdown selection → carry bundle + utility) via new controller accessors (`list_agent_ids`, `agent_carry_bundle`, `agent_carry_utility`).
+- Alternating multi‑type respawn baseline (A ↔ B) eliminating single‑type drift while remaining O(1) toggle; documented policy + diversity test.
+- Tests moved off private internals; adopt factory; new UI + respawn diversity tests (suite size now 104).
+- Docs updated (README, API_GUIDE, copilot instructions, this roadmap) reflecting new baseline capabilities.
+- Performance parity (overlay + metrics panel overhead negligible; FPS guard maintained).
 
-Deferrals: trading, parameter panels, advanced overlays, economic indicators.
+Deferrals: trading, parameter panels, advanced overlays, economic indicators, weighted/adaptive respawn strategies (future gate will evaluate ratios & adaptive policies under determinism + perf constraints).
 
 ## Gate 7 – Trading / Agent Interaction
 Prerequisite: Gate 6 integration done.

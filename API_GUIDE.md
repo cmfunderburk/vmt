@@ -1,7 +1,8 @@
 # VMT API Guide
 
-This guide documents how to use the simulation components with the new Gate 6 factory plus the legacy
-manual wiring path (now deprecated for new code). All examples assume Python 3.11+.
+This guide documents how to use the simulation components with the Gate 6+ factory plus the legacy
+manual wiring path (deprecated for new code). It reflects recent increments: alternating multi-type
+respawn (A/B baseline), square grid cell rendering, and agent metrics UI accessors. Python 3.11+ assumed.
 
 ## 1. Core Concepts
 - `Grid`: typed resource storage (A,B) at integer coordinates; deterministic iteration.
@@ -9,6 +10,7 @@ manual wiring path (now deprecated for new code). All examples assume Python 3.1
 - `Simulation`: orchestrates agents + grid per step; optional hooks for respawn & metrics.
 - `Preferences`: pluggable utility forms (Cobb-Douglas, Perfect Substitutes, Leontief) via factory.
 - Hooks (manual wiring now): `RespawnScheduler`, `MetricsCollector`.
+    - Respawn baseline now alternates resource types A ↔ B deterministically (no added complexity).
 
 ## 2. Factory Construction (Preferred – Gate 6)
 ```python
@@ -89,8 +91,9 @@ for step in range(60):
 print("determinism hash:", sim.metrics_collector.determinism_hash())
 ```
 Notes:
-- Hooks are inert unless explicitly assigned.
-- Determinism hash covers agents + resources each step (ordering sensitive).
+* Hooks are inert unless explicitly assigned when bypassing the factory.
+* Determinism hash covers agents + resources each step (ordering sensitive).
+* Alternating resource type spawn (A/B) is handled internally by `RespawnScheduler` (baseline diversity).
 
 ## 6. Snapshot & Replay
 ```python
@@ -121,29 +124,40 @@ Parameter validation raises `PreferenceError` on invalid input.
 - Agent list order conveys priority in simultaneous contests.
 - Epsilon bootstrap (`EPSILON_UTILITY`) lifts zero bundles to avoid stall.
 - Metrics hash canonical ordering: sorted agents + sorted resources.
+- Respawn diversity: simple alternating A/B sequence (seed + spawn order fully determines types; no extra RNG draws).
 
 ## 9. Performance Notes
 - Frame target ~60 FPS (GUI path). Avoid enlarging 320x240 surface or adding per-tick allocations.
-- Decision loop complexity: O(agents + visible resources). Keep respawn / metrics similarly linear.
+- Decision loop complexity: O(agents + visible resources). Respawn & metrics remain linear; alternation adds O(1) per spawn.
 
-## 10. Current Limitations
+## 10. Controller Introspection (Agent Metrics Accessors)
+The GUI leverages read-only helper methods on `SimulationController` (exposed via the new UI path). They are pure and safe for overlays/testing:
+```python
+controller.list_agent_ids()            # -> list[int]
+controller.agent_carry_bundle(aid)     # -> (good1:int, good2:int)
+controller.agent_carry_utility(aid)    # -> float | None (utility of carrying bundle only)
+```
+Properties:
+* Deterministic ordering (sorted IDs)
+* No mutation or RNG usage
+* Utility computed from current carrying goods only (home inventory excluded by design for immediate marginal context)
+
+## 11. Current Limitations
 | Limitation | Impact | Planned Resolution |
 |------------|--------|-------------------|
-| No `Simulation.from_config` | Verbose manual wiring | Gate 6 factory |
-| GUI default = random mode | Demo under-sells decision logic | Gate 6 flip default |
-| Hooks not auto-applied | Respawn/metrics invisible to new users | Gate 6 config integration |
+| Weighted multi-type respawn | Only simple A/B alternation | Future strategy gate |
+| GUI trade / production | Economic depth limited | Interaction & production gates |
+| Utility contour overlays | Limited pedagogical visualization | Future overlay gate |
 | No menus / overlays control | Hard-coded visuals | Gate 8 basic controls |
 | Trading / production absent | Economic depth limited | Gates 7–9 sequencing |
 
-## 11. Upcoming (Beyond Gate 6 Preview)
-- Factory applying seed, respawn, metrics, default decision mode.
-- Minimal overlay toggle path exposed.
-- Public API adoption in tests (remove private `_rng` & manual hook pokes).
+## 12. Snapshot & Replay Integrity
+Unchanged: snapshot excludes `RespawnScheduler` internal alternation flag; replay parity relies on reproducing spawn order. If future serialization includes scheduler state, include the alternation toggle at the end of existing fields.
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Respawn not occurring | Scheduler not assigned | Assign `RespawnScheduler` to `sim.respawn_scheduler` |
+| Respawn not occurring | Scheduler not assigned / disabled flags | Ensure `enable_respawn=True` in factory or assign scheduler |
 | Metrics hash empty | `MetricsCollector` missing or disabled | Attach collector instance |
 | Agents idle immediately | No positive ΔU targets (all consumed) | Add resources or attach respawn |
 | Unexpected divergence between runs | Tie-break logic altered | Revert ordering / verify sorted iteration |
@@ -153,7 +167,9 @@ Representative tests (browse under `tests/unit/`):
 - `test_decision_determinism.py` – identical trajectories across seeds.
 - `test_competition.py` – deterministic contest resolution.
 - `test_respawn_density.py` – density convergence & no overshoot.
+- `test_respawn_type_diversity.py` – A/B alternation presence.
+- `test_agent_metrics_ui.py` – controller accessor wiring into GUI.
 - `test_determinism_hash.py` – hash stability vs divergence.
 
 ---
-Last updated: 2025-09-23 (Gate 6 factory integrated).
+Last updated: 2025-09-23 (Docs update: alternating respawn, controller accessors, agent metrics UI).

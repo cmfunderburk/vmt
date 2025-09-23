@@ -24,6 +24,20 @@ class SimulationController:
         # Playback control (turn mode / educational pacing). None => unrestricted (per-frame) stepping.
         self._playback_tps: float | None = None
         self._last_auto_step_time: float | None = None
+        # Persistent RNG for manual stepping to avoid per-call re-seeding divergence.
+        # Seed priority: simulation.config.seed (if present) else fixed fallback.
+        seed = 0
+        try:
+            cfg = getattr(simulation, "config", None)
+            if cfg is not None and hasattr(cfg, "seed"):
+                seed = int(getattr(cfg, "seed"))
+        except Exception:  # pragma: no cover - defensive
+            seed = 0
+        import random as _r
+        self._manual_rng = _r.Random(seed)
+        # Mode flag (decision vs legacy). Default True unless an explicit legacy marker is later injected.
+        # The EmbeddedPygameWidget passes decision_mode to its own stepping path; we mirror via a public setter.
+        self._use_decision_mode: bool = True
 
     def pause(self) -> None:
         self._paused = True
@@ -34,11 +48,19 @@ class SimulationController:
     def is_paused(self) -> bool:
         return self._paused
 
+    def set_decision_mode(self, enabled: bool) -> None:
+        """Setter used by GUI layer to align manual stepping mode with widget decision_mode."""
+        self._use_decision_mode = bool(enabled)
+
     def manual_step(self, count: int = 1) -> None:
-        import random
-        rng = random.Random(999)  # stable manual stepping RNG
-        for _ in range(max(1, count)):
-            self.simulation.step(rng, use_decision=True)
+        """Perform one or more manual steps using persistent RNG and honoring active mode.
+
+        Uses the same decision vs legacy semantics as the widget timer path to
+        preserve determinism when mixing manual + auto stepping.
+        """
+        steps = max(1, count)
+        for _ in range(steps):
+            self.simulation.step(self._manual_rng, use_decision=self._use_decision_mode)
             self._record_step_timestamp()
         # Reset scheduling anchor so an immediate auto step does not fire right after manual stepping.
         self._last_auto_step_time = None
@@ -118,6 +140,51 @@ class SimulationController:
         if span <= 0:
             return 0.0
         return (len(times) - 1) / span
+
+    # --- Agent Introspection (Read-Only; UI metrics) -----------------------
+    def list_agent_ids(self) -> list[int]:
+        """Return deterministic ordered list of agent IDs.
+
+        Stable ordering leverages underlying simulation.agents ordering;
+        we sort by id to ensure UI dropdown remains stable even if internal
+        insertion order changes in future extensions.
+        """
+        agents = getattr(self.simulation, "agents", [])
+        try:
+            return [int(getattr(a, "id")) for a in sorted(agents, key=lambda a: getattr(a, "id", 0))]
+        except Exception:
+            return []
+
+    def agent_carry_bundle(self, agent_id: int) -> tuple[int, int]:
+        """Return (good1, good2) carrying bundle for agent or (0,0) if not found."""
+        agents = getattr(self.simulation, "agents", [])
+        for a in agents:
+            if getattr(a, "id", None) == agent_id:
+                inv = getattr(a, "carrying", {})
+                return int(inv.get("good1", 0)), int(inv.get("good2", 0))
+        return (0, 0)
+
+    def agent_carry_utility(self, agent_id: int) -> float | None:
+        """Compute utility of the agent's carrying bundle (without home inventory).
+
+        Returns None if preference or agent not accessible. This is a pure
+        computation using already-held state; no mutation performed.
+        """
+        agents = getattr(self.simulation, "agents", [])
+        for a in agents:
+            if getattr(a, "id", None) == agent_id:
+                pref = getattr(a, "preference", None)
+                if pref is None or not hasattr(pref, "utility"):
+                    return None
+                inv = getattr(a, "carrying", {})
+                # Preference utility expects a bundle (x,y) or mapping; implementations accept tuple.
+                try:
+                    g1 = float(inv.get("good1", 0))
+                    g2 = float(inv.get("good2", 0))
+                    return float(pref.utility((g1, g2)))  # type: ignore[arg-type]
+                except Exception:
+                    return None
+        return None
 
     # Internal hook used by widget when auto-stepping
     def _record_step_timestamp(self) -> None:
