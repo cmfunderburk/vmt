@@ -1,6 +1,6 @@
 # VMT EconSim Platform
 
-**An Educational Economic Simulation Platform for Microeconomics Learning**
+**An Educational Economic Simulation Platform for Microeconomic Modeling**
 
 ## Project Status: GATE 5 COMPLETE — DYNAMICS, METRICS & DETERMINISM ✅
 
