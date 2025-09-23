@@ -1,75 +1,31 @@
-## VMT Copilot Quick Instructions (Keep Responses Lean & Actionable)
-Purpose: Fast orientation for AI agents contributing to VMT (PyQt6 desktop app embedding a Pygame surface). Focus on implemented functionality (Gates 1-2 complete) and enforced gate workflow discipline.
+## VMT Copilot Instructions (Concise, Actionable, Gate 4)
+Purpose: Immediate orientation for AI agents contributing to a PyQt6 desktop app embedding a Pygame surface with an injectable simulation layer (Gates 1–4 implemented: rendering, preferences, grid/agents, decision + overlays).
 
-### Architecture Snapshot
-Single process, single event loop. PyQt6 `QApplication` hosts a main window (`econsim.main:create_window`) whose central widget is `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`). Widget owns a QTimer (~16ms) that updates an off‑screen Pygame Surface (320x240) then repaints via `paintEvent` (Surface→RGBA bytes→`QImage`→draw). No threading, no background loops; all timing via QTimer + `app.processEvents()` in tests/perf. 
+Architecture:
+1. Single process / single Qt event loop. No threads, no while True loops.
+2. `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`) owns a QTimer (~16 ms) updating an off-screen 320x240 Surface → RGBA bytes → `QImage` in `paintEvent`.
+3. Simulation (Gate 3/4) is optional: object with `step(rng)` plus attributes `grid`, `agents`; grid exposes `iter_resources()`. Rendering overlays read these; keep interface minimal.
+4. Preferences system (`src/econsim/preferences/`) provides uniform contract (`utility`, `update_params`, `serialize`) for Cobb-Douglas, Perfect Substitutes, Leontief; validated by tests.
 
-**Educational Mission**: Transform abstract utility maximization into observable spatial agent behavior for microeconomics learning. Three preference types (Cobb-Douglas, Perfect Substitutes, Leontief) demonstrate different economic behaviors through grid-based collection visualization.
+Gate Workflow (MUST FOLLOW before pushing):
+1. Draft `Gate_N_todos.md` (scope + acceptance criteria)  2. Create `GATE_N_CHECKLIST.md`  3. Align with stakeholder  4. Implement & update docs  5. Write `GATE_N_EVAL.md` (evidence + gaps)  6. THEN commit/push.
 
-**Preferences Architecture**: Complete factory pattern in `src/econsim/preferences/` with unified interface (`utility()`, `update_params()`, `serialize()`), strict validation via `PreferenceError`, and round-trip serialization. All three preference types fully implemented with economic correctness tests.
+Core Commands (use Make targets): `make dev` (launch GUI) · `make test` (unit+perf guards) · `make lint` · `make format` · `make type` · `make perf` (quick FPS / synthetic).
 
-### Current Scope (Gates 1-2 Complete; Gate 3 Planning)
-In-scope: widget maintenance, preferences system, performance/stability, documentation, test robustness, Gate 3 scaffolding (grid/agent foundations).
-Out-of-scope until later gates: agent decision logic, advanced UI (menus/toolbars), threading, packaging, logging layers, analytics.
+Headless Pattern: If no DISPLAY set: ensure `SDL_VIDEODRIVER=dummy` and `QT_QPA_PLATFORM=offscreen` (see tests + `scripts/perf_stub.py`). Mirror in any new perf/test code.
 
-### Mandatory Gate Workflow (ENFORCE BEFORE ANY GIT PUSH)
-**CRITICAL**: All gate work must follow this sequence. NO exceptions.
+Performance Guardrails: Baseline ~62 FPS; minimum acceptable ≥30 FPS. If regression: (a) check per-frame allocations (image conversion already minimal) (b) avoid enlarging Surface (c) confirm `FRAME_INTERVAL_MS` unchanged. Use: `python scripts/perf_stub.py --mode widget --duration 2 --json`.
 
-1. **Generate Todo List**: Create `Gate_N_todos.md` with scope, acceptance criteria, step-by-step plan
-2. **Create Checklist**: Extract acceptance criteria into checkable `GATE_N_CHECKLIST.md` 
-3. **Discuss & Agree**: Review scope, risks, timeline with stakeholder before implementation
-4. **Execute Systematically**: Work through agreed steps; update todos/checklist as completed
-5. **Write Retrospective Eval**: Create `GATE_N_EVAL.md` in critical evaluation style (map criteria to evidence, identify gaps/risks, assess readiness)
-6. **ONLY THEN**: Git commit/push after retrospective eval documents the gate completion
+Determinism & Decision Logic: Tests enforce identical agent trajectories and bounded decision overhead (competition, preference shift, epsilon bootstrap). Preserve tie-break order (−ΔU, distance, x, y) if touching selection code.
 
-**Violation = Scope creep risk**. Always document what was delivered vs promised, performance impact, technical debt created, and readiness for next gate.
+Safe Changes Examples: OK—add simulation parameter, new preference subclass + factory registration + tests, lightweight perf flag. NOT OK—introduce threads, blocking loops, expand widget into simulation orchestrator, un-gated scope creep.
 
-### Core Developer Workflow
-**Environment Setup**: Always activate `vmt-dev/bin/activate` before development. All dependencies managed via `pyproject.toml` with dev extras.
+Teardown Discipline: In widget `closeEvent`: stop QTimer, `pygame.quit()`. Any new resource: mirror this pattern and extend tests if needed.
 
-**Make Targets** (primary interface):
-- `make dev` → Launch GUI (`python -m econsim.main`)  
-- `make test` → Run 25 unit tests (pytest)
-- `make lint` → Validate with ruff + black  
-- `make format` → Auto-format code (black + ruff --fix)
-- `make type` → Type checking (mypy)  
-- `make perf` → Performance validation (`scripts/perf_stub.py --mode widget`)
+Testing Conventions: Short loops using `app.processEvents()`. Probe protected attributes only in tests (e.g., `_frame`). Always set headless env vars early when adding a test that initializes Qt/Pygame.
 
-**Headless Environment**: CI/tests auto-set `SDL_VIDEODRIVER=dummy` and `QT_QPA_PLATFORM=offscreen`. Mirror this pattern in new test files. Prefer Make targets over direct script execution.
+Response Style for AI: Start with intent sentence, act immediately, summarize delta (Goal | Actions | Result | Next). Offer A/B options when ambiguity exists; avoid reprinting this file.
 
-### Key Files & Patterns
-**Core Architecture:**
-- `src/econsim/main.py` → Entry point + QMainWindow factory with `EmbeddedPygameWidget` central widget
-- `src/econsim/gui/embedded_pygame.py` → QTimer-driven render loop, pygame Surface → QImage conversion
-- `src/econsim/preferences/` → Factory pattern with `base.py` interface, implementations for economic preference types
+When Unsure: Default to smallest diff preserving current public surface; document deferrals in the appropriate Gate doc before implementing larger shifts.
 
-**Development Tools:**
-- `scripts/perf_stub.py` → Performance harness (synthetic + real widget modes), supports `--mode widget --duration N --json`
-- `pyproject.toml` → Dependencies, build config, tool settings (black line-length=100, ruff select/ignore)
-- `Makefile` → Primary development interface, prefer adding targets over ad-hoc commands
-
-**Testing Patterns:**
-- `tests/unit/test_embedded_widget.py` → Widget lifecycle (construct, show, processEvents loop, close)  
-- `tests/unit/test_preferences_*.py` → Economic math validation, parameter bounds, serialization round-trips
-- Always include headless guards (`SDL_VIDEODRIVER=dummy`), use short test durations, prefer skip over hard fail for perf edge cases
-
-### Patterns & Conventions
-Environment adaptation: before initializing Pygame or Qt in headless context, set `SDL_VIDEODRIVER=dummy`, `QT_QPA_PLATFORM=offscreen` (mirror existing tests & perf script). No global while-loops; rely on QTimer or explicit `app.processEvents()` loops with small sleeps. Internal widget counters (e.g., `_frame`) can be probed in performance/testing, but keep underscore prefix and avoid public API commitment yet.
-
-### Performance Guardrails
-Target: ≥30 FPS trivial workload (current ~62). If FPS regression: (1) verify no extra per-frame allocations (beware repeated conversions), (2) keep Surface small, (3) confirm QTimer interval unchanged. Use `scripts/perf_stub.py --mode widget --duration 2 --json` for quick check. Only optimize when below threshold or adding unavoidable cost.
-
-### Shutdown Discipline
-Always stop QTimer and call `pygame.quit()` in `closeEvent`. Tests assert pygame not initialized after widget close. If adding resources (surfaces, timers), mirror this teardown pattern.
-
-### Safe Change Examples
-GOOD: Add optional CLI flag in `perf_stub.py` to vary surface size; add test asserting FPS above floor. BAD: Introduce threading for render loop; expand widget into full simulation manager.
-
-### When Unsure
-Default to minimal diff preserving current frame loop contract. Reference planning docs in `orientation_docs/` only for clarification—do not implement future gate deliverables preemptively. If a task seems to require out-of-scope features, document constraint and propose smallest deferrable stub.
-
-### Response Style (For AI Agents)
-Each reply: brief Goal | Actions | Result | Next. Avoid restating these instructions verbatim; link specific files/functions instead.
-
----
-Questions or ambiguity while staying within guardrails? Surface a concise options list (A/B) and recommended path.
+Questions or edge tradeoffs: present concise options + recommendation.
