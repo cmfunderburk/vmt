@@ -80,12 +80,15 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self.show_grid_lines = False
         self.show_overlay = False
         self._overlay_font = None  # lazy init
-        # When True, disable legacy animated background & moving rectangle for pedagogical clarity
-        self.static_background = False
+        # When True, disable legacy animated background & moving rectangle for pedagogical clarity.
+        # Default: static (non-animated) to avoid distracting color cycling unrelated to simulation state.
+        # Set environment variable ECONSIM_LEGACY_ANIM_BG=1 to restore the original animated background.
+        import os as _os_anim
+        self.static_background = _os_anim.environ.get("ECONSIM_LEGACY_ANIM_BG") != "1"
         # External overlay state container (set by controller / GUI). If absent, all False.
         try:
             from .overlay_state import OverlayState  # local import to avoid mandatory dependency elsewhere
-            self.overlay_state: "OverlayState | None" = OverlayState()
+            self.overlay_state = OverlayState()  # type: ignore[assignment]
         except Exception:  # pragma: no cover - defensive import guard
             self.overlay_state = None
 
@@ -107,15 +110,25 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 except Exception:
                     paused = False
             if not paused:
-                try:
-                    self._simulation.step(self._sim_rng, use_decision=self._use_decision_default)
-                    if controller is not None:
-                        try:
-                            controller._record_step_timestamp()  # type: ignore[attr-defined]
-                        except Exception:
-                            pass
-                except Exception as exc:  # pragma: no cover - defensive
-                    print(f"[SimulationWarning] Step error: {exc}")
+                # Playback throttle: consult controller if it provides scheduling hints.
+                do_step = True
+                if controller is not None and hasattr(controller, "_should_step_now"):
+                    try:
+                        from time import perf_counter as _pc
+                        now = _pc()
+                        do_step = bool(controller._should_step_now(now))  # type: ignore[attr-defined]
+                    except Exception:
+                        do_step = True
+                if do_step:
+                    try:
+                        self._simulation.step(self._sim_rng, use_decision=self._use_decision_default)
+                        if controller is not None:
+                            try:
+                                controller._record_step_timestamp()  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                    except Exception as exc:  # pragma: no cover - defensive
+                        print(f"[SimulationWarning] Step error: {exc}")
         self._update_scene()
         self.update()  # trigger paintEvent
         self._frame += 1
@@ -129,12 +142,13 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         # Background
         w, h = self.SURFACE_SIZE
         if self.static_background:
-            self._surface.fill((30, 30, 35))  # neutral dark
+            # Neutral dark background; deterministic and invariant frame-to-frame.
+            self._surface.fill((30, 30, 35))
         else:
+            # Legacy animated background (kept behind env flag for debugging / nostalgia).
             phase = (self._frame // 5) % 255
             bg_color = (phase, 50, 255 - phase)
             self._surface.fill(bg_color)
-            # Legacy moving rectangle (kept only when not static)
             rect_w, rect_h = 50, 30
             x = (self._frame * 3) % (w - rect_w)
             y = (self._frame * 2) % (h - rect_h)
@@ -272,6 +286,31 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                         pygame.draw.line(self._surface, (255, 255, 0), (sx, sy), (ex, ey), 1)
                     except Exception:
                         pass
+
+        # PAUSED watermark (educational clarity): rendered last so it overlays simulation.
+        # Only draw if a controller reference exists and indicates paused.
+        controller = getattr(self, "_controller_ref", None)
+        try:
+            is_paused = bool(controller is not None and controller.is_paused())  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive
+            is_paused = False
+        if is_paused:
+            try:
+                # Use a separate larger font cache to avoid mutating the small overlay font size.
+                if not hasattr(self, "_paused_font") or self._paused_font is None:  # type: ignore[attr-defined]
+                    pygame.font.init()
+                    self._paused_font = pygame.font.Font(None, 48)  # type: ignore[attr-defined]
+                font_big = self._paused_font  # type: ignore[attr-defined]
+                text = "PAUSED"
+                surf_txt = font_big.render(text, True, (255, 255, 255))
+                overlay = pygame.Surface((surf_txt.get_width() + 24, surf_txt.get_height() + 16), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 140))
+                overlay.blit(surf_txt, (12, 8))
+                cx = (w - overlay.get_width()) // 2
+                cy = (h - overlay.get_height()) // 2
+                self._surface.blit(overlay, (cx, cy))
+            except Exception:  # pragma: no cover - defensive
+                pass
 
     # --- Paint Path ------------------------------------------------------
     def paintEvent(self, event):  # type: ignore[override]

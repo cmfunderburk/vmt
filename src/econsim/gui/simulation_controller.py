@@ -21,6 +21,9 @@ class SimulationController:
         self._hash_cache: Optional[str] = None
         self._paused: bool = False
         self._step_times: Deque[float] = deque(maxlen=64)
+        # Playback control (turn mode / educational pacing). None => unrestricted (per-frame) stepping.
+        self._playback_tps: float | None = None
+        self._last_auto_step_time: float | None = None
 
     def pause(self) -> None:
         self._paused = True
@@ -37,6 +40,43 @@ class SimulationController:
         for _ in range(max(1, count)):
             self.simulation.step(rng, use_decision=True)
             self._record_step_timestamp()
+        # Reset scheduling anchor so an immediate auto step does not fire right after manual stepping.
+        self._last_auto_step_time = None
+
+    # --- Playback Rate -------------------------------------------------
+    def set_playback_tps(self, tps: float | None) -> None:
+        """Set desired automatic playback stepping rate (turns per second).
+
+        tps=None disables throttling (reverts to per-frame stepping when unpaused).
+        Values <=0 are treated as None.
+        """
+        if tps is None or tps <= 0:
+            self._playback_tps = None
+        else:
+            # Clamp to a reasonable upper bound to avoid UI accidents.
+            self._playback_tps = min(float(tps), 20.0)
+        self._last_auto_step_time = None
+
+    def playback_tps(self) -> float | None:
+        return self._playback_tps
+
+    def _should_step_now(self, now: float) -> bool:
+        """Return True if an auto step should occur at this timestamp.
+
+        If no playback_tps is set, always returns True (legacy behavior).
+        """
+        if self._playback_tps is None:
+            return True
+        interval = 1.0 / max(0.0001, self._playback_tps)
+        if self._last_auto_step_time is None:
+            self._last_auto_step_time = now
+            return True
+        if now - self._last_auto_step_time >= interval:
+            # Allow exactly one step; advance anchor by integer multiples to prevent drift build-up.
+            skipped = int((now - self._last_auto_step_time) // interval)
+            self._last_auto_step_time += max(1, skipped) * interval
+            return True
+        return False
 
     def determinism_hash(self) -> str:
         collector = getattr(self.simulation, "metrics_collector", None)

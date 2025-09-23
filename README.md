@@ -525,12 +525,25 @@ Environment flags:
 
 ### Other Environment Flags
 - `ECONSIM_LEGACY_RANDOM=1` – forces legacy random walk (disables decision logic per step)
+- `ECONSIM_LEGACY_ANIM_BG=1` – restores legacy animated background (static neutral background is the default for focus)
 
 ### Determinism & Performance Safeguards
 - Pause aware stepping (controller gate) – no hidden loops introduced
 - Hash caching avoids redundant recomputation between manual refreshes
 - Steps/sec estimator uses a rolling 64 timestamp window (O(1) append)
 - Overlay off baseline stability validated; overlay on path pixel-diff tested
+
+### Playback Speed (Educational Pacing)
+By default the experimental GUI throttles automatic stepping to 1 turn per second to emphasize discrete decision outcomes for teaching. A speed dropdown in the Controls Panel allows selecting: 0.5, 1, 1.5, 2, 3, 4, or 5 turns/sec. Changing the value updates a deterministic scheduler that:
+
+* Emits at most one step per tick
+* Advances an internal time anchor by whole intervals to avoid cumulative drift
+* Resets after manual stepping to preserve precise pacing
+
+Set to 0.5 tps for slower narration (one step every 2 seconds) or up to 5 tps for quicker walkthroughs. (Planned optional "Unlimited" mode would revert to per-frame stepping.)
+
+### Visual Pause Indicator
+When paused a centered translucent "PAUSED" watermark overlays the viewport, providing immediate state clarity without affecting underlying simulation state or determinism.
 
 ### Example: Launch New GUI + Auto Metrics
 ```bash

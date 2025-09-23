@@ -8,8 +8,8 @@ Status: Final (all mandatory items complete; only optional polish outstanding)
 |---------|-----------------|-----------|-------|
 | 1. Foundations & Guardrails | 5 | 5 | Perf delta +0.025% vs legacy (neutral) |
 | 2. Start Menu & Descriptor | 5 | 5 | Validation + seed randomizer implemented |
-| 3. Session Factory & Controller | 5 | 5 | Steps/sec rolling estimator + turn auto-pause |
-| 4. Simulation Page Components | 5 | 5 | Metrics auto-refresh (opt-in) + overlays panel |
+| 3. Session Factory & Controller | 6 | 6 | Steps/sec rolling estimator + turn auto-pause + playback throttling |
+| 4. Simulation Page Components | 6 | 6 | Metrics auto-refresh (opt-in) + overlays panel + playback speed dropdown |
 | 5. Overlay Integration | 5 | 5 | Pixel diff + baseline stability tests |
 | 6. Hash & Metrics | 4 | 4 | Hash cached + manual refresh button |
 | 7. Navigation & Teardown | 3 | 3 | Reuse test covers double teardown safety |
@@ -38,10 +38,12 @@ Status: Final (all mandatory items complete; only optional polish outstanding)
 - [x] Turn Mode: auto-pause on creation
 - [x] Controller exposes: `manual_step(n=1)`, `is_paused`, `pause()`, `resume()`
 - [x] Rolling steps/sec estimator implemented (continuous mode only)
+- [x] Playback throttling: `set_playback_tps(tps|None)` + deterministic scheduler `_should_step_now()` (anchor drift prevention)
 
 ## 4. Simulation Page Components
 - [x] EmbeddedPygameWidget instantiated once per session
 - [x] Controls Panel: Pause/Resume, Step 1, Step 5, Hash Refresh
+- [x] Playback Speed Dropdown (0.5,1,1.5,2,3,4,5 tps) – default 1.0 tps (educational pacing)
 - [x] Metrics Panel: ticks, remaining resources, steps/sec, hash (short + tooltip full); optional auto-refresh added (env flags ECONSIM_METRICS_AUTO=1 and ECONSIM_METRICS_AUTO_INTERVAL_MS for interval, default 500ms). Manual update path retained for deterministic tests.
 - [x] Overlay checkboxes: grid, agent IDs, target arrow (default off)
 - [x] Back to Menu button (teardown safe)
@@ -76,6 +78,8 @@ Status: Final (all mandatory items complete; only optional polish outstanding)
 - [x] `test_controller_teardown_reuse_new_gui.py`
 - [x] `test_metrics_interval_clamp_new_gui.py`
 - [x] `test_overlay_baseline_static_frame_new_gui.py`
+- [x] `test_playback_speed_new_gui.py` (1 vs 2 tps empirical throttling)
+- [x] `test_playback_speed_half_tps_new_gui.py` (synthetic 0.5 tps schedule)
 - [x] Full suite run under flag recorded (log excerpt)
 
 ## 9. Documentation & Plan Sync
@@ -97,9 +101,12 @@ Status: Final (all mandatory items complete; only optional polish outstanding)
 
 ## 12. Optional / Deferred Polishes
 - [ ] Hash full-value tooltip (currently truncated only) — low UX improvement
-- [ ] Visual "PAUSED" overlay text in widget — clarity when stepping manually
+- [x] Visual "PAUSED" overlay text in widget — implemented (center watermark; inert when running)
 - [ ] Consolidated evidence section in README (optional; presently distributed)
 - [ ] Automated overlay FPS delta micro-benchmark test (<2% assertion) — currently manual via perf JSON
+- [ ] "Unlimited" speed option (None = per-frame) + persistence of chosen rate
+- [ ] Metrics panel display of current playback tps
+- [ ] User preference for static vs legacy animated background (currently env flag only)
 
 ## 13. Closure Statement
 All mandatory Gate GUI Phase A objectives satisfied with neutral performance impact and preserved determinism. Deferred items are UX polish or redundant evidence centralization and can be scheduled opportunistically without risk to core invariants.
