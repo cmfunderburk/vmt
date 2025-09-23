@@ -1,15 +1,22 @@
-"""Simulation coordinator (Gate 4 evolving).
+"""Simulation coordinator (Gates 3–5 implemented).
 
-Gate 3 behavior: random movement + collection.
-Gate 4 Phase P3: introduce preference-driven decision loop (greedy 1-step toward selected target)
-while maintaining deterministic progression under a seeded RNG.
+Orchestrates per-tick progression across agents & grid. Supports two
+paths: legacy random walk (for baseline / regression comparison) and
+deterministic decision mode (greedy 1-step target pursuit using
+preference-driven ΔU scoring). Optional hooks enable resource respawn
+and metrics collection when attached.
 
-Step phases (decision mode):
- 1. Each agent runs decision step (target select if needed, move one cell, collect, maybe deposit).
+Decision Mode Sequence:
+1. For each agent (list order confers contest priority): target selection
+2. Single-cell movement toward target
+3. Resource collection & potential retarget if race lost
+4. Deposit at home if returning
+5. Respawn hook → Metrics hook → step counter increment
 
-Remaining deferrals:
-- Multi-phase update ordering strategies.
-- Concurrency / parallel stepping.
+Deferred:
+* Multi-phase (pipeline) ordering strategies
+* Agent interaction (trading, negotiation)
+* Parallel / batched stepping (single-thread invariant maintained)
 """
 
 from __future__ import annotations
@@ -19,7 +26,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 import random as _random
 
-try:  # Local import guard (Gate 5 scaffold)
+try:  # Local import guard (optional config not always present yet)
     from .config import SimConfig  # type: ignore
 except Exception:  # pragma: no cover
     SimConfig = Any  # fallback for type checkers

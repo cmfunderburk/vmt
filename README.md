@@ -1,18 +1,125 @@
 # VMT EconSim Platform
 
-**An Educational Economic Simulation Platform for Microeconomic Modeling**
+An educational microeconomic simulation prototype combining a PyQt6 desktop shell with a deterministic spatial agent model (preferences, resource collection, decision logic).
 
-## Project Status: GATE 5 COMPLETE — DYNAMICS, METRICS & DETERMINISM ✅
+> This README reflects the **accurate current state (post Gate 5 components, pre Gate 6 integration)**. The previous aspirational narrative has been archived in `README_aspirational.md` for transparency.
 
-**Gate 1 Technical Validation**: ✅ COMPLETE – PyQt6 + Pygame integration working at ~62 FPS (headless-capable)
-**Gate 2 Preference Architecture**: ✅ COMPLETE – Cobb-Douglas, Perfect Substitutes, Leontief fully implemented with validation & serialization
-**Gate 3 Spatial / Agent Foundations**: ✅ COMPLETE – Grid, Agent core, Simulation coordinator, deterministic harness
-**Gate 4 Decision & Visualization**: ✅ COMPLETE – Utility-driven target selection, typed resources, epsilon bootstrap, competition & preference-shift behavior, rendering overlays, performance guards
-**Gate 5 Dynamics & Metrics Spine**: ✅ COMPLETE – Respawn scheduler (target density), MetricsCollector (per-step aggregates + determinism hash), snapshot & replay, performance overhead guard (<0.30ms/tick), reproducible hash replay
+## 1. Snapshot: Implemented vs Pending
 
-**Current Phase**: Preparing for next gate (post-Gate 5 refinement / upcoming feature planning)
+| Area | Implemented (Usable) | Pending / Not Yet Integrated |
+|------|----------------------|-------------------------------|
+| Rendering Core | PyQt6 window + embedded 320x240 Pygame surface (~62 FPS) | GUI controls / menus / scenario panels |
+| Preferences | Cobb-Douglas, Perfect Substitutes, Leontief + factory | N-good generalization, adaptive forms |
+| Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
+| Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism | Trading, production/consumption, richer behaviors |
+| Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests | Enabled by default in GUI (currently random path) |
+| Respawn | Density-based scheduler (manual wiring) | Config integration, multi-type spawning |
+| Metrics | Per-step aggregates + determinism hash (manual wiring) | Public configuration/factory usage, additional economic metrics |
+| Snapshot / Replay | Serialize + restore + hash parity tests | Scenario library management |
+| Configuration | `SimConfig` dataclass (defined) | Actually applied in construction (factory not built) |
+| Overlays / HUD | Basic resource & agent rendering (no toggle wiring) | Interactive overlays, utility contours, UI toggles |
+| Tests | Determinism, decision, respawn, metrics, snapshot, perf | Public API adoption (remove private attribute pokes) |
 
-**Confidence Level**: Working implementation validates all technical assumptions and educational approach.
+## 2. Current Reality (Why Docs Were Updated)
+Earlier documentation overstated integration (e.g. claiming fully wired respawn/metrics & GUI overlays). Components exist but **require manual injection**; the default GUI still advances using the legacy random movement branch. Gate 6 will focus on integration & public surface hardening rather than new mechanics.
+
+## 3. Quick Start (Current Behavior)
+```bash
+python3 -m venv vmt-dev
+source vmt-dev/bin/activate
+pip install -e .[dev]
+
+# Launch demo GUI (legacy random movement path by default)
+make dev
+
+# Run decision-mode simulation via tests or custom script (see API_GUIDE.md soon)
+pytest -q  # executes decision, determinism, respawn, metrics tests
+
+# Performance sample (widget)
+python scripts/perf_stub.py --mode widget --duration 2 --json
+```
+
+## 4. Enabling Features Manually (Temporary Pattern)
+Until the Gate 6 factory is added, wiring happens ad‑hoc:
+```python
+from econsim.simulation.world import Simulation
+from econsim.simulation.grid import Grid
+from econsim.simulation.agent import Agent
+from econsim.preferences.cobb_douglas import CobbDouglasPreference
+from econsim.simulation.respawn import RespawnScheduler
+from econsim.simulation.metrics import MetricsCollector
+import random
+
+grid = Grid(12, 12, resources=[(2,2,'A'), (4,5,'B')])
+agents = [Agent(id=0, x=0, y=0, preference=CobbDouglasPreference(alpha=0.5))]
+sim = Simulation(grid, agents)
+
+# Manual hook injection
+sim.respawn_scheduler = RespawnScheduler(target_density=0.25, max_spawn_per_tick=3, respawn_rate=0.4)
+sim.metrics_collector = MetricsCollector()
+rng = random.Random(123)
+
+for _ in range(40):
+	sim.step(rng, use_decision=True)  # explicit opt-in
+
+print("hash=", sim.metrics_collector.determinism_hash())
+```
+Limitations: No SimConfig application yet; hooks must be assigned; GUI ignores these unless integrated manually.
+
+## 5. Known Gaps / Explicit Limitations
+1. GUI still uses legacy random walk path (decision mode not default).
+2. No public factory: tests rely on private wiring; SimConfig inert.
+3. Respawn & metrics silent unless explicitly attached.
+4. No menus / control panels / scenario loader.
+5. Overlays limited: no toggle UI, no utility visualization.
+6. Trading, production, consumption, and economic metrics (e.g., inequality) not implemented.
+
+## 6. Gate 6 (Planned Focus – Integration & Minimal Overlay Toggle)
+Planned outcomes:
+* `Simulation.from_config(SimConfig)` applying seed, respawn, metrics.
+* GUI starts in decision mode (with flag / env to fallback to legacy path).
+* Minimal overlay toggle (on/off) exposed (no full panel yet).
+* Public API used in updated tests (remove direct `_rng` access).
+* Documentation alignment (API_GUIDE, roadmap revision).
+
+## 7. Roadmap (High-Level Forward View)
+| Gate | Theme | Core Scope | Deferrals |
+|------|-------|-----------|-----------|
+| 6 | Integration & Surface | Factory, default decision mode, overlay toggle, test API cleanup | Advanced GUI panels |
+| 7 | Agent Interaction | Trading primitives, exchange rules, utility effect tests | UI trade inspector |
+| 8 | Basic GUI Controls | Parameter sliders, run/pause, scenario load/save | Multi-tab analytics |
+| 9 | Production / Consumption | Resource generation & consumption cycles | Market equilibrium visualization |
+
+Detailed sequencing lives in [`ROADMAP_REVISED.md`](ROADMAP_REVISED.md) and the Gate 6 execution list in [`completed_steps_docs/Gate_6_todos.md`](completed_steps_docs/Gate_6_todos.md).
+
+## 8. Contributing (Interim Guidance)
+Follow gate workflow (see `.github/copilot-instructions.md`). For Gate 6 PRs: keep changes narrowly focused on integration—avoid introducing new economic mechanics concurrently.
+
+## 9. Testing & Determinism Notes
+Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist, x, y), agent list ordering, epsilon bootstrap for zero bundles, canonical metrics hash. Adjust any of these only with explicit gate-scoped justification.
+
+## 10. Reference Documents
+| Document | Purpose |
+|----------|---------|
+| `README_aspirational.md` | Archived earlier goals / narrative (superseded) |
+| `completed_steps_docs/GATE5_EVAL.md` | Evidence mapping for dynamics & metrics |
+| `orientation_docs/Implementation Roadmap.md` | Original long-form plan (pre-reconciliation) |
+| `.github/copilot-instructions.md` | High-signal constraints & invariants |
+| `scripts/perf_stub.py` | Performance validation harness |
+
+See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
+
+### Quick Navigation
+| Resource | Link |
+|----------|------|
+| API Guide | [`API_GUIDE.md`](API_GUIDE.md) |
+| Revised Roadmap | [`ROADMAP_REVISED.md`](ROADMAP_REVISED.md) |
+| Gate 6 Todos | [`completed_steps_docs/Gate_6_todos.md`](completed_steps_docs/Gate_6_todos.md) |
+| Gate 6 Checklist | [`completed_steps_docs/GATE6_CHECKLIST.md`](completed_steps_docs/GATE6_CHECKLIST.md) |
+| Copilot Instructions | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
+
+---
+Last updated: 2025-09-23 (Documentation remediation – foundation for Gate 6).
 
 ## Project Overview
 

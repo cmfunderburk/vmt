@@ -1,14 +1,21 @@
-"""Agent abstraction (Gate 4 Phase P2 upgrade).
+"""Agent abstraction (Gate 4+ decision capable).
 
-Enhancements over Gate 3:
-- Distinct carrying vs home (stored) inventories.
-- Agent modes: forage, return_home, idle.
-- Optional target coordinate (future decision logic will set/clear).
-- Deposit logic when returning home.
+Represents a mobile economic actor collecting typed resources under a
+preference function. Maintains distinct *carrying* vs *home* inventories
+and mode-driven behavior (FORAGE, RETURN_HOME, IDLE). Decision mode uses
+greedy 1-step movement toward the highest scored resource target within
+a perception radius, applying epsilon bootstrap to avoid zero-product
+stalls for multiplicative utilities.
 
-Still deferred (Phase P3+):
-- Utility-driven target selection & greedy movement.
-- Multi-agent interactions / trade.
+Capabilities:
+* Deterministic target selection (tie-break: −ΔU, distance, x, y)
+* Inventory deposit on home arrival
+* Mode transitions (forage ↔ return_home ↔ idle)
+
+Deferred:
+* Multi-agent trading / interaction rules
+* Production / consumption cycles
+* Path planning beyond greedy 1-step heuristic
 """
 
 from __future__ import annotations
@@ -166,7 +173,7 @@ class Agent:
         best: tuple[float, int, int, int] | None = None  # key = (-delta_u, dist, x, y)
         best_meta: tuple[int, int] | None = None
         max_dist = default_PERCEPTION_RADIUS
-        # Use sorted iteration (Gate 5 deterministic ordering scaffold)
+    # Use sorted iteration (deterministic ordering helper)
         iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
         for rx, ry, rtype in iterator:
             dist = self._manhattan(self.x, self.y, rx, ry)

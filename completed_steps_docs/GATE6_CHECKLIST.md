@@ -1,53 +1,52 @@
-# GATE6_CHECKLIST — Interaction & Visualization Enhancements (Draft)
+# GATE6_CHECKLIST — Integration & Minimal Overlay Toggle
 
-## Interaction Mechanics
-- [ ] InteractionScheduler implemented & integrated
-- [ ] Deterministic ordering of interaction evaluation (documented tie-break)
-- [ ] Bilateral trade rule (1 unit swap) only executes if both utilities strictly increase
-- [ ] No duplicate trades (each agent max one trade per tick)
-- [ ] Trade disabled cleanly via config flag
+## Factory & Configuration
+- [ ] `SimConfig` extended with enable flags & respawn params
+- [ ] `Simulation.from_config` implemented
+- [ ] Factory attaches respawn when enabled
+- [ ] Factory attaches metrics when enabled
+- [ ] Internal RNG seeded from config
 
-## Visualization Overlays
-- [ ] Agent utility label overlay (toggle)
-- [ ] Overlay toggle does not affect determinism
-- [ ] Heatmap / density overlay (stretch)
-- [ ] Marginal rate visualization (stretch)
+## GUI Default Behavior
+- [ ] Decision mode active by default
+- [ ] Env `ECONSIM_LEGACY_RANDOM=1` reverts to legacy path
+- [ ] Legacy path still functional (smoke test)
 
-## Metrics Extension
-- [ ] Per-agent utility recorded each step
-- [ ] Interaction count per step recorded
-- [ ] Successful trade count per step recorded
-- [ ] Determinism hash includes new metrics fields
+## Overlay Toggle
+- [ ] Key `O` toggles overlay state
+- [ ] Overlay off by default (doc consistent)
+- [ ] Toggle does not alter determinism hash
+- [ ] FPS impact <5% over 2s sample
 
-## Snapshot / Replay
-- [ ] Snapshot includes utility & interaction metrics state
-- [ ] Replay reproduces per-agent utility trajectory for N steps
+## Tests & Public Surface
+- [ ] New `test_factory_integration.py`
+- [ ] New overlay toggle test
+- [ ] No test references `sim._rng`
+- [ ] No direct assignment of `respawn_scheduler` / `metrics_collector` except factory-specific tests
 
-## Performance
-- [ ] Interaction layer per-tick overhead ≤0.40ms (absolute) on reference scenario
-- [ ] FPS ≥30 with interaction & overlays active
-
-## Testing Artifacts
-- [ ] test_interaction_trade_success.py
-- [ ] test_interaction_no_trade_when_not_mutual.py
-- [ ] test_interaction_ordering_determinism.py
-- [ ] test_metrics_interactions_extension.py
-- [ ] test_perf_interaction_overhead.py
-- [ ] test_overlay_utilities_smoke.py
-- [ ] Updated determinism hash tests (utility + interactions)
-
-## Quality Gates
-- [ ] All tests pass
-- [ ] Lint clean
-- [ ] Type check clean
+## Determinism & Performance
+- [ ] Existing determinism trajectory tests pass unchanged
+- [ ] Hash tests unchanged & green
+- [ ] Widget perf ≥60 FPS typical, ≥30 FPS floor (overlay on/off)
+- [ ] Respawn density convergence unchanged
 
 ## Documentation
-- [ ] Gate 6 README section / changelog added
-- [ ] Gate_6_todos.md kept updated
-- [ ] GATE6_EVAL.md with evidence mapping
+- [ ] README updated with factory example
+- [ ] API_GUIDE updated to include factory section (manual wiring note removed)
+- [ ] `ROADMAP_REVISED.md` added & linked
+- [ ] Copilot instructions remain accurate or minimally updated if needed
+- [ ] Gate_6_todos.md reflects final executed scope
 
-## Exit
-- [ ] Evaluation doc includes interaction counts, utility trajectory sample, perf deltas
-- [ ] Retrospective added
+## Quality Gates
+- [ ] Lint clean (ruff)
+- [ ] Type checks clean (mypy)
+- [ ] Format applied (black)
 
--- END DRAFT --
+## Evidence for GATE6_EVAL.md
+- [ ] Factory code snippet + test reference
+- [ ] Before/after perf JSON excerpt
+- [ ] Determinism hash sample unchanged
+- [ ] Grep results: no private wiring
+- [ ] Overlay toggle screenshot / log evidence
+
+-- END --

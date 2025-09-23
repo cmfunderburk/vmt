@@ -1,19 +1,20 @@
-"""Simulation configuration (Gate 5 scaffold).
+"""Simulation configuration (Gate 5 defined; Gate 6 integration target).
 
-Provides a single authoritative source for deterministic simulation
-parameters. Logic will be added in Gate 5; current file is a planning
-scaffold only.
+Acts as the authoritative parameter bundle for constructing a
+deterministic simulation. Gate 6 will introduce a factory method
+(`Simulation.from_config`) that consumes this dataclass to attach
+respawn and metrics hooks and seed internal RNG state.
 
-Fields intentionally mirror Gate 5 scope:
-- grid_size: (width, height) tuple
-- initial_resources: sequence of (x,y,type) or (x,y) entries used to seed Grid
-- perception_radius: agent decision scan radius (mirrors existing constant)
-- respawn_target_density: desired proportion of cells occupied by resources
-- respawn_rate: scalar controlling how aggressively deficit is reduced each tick
-- max_spawn_per_tick: hard upper bound on resources spawned in a single step
-- seed: base integer seed for RNG (drives respawn + any stochastic processes)
+Fields:
+* ``grid_size``: (width, height)
+* ``initial_resources``: iterable of (x,y[,type]) tuples
+* ``perception_radius``: decision scan radius (mirrors constant; may be unified later)
+* ``respawn_target_density``: desired occupancy fraction (0..1]
+* ``respawn_rate``: fraction of deficit addressed per tick
+* ``max_spawn_per_tick``: cap on newly spawned resources each tick
+* ``seed``: base RNG seed (drives deterministic respawn & future stochastic systems)
 
-Validation & integration will be implemented when Gate 5 work begins.
+Upcoming (Gate 6 extensions): enable flags for respawn / metrics and overlay default.
 """
 from __future__ import annotations
 

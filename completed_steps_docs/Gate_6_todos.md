@@ -1,43 +1,61 @@
-# Gate 6 Todos (Draft) — Interaction & Visualization Enhancements
+# Gate 6 Todos – Integration & Minimal Overlay Toggle (Revised 2025-09-23)
 
-Objective: Introduce agent interaction mechanics (e.g., simple trade or exchange trigger), richer utility & state visualization overlays, and extend metrics to capture interaction outcomes while preserving determinism & performance.
+Objective: Integrate existing Gate 5 components (decision mode, respawn, metrics, SimConfig) into a cohesive default runtime, add a minimal overlay toggle, and eliminate ad-hoc wiring patterns—without introducing new economics (trading deferred to Gate 7).
 
-## Core Themes
-- Interaction Primitive: Minimal bilateral exchange rule (e.g., if two agents adjacent with complementary inventories, execute swap improving both utilities).
-- Enhanced Visualization: Overlay for agent utility values / marginal rates (optional toggle), resource density heatmap.
-- Metrics Extension: Track interaction count, per-agent utility trajectory, and trade-improved utility deltas.
-- Determinism Preservation: Interactions ordered deterministically (position, id) with tie-break alignment.
-- Performance Guard: Ensure interaction layer adds <0.40ms per tick (absolute) on reference scenario.
+## Deliverables
+1. `Simulation.from_config(SimConfig)` factory applying seed + optional respawn/metrics.
+2. GUI defaults to decision mode (legacy path behind env `ECONSIM_LEGACY_RANDOM=1`).
+3. Minimal overlay toggle (HUD/resources text) via key `O` (off by default).
+4. Public wiring helpers; tests no longer mutate internal hooks directly.
+5. Updated docs: README, API_GUIDE (factory usage), ROADMAP_REVISED.
+6. Performance parity (≥60 FPS typical; ≥30 FPS floor) overlay on/off.
+7. Determinism unchanged (trajectory & hash tests pass as-is).
 
-## Assumptions
-- Keep goods limited to two types (good1/good2) this gate.
-- No negotiation or pricing; deterministic greedy mutual-improvement trade.
-- Use existing preference utilities for evaluating post-trade improvement.
+## Out of Scope / Deferred
+* Trading / agent interaction logic (Gate 7)
+* Control panels / parameter sliders (Gate 8)
+* Utility contour visualization, tails, heatmaps (future visualization gate)
+* Economic indicators beyond current metrics
 
-## Tasks
-1. Draft interaction design doc (rules, preconditions, tie-break ordering, complexity analysis).
-2. Add InteractionScheduler (similar style to RespawnScheduler) invoked post-collection.
-3. Implement deterministic agent pairing pass (sorted by (y,x,id)).
-4. Implement trade rule: if both agents improve (strictly higher utility) after exchanging 1 unit (good1 ↔ good2) then execute simultaneously.
-5. Add visualization overlays:
-   - Utility value label (compact integer or 1-decimal) above each agent (toggle)
-   - Optional marginal rate indicator (arrow / color shift) (stretch)
-   - Resource heatmap (aggregate counts per cell neighborhood) (stretch)
-6. Extend MetricsCollector: per-agent utility each step, interaction count, successful trade count.
-7. Snapshot update: include interaction stats so replay hash still captures them.
-8. Tests:
-   - Utility improvement after trade (single scenario)
-   - No trade when improvement not bilateral
-   - Deterministic ordering when >2 agents cluster
-   - Metrics interaction count increments
-   - Performance overhead (absolute per-tick <0.40ms added vs Gate 5 baseline)
-   - Visualization smoke test (overlay render does not crash)
-9. Update perf tests to incorporate interaction scenario (agents seeded to trigger trades).
-10. Update evaluation & README sections.
+## Acceptance Criteria
+| # | Criterion | Validation |
+|---|-----------|------------|
+| 1 | Factory constructs sim with active hooks | New test `test_factory_integration.py` (respawn + metrics auto active) |
+| 2 | Decision mode default in GUI | Env var toggles legacy; smoke test verifies movement pattern difference |
+| 3 | Overlay toggle functional & cheap | GUI test toggles flag; perf delta <5% over 2s run |
+| 4 | No private wiring in tests | Grep for `sim._rng` & direct hook assignment returns none |
+| 5 | Determinism preserved | Existing determinism & hash tests unchanged and green |
+| 6 | Docs updated | README & API_GUIDE contain factory usage; roadmap added |
+| 7 | Performance maintained | perf stub extended or separate test captures FPS ≥ baseline floor |
 
-## Stretch / Deferred (If time permits)
-- Multi-step negotiation logic
-- Variable trade ratios
-- Agent specialization types influencing trade propensity
+## Task List
+- [ ] Extend `SimConfig` with `enable_respawn`, `enable_metrics`, respawn params.
+- [ ] Implement `Simulation.from_config` (creates internal RNG, attaches hooks conditionally).
+- [ ] Refactor `world.py` construction in tests to use factory where appropriate.
+- [ ] Modify `EmbeddedPygameWidget` to call decision path by default (env guard).
+- [ ] Implement overlay toggle key handler (`keyPressEvent`).
+- [ ] Add new test: overlay toggle does not crash & flips state.
+- [ ] Add factory integration test (auto respawn + metrics operative without manual assignment).
+- [ ] Update existing tests to drop direct hook assignment (except specialized edge tests if any).
+- [ ] Add or update perf test to run factory-created sim.
+- [ ] Update README & API_GUIDE with factory examples; link to roadmap.
+- [ ] Add `ROADMAP_REVISED.md` (Gates 6–9 realistic sequencing).
+- [ ] Write `GATE6_CHECKLIST.md` from acceptance criteria.
 
--- END DRAFT --
+## Risk Mitigation
+| Risk | Mitigation |
+|------|------------|
+| Factory changes ordering causing hash drift | Keep agent list & step loop identical; attach hooks pre-first step |
+| Overlay reduces FPS | Minimal text only; reuse font; measure before/after |
+| Tests still need internal access | Provide helper or fixture using factory instead of private members |
+| Env flag confusion | Single documented variable `ECONSIM_LEGACY_RANDOM=1` |
+
+## Metrics to Capture
+* FPS (widget) overlay off vs on (2s sample)
+* Determinism hash for canonical scenario (unchanged)
+* Respawn density convergence unchanged under factory path
+
+## Exit Summary Template (for Evaluation)
+Provide: diff summary, perf table (before/after), determinism hash sample, grep evidence of removed private wiring.
+
+-- END --

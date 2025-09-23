@@ -1,16 +1,18 @@
-"""Grid abstraction (Gate 4 upgrade).
+"""Grid abstraction (Gates 3–5 implemented).
 
-Minimal 2D grid storing typed resource locations as coordinate tuples.
+Stores typed resources using a dict mapping ``(x,y) -> type`` providing
+O(1) average membership, deterministic sorted iteration (for target
+selection / hashing), and coordinate validation.
 
-Design goals (Gate 3 + Gate 4 update):
-- O(1) average membership & removal using mapping of (x,y)->type.
-- Validation of coordinates to prevent silent out-of-bounds logic errors.
-- Simple, explicit API; no iteration helpers yet (add later if needed).
+Capabilities:
+* Add / remove typed resources (A,B)
+* Deterministic serialization & sorted iteration helper
+* Backward-compatible boolean removal API (`take_resource`)
 
-Deferrals (still):
-- Resource quantities >1 per cell.
-- Dynamic respawn.
-- Spatial indexing optimizations (unnecessary at current scale).
+Deferred:
+* Resource quantities >1 per cell
+* Spatial indexing optimizations (performance currently sufficient)
+* Rich resource metadata (value, regeneration profile)
 """
 
 from __future__ import annotations
@@ -88,7 +90,7 @@ class Grid:
         for (x, y), rtype in self._resources.items():
             yield x, y, rtype
 
-    # Gate 5 scaffold: stable sorted iteration (used for deterministic scoring order)
+    # Stable sorted iteration (deterministic scoring / hashing order)
     def iter_resources_sorted(self):  # pragma: no cover (simple)
         for (x, y), rtype in sorted(self._resources.items()):
             yield x, y, rtype

@@ -1,0 +1,106 @@
+# Documentation Reconciliation Plan
+
+## Current State (Reality Check)
+
+### What Actually Exists
+1. **Core Systems (Gates 1-5)** ✅
+   - PyQt6/Pygame integration with stable 62 FPS
+   - Full preference system (Cobb-Douglas, Linear, Leontief)
+   - Grid with deterministic resource management
+   - Decision mode with tie-breaking and epsilon bootstrap
+   - Respawn and metrics infrastructure
+
+2. **What's Missing/Misrepresented** ❌
+   - **No Configuration Integration**: SimConfig exists but isn't wired up
+   - **GUI Uses Legacy Mode**: Widget still runs random walk, not decision mode
+   - **No Public API**: Tests access `sim._rng` directly; no clean factory
+   - **No GUI Controls**: Just a bare pygame surface, no menus/panels/overlays
+   - **Misleading Docstrings**: Modules describe themselves as "scaffolds"
+
+### Documentation vs Reality Gaps
+
+| Documentation Claims | Implementation Reality | Gap |
+|---------------------|------------------------|-----|
+| "Gate 5 COMPLETE with integrated respawn/metrics" | Components exist but require manual wiring | Missing public API |
+| "GUI with overlay capability" | Basic pygame surface only | No overlay implementation |
+| "SimConfig-driven deterministic wiring" | SimConfig class exists but unused | No factory using config |
+| "Professional main window" (Phase 1) | Minimal Qt window | Missing menus/controls |
+| "62-test suite" | Tests exist but use private APIs | Need public test interfaces |
+
+## Immediate Actions (Today's Focus)
+
+### 1. Update Module Docstrings (30 min)
+Remove "scaffold" language and accurately describe current capabilities:
+- [ ] `src/econsim/simulation/grid.py` - Document deterministic iteration
+- [ ] `src/econsim/simulation/agent.py` - Document decision mode
+- [ ] `src/econsim/simulation/metrics.py` - Document collector pattern
+- [ ] `src/econsim/simulation/respawn.py` - Document scheduler pattern
+
+### 2. Create Honest README (45 min)
+- [ ] Move current README to `README_aspirational.md`
+- [ ] Create new README that:
+  - States what's actually implemented and usable
+  - Clarifies that advanced features need manual wiring
+  - Provides realistic examples of current capabilities
+  - Links to gate docs for implementation details
+
+### 3. Document True Public API (30 min)
+Create `API_GUIDE.md` showing:
+- [ ] How to create a simulation with current features
+- [ ] How to manually wire respawn/metrics (until factory exists)
+- [ ] How to run in decision mode
+- [ ] Current limitations and workarounds
+
+### 4. Create Gate 6 Scope (45 min)
+Write `Gate_6_todos.md` to address the integration gap:
+- [ ] Implement `Simulation.from_config(SimConfig)` factory
+- [ ] Wire GUI to use decision mode by default
+- [ ] Add simple toggle for random/decision modes
+- [ ] Make respawn/metrics configurable via SimConfig
+- [ ] Update tests to use public APIs only
+
+### 5. Update Roadmap (30 min)
+Create `ROADMAP_REVISED.md`:
+- [ ] Acknowledge what Gates 1-5 actually delivered
+- [ ] Defer GUI controls to later gates (7-8)
+- [ ] Focus Gate 6 on integration/configuration
+- [ ] Set realistic expectations for trading system (Gate 7+)
+
+## Recommended Approach
+
+Given the substantial gaps between documentation and reality, I recommend:
+
+1. **Documentation First**: Fix all misleading docs TODAY before any new code
+2. **Integration Gate**: Make Gate 6 purely about wiring existing components properly
+3. **Defer GUI Features**: Push control panels/overlays to Gate 8+ after core economics work
+4. **Test Cleanup**: Part of Gate 6 should eliminate private API usage in tests
+
+This approach:
+- Restores trust by making docs match reality
+- Provides a clean foundation for future work
+- Avoids scope creep by focusing on integration before new features
+- Sets realistic expectations for stakeholders
+
+## Next Steps After Today
+
+**Gate 6** (2-3 days): Configuration & Integration
+- Public factory API
+- SimConfig actually used
+- GUI runs decision mode
+- Tests use only public APIs
+
+**Gate 7** (3-4 days): Trading System
+- Build on properly integrated decision system
+- Agent-to-agent resource exchange
+- Mutual benefit calculations
+
+**Gate 8** (2-3 days): Basic GUI Controls
+- Mode toggle (random/decision)
+- FPS display
+- Simple parameter sliders
+- Resource overlay toggle
+
+**Gate 9** (3-4 days): Production/Consumption
+- Dynamic resource generation
+- Agent production based on preferences
+- Economic equilibrium emergence

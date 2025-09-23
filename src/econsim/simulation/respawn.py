@@ -1,18 +1,25 @@
-"""Resource respawn scheduler (Gate 5 scaffold).
+"""Resource respawn scheduler (Gate 5 implemented).
 
-Purpose: Maintain target resource density over time in a deterministic
-manner given a seeded RNG. This scaffold defines the public surface;
-implementation will be added in Gate 5 proper.
+Maintains a target *density* of resources using a deterministic RNG. Each
+step moves the grid toward the target by spawning at most a bounded number
+of new resources in empty cells. Enumeration of candidate cells is
+deterministic (row-major) and randomized only by a seeded shuffle for
+reproducibility.
 
-Planned algorithm (later):
-- Compute target_count = floor(target_density * (grid.width * grid.height)).
-- If current < target_count, compute deficit and spawn up to
-  min(deficit, max_spawn_per_tick, respawn_rate_scaled_amount).
-- Candidate empty cells enumerated deterministically (sorted), then
-  sampled using RNG for reproducibility.
+Algorithm Summary:
+1. Compute ``target_count = floor(target_density * total_cells)``.
+2. If below target, compute deficit and desired spawn (deficit * respawn_rate).
+3. Enumerate a limited prefix of empty cells (early stop) → shuffle → take slice.
+4. Insert new resources (currently all type 'A').
 
-Non-goals (Gate 5): spatial clustering heuristics, weighting by distance,
-denial zones around agents.
+Capabilities:
+* Deterministic convergence toward density without overshoot (assert enforced)
+* Bounded per-tick work via ``max_spawn_per_tick`` & early enumeration stop
+
+Deferred / Not Yet Included:
+* Multi-type respawn balancing (A vs B proportion strategies)
+* Spatial clustering / exclusion zones
+* Adaptive spawn rate modulation based on consumption velocity
 """
 from __future__ import annotations
 

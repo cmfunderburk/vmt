@@ -1,7 +1,19 @@
-"""Metrics collection scaffold (Gate 5).
+"""Metrics collection (Gate 5 implemented).
 
-Defines the interface for capturing per-step agent & aggregate metrics
-plus a determinism hash. Logic will be filled in during Gate 5 proper.
+Captures per-step aggregate inventory & resource counts and maintains a
+determinism hash that is sensitive to agent ordering, positions, carried
+and home goods, and resource layout. The hash provides a lightweight
+regression sentinel for any change in step ordering or selection logic.
+
+Capabilities:
+* Append structured per-step aggregate records (access via ``records()``)
+* Streaming SHA256 updated each step with canonical serialization
+* Determinism tests rely on hash parity across identical seeds
+
+Deferred / Not Yet Included:
+* Per-agent utility logging (will pair with future visualization)
+* Derived economic indicators (e.g., inequality metrics)
+* Selective metric enable/disable granularity beyond global ``enabled`` flag
 """
 from __future__ import annotations
 
