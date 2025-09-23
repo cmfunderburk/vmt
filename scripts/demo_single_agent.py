@@ -260,100 +260,21 @@ def main() -> int:
             enable_respawn=False,  # respawn optionally added via --respawn-every gating logic below
             enable_metrics=True,
         )
-        # Build list of agent positions (simple diagonal pattern)
+        # Build list of agent positions (simple diagonal pattern) and construct via factory
         agent_positions = [(i, i) for i in range(args.agents)]
         sim = Simulation.from_config(cfg, agent_positions=agent_positions)
-
-        # Wrap simulation so widget's RNG-based step triggers decision mode each tick
-        class DecisionWrapper:
-            def __init__(self, sim: Simulation, max_steps: int | None, turn_mode: bool):
-                self._sim = sim
-                self._ext_rng = random.Random(args.seed + 999)
-                self._max = max_steps
-                self._count = 0
-                self.turn_mode = turn_mode
-                self.pending_steps = 0
-                self.auto = False
-                self.auto_timer: QTimer | None = None
-                # Hooks for turn visualization state updates
-                self.on_pre_step: Callable[[], Any] | None = None
-                self.on_post_step: Callable[[], Any] | None = None
-                self._respawn_every = args.respawn_every if args.respawn_every > 0 else None
-                # Expose underlying simulation attributes so base widget rendering finds them
-                # (Needed for resources, agents, and gridlines to display.)
-                self.grid = sim.grid  # same object reference
-                self.agents = sim.agents  # list reference updates in place
-                # Optionally prime one step so user immediately sees state if not explicitly paused
-                if self.turn_mode and not args.pause_start:
-                    self.pending_steps = 1
-                if self._respawn_every:
-                    # Attach scheduler manually (factory disabled respawn by flag) so gating logic remains identical
-                    sim.respawn_scheduler = RespawnScheduler(
-                        target_density=0.18 if args.density is None else min(1.0, max(0.0, args.density)),
-                        max_spawn_per_tick=4,
-                        respawn_rate=0.5,
-                    )
-
-            def _maybe_finish(self):
-                if self._max is not None and self._count >= self._max:
-                    h = self._sim.metrics_collector.determinism_hash()  # type: ignore[arg-type]
-                    print(f"\n[GUI] Completed {self._count} steps. Final hash: {h}")
-                    app = QApplication.instance()
-                    if app is not None:
-                        app.quit()
-
-            def enqueue(self, n: int = 1):
-                self.pending_steps += n
-
-            def toggle_auto(self, interval_ms: int):
-                if not self.turn_mode:
-                    return
-                self.auto = not self.auto
-                if self.auto:
-                    if self.auto_timer is None:
-                        self.auto_timer = QTimer()
-                        self.auto_timer.timeout.connect(lambda: self.enqueue(1))  # type: ignore[arg-type]
-                    self.auto_timer.start(interval_ms)
-                    print(f"[TurnMode] Auto-run ON ({interval_ms} ms)")
-                else:
-                    if self.auto_timer:
-                        self.auto_timer.stop()
-                    print("[TurnMode] Auto-run OFF")
-
-            def step(self, rng: random.Random):  # signature expected by widget
-                # In continuous mode: always advance one decision step.
-                # In turn mode: only advance if pending_steps > 0.
-                if self.turn_mode:
-                    if self.pending_steps <= 0:
-                        return
-                    self.pending_steps -= 1
-                if self.on_pre_step:
-                    try:
-                        self.on_pre_step()
-                    except Exception:
-                        pass
-                self._sim.step(self._ext_rng, use_decision=True)
-                self._count += 1
-                # Respawn gating: invoke only on multiples of respawn_every
-                if self._respawn_every and self._sim.respawn_scheduler and (self._count % self._respawn_every == 0):
-                    try:
-                        self._sim.respawn_scheduler.step(self._sim.grid, self._sim._rng, step_index=self._count)  # type: ignore[arg-type]
-                    except Exception:
-                        pass
-                if self.on_post_step:
-                    try:
-                        self.on_post_step()
-                    except Exception:
-                        pass
-                # If turn mode becomes idle after this step, emit help once
-                if self.turn_mode and self.pending_steps == 0 and self._count == 1:
-                    print("[TurnMode] Idle. Press SPACE (1 step), ENTER (5 steps), A (auto-run), or Q (quit).")
-                self._maybe_finish()
+        # Optionally attach respawn if user requested interval gating (manual for now)
+        if args.respawn_every > 0:
+            sim.respawn_scheduler = RespawnScheduler(
+                target_density=0.18 if args.density is None else min(1.0, max(0.0, args.density)),
+                max_spawn_per_tick=4,
+                respawn_rate=0.5,
+            )
 
         class TurnWidget(EmbeddedPygameWidget):  # pragma: no cover (GUI)
-            def __init__(self, wrapper: DecisionWrapper):
-                super().__init__(simulation=wrapper)
-                self._wrapper = wrapper
+            def __init__(self, simulation: Simulation):
+                super().__init__(simulation=simulation)
+                self._sim = simulation
                 # Static background removes legacy animation for clarity
                 self.static_background = True
                 # Ensure key events received without clicking
@@ -363,6 +284,12 @@ def main() -> int:
                 self._tails: dict[int, deque[tuple[int, int]]] = {}
                 self._prev_pos: dict[int, tuple[int, int]] = {}
                 self._just_moved: set[int] = set()
+                self._step_count = 0
+                self._pending_steps = 0
+                if args.turn_mode and not args.pause_start:
+                    self._pending_steps = 1
+                self._auto = False
+                self._auto_timer: QTimer | None = None
                 # Fade state
                 self._fade_duration_ms = max(0, int(args.fade_ms))
                 self._pre_resources: set[tuple[int,int,str]] = set()
@@ -371,7 +298,7 @@ def main() -> int:
             def _capture_pre(self):
                 if self._fade_duration_ms <= 0:
                     return
-                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
+                sim_obj = self._sim  # type: ignore[attr-defined]
                 grid = getattr(sim_obj, "grid", None)
                 if not grid:
                     return
@@ -381,7 +308,7 @@ def main() -> int:
                     self._pre_resources = set()
 
             def _capture_post(self):
-                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
+                sim_obj = self._sim  # type: ignore[attr-defined]
                 agents = getattr(sim_obj, "agents", [])
                 grid = getattr(sim_obj, "grid", None)
                 moved: set[int] = set()
@@ -415,7 +342,7 @@ def main() -> int:
             def _draw_tails_and_highlights(self):
                 if self._tail_length <= 0:
                     return
-                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
+                sim_obj = self._sim  # type: ignore[attr-defined]
                 grid = getattr(sim_obj, "grid", None)
                 agents = getattr(sim_obj, "agents", None)
                 if not grid or not agents:
@@ -449,7 +376,7 @@ def main() -> int:
             def _draw_fading_resources(self):
                 if self._fade_duration_ms <= 0 or not self._fading:
                     return
-                sim_obj = self._wrapper._sim  # type: ignore[attr-defined]
+                sim_obj = self._sim  # type: ignore[attr-defined]
                 grid = getattr(sim_obj, "grid", None)
                 if not grid:
                     return
@@ -483,11 +410,22 @@ def main() -> int:
                 # Qt key codes: use Qt enums indirectly to avoid import clutter
                 from PyQt6.QtCore import Qt  # type: ignore
                 if key == Qt.Key.Key_Space:  # single step
-                    self._wrapper.enqueue(1)
+                    self._pending_steps += 1
                 elif key == Qt.Key.Key_Return or key == Qt.Key.Key_Enter:
-                    self._wrapper.enqueue(5)
+                    self._pending_steps += 5
                 elif key == Qt.Key.Key_A:  # toggle auto
-                    self._wrapper.toggle_auto(args.auto_interval)
+                    if not self._auto:
+                        if self._auto_timer is None:
+                            self._auto_timer = QTimer()
+                            self._auto_timer.timeout.connect(lambda: self._increment_auto())  # type: ignore[arg-type]
+                        self._auto_timer.start(args.auto_interval)
+                        self._auto = True
+                        print(f"[TurnMode] Auto-run ON ({args.auto_interval} ms)")
+                    else:
+                        if self._auto_timer:
+                            self._auto_timer.stop()
+                        self._auto = False
+                        print("[TurnMode] Auto-run OFF")
                 elif key == Qt.Key.Key_Q:
                     app = QApplication.instance()
                     if app is not None:
@@ -502,63 +440,31 @@ def main() -> int:
                     super().keyPressEvent(event)  # type: ignore[arg-type]
 
             def _update_scene(self):  # override to inject fading, tails, highlights
+                # Turn mode gating: only advance when pending steps > 0
+                if args.turn_mode:
+                    if self._pending_steps > 0:
+                        self._pending_steps -= 1
+                        self._capture_pre()
+                        self._sim.step(random.Random(12345), use_decision=True)
+                        self._capture_post()
+                        self._step_count += 1
+                        if self._step_count == 1 and self._pending_steps == 0:
+                            print("[TurnMode] Idle. SPACE=1, ENTER=5, A=auto, O=overlay, Q=quit")
+                else:
+                    self._sim.step(random.Random(12345), use_decision=True)
                 super()._update_scene()
                 self._draw_fading_resources()
                 self._draw_tails_and_highlights()
 
+            def _increment_auto(self):  # pragma: no cover - timer callback
+                if self._pending_steps == 0:
+                    self._pending_steps += 1
+
         app = QApplication.instance() or QApplication([])
         win = QMainWindow()
         win.setWindowTitle(f"EconSim Demo – {name} preference")
-        wrapper = DecisionWrapper(sim, args.steps, args.turn_mode)
-        if args.turn_mode:
-            widget = TurnWidget(wrapper)
-            wrapper.on_pre_step = widget._capture_pre  # type: ignore[assignment]
-            wrapper.on_post_step = widget._capture_post  # type: ignore[assignment]
-            # Container with play/pause button
-            from PyQt6.QtWidgets import QWidget as _QW, QPushButton as _QPB, QVBoxLayout as _QVL, QHBoxLayout as _QHL, QLabel as _QL
-            from PyQt6.QtCore import QTimer as _QT
-            container = _QW()
-            vlayout = _QVL(container)
-            hlayout = _QHL()
-            play_button = _QPB("Pause")  # start in playing mode
-            status_label = _QL("1 tps")
-            hlayout.addWidget(play_button)
-            hlayout.addWidget(status_label)
-            hlayout.addStretch(1)
-            vlayout.addLayout(hlayout)
-            vlayout.addWidget(widget, 1)
-            # 1 turn per second timer
-            play_timer = _QT(container)
-            play_interval_ms = 1000
-            def _tick():
-                # Only enqueue if no pending steps to keep 1Hz pacing
-                if wrapper.pending_steps == 0:
-                    wrapper.enqueue(1)
-            play_timer.timeout.connect(_tick)  # type: ignore[arg-type]
-            play_timer.start(play_interval_ms)
-            def _toggle():
-                if play_timer.isActive():
-                    play_timer.stop()
-                    play_button.setText("Play")
-                    status_label.setText("paused")
-                else:
-                    play_timer.start(play_interval_ms)
-                    play_button.setText("Pause")
-                    status_label.setText("1 tps")
-            play_button.clicked.connect(_toggle)  # type: ignore[arg-type]
-            # Suppress legacy keyboard guidance; provide succinct hint
-            print("[TurnMode] Play/Pause button active (1 turn/sec). Keys still work: SPACE, ENTER, A, Q.")
-            host_widget = container
-        else:
-            widget = EmbeddedPygameWidget(simulation=wrapper)
-            host_widget = widget
-        # Grid lines default on now for all GUI runs; overlay default on unless user disables
-        widget.show_grid_lines = True
-        widget.show_overlay = not args.no_overlay
-        win.setCentralWidget(host_widget)
-        win.resize(640, 480)
-        win.show()
-        return app.exec()
+        widget = TurnWidget(sim)
+        host_widget = widget
     else:
         for name, pref in prefs:
             run_demo(

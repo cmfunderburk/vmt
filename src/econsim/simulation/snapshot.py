@@ -1,4 +1,4 @@
-"""Simulation snapshot & replay utilities (Gate 5).
+"""Simulation snapshot & replay utilities (established Gate 5, unchanged in Gate 6).
 
 Provides a minimal, deterministic serialization of simulation state to
 support replay / hash verification tests. Metrics hash itself is not

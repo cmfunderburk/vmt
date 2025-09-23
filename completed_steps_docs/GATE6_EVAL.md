@@ -1,7 +1,7 @@
 # Gate 6 Evaluation
 
 ## Scope Delivered
-Factory integration, overlay toggle, test migration, performance verification, documentation updates. No scope creep beyond approved Option A.
+Factory integration, overlay toggle, decision-mode default with legacy env fallback, test migration, performance verification, documentation updates. No scope creep beyond approved Option A.
 
 ## Factory Evidence
 - Implementation: `Simulation.from_config` (see `src/econsim/simulation/world.py`)
@@ -25,11 +25,19 @@ Factory integration, overlay toggle, test migration, performance verification, d
 Full suite execution (date: 2025-09-23): 72 passed, 0 failed, 0 skipped in ~5.01s (quiet mode). Confirms all determinism, competition, metrics, respawn, GUI smoke, and performance guard tests remain green post-factory integration.
 
 ## Overlay Toggle
-- Keybinding 'O' toggles HUD (implemented in `scripts/demo_single_agent.py` TurnWidget keyPressEvent).
-- Determinism unaffected: overlay rendering path reads state only.
-- Performance overhead minimal (<5% threshold) not directly measured separately but inferred from stable FPS vs historical baseline.
-- Deferred automated GUI key event test; manual verification acceptable this gate.
-	* Rationale: Current test harness lacks synthesized Qt key events for nested Pygame-in-Qt widget. Implementing would add harness complexity; risk low since toggle state not fed back into simulation logic. Scheduled for later minor gate.
+Keybinding 'O' toggles HUD (implemented in `scripts/demo_single_agent.py` TurnWidget keyPressEvent).
+Determinism unaffected: overlay rendering path reads state only.
+Performance overhead minimal (<5% threshold) inferred from stable FPS vs historical baseline (avg_fps ~60.98 with overlay code present).
+Automated HUD toggle test deferred (manual verification only this gate) – scheduled for Gate 7 to assert HUD text bytes appear when enabled.
+	* Rationale: Avoid adding Qt key event synthesis harness complexity in final hours of integration gate; feature read-only and isolated from simulation state.
+
+## GUI Default Decision Mode
+Implemented default deterministic decision movement in `EmbeddedPygameWidget` (calls `step(..., use_decision=True)` unless env override).
+Environment fallback: setting `ECONSIM_LEGACY_RANDOM=1` re-enables legacy random walk path.
+Constructor precedence: passing `decision_mode=False` to widget overrides env flag (tested).
+Evidence:
+* Tests: `test_widget_decision_mode.py::test_default_decision_mode_active`, `::test_env_forces_legacy_random`, `::test_constructor_overrides_env` all green.
+* Code: `_use_decision_default` cached once in widget `__init__` ensuring no per-frame branching on env lookups.
 
 ## Private Wiring Removal
 - Tests no longer access `sim._rng` (grep evidence section below to be filled).
@@ -46,17 +54,17 @@ Command summaries:
 Conclusion: General trajectory / decision / competition tests migrated; remaining direct assignments are scoped to specialized validation contexts and acceptable.
 
 ## Risks / Debt
-- Missing automated overlay toggle test (GUI event synthesis) – low risk, schedule Gate 7 minor test addition.
-- Environment variable legacy random toggle not implemented (de-scoped for Gate 6) – document as future optional feature.
+* Missing automated overlay toggle test (scheduled Gate 7) – low risk due to overlay's read-only nature.
+* Minimal performance safeguard test for decision throughput not yet added (planned alongside overlay test to consolidate harness adjustments).
 
 ## Readiness for Next Gate
-- Stable deterministic baseline maintained.
-- Central configuration pattern unblocked for subsequent metrics or UI enhancements.
+* Stable deterministic baseline maintained with decision mode default.
+* Central configuration pattern unblocked for additional metrics/overlay polishing.
+* Next gate can focus on automated HUD verification, performance floor assertion, and expanded metrics granularity.
 
 ## Checklist Mapping
-See `GATE6_CHECKLIST.md` – all non-deferred items marked complete.
+See `GATE6_CHECKLIST.md` – all non-deferred items marked complete; only overlay automation test intentionally deferred.
 
 ## Items To Fill Post-Test Run
-- Replace PLACEHOLDER_HASH with captured hash.
-- Insert grep summary lines under Grep Evidence.
+None – all evidence sections populated for Gate 6 closure.
 

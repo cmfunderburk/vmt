@@ -1,55 +1,48 @@
-## VMT Copilot Instructions (Gate 5 Up-To-Date, 40‑Line Target)
-Purpose: Fast orientation for coding agents contributing to a PyQt6 desktop app embedding a Pygame surface + deterministic economic simulation (Gates 1–5 complete: rendering, preferences, grid/agents, decision, respawn & metrics).
+## VMT Copilot Instructions (Gate 6 Integration Pass – 40‑Line Target)
+Purpose: Rapid orientation for AI agents contributing to a PyQt6 desktop app embedding a 320x240 Pygame surface plus a deterministic spatial economic simulation (Gates 1–5 complete; Gate 6 = integration & minimal factory/overlay wiring).
 
-For forward scope sequencing (Gates 6–9) see `ROADMAP_REVISED.md`.
+### Core Architecture
+1. Single Qt event loop (no threads/while True). Frame cadence: `QTimer` 16ms in `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`).
+2. Rendering path: off-screen `pygame.Surface` → `pygame.image.tostring(..., 'RGBA')` → `QImage` in `paintEvent`. Do NOT resize surface or add per-frame heap churn.
+3. Simulation tick: `Simulation.step(rng, use_decision=...)` in `simulation/world.py` with legacy random walk vs deterministic greedy decision (`Agent.step_decision`).
+	• Widget defaults to decision mode; set env `ECONSIM_LEGACY_RANDOM=1` or pass `decision_mode=False` to revert for legacy tests.
+4. Hooks (optional): `respawn_scheduler`, `metrics_collector`; attach only when present—logic must remain inert if absent.
+5. Preferences: contract in `src/econsim/preferences/` (pure `utility(bundle)`; no mutation). Factory-driven creation via `PreferenceFactory`.
+6. Factory (Gate 6): `Simulation.from_config(config, preference_factory, agent_positions)` seeds deterministic RNG, builds grid, conditionally wires hooks.
 
-Architecture Snapshot:
-1. Single Qt event loop, no threads, no while True; frame timing via `QTimer` (16 ms) in `EmbeddedPygameWidget` (`src/econsim/gui/embedded_pygame.py`).
-2. Widget renders off-screen 320x240 `pygame.Surface` → RGBA bytes → `QImage` in `paintEvent`; do NOT enlarge surface or add per-frame allocations.
-3. Simulation core: `Simulation.step(rng, use_decision=...)` orchestrates agents + grid hooks (respawn, metrics). Agents implement `step_decision` (greedy 1-step) & legacy `move_random` path.
-4. Preferences (`src/econsim/preferences/`): uniform contract (`utility`, `update_params`, `serialize`, `deserialize`) with factory registry; tests rely on strict validation & determinism.
-5. Grid stores typed resources in dict[(x,y)] -> {'A','B'} with stable `iter_resources_sorted()` for tie-break determinism.
+### Determinism & Invariants
+• Target tie-break key EXACT: (−ΔU, distance, x, y). Never alter ordering semantics.
+• Perception & epsilon: `default_PERCEPTION_RADIUS`, `EPSILON_UTILITY` in `simulation/constants.py`—retain bootstrap to avoid zero-utility stalls.
+• Agent list index resolves simultaneous contests (see `test_competition`).
+• Resource iteration order stable (sorted) – do not replace with set/dict iteration without ordering guarantee.
 
-Determinism & Invariants:
-• Tie-break ordering for target selection: sort key (−ΔU, distance, x, y). Preserve exactly; tests assert identical trajectories.
-• PERCEPTION_RADIUS & epsilon bootstrap (see `EPSILON_UTILITY`) avoid zero-utility stalls—retain logic when modifying decision code.
-• Agent ordering (list index) confers priority in simultaneous contests (see `test_competition.py`).
-• No mutation inside preference `utility`; must remain pure & fast.
+### Performance Guardrails
+• Baseline ~62 FPS (floor ≥30). If regression: check (a) surface size (b) new allocations in `_on_tick`/`paintEvent` (c) blocking I/O or sleeps.
+• Quick perf: `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json`.
+• Keep `FRAME_INTERVAL_MS` & `SURFACE_SIZE` unchanged unless explicitly gate-scoped.
 
-Performance Guardrails:
-• Baseline ~62 FPS; hard floor ≥30. Investigate regressions: (a) surface size (b) new allocations in tick/paint (c) accidental sleeps or blocking I/O.
-• Use `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` for quick check.
-• Keep `FRAME_INTERVAL_MS` and surface dimensions stable unless gate-scoped change approved.
+### Complexity Constraints
+• Any per-step feature O(agents + resources); avoid nested scans beyond current patterns.
+• Hooks must early-exit fast when disabled (None check only).
 
-Dynamics & Metrics (Gate 5):
-• Respawn & metrics are optional hooks (`Simulation.respawn_scheduler`, `metrics_collector`) – isolate new logic behind presence checks; never break existing tests if absent.
-• Any new per-step feature must be O(agents + resources) and avoid nested scans > current complexity.
+### Testing & Headless
+• Headless: if `DISPLAY` unset ensure `SDL_VIDEODRIVER=dummy` & `QT_QPA_PLATFORM=offscreen` (already handled in widget/tests—mirror in new scripts).
+• Drive GUI in tests via `app.processEvents()` bursts; never spin custom loops.
+• Access protected members only in tests (e.g. `_frame`, `_surface`).
 
-Headless / Testing Pattern:
-• If `DISPLAY` unset: set `SDL_VIDEODRIVER=dummy`, `QT_QPA_PLATFORM=offscreen` (tests & perf script already do this). Replicate in new test scripts.
-• Drive GUI in tests via short loop `app.processEvents()`; never spin custom loops.
-• Access protected members only in tests (e.g., `_frame`).
+### Gate Workflow (Enforced)
+1. Create `Gate_N_todos.md` + `GATE_N_CHECKLIST.md` before coding.
+2. Implement minimal diff; document deferrals in gate docs.
+3. After completion write `GATE_N_EVAL.md` mapping criteria → evidence before push.
 
-Workflow & Gating:
-1. For new scope create `Gate_N_todos.md` + `GATE_N_CHECKLIST.md` before coding.
-2. After implementation document evidence in `GATE_N_EVAL.md` before merge.
-3. Keep changes smallest-surface; defer speculative abstractions (record deferral in gate docs).
+### Allowed vs Forbidden
+OK: new preference subclass + tests; overlay toggle wiring; metrics extension via optional collector; small doc corrections.
+NOT OK: threads, blocking loops, enlarging surface, changing tie-break or perception constants silently, mutating state inside `utility`.
 
-Mandatory Gate Workflow (ENFORCE BEFORE ANY GIT PUSH):
-1. Generate Todo List: `Gate_N_todos.md` (scope, acceptance criteria, step-by-step plan).
-2. Create Checklist: derive actionable items into `GATE_N_CHECKLIST.md`.
-3. Discuss & Agree: validate scope, risks, timeline with stakeholder BEFORE coding.
-4. Execute Systematically: implement steps, updating todos & checklist status as you go.
-5. Write Retrospective Eval: `GATE_N_EVAL.md` mapping each criterion to evidence; list gaps, risks, performance impact, technical debt, readiness.
-6. ONLY THEN: git commit/push (after evaluation documents completion explicitly).
-Violation = scope creep risk. Always document delivered vs promised, perf impact, debt, readiness for next gate.
+### Teardown & Resource Safety
+In widget `closeEvent`: stop `QTimer`, then `pygame.quit()`. Replicate sequence for any new managed subsystem.
 
-Allowed vs Not Allowed:
-• OK: add preference subclass + tests; add lightweight overlay toggle; extend metrics via optional collector.
-• NOT OK: introduce threading, blocking loops, enlarge surface, change tie-break, mutate preference state mid-step.
+### AI Contribution Style
+State intent → act → summarize (Goal | Actions | Result | Next). When uncertain, give 2–3 smallest viable options with recommendation; never expand scope silently.
 
-Teardown Discipline: In `closeEvent` always stop QTimer then `pygame.quit()`. Mirror pattern for any new managed resource.
-
-AI Response Style: Start with intent; act immediately; summarize (Goal | Actions | Result | Next). Offer concise options when ambiguous; default to smallest diff.
-
-When Unsure: Present 2–3 minimal options + recommendation; never silently broaden scope.
+Forward plan details: see `ROADMAP_REVISED.md` (Gates 6–9) & top-level `README.md` for implemented vs pending matrix.

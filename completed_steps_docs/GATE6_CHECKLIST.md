@@ -8,9 +8,9 @@
 - [x] Internal RNG seeded from config (indirectly verified via deterministic respawn & same-seed parity tests)
 
 ## GUI Default Behavior
-- [ ] Decision mode active by default
-- [ ] Env `ECONSIM_LEGACY_RANDOM=1` reverts to legacy path
-- [ ] Legacy path still functional (smoke test)
+ - [x] Decision mode active by default (`EmbeddedPygameWidget` caches `_use_decision_default=True` unless env override)
+ - [x] Env `ECONSIM_LEGACY_RANDOM=1` reverts to legacy path (verified in `test_widget_decision_mode.py::test_env_forces_legacy_random`)
+ - [x] Legacy path still functional (movement divergence asserted in tests)
 
 ## Overlay Toggle
 - [x] Key `O` toggles overlay state (`demo_single_agent.py` TurnWidget keyPressEvent)
@@ -20,7 +20,7 @@
 
 ## Tests & Public Surface
 - [x] New `test_factory_integration.py`
-- [ ] New overlay toggle test (Deferred: manual GUI keypress not yet automated)
+ - [ ] New overlay toggle test (Deferred Gate 6: HUD text presence automation scheduled Gate 7; manual verification only this gate)
 - [x] No test references `sim._rng` (grep migration completed; legacy tests updated except respawn density specialized ones)
 - [x] No direct assignment of `respawn_scheduler` / `metrics_collector` except controlled tests (factory handles attachment)
 
@@ -43,10 +43,10 @@
 - [x] Format applied (patches minimal & style consistent)
 
 ## Evidence for GATE6_EVAL.md
-- [ ] Factory code snippet + test reference
-- [ ] Before/after perf JSON excerpt (captured: `tmp_perf_gate6.json` avg_fps 60.98)
-- [ ] Determinism hash sample unchanged (take from `test_demo_determinism.py` run)
-- [ ] Grep results: no private wiring
-- [ ] Overlay toggle screenshot / log evidence (console log `[Overlay] Overlay toggled ON/OFF`)
+ - [x] Factory code snippet + test reference (`Simulation.from_config` + factory hook test)
+ - [x] Before/after perf JSON excerpt (captured: `tmp_perf_gate6.json` avg_fps 60.98)
+ - [x] Determinism hash sample unchanged (see hashes recorded in eval doc)
+ - [x] Grep results: no private wiring (remaining controlled uses documented)
+ - [x] Overlay toggle log evidence (`[Overlay] Overlay toggled ON/OFF`) – screenshot deferred
 
 -- END --

@@ -1,4 +1,4 @@
-"""Simulation coordinator (Gates 3–5 implemented).
+"""Simulation coordinator (Gates 3–6 implemented).
 
 Orchestrates per-tick progression across agents & grid. Supports two
 paths: legacy random walk (for baseline / regression comparison) and
@@ -42,10 +42,10 @@ class Simulation:
     grid: Grid
     agents: list[Agent]
     _steps: int = 0
-    config: Optional[Any] = None  # SimConfig when available (Gate 5)
-    _rng: _random.Random | None = None      # Internal RNG (respawn/metrics later)
-    respawn_scheduler: Any | None = None    # Gate 5: optional RespawnScheduler
-    metrics_collector: Any | None = None    # Gate 5: optional MetricsCollector
+    config: Optional[Any] = None  # SimConfig when available
+    _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
+    respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
+    metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
 
     def __post_init__(self) -> None:  # pragma: no cover (simple init)
         if self.config is not None and self._rng is None:
@@ -56,11 +56,11 @@ class Simulation:
         """Advance simulation by one tick.
 
         Parameters:
-            rng: external RNG (legacy random movement path); retained until Gate 5 removes need.
-            use_decision: when True, run deterministic decision logic; when False, use legacy random walk.
+            rng: external RNG for legacy random movement path (retained for regression comparability).
+            use_decision: deterministic decision logic toggle.
 
-        Gate 5 Note: internal self._rng will drive new dynamic systems (respawn, metrics) while
-        preserving current signature to avoid test churn in intermediate commits.
+        Internal `_rng` powers respawn / metrics hooks (if present) and remains distinct to keep
+        external API stable for existing test scaffolds.
         """
         if use_decision:
             for agent in self.agents:
@@ -70,7 +70,7 @@ class Simulation:
                 agent.move_random(self.grid, rng)
             for agent in self.agents:
                 agent.collect(self.grid)
-        # Respawn hook (Gate 5 - inert until scheduler provided)
+    # Respawn hook (inert if scheduler not attached)
         if self.respawn_scheduler is not None and self._rng is not None:
             try:
                 self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)

@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import QWidget
 
 
 class _SimulationProto(Protocol):  # pragma: no cover - typing helper only
-    def step(self, rng) -> None: ...
+    def step(self, rng: random.Random, *, use_decision: bool = False) -> None: ...
 
 
 class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested separately)
@@ -30,7 +30,11 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
     _sim_rng: random.Random | None  # lazily-created RNG for simulation
 
     def __init__(
-        self, parent: QWidget | None = None, simulation: _SimulationProto | None = None
+        self,
+        parent: QWidget | None = None,
+        simulation: _SimulationProto | None = None,
+        *,
+        decision_mode: bool | None = None,
     ) -> None:
         super().__init__(parent)
         # Optional injected simulation (Gate 3). Avoid hard dependency to keep
@@ -38,6 +42,15 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         # deterministic RNG argument. We'll internally manage a Random instance.
         self._simulation: _SimulationProto | None = simulation
         self._sim_rng = None  # set in first tick if simulation provided
+        # Cache decision mode default (Gate 6 integration finalization):
+        # Precedence: explicit constructor param > env flag > default True.
+        # Env flag ECONSIM_LEGACY_RANDOM=1 forces legacy random walk.
+        import os as _os  # local alias to avoid top-level changes
+        env_legacy = _os.environ.get("ECONSIM_LEGACY_RANDOM") == "1"
+        if decision_mode is not None:
+            self._use_decision_default = bool(decision_mode)
+        else:
+            self._use_decision_default = not env_legacy
         # Set SDL video driver for headless environments before pygame.init()
         import os
 
@@ -80,7 +93,8 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 # Seed based on start time fractional part for repeatable session if needed.
                 self._sim_rng = random.Random(12345)
             try:
-                self._simulation.step(self._sim_rng)
+                # Use cached decision/default mode flag; can be overridden per-instance via constructor.
+                self._simulation.step(self._sim_rng, use_decision=self._use_decision_default)
             except Exception as exc:  # pragma: no cover - defensive
                 print(f"[SimulationWarning] Step error: {exc}")
         self._update_scene()

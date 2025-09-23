@@ -1,4 +1,4 @@
-"""Resource respawn scheduler (Gate 5 implemented).
+"""Resource respawn scheduler (introduced Gate 5, factory-attached in Gate 6).
 
 Maintains a target *density* of resources using a deterministic RNG. Each
 step moves the grid toward the target by spawning at most a bounded number

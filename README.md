@@ -2,7 +2,7 @@
 
 An educational microeconomic simulation prototype combining a PyQt6 desktop shell with a deterministic spatial agent model (preferences, resource collection, decision logic).
 
-> This README reflects the **accurate current state (post Gate 5 components, pre Gate 6 integration)**. The previous aspirational narrative has been archived in `README_aspirational.md` for transparency.
+> This README reflects the **current state after Gate 6 integration (factory, decision default, overlay toggle, perf safeguards)**. The previous aspirational narrative lives in `README_aspirational.md`.
 
 ## 1. Snapshot: Implemented vs Pending
 
@@ -12,16 +12,16 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 | Preferences | Cobb-Douglas, Perfect Substitutes, Leontief + factory | N-good generalization, adaptive forms |
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
 | Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism | Trading, production/consumption, richer behaviors |
-| Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests | Enabled by default in GUI (currently random path) |
-| Respawn | Density-based scheduler (manual wiring) | Config integration, multi-type spawning |
-| Metrics | Per-step aggregates + determinism hash (manual wiring) | Public configuration/factory usage, additional economic metrics |
+| Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests; GUI default ON; env / param override | Multi-step planning |
+| Respawn | Density-based scheduler (factory flag) | Multi-type spawning, richer policies |
+| Metrics | Factory-attached collector + determinism hash | Additional economic metrics suite |
 | Snapshot / Replay | Serialize + restore + hash parity tests | Scenario library management |
-| Configuration | `SimConfig` dataclass (defined) | Actually applied in construction (factory not built) |
-| Overlays / HUD | Basic resource & agent rendering (no toggle wiring) | Interactive overlays, utility contours, UI toggles |
-| Tests | Determinism, decision, respawn, metrics, snapshot, perf | Public API adoption (remove private attribute pokes) |
+| Configuration | `SimConfig` + `Simulation.from_config` factory | Extended scenario descriptors |
+| Overlays / HUD | Toggleable overlay + grid lines (key 'O'); regression + perf neutrality tests | Utility contours, advanced UI panels |
+| Tests | Determinism, decision precedence, respawn, metrics, snapshot, perf (FPS + throughput), overlay regression | Extended educational UI interaction tests |
 
-## 2. Current Reality (Why Docs Were Updated)
-Earlier documentation overstated integration (e.g. claiming fully wired respawn/metrics & GUI overlays). Components exist but **require manual injection**; the default GUI still advances using the legacy random movement branch. Gate 6 will focus on integration & public surface hardening rather than new mechanics.
+## 2. Current Reality (Post Gate 6)
+Gate 6 delivered: factory construction, GUI default decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param), overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard.
 
 ## 3. Quick Start (Current Behavior)
 ```bash
@@ -29,58 +29,59 @@ python3 -m venv vmt-dev
 source vmt-dev/bin/activate
 pip install -e .[dev]
 
-# Launch demo GUI (legacy random movement path by default)
+# Launch demo GUI (decision mode ON by default; press 'O' to toggle overlay)
 make dev
 
-# Run decision-mode simulation via tests or custom script (see API_GUIDE.md soon)
-pytest -q  # executes decision, determinism, respawn, metrics tests
+# Run full test suite (decision, determinism, respawn, metrics, snapshot, perf)
+pytest -q
 
 # Performance sample (widget)
 python scripts/perf_stub.py --mode widget --duration 2 --json
+
+# Force legacy random walk (regression / comparison)
+ECONSIM_LEGACY_RANDOM=1 make dev
 ```
 
-## 4. Enabling Features Manually (Temporary Pattern)
-Until the Gate 6 factory is added, wiring happens ad‑hoc:
+## 4. Factory Construction (Preferred)
+Use the factory for deterministic, hook-aware simulation setup:
 ```python
+from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
-from econsim.simulation.grid import Grid
-from econsim.simulation.agent import Agent
-from econsim.preferences.cobb_douglas import CobbDouglasPreference
-from econsim.simulation.respawn import RespawnScheduler
-from econsim.simulation.metrics import MetricsCollector
 import random
 
-grid = Grid(12, 12, resources=[(2,2,'A'), (4,5,'B')])
-agents = [Agent(id=0, x=0, y=0, preference=CobbDouglasPreference(alpha=0.5))]
-sim = Simulation(grid, agents)
-
-# Manual hook injection
-sim.respawn_scheduler = RespawnScheduler(target_density=0.25, max_spawn_per_tick=3, respawn_rate=0.4)
-sim.metrics_collector = MetricsCollector()
-rng = random.Random(123)
-
+cfg = SimConfig(
+	grid_size=(12,12),
+	initial_resources=[(2,2,'A'), (4,5,'B')],
+	perception_radius=8,
+	respawn_target_density=0.25,
+	respawn_rate=0.4,
+	max_spawn_per_tick=3,
+	seed=123,
+	enable_respawn=True,
+	enable_metrics=True,
+)
+sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
+ext_rng = random.Random(999)
 for _ in range(40):
-	sim.step(rng, use_decision=True)  # explicit opt-in
-
+	sim.step(ext_rng, use_decision=True)
 print("hash=", sim.metrics_collector.determinism_hash())
 ```
-Limitations: No SimConfig application yet; hooks must be assigned; GUI ignores these unless integrated manually.
+Legacy manual wiring is supported but deprecated.
 
 ## 5. Known Gaps / Explicit Limitations
-1. GUI still uses legacy random walk path (decision mode not default).
-2. No public factory: tests rely on private wiring; SimConfig inert.
-3. Respawn & metrics silent unless explicitly attached.
-4. No menus / control panels / scenario loader.
-5. Overlays limited: no toggle UI, no utility visualization.
-6. Trading, production, consumption, and economic metrics (e.g., inequality) not implemented.
+1. Trading, production, consumption, and economic metrics (e.g., inequality) not implemented.
+2. No menus / control panels / scenario loader.
+3. Advanced overlays (utility contours, analytics) not implemented.
 
-## 6. Gate 6 (Planned Focus – Integration & Minimal Overlay Toggle)
-Planned outcomes:
-* `Simulation.from_config(SimConfig)` applying seed, respawn, metrics.
-* GUI starts in decision mode (with flag / env to fallback to legacy path).
-* Minimal overlay toggle (on/off) exposed (no full panel yet).
-* Public API used in updated tests (remove direct `_rng` access).
-* Documentation alignment (API_GUIDE, roadmap revision).
+## 6. Gate 6 (Integration Summary)
+Delivered:
+* `Simulation.from_config` (seeded RNG + optional respawn & metrics)
+* GUI defaults to decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param `decision_mode=False`)
+* Overlay/grid toggle (key 'O') + overlay regression (byte-diff) test
+* Decision step throughput safeguard test (raw stepping floor)
+* Test migration reducing private attribute reliance (only specialized replay/density cases remain)
+* Documentation synchronization (README, copilot instructions, Gate 6 eval)
+Deferred: advanced GUI panels, utility contours, economic interactions.
 
 ## 7. Roadmap (High-Level Forward View)
 | Gate | Theme | Core Scope | Deferrals |
@@ -92,8 +93,8 @@ Planned outcomes:
 
 Detailed sequencing lives in [`ROADMAP_REVISED.md`](ROADMAP_REVISED.md) and the Gate 6 execution list in [`completed_steps_docs/Gate_6_todos.md`](completed_steps_docs/Gate_6_todos.md).
 
-## 8. Contributing (Interim Guidance)
-Follow gate workflow (see `.github/copilot-instructions.md`). For Gate 6 PRs: keep changes narrowly focused on integration—avoid introducing new economic mechanics concurrently.
+## 8. Contributing
+Follow gate workflow (see `.github/copilot-instructions.md`). For post-Gate 6 work keep PRs narrowly scoped (integration polish vs. new mechanics) unless entering a new gate.
 
 ## 9. Testing & Determinism Notes
 Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist, x, y), agent list ordering, epsilon bootstrap for zero bundles, canonical metrics hash. Adjust any of these only with explicit gate-scoped justification.
@@ -102,7 +103,8 @@ Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist
 | Document | Purpose |
 |----------|---------|
 | `README_aspirational.md` | Archived earlier goals / narrative (superseded) |
-| `completed_steps_docs/GATE5_EVAL.md` | Evidence mapping for dynamics & metrics |
+| `completed_steps_docs/GATE6_EVAL.md` | Gate 6 evidence mapping |
+| `completed_steps_docs/GATE5_EVAL.md` | Gate 5 evidence (historical) |
 | `orientation_docs/Implementation Roadmap.md` | Original long-form plan (pre-reconciliation) |
 | `.github/copilot-instructions.md` | High-signal constraints & invariants |
 | `scripts/perf_stub.py` | Performance validation harness |
@@ -143,7 +145,7 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 - **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
 - **Development Environment**: Complete vmt-dev virtual environment with all dependencies
 
-### **🚀 Current Capabilities (Post Gate 5)**
+### **🚀 Current Capabilities (Post Gate 6)**
 ```bash
 # Working demonstration (Gate 5)
 source vmt-dev/bin/activate
@@ -153,26 +155,14 @@ make lint                              # Code quality enforced
 python3 scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
 ```
 
-### **📊 Performance Metrics (Gate 5 Snapshot)**
-- **Frame Rate (widget)**: ~62 FPS baseline retained after overlays & decision logic
-- **Decision Throughput**: >6000 decision ticks/sec (20 agents / 120 resources scenario; guard ≥2000)
-- **Target Selection Micro-Overhead**: <3,000 µs guard, currently well below threshold
-- **Respawn + Metrics Overhead**: ~200µs per tick (absolute guard 300µs; relative noisy due to micro baseline) via `test_perf_overhead.py`
-- **Density Convergence**: Respawn reaches target density within ±5% (no overshoot)
-- **Determinism Hash**: Stable across identical seeds; diverges on state perturbation; snapshot replay reproduces stepwise hash
-- **Tests**: 62 unit tests (adds respawn density, metrics integrity, determinism hash, snapshot replay, perf overhead)
-- **Code Quality**: Zero linting errors, formatted codebase
-- **CI Pipeline**: Fully functional with headless execution
-
-#### Gate 1 Performance Validation Details
-Authoritative 5s run (2025-09-22):
-```json
-{"frames": 310.0, "duration_s": 5.000980996999715, "avg_fps": 61.98783802337605}
-```
-Interpretation:
-- Sustained ~62 FPS (stretch goal met; ≥30 requirement exceeded with large margin)
-- Headless path stable (CI uses SDL_VIDEODRIVER=dummy + QT_QPA_PLATFORM=offscreen)
-- Current automated perf test uses a conservative ≥25 FPS threshold to avoid flakiness; may be tightened after observing CI stability.
+### **📊 Performance & Determinism (Gate 6 Snapshot)**
+- **Frame Rate (widget)**: ~61–62 FPS typical (floor safeguard ≥25 CI / ≥30 target)
+- **Decision Throughput Test**: 4000 steps <1.0s (floor ≥4000 steps/sec; typical much higher)
+- **Overlay Regression Test**: Byte-diff ≥2% when enabled, <15% after disabling (ensures draw path active, inert to state)
+- **Respawn & Metrics Overhead**: Negligible; hooks no-op when disabled
+- **Determinism Hash**: Unchanged across Gate 6 integration (see `completed_steps_docs/GATE6_EVAL.md`)
+- **Private Access**: General tests avoid internals; controlled replay/density exceptions documented
+- **Suite Coverage**: Determinism, competition, hash, respawn density, metrics, snapshot, overlay regression, widget & raw perf
 
 ## Documentation Organization
 
@@ -501,23 +491,8 @@ All major technical risks eliminated through working implementation:
 - **⭐ Professional Standards**: Code quality, testing, and CI/CD exceeding industry practices
 - **🎓 Educational Ready**: Technical platform validated for microeconomics learning objectives
 
-## Next Steps: Gate 4 Completion → Gate 5 Preview
-
-Immediate (Gate 4 wrap-up):
-1. Draft `GATE4_EVAL.md` mapping acceptance criteria to implemented evidence
-2. Finalize checklist & retrospective evaluation
-3. Expand README educational example (optional) with decision trace excerpt
-
-Upcoming (Gate 5 preview – NOT yet implemented):
-1. Resource regeneration / respawn mechanics
-2. Agent interaction (trading or sharing) primitives
-3. Enhanced visualization (paths, utility heat overlays)
-4. Configurable simulation pacing (decoupled tick rate)
-5. Extended preference diagnostics (marginal utility logging)
-
----
-
-**Project Status**: Gate 4 In Progress — Decision Logic & Visualization  
-**Technical Validation**: ✅ Gate 1 (Integration) | ✅ Gate 2 (Preferences) | ✅ Gate 3 (Spatial Core)  
-**Last Updated**: September 22, 2025  
-**Repository**: [github.com/cmfunderburk/vmt](https://github.com/cmfunderburk/vmt)
+## Current Status
+**Completed Gates**: 1–6 (Integration, Preferences, Spatial Core, Decision Logic, Dynamics/Respawn/Metrics, Integration & Overlay)  
+**Active Planning**: Gate 7 (interaction + GUI enrichment)  
+**Repository**: [github.com/cmfunderburk/vmt](https://github.com/cmfunderburk/vmt)  
+**Last Updated**: 2025-09-23

@@ -1,4 +1,4 @@
-"""Metrics collection (Gate 5 implemented).
+"""Metrics collection (introduced Gate 5, integrated via factory in Gate 6).
 
 Captures per-step aggregate inventory & resource counts and maintains a
 determinism hash that is sensitive to agent ordering, positions, carried

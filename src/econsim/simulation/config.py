@@ -1,9 +1,8 @@
-"""Simulation configuration (Gate 5 defined; Gate 6 integration target).
+"""Simulation configuration (Gate 6 integrated; evolved from Gate 5 draft).
 
 Acts as the authoritative parameter bundle for constructing a
-deterministic simulation. Gate 6 will introduce a factory method
-(`Simulation.from_config`) that consumes this dataclass to attach
-respawn and metrics hooks and seed internal RNG state.
+deterministic simulation. Factory method `Simulation.from_config` consumes
+this dataclass to attach respawn / metrics hooks and seed internal RNG state.
 
 Fields:
 * ``grid_size``: (width, height)
@@ -14,7 +13,7 @@ Fields:
 * ``max_spawn_per_tick``: cap on newly spawned resources each tick
 * ``seed``: base RNG seed (drives deterministic respawn & future stochastic systems)
 
-Upcoming (Gate 6 extensions): enable flags for respawn / metrics and overlay default.
+Includes enable flags for respawn / metrics; overlay toggle remains a GUI concern.
 """
 from __future__ import annotations
 
