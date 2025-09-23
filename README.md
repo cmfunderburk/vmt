@@ -16,7 +16,7 @@
 
 ## Project Overview
 
-VMT is a **Desktop GUI Application** designed to teach microeconomic theory through spatial agent-based visualizations. The platform addresses the common student criticism of "people don't behave like that" by demonstrating multiple preference types (Cobb-Douglas, Perfect Substitutes, Leontief) through observable spatial agent behavior.
+VMT is a **Desktop GUI Application** designed to teach microeconomic theory through spatial agent-based visualizations.
 
 ### **Key Features**
 - **Spatial Collection Visualization**: Agents collect goods on NxN grid demonstrating preference-driven choice
