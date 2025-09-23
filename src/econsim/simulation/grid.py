@@ -1,14 +1,14 @@
-"""Grid abstraction (Gate 3).
+"""Grid abstraction (Gate 4 upgrade).
 
-Minimal 2D grid storing resource locations as coordinate tuples.
+Minimal 2D grid storing typed resource locations as coordinate tuples.
 
-Design goals:
-- O(1) average membership & removal using a set of (x,y) tuples.
+Design goals (Gate 3 + Gate 4 update):
+- O(1) average membership & removal using mapping of (x,y)->type.
 - Validation of coordinates to prevent silent out-of-bounds logic errors.
 - Simple, explicit API; no iteration helpers yet (add later if needed).
 
-Deferrals:
-- Resource types / quantities.
+Deferrals (still):
+- Resource quantities >1 per cell.
 - Dynamic respawn.
 - Spatial indexing optimizations (unnecessary at current scale).
 """
@@ -19,23 +19,31 @@ from dataclasses import dataclass
 from typing import Any
 
 Coord = tuple[int, int]
+ResourceType = str  # For Gate 4: simple 'A','B' literal types
 
 
 @dataclass(slots=True)
 class Grid:
     width: int
     height: int
-    _resources: set[Coord]
+    _resources: dict[Coord, ResourceType]
 
-    def __init__(self, width: int, height: int, resources: Iterable[Coord] | None = None) -> None:
+    def __init__(self, width: int, height: int, resources: Iterable[tuple[int, int] | tuple[int, int, ResourceType]] | None = None) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("Grid dimensions must be positive")
         self.width = width
         self.height = height
-        self._resources = set()
+        self._resources = {}
         if resources:
-            for coord in resources:
-                self.add_resource(*coord)
+            for entry in resources:
+                if len(entry) == 2:  # type: ignore[arg-type]
+                    x, y = entry  # type: ignore[misc]
+                    rtype: ResourceType = "A"
+                elif len(entry) == 3:  # type: ignore[arg-type]
+                    x, y, rtype = entry  # type: ignore[misc]
+                else:  # pragma: no cover (defensive)
+                    raise ValueError("Resource entry must have length 2 or 3")
+                self.add_resource(int(x), int(y), str(rtype))
 
     # --- Validation -------------------------------------------------
     def _check_bounds(self, x: int, y: int) -> None:
@@ -43,24 +51,25 @@ class Grid:
             raise ValueError(f"Coordinate ({x},{y}) out of bounds for {self.width}x{self.height} grid")
 
     # --- Core API ---------------------------------------------------
-    def add_resource(self, x: int, y: int) -> None:
+    def add_resource(self, x: int, y: int, rtype: ResourceType = "A") -> None:
         self._check_bounds(x, y)
-        self._resources.add((x, y))
+        self._resources[(x, y)] = rtype
 
     def has_resource(self, x: int, y: int) -> bool:
         self._check_bounds(x, y)
         return (x, y) in self._resources
 
-    def take_resource(self, x: int, y: int) -> bool:
-        """Remove resource if present; return True if removed, else False.
+    def take_resource_type(self, x: int, y: int) -> ResourceType | None:
+        """Remove and return resource type if present; else None.
+
         Raises ValueError for out-of-bounds coordinates.
         """
         self._check_bounds(x, y)
-        try:
-            self._resources.remove((x, y))
-            return True
-        except KeyError:
-            return False
+        return self._resources.pop((x, y), None)
+
+    def take_resource(self, x: int, y: int) -> bool:
+        """Backward-compatible boolean removal API (Gate 3 compatibility)."""
+        return self.take_resource_type(x, y) is not None
 
     # --- Introspection / Serialization ------------------------------
     def resource_count(self) -> int:
@@ -70,30 +79,30 @@ class Grid:
         return {
             "width": self.width,
             "height": self.height,
-            "resources": sorted(self._resources),  # stable order for deterministic tests
+            "resources": [
+                (x, y, rtype) for (x, y), rtype in sorted(self._resources.items())
+            ],  # stable order
         }
 
     @classmethod
     def deserialize(cls, data: dict[str, Any]) -> Grid:
         width = int(data["width"])  # may raise KeyError/ValueError intentionally
         height = int(data["height"])
-        resources = data.get("resources", [])
-        if not isinstance(resources, list):  # defensive
+        resources_raw = data.get("resources", [])
+        if not isinstance(resources_raw, list):
             raise ValueError("Serialized grid 'resources' must be a list")
-        typed_resources: list[Coord] = []
-        for r in resources:  # type: ignore[assignment]
-            # Accept list/tuple of two numeric-like values
-            if not isinstance(r, (list, tuple)):
-                raise ValueError("Each resource must be a sequence of length 2")
-            if len(r) != 2:  # type: ignore[arg-type]
-                raise ValueError("Each resource must have length 2")
-            x_raw, y_raw = r  # type: ignore[misc]
-            x, y = int(x_raw), int(y_raw)  # type: ignore[arg-type]
-            typed_resources.append((x, y))
+        typed_resources: list[tuple[int, int, ResourceType]] = []
+        for entry in resources_raw:  # type: ignore[assignment]
+            if not isinstance(entry, (list, tuple)) or len(entry) not in (2, 3):  # type: ignore[arg-type]
+                raise ValueError("Each resource entry must be (x,y) or (x,y,type)")
+            x = int(entry[0])  # type: ignore[index]
+            y = int(entry[1])  # type: ignore[index]
+            rtype: ResourceType = str(entry[2]) if len(entry) == 3 else "A"  # type: ignore[index]
+            typed_resources.append((x, y, rtype))
         return cls(width, height, typed_resources)
 
     # --- Representation ---------------------------------------------
     def __repr__(self) -> str:  # pragma: no cover (debug convenience)
         return f"Grid({self.width}x{self.height}, resources={len(self._resources)})"
 
-__all__ = ["Grid", "Coord"]
+__all__ = ["Grid", "Coord", "ResourceType"]
