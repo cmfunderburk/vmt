@@ -44,14 +44,25 @@ class Agent:
 
     # --- Resource Interaction -------------------------------------
     def collect(self, grid: Grid) -> bool:
-        """Collect resource at current cell if present. Map resource to good1 for now.
+        """Collect typed resource at current cell if present.
 
-        Returns True if resource collected.
+        Mapping policy (Gate 4 Phase P2 groundwork):
+        - Resource type 'A' -> inventory['good1']
+        - Resource type 'B' -> inventory['good2']
+        - Any other type -> ignored for now (future extension)
+
+        Returns True if a recognized resource was collected, else False.
         """
-        if grid.take_resource(self.x, self.y):
-            # For now all resources are 'good1'
-            self.inventory["good1"] += 1
+        rtype = grid.take_resource_type(self.x, self.y)
+        if rtype is None:
+            return False
+        if rtype == 'A':
+            self.inventory['good1'] += 1
             return True
+        if rtype == 'B':
+            self.inventory['good2'] += 1
+            return True
+        # Unknown type: silently ignore (placeholder policy)
         return False
 
     # --- Serialization (Optional Future Use) ----------------------

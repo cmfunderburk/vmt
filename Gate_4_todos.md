@@ -112,6 +112,28 @@ Interpretation:
 
 These figures will be referenced in Gate 4 evaluation to quantify overhead introduced by utility-driven targeting & rendering.
 
+## Current Progress (2025-09-22)
+Status Snapshot:
+- Completed: Phase P1 (typed resource grid refactor) merged; all legacy + new tests green.
+- Added: New typed agent collection logic (`Agent.collect`) mapping 'A'→good1, 'B'→good2; new test `test_agent_typed_collect.py` (suite now 38 tests).
+- Partial Phase P2: Resource type → good mapping implemented; remaining P2 work (agent modes, home/target state, deposit behavior) not yet started.
+- Baseline performance unchanged (logic addition is O(1) branch on collected type; no measurable overhead expected, perf re-check deferred until decision logic added).
+
+Delta vs Plan:
+- No scope drift. Implementation order preserved. Minor adjustment: introduced typed collection test earlier than originally listed (beneficial guard for upcoming state refactors).
+
+Upcoming Focus (Next Sequence):
+1. Complete Phase P2: Introduce agent state fields (mode enum: forage/return_home/idle; home_pos; target optional; carrying vs home_inventory) + deposit method. Add unit tests covering deposit & mode transitions.
+2. Phase P3 Decision Logic: Implement scoring (ΔU/(dist+ε)), tie-breaking, greedy single-step movement. Add determinism and selection tests.
+3. Phase P4 Rendering: Draw resources (A,B distinct colors) + agents; smoke test verifying pixel changes.
+4. Phase P5 Competition & Preference Shift: Race scenario + Cobb-Douglas marginal utility switch test.
+5. Phase P6 Performance: FPS threshold test (20 agents,120 resources) + decision micro-benchmark (<0.3 ms/agent target; informational log if below threshold). Optimize only if regression >10% FPS drop.
+6. Phase P7 Documentation & Evaluation: README update, finalize `GATE4_EVAL.md`, checklist closure.
+
+Risk Watch Items:
+- Decision loop complexity creep: keep perception radius constant (R=8) and short-circuit if best possible score cannot be exceeded by remaining candidates.
+- Test brittleness: use state tuple snapshots rather than asserting exact paths beyond first few steps.
+
 ## Exit Condition
 All acceptance criteria satisfied, evaluation document completed, and performance/determinism evidence recorded.
 
