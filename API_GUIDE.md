@@ -132,7 +132,7 @@ Parameter validation raises `PreferenceError` on invalid input.
     Changing the offset or introducing additional draws would alter home distribution for a given seed; gate any such change.
 
 ## 9. Performance Notes
-- Frame target ~60 FPS (GUI path). Avoid enlarging 320x240 surface or adding per-tick allocations.
+- Frame target ~60 FPS (GUI path). Avoid enlarging 320x320 surface or adding per-tick allocations.
 - Decision loop complexity: O(agents + visible resources). Respawn & metrics remain linear; alternation adds O(1) per spawn.
 
 ## 10. Controller Introspection (Agent Metrics Accessors)

@@ -8,7 +8,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 
 | Area | Implemented (Usable) | Pending / Not Yet Integrated |
 |------|----------------------|-------------------------------|
-| Rendering Core | PyQt6 window + embedded 320x240 Pygame surface (~62 FPS) | GUI controls / menus / scenario panels |
+| Rendering Core | PyQt6 window + embedded 320x320 Pygame surface (~62 FPS) | GUI controls / menus / scenario panels |
 | Preferences | Cobb-Douglas, Perfect Substitutes, Leontief + factory | N-good generalization, adaptive forms |
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
 | Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism, randomized non-overlapping home placement + on-grid home labels (H{id}) | Trading, production/consumption, richer behaviors |
@@ -506,7 +506,7 @@ ECONSIM_NEW_GUI=1 make dev
 ### Components (Phase A)
 - Start Menu (scenario + parameters + Randomize Seed)
 - Simulation Page:
-  - Embedded 320x240 Pygame viewport
+  - Embedded 320x320 Pygame viewport
   - Controls Panel (Pause/Resume, Step 1, Step 5, Hash Refresh)
   - Metrics Panel (ticks, remaining resources, steps/sec, hash via refresh) + optional auto-refresh
   - Overlays Panel (Grid, Agent IDs, Target Arrows)

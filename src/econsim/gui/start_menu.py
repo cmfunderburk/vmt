@@ -71,7 +71,8 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         ])
         # For now, only baseline is functional
         self.scenario_box.setCurrentText("baseline")
-        self.scenario_box.setEnabled(False)  # Disable until other scenarios implemented
+        # Enable baseline, but note that other scenarios aren't implemented yet
+        self.scenario_box.currentTextChanged.connect(self._on_scenario_changed)  # type: ignore[arg-type]
         scenario_row.addWidget(self.scenario_box)
         scenario_row.addStretch()
         layout.addLayout(scenario_row)
@@ -79,15 +80,13 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         # Preferences section
         layout.addWidget(QLabel("Preferences (initial agents)"))
         
-        # Agent count (disabled for baseline as noted in ASCII)
+        # Agent count
         count_row = QHBoxLayout()
         count_row.addWidget(QLabel("  Count:"))
         self.agents_box = QSpinBox()
         self.agents_box.setRange(1, 200)
         self.agents_box.setValue(4)
-        self.agents_box.setEnabled(False)  # Disabled until scenario supports agent input
         count_row.addWidget(self.agents_box)
-        count_row.addWidget(QLabel("(disabled until scenario supports agent input)"))
         count_row.addStretch()
         layout.addLayout(count_row)
         
@@ -155,6 +154,33 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         self.advanced_group.setChecked(False)  # Collapsed by default
         advanced_layout = QVBoxLayout(self.advanced_group)
         
+        # Grid Size
+        grid_row = QHBoxLayout()
+        grid_row.addWidget(QLabel("Grid Size:"))
+        self.grid_w = QSpinBox()
+        self.grid_w.setRange(4, 128)
+        self.grid_w.setValue(12)
+        grid_row.addWidget(self.grid_w)
+        grid_row.addWidget(QLabel("×"))
+        self.grid_h = QSpinBox()
+        self.grid_h.setRange(4, 128) 
+        self.grid_h.setValue(12)
+        grid_row.addWidget(self.grid_h)
+        grid_row.addStretch()
+        advanced_layout.addLayout(grid_row)
+        
+        # Resource Density
+        density_row = QHBoxLayout()
+        density_row.addWidget(QLabel("Resource Density:"))
+        self.density_box = QDoubleSpinBox()
+        self.density_box.setDecimals(3)
+        self.density_box.setRange(0.0, 1.0)
+        self.density_box.setSingleStep(0.05)
+        self.density_box.setValue(0.25)
+        density_row.addWidget(self.density_box)
+        density_row.addStretch()
+        advanced_layout.addLayout(density_row)
+        
         # Perception Radius
         perception_row = QHBoxLayout()
         perception_row.addWidget(QLabel("Perception Radius:"))
@@ -171,22 +197,6 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         advanced_layout.addWidget(self.metrics_cb)
         
         layout.addWidget(self.advanced_group)
-        
-        # Hidden legacy fields for compatibility (grid size, density)
-        self.grid_w = QSpinBox()
-        self.grid_w.setRange(4, 128)
-        self.grid_w.setValue(12)
-        self.grid_w.hide()
-        self.grid_h = QSpinBox()
-        self.grid_h.setRange(4, 128) 
-        self.grid_h.setValue(12)
-        self.grid_h.hide()
-        self.density_box = QDoubleSpinBox()
-        self.density_box.setDecimals(3)
-        self.density_box.setRange(0.0, 1.0)
-        self.density_box.setSingleStep(0.05)
-        self.density_box.setValue(0.25)
-        self.density_box.hide()
         
         # Launch buttons
         button_row = QHBoxLayout()
@@ -205,6 +215,21 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         """Handle quit button click."""
         import sys
         sys.exit(0)
+
+    def _on_scenario_changed(self, scenario_name: str) -> None:
+        """Handle scenario selection changes."""
+        if scenario_name == "baseline":
+            # Enable all baseline controls
+            self.agents_box.setEnabled(True)
+            self.endowment_box.setEnabled(False)  # Still inactive for baseline per design
+        else:
+            # For future scenarios, disable controls that aren't implemented yet
+            # This provides feedback that these scenarios need more work
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Not Implemented", 
+                                  f"The {scenario_name} scenario is not yet implemented. "
+                                  f"Only the baseline scenario is currently available.")
+            self.scenario_box.setCurrentText("baseline")  # Reset to baseline
 
     # --- Handlers -------------------------------------------------------------
     def _randomize_seed(self) -> None:

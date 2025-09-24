@@ -14,7 +14,7 @@ This document consolidates retrospective findings, performance data, technical d
 **Latent Risks Identified**:
 - FPS measurement only captures aggregate average (no frame time distribution)
 - Render-simulation coupling (single clock) may complicate future throttling
-- Surface size hard-coded at 320x240 with stretch scaling
+- Surface size hard-coded at 320x320 with stretch scaling
 - Performance threshold intentionally soft (≥25) may mask early regressions
 
 **Mitigation Strategies**: Ring buffer frame timing, simulation tick separation, dynamic baseline comparison with 10% tolerance window
