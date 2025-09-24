@@ -368,84 +368,56 @@ Flags:
 
 Use this script in teaching contexts to highlight differing resource acquisition paths driven purely by utility structure.
 
-### **Turn Mode & Interactive Visual Demo (Unified)**
-Turn Mode provides a pedagogical, discrete visualization of agent decision steps with optional automatic pacing. It layers educational affordances (HUD, tails, fading resources) onto the deterministic simulation without altering core state transitions or hashes.
+### **Interactive Visual Demo & Paused Launch**
+The GUI now offers a unified baseline visualization with an optional **Start Paused** checkbox (Start Menu). This replaces the old separate "Turn Mode" scenario:
 
-#### Quick Start (Autoplay at 1 turn/sec)
+* Start Paused ON → simulation loads in a paused state; you can single-step or resume.
+* Start Paused OFF → simulation begins advancing every frame (Unlimited) unless you throttle via the Turn Rate dropdown.
+
+Visual affordances (overlay text, grid, IDs, target arrows, home labels) are controlled by the Overlays panel; all are enabled by default and can be toggled live without affecting determinism.
+
+#### Quick Start (Paused Launch)
 ```bash
-python scripts/demo_single_agent.py --gui --turn-mode --steps 25 --seed 1234 --density 0.20 --fade-ms 500
+make dev  # launch GUI; check 'Start Paused' in the Start Menu, then press Launch
 ```
 
-#### Visual Preview (5 Turns)
-![Turn Mode 5-Turn Demo](https://i.imgur.com/CwKVgxd.gif)
+#### Controls (Unified)
+- Pause / Resume button
+- Step 1 / Step 5 buttons (work while paused)
+- Turn Rate dropdown: Unlimited (per-frame) or throttled rates (e.g., 1.0 tps)
+- Overlays panel: toggle Grid, Agent IDs, Target Arrows, Home Labels
+- Respawn interval dropdown (baseline mode only)
 
-_Animated excerpt: static background, 1 Hz autoplay, resource fade-outs, tails, HUD overlay._
+#### Determinism Notes
+- Paused start only affects when the first step occurs; state sequence (hash) is identical if you resume at the same wall-clock tick count.
+- Overlays are purely render-time; no mutation of simulation state.
 
-Generation steps documented in `docs/assets/GENERATE_GIF.md` (regenerate if visuals change).
+#### Flag Reference (script `demo_single_agent.py`)
+Legacy CLI flags referencing `--turn-mode` remain accepted for backward compatibility but are internally mapped to the unified GUI path. Deprecated flags tied solely to old turn mode (tails, fade, queued autoplay) are subject to removal in a future cleanup pass.
 
-What You See:
-1. Static background (animation suppressed for focus)
-2. Grid lines (auto-on unless suppressed in future flags)
-3. Resources (A=yellow, B=cyan)
-4. Agents (color blend by inventory composition)
-5. HUD (Turn, Remaining resources, per-agent position, carrying, home inventory, utility)
-6. Breadcrumb tails + most recent move highlight
-7. Fading markers where resources were just collected
+| Flag | Type / Values | Default | Description |
+|------|---------------|---------|-------------|
+| `--steps` | int ≥1 | 25 | Total decision steps to execute (headless) or target before auto-exit. |
+| `--agents` | int ≥1 | 1 | Number of agents instantiated. |
+| `--pref` | {cd, subs, leontief, all} | all | Preference type(s) to run (headless cycles when all). |
+| `--seed` | int | 1234 | Base seed controlling resource placement & positions. |
+| `--replay` | flag | off | Run snapshot replay parity hash check after forward run. |
+| `--gui` | flag | off | Launch GUI instead of headless log. |
+| `--density` | float (0<d≤1) | None | Probabilistic resource placement (deterministic w/ seed). |
+| `--respawn-every` | int ≥0 | 0 | Respawn attempt every N steps (0 disables). |
+| `--grid-lines` | flag | off | Force grid lines in legacy script view (GUI overlays panel supersedes). |
+| `--pause-start` | flag | off | Start paused (mirrors Start Menu checkbox). |
 
-#### Controls
-- Play/Pause button: toggles 1 Hz step enqueue
-- SPACE: enqueue 1 step immediately
-- ENTER: enqueue 5 steps
-- A: toggle legacy faster auto-run (interval from `--auto-interval` ms)
-- Q: quit
+Deprecated (legacy compatibility; may be removed): `--turn-mode`, `--fade-ms`, `--tail-length/--tail`, `--no-tails`, `--no-overlay`, `--auto-interval`.
 
-#### Determinism
-- Autoplay adds steps only when no pending steps remain → stable ordering.
-- Visual layers (tails/fade/HUD) do not mutate simulation objects.
-- Resource placement with `--density` is seeded by `--seed` ensuring reproducible initial layouts.
+#### Performance
+- Baseline rendering aims for ~60 FPS; Unlimited stepping executes one decision step per frame.
+- Throttled rates (e.g., 1.0 tps) use a controller timestamp gate; no secondary timers or sleeps.
 
-#### Flag Reference
-| Flag | Type / Values | Default | Applies | Description |
-|------|---------------|---------|---------|-------------|
-| `--steps` | int ≥1 | 25 | All modes | Total decision steps to execute (GUI exits after reaching or on quit). |
-| `--agents` | int ≥1 | 1 | All | Number of agents instantiated (higher counts increase decision workload). |
-| `--pref` | {cd, subs, leontief, all} | all | All | Preference type(s) to run (non-GUI prints table for each). |
-| `--seed` | int | 1234 | All | Base seed controlling resource placement (density), agent start, RNG-driven tie contexts. |
-| `--replay` | flag | off | Headless/GUI | After forward run, performs snapshot replay parity hash check. |
-| `--gui` | flag | off | N/A | Launch GUI instead of CSV-like stdout log. |
-| `--turn-mode` | flag | off | GUI | Enables discrete stepping UI & educational overlays. |
-| `--auto-interval` | int ms ≥50* | 500 | Turn mode | Interval for legacy auto-run (A key). *Values <50 may waste CPU. |
-| `--density` | float (0<d≤1) | None | All | Probabilistic resource placement at density d (None => patterned baseline). Deterministic with seed. |
-| `--respawn-every` | int ≥0 | 0 | All | Respawn attempt every N turns (0 disables). Deterministic gating via step counter. |
-| `--grid-lines` | flag | off* | GUI | Draw grid boundaries (*auto-on implicitly in turn mode even if flag omitted). |
-| `--fade-ms` | int ≥0 | 600 | Turn mode | Milliseconds resources linger with alpha fade (0 disables fade). |
-| `--tail-length`/`--tail` | int ≥0 | 8 | Turn mode | Per-agent tail length (0 disables tails). Ignored if `--no-tails`. |
-| `--no-tails` | flag | off | Turn mode | Force-disable tails regardless of tail-length. |
-| `--no-overlay` | flag | off | Turn mode | Hide HUD text overlay. |
-| `--pause-start` | flag | off | Turn mode | Start with zero pending steps (autoplay play button still available). |
-
-#### Common Scenarios
-```bash
-# Minimal autoplay (no tails, instantaneous resource removal)
-python scripts/demo_single_agent.py --gui --turn-mode --steps 30 --seed 1 --no-tails --fade-ms 0
-
-# Paused start (press Play when ready)
-python scripts/demo_single_agent.py --gui --turn-mode --steps 40 --seed 42 --pause-start --tail-length 4
-
-# Density + respawn dynamics exploration
-python scripts/demo_single_agent.py --gui --turn-mode --steps 80 --seed 77 --density 0.25 --respawn-every 6 --fade-ms 700
-```
-
-#### Performance Notes
-- Base render loop still ~60–62 FPS; 1 Hz autoplay is negligible overhead.
-- Fading uses bounded list rebuild; tails store at most tail-length * agents entries.
-- Disable overlays (`--no-overlay`) or tails (`--no-tails`) for profiling micro-changes.
-
-#### Planned (Not Yet Implemented)
-- Speed selector (0.25× / 1× / 2× / 5×)
-- Pause overlay dimmer & step badge
-- Interactive resource placement / scenario editor
-- Per-turn utility delta and marginal rate annotations
+#### Planned Enhancements
+- Optional inequality / market overlays (pending market mode implementation)
+- Replay timeline scrubber
+- Export current frame as PNG / animated snippet helper
 
 ### **Performance Testing**
 ```bash

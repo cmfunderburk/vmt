@@ -1,36 +1,52 @@
-## VMT Copilot Instructions (High‑Signal, ~45 lines)
-Context: PyQt6 shell + fixed 320x240 Pygame Surface. Prime directives: determinism, single-frame pipeline, O(agents+resources) step.
+## VMT Copilot Instructions (High‑Signal, ~55 lines)
+Context: Educational microeconomic sim: PyQt6 shell + fixed 320x240 off‑screen Pygame Surface. Prime directives: determinism, single-frame pipeline, O(agents+resources) step cost, minimal object churn.
 
-Core Loop (do NOT restructure): `EmbeddedPygameWidget` owns ONE `QTimer` (16ms) → optional `Simulation.step(rng,use_decision)` → `_update_scene` → `update()` → `paintEvent` (Surface → bytes → `QImage` → `QPainter`). No extra timers, threads, while True, or Surface reallocation; do not change `SURFACE_SIZE` / `FRAME_INTERVAL_MS` without roadmap gate.
+Core Render/Step Loop (DO NOT RESTRUCTURE): `EmbeddedPygameWidget` owns ONE `QTimer` (16 ms) → optional `Simulation.step(ext_rng, use_decision)` → `_update_scene` (draw resources, agents, overlays) → `update()` → `paintEvent` (Surface→bytes→`QImage`→`QPainter`). No additional timers, threads, sleeps, while True loops, or Surface re-allocation. Do not change `SURFACE_SIZE` / `FRAME_INTERVAL_MS` without roadmap approval.
 
-Determinism: Tie-break key exactly (-ΔU, distance, x, y). Sorted/stable resource iteration; agent list order resolves contests. Frozen constants: `EPSILON_UTILITY`, `default_PERCEPTION_RADIUS`. Metrics hash is contract—alter only with intentional test+doc update.
+Determinism Invariants:
+- Target selection tie-break key EXACT: (-ΔU, distance, x, y).
+- Resource iteration stable (use `iter_resources_sorted` if order matters); agent list order breaks contests.
+- Frozen constants: `EPSILON_UTILITY`, `default_PERCEPTION_RADIUS` (decision scan), perception radius parameterization deferred.
+- Metrics hash (see `simulation/metrics.py`) is a public contract; change only with updated tests + docs.
+- RNG separation: external RNG passed to `Simulation.step` for legacy movement; internal `Simulation._rng` seeds respawn + future systems (seed = config.seed). No hidden RNGs.
 
-Preferred Construction: Use `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)` (seeds RNG, wires optional `RespawnScheduler` + `MetricsCollector`). Preferences are pure stateless utility evaluators; register new ones in `preferences/factory.py` + tests (utility correctness, param validation, serialization round trip).
+Preferred Construction Path: `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)` seeds internal RNG, attaches optional `RespawnScheduler` & `MetricsCollector`. Only use manual wiring in legacy tests. Preferences are pure stateless utility evaluators (see `preferences/*.py`). Register new preference types in `preferences/factory.py`; provide tests: parameter validation, utility math, serialize/deserialize round trip.
 
-Hooks: `respawn_scheduler.step` & `metrics_collector.record` are optional O(n). New hook = single None check then return if absent. Alternating respawn (A↔B toggle) + uniform empty-cell shuffle (full list, seeded) is deterministic; no positional bias. Respawn interval (GUI dropdown) gates invocation via `(step % interval)==0` (pure arithmetic). Home placement: deterministic `seed+9973` sample; cached font draws `H{id}` once per frame (no per-agent font creation).
+Hooks & Respawn:
+- `respawn_scheduler.step(grid, rng, step_index)` & `metrics_collector.record(step, sim)` are optional; always guard with a single None check.
+- Respawn: deterministic alternating resource types A↔B + uniform seeded empty-cell shuffle (no positional bias). Interval gating: `(step % interval)==0` (pure arithmetic) controlled by GUI dropdown; interval None/<=0 disables without detaching scheduler.
+- Agent home placement: deterministic `seed+9973` secondary RNG; home labels cached font once per session.
 
-Performance Guardrails: Target ~62 FPS (floor ≥30). Diagnose: (1) Surface realloc? (2) per-frame object churn? (3) blocking I/O? Validate with `make perf` or `scripts/perf_stub.py --mode widget --duration 2 --json`. Overlays must cost <~2% FPS unless justified.
+Rendering Constraints:
+- Keep pipeline: `pygame.image.tostring(surface,'RGBA')` → `QImage` → `QPainter.drawImage` (no scaling loops, no per-pixel Python).
+- Square cell sizing logic (min dimension) — do not re-center or introduce dynamic surfaces.
+- Cache fonts (`_overlay_font`, `_paused_font`); no per-agent font creation.
 
-Rendering: Keep pipeline (`pygame.image.tostring(...,'RGBA')` → `QImage`). No per-pixel Python loops, dynamic surface sizes, or mid-frame scaling. Fonts cached (`_overlay_font`, `_paused_font`). Square cell sizing logic unchanged.
+Performance Guardrails:
+- Target ~62 FPS (acceptable floor ≥30). Diagnose drops: (1) surface realloc? (2) per-frame allocations (fonts, large lists) (3) blocking I/O/log spam.
+- Use `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` to validate. Overlays should add <~2% overhead.
 
-State Extension / Snapshot: Only append serialized fields (preserve order) in `snapshot.py` / `world.py`; update replay & hash tests to confirm parity for unchanged logic.
+State / Serialization:
+- When extending snapshot/state (`simulation/snapshot.py`, `world.py`, `agent.py`, `grid.py`), only APPEND new serialized fields; preserve order for hash/replay parity. Update determinism & replay tests accordingly.
 
-Complexity: Per-step stays linear; no new agent↔resource all-pairs scans. Experimental path/search logic requires feature flag + micro‑benchmark + gated approval.
+Complexity Discipline:
+- Per-step must remain O(agents + resources). No all-pairs scans or heuristic pathfinding without feature flag + micro-benchmark + perf test. Greedy 1-step movement only.
 
-Playback & Pacing: Controller logic (`simulation_controller.py`) governs throttling via `_should_step_now(now)`. No sleeps or alt timers. Turn mode starts paused (label invariant). Manual + auto step mix must match automatic hash (see tests).
+Playback & Pacing:
+- `simulation_controller.py` handles pacing via `_should_step_now(now)` and `is_paused()`. No sleeps. Start-paused sessions must produce identical hashes after identical step sequences.
 
-Allowed: new preference, deterministic overlay (O(n)), metrics field append (with test update), minor doc sync. Forbidden: threads, extra timers, surface size change, silent tie-break/constant edits, mutable preference internals, hidden RNGs, unordered iteration.
+Allowed (fast path): new preference type, deterministic overlay (O(n)), append metrics field (update tests), minor doc sync, respawn/overlay parameter plumbing. Forbidden: threads, extra timers, surface size change, silent tie-break or constant edits, mutable internal state in preferences, unordered iteration, hidden randomness.
 
-Teardown: `closeEvent` order = stop timer → `pygame.quit()` → super. Mirror for any new subsystem.
+Teardown Order: `closeEvent` → stop timer → `pygame.quit()` → `super().closeEvent(event)`. Mirror this sequence for any new subsystem teardown.
 
-Workflow Commands: Install `pip install -e .[dev]` | GUI `make dev` | Tests `make test` | Lint `make lint` | Types `make type` | Perf `make perf` | Legacy random walk `ECONSIM_LEGACY_RANDOM=1 make dev` | FPS debug `ECONSIM_DEBUG_FPS=1 make dev`.
+Workflow Commands: install `pip install -e .[dev]`; GUI `make dev`; tests `make test`; lint `make lint`; types `make type`; perf `make perf`; legacy random walk `ECONSIM_LEGACY_RANDOM=1 make dev`; FPS debug `ECONSIM_DEBUG_FPS=1 make dev`.
 
-Extension Steps (PR): 1) State intent & gate ref 2) Minimal diff 3) Tests + perf + hash check 4) Update docs/checklists 5) Summarize (Goal | Actions | Result | Next).
+Extension / PR Flow: (1) State intent + gate ref (2) Minimal diff (3) Add/adjust tests (determinism/perf if touched) (4) Run perf + hash check (5) Update docs/checklists (6) Summarize (Goal | Actions | Result | Next).
 
-Adding Preference (quick): new class in `preferences/` → register in factory → tests (utility math, params, serialization) → no mutable state.
+Quick Preference Add: create class in `preferences/` (define `TYPE_NAME`, `utility`, validation, `serialize/deserialize`) → register in `factory.py` → tests (math correctness, param edge cases, serialization) → no runtime mutation.
 
-Landmarks: Loop `gui/embedded_pygame.py`; Controller `gui/simulation_controller.py`; Model: `simulation/world.py`, `grid.py`, `agent.py`; Respawn: `simulation/respawn.py`; Metrics: `simulation/metrics.py`; Snapshot: `simulation/snapshot.py`; Preferences: `preferences/*.py`; Config: `simulation/config.py`; Tests: `tests/unit/*`; Perf harness: `scripts/perf_stub.py`.
+Key Landmarks: GUI loop `gui/embedded_pygame.py`; Controller `gui/simulation_controller.py`; Core model: `simulation/world.py`, `grid.py`, `agent.py`; Respawn: `simulation/respawn.py`; Metrics: `simulation/metrics.py`; Snapshot: `simulation/snapshot.py`; Preferences: `preferences/*.py`; Config: `simulation/config.py`; Tests: `tests/unit/*`; Perf harness: `scripts/perf_stub.py`.
 
-When Unsure: Read the specific test first; adjust code + corresponding test + docs atomically. Any untested change to determinism/perf is a regression.
+When Unsure: Read the relevant test first; keep code+tests+docs synchronized in the same PR. Any untested determinism or performance change is a regression.
 
-Feedback welcome—flag unclear invariants so we can tighten these guardrails.
+Feedback: If an invariant seems ambiguous (tie-break, hash scope, pacing), flag it and propose a clarifying test before enlarging behavior.

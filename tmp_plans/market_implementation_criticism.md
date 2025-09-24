@@ -165,42 +165,59 @@ Scope: Focused on gaps, ambiguities, and pre‑implementation decision points fo
 ## Consolidated Decision Matrix (Quick Reference)
 | Code | Topic | Need | Your Choice |
 |------|-------|------|-------------|
-| D-Endow-1 | Group sizing rule | Algorithm | TBD |
-| D-Endow-2 | Fractional tie RNG removal | Yes/No | TBD |
-| D-Endow-3 | Zero allocations allowed | Yes/No | TBD |
-| D-Endow-4 | Separate total units T | Yes/No | TBD |
-| D-Endow-5 | Same pattern all goods | Yes/No | TBD |
-| D-Util-1 | Aggregation flag location | Flag vs inline | TBD |
-| D-Util-2 | Caching now | Yes/No | TBD |
-| D-Util-3 | Marginal utility helper | Spec | TBD |
-| D-Bilat-1 | Swap prevention | Rule | TBD |
-| D-Bilat-2 | Max attempts | Yes/No | TBD |
-| D-Bilat-3 | 1 unit per trade | Yes/No | TBD |
-| D-Bilat-4 | Pathfinding upgrade trigger | Threshold | TBD |
-| D-Market-1 | Price representation | Rational/Float | TBD |
-| D-Market-2 | Initial inventory rule | Spec | TBD |
-| D-Market-3 | Idle reset on trade | Yes/No | TBD |
-| D-Market-4 | Dual-direction tie | Priority rule | TBD |
+| D-Endow-1 | Group sizing rule | Algorithm | LOCKED: Option A (largest remainder apportionment) + expressive priority ordering + contiguous ID block mapping |
+| D-Endow-2 | Fractional tie RNG removal | Yes (remove RNG fallback) | LOCKED: Ties resolved deterministically by (-fractional_part, priority_rank, group ordering); no randomness introduced |
+| D-Endow-3 | Zero allocations allowed | Yes (permit zeros; no minimum guarantee) | LOCKED: Preserve heavy-tail realism; rely on epsilon bootstrap for utility; future flag `ensure_minimum_endowment` possible |
+| D-Endow-4 | Separate total units T | Yes/No | LOCKED: No separate field (Option A). T stays = n * E (appendable override deferred) |
+| D-Endow-5 | Same pattern all goods | Yes (modified A) | LOCKED: Apply one pattern to both goods now; add explicit TODO scaffold for future per-good differentiation |
+| D-Util-1 | Aggregation flag location | Flag vs inline | LOCKED: Simulation-level boolean `uses_total_inventory` set at construction based on mode |
+| D-Util-2 | Caching now | Yes/No | LOCKED: Defer caching (Option A) – compute on demand; add backlog item for micro-opt if profiling justifies |
+| D-Util-3 | Marginal utility helper | Spec | LOCKED: Implement pure function `marginal_utility(preference, g1, g2, good, epsilon=True)` + agent wrapper `agent_marginal_utility(good, use_total)` (no Preference API change) |
+| D-Bilat-1 | Swap prevention | Rule | LOCKED: Lower-id precedence; if head-on swap detected only lower id moves, higher id stays |
+| D-Bilat-2 | Max attempts | Yes/No | LOCKED: No max counter; immediate mark-if-no-mutual-gain (Option A) |
+| D-Bilat-3 | 1 unit per trade | Yes/No | LOCKED: Yes (exactly 1 unit per successful trade per frame) |
+| D-Bilat-4 | Pathfinding upgrade trigger | Threshold | LOCKED: Stay greedy (Option A); reconsider if n > 30 or obstacles are introduced |
+| D-Market-1 | Price representation | Rational/Float | LOCKED: Scaled int ratio (Option B) price_num = round(((ΣMU_A+1)/(ΣMU_B+1))*SCALE), price_den = SCALE (SCALE=10000) |
+| D-Market-2 | Initial inventory rule | Spec | LOCKED: Option D – seed 1 each good; if n >= 8 add +1 each (one-time at creation, no reseed) |
+| D-Market-3 | Idle reset on trade | Yes/No | LOCKED: Yes (reset idle_consec=0 on trade); K=2 consecutive idle steps after min_stay=5 triggers exit |
+| D-Market-4 | Dual-direction tie | Priority rule | LOCKED: Option A – choose direction with larger ΔU; if equal use lower current quantity; final tie lexicographic 'A' acquisition |
 | D-Market-5 | Trades per step | 1 / many | TBD |
 | D-Market-6 | Depletion fairness | Sequential/Batch | TBD |
 | D-Snap-1 | Field append order | Approve | TBD |
 | D-Snap-2 | Include distribution now | Yes/No | TBD |
 | D-Snap-3 | Price storage | Format | TBD |
 | D-Snap-4 | Bitmask ordering | Confirm | TBD |
-| D-Perf-1 | Accept O(n^2) | Yes/No | TBD |
-| D-Perf-2 | Spatial index threshold | n=? | TBD |
-| D-GUI-1 | Dropdown location | Start only / runtime | TBD |
-| D-GUI-2 | Price overlay format | Spec | TBD |
-| D-GUI-3 | Marketplace marking | Spec | TBD |
-| D-GUI-4 | Mode mutability | Yes/No | TBD |
-| D-Test-1 | Inequality metric now | Yes/No | TBD |
-| D-Test-2 | Rounding tolerance | Spec | TBD |
-| D-Edge-1 | Partial trade handling | Skip/Partial | TBD |
-| D-Edge-2 | Flat utility handling | Halt rule | TBD |
-| D-Metrics-1 | Inequality metrics | Now/Defer | TBD |
-| D-Metrics-2 | Price stats metrics | Now/Defer | TBD |
-| D-Config-1 | Field names | Approve | TBD |
-| D-Config-2 | Enum vs string | Choice | TBD |
+| D-Perf-1 | Accept O(n^2) | Yes/No | LOCKED: Option B – Disallow O(n^2) per-step in core logic; only O(n) (and necessary O(n log n) for explicit, justified sorts like M12 trade ordering) accepted. Feature additions requiring higher complexity need gating + perf test. |
+| D-Perf-2 | Spatial index threshold | n=? | LOCKED: Option B – Declare placeholder SPATIAL_INDEX_THRESHOLD=300 (doc only). No index built until agent count >= threshold; implementation deferred. |
+| D-GUI-1 | Dropdown location | Start only / runtime | LOCKED: Option A – Start screen only; immutable after launch to preserve determinism and avoid mid-run re-init complexity. |
+| D-GUI-2 | Price overlay format | Spec | LOCKED: Option B – Two-line overlay: line1 Prices (g1=..., g2=...); line2 Money (market=..., blocked=...). Compact; avoids table complexity. |
+| D-GUI-3 | Marketplace marking | Spec | LOCKED: Option B – Single small "$" badge rendered once (overlay layer), no per-cell artifacts, constant-time. |
+| D-GUI-4 | Mode mutability | Yes/No | LOCKED: Option A – Immutable post-start; mode changes require new simulation instance (explicit reset). |
+| D-Test-1 | Inequality metric now | Yes/No | LOCKED: Option A – Defer inequality metrics (Gini/variance) until base money dynamics stabilized. |
+| D-Test-2 | Rounding tolerance | Spec | LOCKED: Option A – Exact integer equality (no tolerance) for prices/money; scaled ints remove float drift risk. |
+| D-Edge-1 | Partial trade handling | Skip/Partial | LOCKED: Option A – No partial trades; insufficient market money => blocked sale increment only. |
+| D-Edge-2 | Flat utility handling | Halt rule | LOCKED: Option A – Agents remain IDLE when no positive marginal utility; no random exploration injected. |
+| D-Metrics-1 | Inequality metrics | Now/Defer | LOCKED: Option A – Defer; future addition inside economy metrics namespace (append-only). |
+| D-Metrics-2 | Price stats metrics | Now/Defer | LOCKED: Option A – Defer; external scripts can compute from recorded per-step prices. |
+| D-Config-1 | Field names | Approve | LOCKED: Option A – Accept names: mode, quasi_linear_kappa, initial_agent_money, initial_market_money (append-only). |
+| D-Config-2 | Enum vs string | Choice | LOCKED: Option A – Use plain string literals for mode ("basic"/"money"); potential Enum later without breaking existing configs. |
+
+---
+### Money Mode Decisions (In Progress)
+| Code | Topic | Need | Status |
+|------|-------|------|--------|
+| M1 | Utility model (money) | Select integration pattern | LOCKED: Quasi-linear U=U_goods + kappa*money (kappa=1.0 config); future expansion path toward adaptive dynamic (spec D) noted |
+| M2 | Price formation method | Anchor vs proportional | LOCKED: Anchor (good1 fixed SCALE=10000, good2 relative); min clamp=1; recompute each step |
+| M3 | Money config fields | Field selection & validation | LOCKED: Add to SimConfig: mode, quasi_linear_kappa (float>0, default 1.0), initial_agent_money (int>=0, default 5), initial_market_money (int>=0 or None=>n); drop enable_money flag (mode implies); validation raises on invalid; None maps to n deterministically |
+| M4 | Agent initial money distribution | Pattern selection | LOCKED: Pattern B – reuse goods endowment weight vector to allocate money, then scale to total = n * default(5); future distinct money patterns documented |
+| M5 | Market initial money rule | Initialization & validation | LOCKED: Derive from n when None (Option A); allow explicit zero; negative => error; tracking in metrics deferred |
+| M6 | Trade lot size (money mode) | Quantity per trade | LOCKED: Fixed 1 unit per trade (Option A); add placeholder field `desired_lot_size` (unused now); one trade per agent per step |
+| M7 | Sell liquidity condition | Market money constraint | LOCKED: Strict conservation (S1); require market_money >= price; sale priority by ascending agent id; track blocked_sales_count (counter) yes; no retry same step |
+| M8 | Price recompute cadence | Frequency & history | LOCKED: Every step pre-trade (anchor update); empty-agent fallback prices = (SCALE,SCALE); record price history in metrics (history=yes) |
+| M9 | Snapshot integration & ordering | Append-only snapshot plan | LOCKED: Add single new top-level key `economy` (namespaced). Internal ordered keys: mode, kappa, anchor_good, price_scale, prices (sorted list of (good, price_int) incl anchor), market_money, agent_money (sorted (id, money)), blocked_sales. Legacy snapshots omit `economy`. Deterministic ordering via sorted goods & ids; no per-agent money field added to avoid altering existing agent dict order. |
+| M10 | Metrics scope (money mode) | What to record & hash | LOCKED: Option 2. Per-step record append (order): money_agents (total_agent_money), money_market (market_money), price_g1 (anchor), price_g2, blocked_sales. Determinism hash appends segment `M=ta,mm,pg1,pg2,bs` only when economy.mode=='money'. No per-agent distribution hashing; legacy mode unchanged; prices present allow detection of price algorithm regressions. |
+| M11 | Termination / stop criteria | Internal auto-stop policy | LOCKED: Option A (none). Core `Simulation` adds no stop fields or logic; controller/demos decide when to halt. Preserves legacy step semantics; avoids hash fixture churn and additional config. Future addition (max_steps or convergence) can append config later. |
+| M12 | Trade ordering tie-break | Deterministic sale priority | LOCKED: Option D (utility-loss minimization). Candidate sale good per agent selected by lowest marginal utility loss (compute base_bundle = (home+carrying) goods; test removing 1 unit of each good with positive quantity; utility_loss = U(base) - U(after)). Choose good with smaller loss; tie-break: higher price_int first, then good name lexicographic, then agent_id. Build candidate list (≤ n entries) and sort by key (loss_scaled=int(round(loss*1e9)), -price, good, agent_id) then process until each agent sells at most one unit or market money exhausted. Selling draws from home_inventory first else carrying for that good (deterministic). Complexity introduces O(n log n) sort; justified for small educational n; future optimization note: can bucket losses if n growth pressures performance. Floating comparison stabilized via scaled int key. |
 
 ---
 ## Suggested Implementation Order (Post-Decision)
