@@ -1,8 +1,7 @@
-"""Tests for pacing defaults (criteria 3a, 3b) and presence of Unlimited option.
+"""Tests for pacing defaults and presence of Unlimited option.
 
-We construct the MainWindow through session descriptors emulating different modes.
-Focus is on ControlsPanel state: selected speed value, presence of pacing label, and
-whether Unlimited is selected outside turn mode.
+Turn mode removed; simulate former behavior via start_paused baseline + initial 1.0 tps selection if applicable.
+Focus: ControlsPanel state (speed combo contents, labels) across legacy and continuous modes.
 """
 from __future__ import annotations
 
@@ -15,12 +14,11 @@ from econsim.gui.start_menu import MenuSelection
 app = QApplication.instance() or QApplication([])
 
 
-def _launch_mode(win: MainWindow, mode: str) -> None:
-    # Build a MenuSelection similar to what StartMenuPage would emit.
-    scenario = 'turn_mode' if mode == 'turn' else ('legacy_random' if mode == 'legacy' else 'baseline_decision')
+def _launch_mode(win: MainWindow, mode: str, start_paused: bool = False) -> None:
+    scenario = 'legacy_random' if mode == 'legacy' else 'baseline_decision'
     selection = MenuSelection(
         scenario=scenario,
-        mode=mode,
+        mode=('legacy' if mode == 'legacy' else 'continuous'),
         seed=123,
         grid_size=(8,8),
         agents=3,
@@ -28,6 +26,7 @@ def _launch_mode(win: MainWindow, mode: str) -> None:
         enable_respawn=False,
         enable_metrics=True,
         preference_type='cobb_douglas',
+        start_paused=start_paused,
     )
     # Invoke protected launch handler directly for test speed.
     win._on_launch_requested(selection)  # type: ignore[attr-defined]
@@ -40,18 +39,13 @@ def _extract_controls(window: MainWindow):
     return sess.controls
 
 
-def test_turn_mode_defaults_to_1_tps_with_label():
+def test_start_paused_baseline_has_unlimited_default():
     win = MainWindow()
-    _launch_mode(win, 'turn')
+    _launch_mode(win, 'continuous', start_paused=True)
     controls = _extract_controls(win)
     combo = getattr(controls, '_speed_box')
-    label = getattr(controls, '_pacing_label', None)
-    # Selected item should have text '1.0'
-    assert combo.currentText().startswith('1.0'), f"Expected 1.0 tps selected, got {combo.currentText()}"
-    assert label is not None and label.text() == '(pacing)', "Pacing label text missing '(pacing)' at 1.0 tps"
-    # Unlimited option present
-    texts = [combo.itemText(i) for i in range(combo.count())]
-    assert any(t.lower().startswith('unlimited') for t in texts), "Unlimited option missing in speed combo"
+    # Baseline still defaults to Unlimited even if started paused (user may throttle manually later).
+    assert combo.currentText().lower().startswith('unlimited'), f"Expected Unlimited default, got {combo.currentText()}"
     win.close()
 
 

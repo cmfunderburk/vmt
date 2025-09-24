@@ -1,9 +1,10 @@
-"""OverlaysPanel – UI for toggling Phase A overlays.
+"""OverlaysPanel – UI for toggling visual overlays.
 
-Provides three checkboxes:
+Checkboxes (all enabled by default):
 * Grid
 * Agent IDs
 * Target Arrows
+* Home Labels (H{id})
 
 They mutate the shared OverlayState object owned by the EmbeddedPygameWidget.
 No heavy logic; each toggle sets the corresponding boolean.
@@ -23,19 +24,23 @@ class OverlaysPanel(QWidget):  # pragma: no cover (simple wiring; behavior teste
         self._grid_cb = QCheckBox("Grid")
         self._ids_cb = QCheckBox("Agent IDs")
         self._arrow_cb = QCheckBox("Target Arrows")
+        self._homes_cb = QCheckBox("Home Labels")
 
         # Initialize from current state
         self._grid_cb.setChecked(self._state.show_grid)
         self._ids_cb.setChecked(self._state.show_agent_ids)
         self._arrow_cb.setChecked(self._state.show_target_arrow)
+        self._homes_cb.setChecked(self._state.show_home_labels)
 
         self._grid_cb.toggled.connect(self._on_grid)  # type: ignore[arg-type]
         self._ids_cb.toggled.connect(self._on_ids)  # type: ignore[arg-type]
         self._arrow_cb.toggled.connect(self._on_arrow)  # type: ignore[arg-type]
+        self._homes_cb.toggled.connect(self._on_homes)  # type: ignore[arg-type]
 
         layout.addWidget(self._grid_cb)
         layout.addWidget(self._ids_cb)
         layout.addWidget(self._arrow_cb)
+        layout.addWidget(self._homes_cb)
         layout.addStretch(1)
 
     def _on_grid(self, checked: bool) -> None:
@@ -46,5 +51,8 @@ class OverlaysPanel(QWidget):  # pragma: no cover (simple wiring; behavior teste
 
     def _on_arrow(self, checked: bool) -> None:
         self._state.show_target_arrow = bool(checked)
+
+    def _on_homes(self, checked: bool) -> None:
+        self._state.show_home_labels = bool(checked)
 
 __all__ = ["OverlaysPanel"]

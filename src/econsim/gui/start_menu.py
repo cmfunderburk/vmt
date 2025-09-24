@@ -1,9 +1,9 @@
 """Start Menu Page (Phase A scaffold).
 
-Displays scenario selection + basic parameter inputs. Phase A keeps this minimal:
-* Scenarios: baseline_decision, turn_mode, legacy_random
-* Free-form advanced inputs for grid size, agents, density, seed
-* Preference type (single selection)
+Displays scenario selection + basic parameter inputs.
+Consolidated: removed separate turn_mode scenario. A "Start Paused" checkbox
+replaces it so users can launch baseline in a paused state and use manual step.
+Scenarios now: baseline_decision, legacy_random.
 
 Validation kept intentionally light; SessionFactory will perform deeper checks.
 """
@@ -37,6 +37,7 @@ class MenuSelection:
     enable_respawn: bool
     enable_metrics: bool
     preference_type: str
+    start_paused: bool
 
 
 class StartMenuPage(QWidget):  # pragma: no cover (GUI)
@@ -49,7 +50,6 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         self.scenario_box = QComboBox()
         self.scenario_box.addItems([
             "baseline_decision",
-            "turn_mode",
             "legacy_random",
         ])
         layout.addWidget(self.scenario_box)
@@ -102,6 +102,14 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         seed_row.addWidget(rand_btn)
         layout.addLayout(seed_row)
 
+        # Start Paused toggle
+        from PyQt6.QtWidgets import QCheckBox  # local import to avoid expanding top imports
+        pause_row = QHBoxLayout()
+        self.start_paused_cb = QCheckBox("Start Paused")
+        self.start_paused_cb.setChecked(False)
+        pause_row.addWidget(self.start_paused_cb)
+        layout.addLayout(pause_row)
+
         # Launch
         launch_btn = QPushButton("Launch Simulation")
         launch_btn.clicked.connect(self._emit_selection)  # type: ignore[arg-type]
@@ -114,7 +122,8 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
 
     def _emit_selection(self) -> None:
         scenario = self.scenario_box.currentText()
-        mode = "legacy" if scenario == "legacy_random" else ("turn" if scenario == "turn_mode" else "continuous")
+        # Mode mapping: legacy_random keeps legacy path; baseline_decision => continuous.
+        mode = "legacy" if scenario == "legacy_random" else "continuous"
         # Extract raw values
         seed_text = self.seed_edit.text().strip()
         try:
@@ -142,6 +151,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
             enable_respawn=True,
             enable_metrics=True,
             preference_type=self.pref_box.currentText(),
+            start_paused=bool(self.start_paused_cb.isChecked()),
         )
         self._on_launch(selection)
 

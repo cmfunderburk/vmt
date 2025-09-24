@@ -76,7 +76,8 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
                 enable_respawn=selection.enable_respawn,
                 enable_metrics=selection.enable_metrics,
                 preference_type=selection.preference_type,
-                turn_auto_interval_ms=None,  # Phase A manual stepping only for turn mode
+                turn_auto_interval_ms=None,
+                start_paused=selection.start_paused,
             )
             controller = SessionFactory.build(descriptor)
         except Exception as exc:  # pragma: no cover - user input / validation path
@@ -93,9 +94,6 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         )
         # Attach back-reference so widget can consult controller pause state / record timestamps
         setattr(pygame_widget, "_controller_ref", controller)
-        # If turn mode, start paused (Phase A behavior)
-        if descriptor.mode == "turn":
-            controller.pause()
         controls = ControlsPanel(on_back=self._request_return_to_menu, controller=controller)
         metrics = MetricsPanel(controller=controller)
         overlay_panel = OverlaysPanel(pygame_widget.overlay_state) if pygame_widget.overlay_state else None

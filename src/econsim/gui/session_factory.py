@@ -19,7 +19,7 @@ from econsim.simulation.world import Simulation
 @dataclass
 class SimulationSessionDescriptor:
     name: str
-    mode: str  # 'continuous' | 'turn' | 'legacy'
+    mode: str  # 'continuous' | 'legacy'
     seed: int
     grid_size: tuple[int, int]
     agents: int
@@ -28,6 +28,7 @@ class SimulationSessionDescriptor:
     enable_metrics: bool
     preference_type: str
     turn_auto_interval_ms: int | None
+    start_paused: bool = False
 
 
 class SessionFactory:
@@ -85,7 +86,11 @@ class SessionFactory:
 
         sim = Simulation.from_config(cfg, pref_factory, agent_positions=positions)
         from .simulation_controller import SimulationController  # local import to avoid cycle
-        return SimulationController(sim)
+        controller = SimulationController(sim)
+        # Apply initial paused state if requested (replaces old turn_mode scenario)
+        if getattr(descriptor, "start_paused", False):
+            controller.pause()
+        return controller
 
 __all__ = [
     "SimulationSessionDescriptor",

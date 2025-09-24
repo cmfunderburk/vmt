@@ -11,8 +11,10 @@ from dataclasses import dataclass
 
 @dataclass
 class OverlayState:
-    show_grid: bool = False
-    show_agent_ids: bool = False
-    show_target_arrow: bool = False
+    # All options default True per updated UI requirement (user can disable)
+    show_grid: bool = True
+    show_agent_ids: bool = True
+    show_target_arrow: bool = True
+    show_home_labels: bool = True
 
 __all__ = ["OverlayState"]

@@ -24,8 +24,8 @@ SLICE_SEC = 0.25  # short slice (250ms)
 def _launch_turn() -> MainWindow:
     win = MainWindow()
     selection = MenuSelection(
-        scenario='turn_mode',
-        mode='turn',
+        scenario='baseline_decision',  # unified baseline replaces former turn_mode
+        mode='continuous',
         seed=321,
         grid_size=(8,8),
         agents=4,
@@ -33,6 +33,7 @@ def _launch_turn() -> MainWindow:
         enable_respawn=False,
         enable_metrics=True,
         preference_type='cobb_douglas',
+        start_paused=False,
     )
     win._on_launch_requested(selection)  # type: ignore[attr-defined]
     app.processEvents()
