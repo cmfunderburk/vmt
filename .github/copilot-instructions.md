@@ -1,6 +1,8 @@
 ## VMT Copilot Instructions (High‑Signal, ~50 lines)
 Context: Educational micro‑econ spatial sim. PyQt6 shell embeds ONE fixed 320x240 Pygame Surface. Prime directives: determinism, single QTimer frame loop, O(agents+resources) step, minimal allocations.
 
+Architecture: Dual GUI paths via feature flags. New GUI (`ECONSIM_NEW_GUI=1`) provides start menu + simulation controller stack. Legacy path creates minimal bootstrap window. Both share the core `EmbeddedPygameWidget` rendering pipeline.
+
 Core Frame Pipeline (DO NOT RESTRUCTURE): `EmbeddedPygameWidget` owns a single `QTimer` (16ms) → optional `Simulation.step(ext_rng, use_decision)` → `_update_scene` (draw grid/resources/agents/overlays) → `update()` → `paintEvent` (Surface→bytes→`QImage`→`QPainter`). Forbidden: extra timers, while True loops, sleeps, threads, Surface reallocation, SURFACE_SIZE / FRAME_INTERVAL_MS changes.
 
 Determinism Invariants:
@@ -11,6 +13,8 @@ Determinism Invariants:
 - RNG separation: external RNG (legacy movement) vs internal `Simulation._rng` (respawn, hooks). No hidden randomness.
 
 Construction Path: `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)` seeds internal RNG + optional `RespawnScheduler` & `MetricsCollector`. Manual wiring only in legacy tests. Preferences are pure & stateless; register new types in `preferences/factory.py` with full tests (validation, utility math, serialize round trip).
+
+Testing Strategy: Determinism via reproducible hash tests (`test_determinism_hash.py`), performance gates (`make perf`, acceptable floor ≥30 FPS), decision mode validation. All state-changing features require regression tests. Test structure mirrors src layout: `tests/unit/test_*.py`.
 
 Respawn & Interval:
 - Alternating resource types A↔B deterministic toggle + uniform seeded empty‑cell shuffle (removes positional bias)
@@ -41,6 +45,8 @@ Allowed Fast Path: new preference type, deterministic overlay (O(n)), append met
 Teardown Order: `closeEvent` → stop timer → `pygame.quit()` → `super().closeEvent(event)`; mirror for new subsystems.
 
 Workflow Commands: install `pip install -e .[dev]`; run GUI `make dev`; tests `make test`; lint `make lint`; types `make type`; perf `make perf`; legacy random walk `ECONSIM_LEGACY_RANDOM=1 make dev`; FPS debug `ECONSIM_DEBUG_FPS=1 make dev`.
+
+Gate Workflow (Before Push): Create `Gate_N_todos.md` + `GATE_N_CHECKLIST.md` → stakeholder agreement → execute steps → `GATE_N_EVAL.md` retrospective (criteria→evidence, perf/debt/risks) → only then commit. No silent scope creep.
 
 PR Flow: (1) State intent + gate ref (2) Minimal diff (3) Add/adjust tests (determinism/perf if touched) (4) Perf + hash check (5) Sync docs (6) Summarize (Goal | Actions | Result | Next).
 
