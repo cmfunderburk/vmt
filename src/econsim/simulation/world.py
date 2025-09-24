@@ -47,6 +47,7 @@ class Simulation:
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
     _respawn_interval: int | None = 1       # New: how frequently to invoke respawn (1 => every step, None/<=0 => disabled)
+    trade_policy: Any | None = None         # Gate 7: optional trading policy (flag-gated)
 
     def __post_init__(self) -> None:  # pragma: no cover (simple init)
         if self.config is not None and self._rng is None:
@@ -71,6 +72,13 @@ class Simulation:
                 agent.move_random(self.grid, rng)
             for agent in self.agents:
                 agent.collect(self.grid)
+        # Gate 7: trading (co-location bilateral exchange) executes after movement/collection,
+        # before respawn & metrics so hooks observe post-trade inventories. Flag-gated; inert when None.
+        if self.trade_policy is not None:
+            try:
+                self.trade_policy.apply(self)  # type: ignore[attr-defined]
+            except Exception as exc:  # pragma: no cover - defensive; trading must not disrupt loop
+                print(f"[TradingWarning] policy error: {exc}")
     # Respawn hook (inert if scheduler not attached)
         if self.respawn_scheduler is not None and self._rng is not None:
             # Only invoke respawn when interval condition satisfied.
@@ -166,6 +174,13 @@ class Simulation:
             )
         if getattr(config, "enable_metrics", False):
             sim.metrics_collector = MetricsCollector()
+        # Gate 7: attach trading policy if flag enabled (append-only extension; no side-effects if disabled)
+        if getattr(config, "enable_trading", False):
+            try:
+                from .trading import SimpleCoLocationTradePolicy  # type: ignore
+                sim.trade_policy = SimpleCoLocationTradePolicy()
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"[TradingWarning] failed to attach trade policy: {exc}")
 
         return sim
 

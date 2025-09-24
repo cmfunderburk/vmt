@@ -73,39 +73,83 @@ def run(duration_s: float = 2.0, target_fps: float = 60.0) -> dict[str, float]:
     return run_synthetic(duration_s, target_fps)
 
 
+def run_trading_sim(duration_s: float = 2.0, *, enable_trading: bool = False) -> dict[str, float]:
+    """Headless simulation stepping perf (decision mode off) to compare trading flag overhead.
+
+    Constructs a small grid with a few co-located agents to force maximal trading.
+    Measures steps/second (converted to pseudo-FPS for comparison) while performing
+    pure stepping without GUI.
+    """
+    from econsim.simulation.config import SimConfig
+    from econsim.simulation.world import Simulation
+    from econsim.preferences.cobb_douglas import CobbDouglasPreference
+    import random as _r
+
+    cfg = SimConfig(
+        grid_size=(8, 8),
+        initial_resources=[],
+        seed=1234,
+        enable_respawn=False,
+        enable_metrics=True,
+        enable_trading=enable_trading,
+    )
+    def pf(i: int):
+        return CobbDouglasPreference(alpha=0.5)
+    # Cluster agents in one cell to maximize trade attempts
+    agent_positions = [(3,3) for _ in range(10)]
+    sim = Simulation.from_config(cfg, preference_factory=pf, agent_positions=agent_positions)
+    rng = _r.Random(99)
+    start = perf_counter()
+    steps = 0
+    while perf_counter() - start < duration_s:
+        sim.step(rng, use_decision=False)
+        steps += 1
+    elapsed = perf_counter() - start
+    return {"steps": steps, "duration_s": elapsed, "avg_steps_per_s": steps/elapsed if elapsed else 0.0}
+
+
 def main() -> None:  # pragma: no cover - simple script
     import argparse
 
     parser = argparse.ArgumentParser(description="VMT Performance Test")
-    parser.add_argument("--mode", choices=["synthetic", "widget"], default="synthetic",
-                        help="Test mode: synthetic simulation or real widget")
+    parser.add_argument("--mode", choices=["synthetic", "widget", "trading"], default="synthetic",
+                        help="Test mode: synthetic, real widget, or headless trading sim")
     parser.add_argument("--duration", type=float, default=5.0,
                         help="Test duration in seconds")
     parser.add_argument("--target-fps", type=float, default=60.0,
                         help="Target FPS for synthetic mode")
     parser.add_argument("--json", action="store_true",
                         help="Output JSON format")
+    parser.add_argument("--enable-trading", action="store_true",
+                        help="Enable trading flag in trading mode (measures overhead)")
 
     args = parser.parse_args()
 
     if args.mode == "widget":
         result = run_widget(args.duration)
+    elif args.mode == "trading":
+        result = run_trading_sim(args.duration, enable_trading=args.enable_trading)
     else:
         result = run_synthetic(args.duration, args.target_fps)
 
     if args.json:
         print(json.dumps(result))
     else:
-        print(f"Frames: {result['frames']:.0f}")
-        print(f"Duration: {result['duration_s']:.2f}s")
-        print(f"Avg FPS: {result['avg_fps']:.1f}")
-
-        # Gate 1 success criteria check
-        fps = result['avg_fps']
-        if fps >= 30:
-            print(f"✓ Gate 1 FPS requirement met (≥30 FPS: {fps:.1f})")
+        if args.mode == "trading":
+            print(f"Steps: {result['steps']}")
+            print(f"Duration: {result['duration_s']:.2f}s")
+            print(f"Steps/s: {result['avg_steps_per_s']:.1f}")
         else:
-            print(f"✗ Gate 1 FPS requirement failed (<30 FPS: {fps:.1f})")
+            print(f"Frames: {result['frames']:.0f}")
+            print(f"Duration: {result['duration_s']:.2f}s")
+            print(f"Avg FPS: {result['avg_fps']:.1f}")
+
+            # Gate 1 success criteria check (only meaningful for widget & synthetic)
+            fps = result['avg_fps']
+            if fps >= 30:
+                print(f"✓ Gate 1 FPS requirement met (≥30 FPS: {fps:.1f})")
+            else:
+                print(f"✗ Gate 1 FPS requirement failed (<30 FPS: {fps:.1f})")
 
 
 if __name__ == "__main__":  # pragma: no cover

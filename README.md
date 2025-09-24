@@ -72,7 +72,7 @@ print("hash=", sim.metrics_collector.determinism_hash())
 Legacy manual wiring is supported but deprecated.
 
 ## 5. Known Gaps / Explicit Limitations
-1. Trading, production, consumption, and economic metrics (e.g., inequality) not implemented.
+1. Trading (bilateral_simple flag in progress), production, consumption, and economic metrics (e.g., inequality) not implemented.
 2. No menus / control panels / scenario loader.
 3. Advanced overlays (utility contours, analytics) not implemented.
 
@@ -90,7 +90,7 @@ Deferred: advanced GUI panels, utility contours, economic interactions.
 | Gate | Theme | Core Scope | Deferrals |
 |------|-------|-----------|-----------|
 | 6 | Integration & Surface | Factory, default decision mode, overlay toggle, test API cleanup | Advanced GUI panels |
-| 7 | Agent Interaction | Trading primitives, exchange rules, utility effect tests | UI trade inspector |
+| 7 | Agent Interaction | `enable_trading` (bilateral_simple co-location 1-unit swaps, marginal utility gate) | UI trade inspector, adjacency pathing |
 | 8 | Basic GUI Controls | Parameter sliders, run/pause, scenario load/save | Multi-tab analytics |
 | 9 | Production / Consumption | Resource generation & consumption cycles | Market equilibrium visualization |
 

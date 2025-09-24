@@ -34,6 +34,9 @@ class SimConfig:
     seed: int = 0
     enable_respawn: bool = True
     enable_metrics: bool = True
+    # Gate 7 (trading primitive) feature flag: when False trading subsystem is inert and
+    # determinism hash matches prior gates. Append-only to preserve config ordering contract.
+    enable_trading: bool = False
 
     def validate(self) -> None:
         """Perform lightweight invariant checks (Gate 6 integration).
