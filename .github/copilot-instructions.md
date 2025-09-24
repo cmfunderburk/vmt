@@ -7,7 +7,7 @@ Determinism: Tie-break key exactly (-ΔU, distance, x, y). Sorted/stable resourc
 
 Preferred Construction: Use `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)` (seeds RNG, wires optional `RespawnScheduler` + `MetricsCollector`). Preferences are pure stateless utility evaluators; register new ones in `preferences/factory.py` + tests (utility correctness, param validation, serialization round trip).
 
-Hooks: `respawn_scheduler.step` & `metrics_collector.record` are optional O(n). New hook = single None check then return if absent. Alternating respawn (A↔B toggle) is deterministic, no extra RNG. Home placement: deterministic `seed+9973` sample; cached font draws `H{id}` once per frame (no per-agent font creation).
+Hooks: `respawn_scheduler.step` & `metrics_collector.record` are optional O(n). New hook = single None check then return if absent. Alternating respawn (A↔B toggle) + uniform empty-cell shuffle (full list, seeded) is deterministic; no positional bias. Respawn interval (GUI dropdown) gates invocation via `(step % interval)==0` (pure arithmetic). Home placement: deterministic `seed+9973` sample; cached font draws `H{id}` once per frame (no per-agent font creation).
 
 Performance Guardrails: Target ~62 FPS (floor ≥30). Diagnose: (1) Surface realloc? (2) per-frame object churn? (3) blocking I/O? Validate with `make perf` or `scripts/perf_stub.py --mode widget --duration 2 --json`. Overlays must cost <~2% FPS unless justified.
 

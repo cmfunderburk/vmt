@@ -13,7 +13,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
 | Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism, randomized non-overlapping home placement + on-grid home labels (H{id}) | Trading, production/consumption, richer behaviors |
 | Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests; GUI default ON; env / param override | Multi-step planning |
-| Respawn | Density-based scheduler (factory flag) + deterministic alternating A/B type spawning (baseline) | Weighted / adaptive multi-type distribution, richer policies |
+| Respawn | Density-based scheduler (factory flag), deterministic alternating A/B types, uniform seeded placement + GUI respawn interval control (Off / 1 / 2 / 5 / 10) | Weighted / adaptive multi-type distribution, richer policies |
 | Metrics | Factory-attached collector + determinism hash | Additional economic metrics suite |
 | Snapshot / Replay | Serialize + restore + hash parity tests | Scenario library management |
 | Configuration | `SimConfig` + `Simulation.from_config` factory | Extended scenario descriptors |
@@ -21,7 +21,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 | Tests | Determinism, decision precedence, respawn, metrics, snapshot, perf (FPS + throughput), overlay regression | Extended educational UI interaction tests |
 
 ## 2. Current Reality (Post Gate 6)
-Gate 6 delivered: factory construction, GUI default decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param), overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard.
+Gate 6 delivered: factory construction, GUI default decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param), overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard. Subsequent increment: uniform seeded respawn distribution (removed top-left bias) + GUI respawn interval dropdown.
 
 ## 3. Quick Start (Current Behavior)
 ```bash
@@ -49,7 +49,7 @@ ECONSIM_LEGACY_RANDOM=1 make dev
 Use the factory for deterministic, hook-aware simulation setup:
 ```python
 from econsim.simulation.config import SimConfig
-from econsim.simulatioqn.world import Simulation
+from econsim.simulation.world import Simulation  # (typo fixed)
 import random
 
 cfg = SimConfig(
@@ -130,7 +130,8 @@ Last updated: 2025-09-23 (Docs alignment gate – adds alternating respawn + age
 Added:
 * Square grid cell rendering (cell size unified to min dimension; preserves existing coordinate mapping; unused margin left blank to avoid extra math).
 * Controls panel agent inspection: dropdown (stable ID sort) + live carrying bundle & utility (4 Hz lightweight timer). Pure read-only; determinism hash unaffected (`test_agent_metrics_ui.py`).
-* Multi-type respawn baseline: scheduler now alternates resource types A/B deterministically (internal toggle) ensuring diversity without added per-step complexity (`test_respawn_type_diversity.py`).
+* Multi-type respawn baseline: scheduler alternates resource types A/B deterministically (internal toggle) ensuring diversity without added per-step complexity (`test_respawn_type_diversity.py`).
+* Uniform respawn placement: full empty-cell enumeration + seeded shuffle (removes earlier positional bias toward top-left). GUI dropdown controls spawn frequency (Off / Every Step / Every N) without affecting determinism (pure modulo arithmetic).
 * Randomized non-overlapping agent home placement (deterministic secondary RNG seeded by `seed+9973`) replacing clustered top-left spawn; each home labeled `H{id}` rendered in its cell bottom-left (font cached; negligible overhead).
 Performance: negligible overhead (alternation O(1) per spawn; UI timer low-frequency; home labels reuse cached font; random placement done once at session build).
 Determinism: preserved (agent home set drawn deterministically from ordered population with fixed seed offset; rendering pure function of state; no hash drift expected or observed).
@@ -158,11 +159,11 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 - **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
 - **Development Environment**: Complete vmt-dev virtual environment with all dependencies
 
-### **🚀 Current Capabilities (Post Alternating Respawn Increment)**
+### **🚀 Current Capabilities (Post Uniform Respawn + Interval Control Increment)**
 ```bash
 # Working demonstration
 source vmt-dev/bin/activate
-make dev                               # Launch GUI (agent metrics panel + alternating respawn)
+make dev                               # Launch GUI (agent metrics panel + alternating respawn + respawn interval dropdown)
 make test                              # 104 tests pass (determinism, decision, respawn diversity, metrics, snapshot, perf, GUI pacing, overlays)
 make lint                              # Code quality enforced
 python scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
@@ -232,13 +233,15 @@ Gate-based technical validation approach:
 -- Utility contour & marginal rate visualization overlays
 -- Parameterized scenario loading & persistence
 
-### Agent Metrics Panel (Usage)
-The Controls panel now includes:
+### Controls & Metrics Panel (Usage)
+Controls panel includes:
 * Agent dropdown: deterministic list of agent IDs (sorted)
 * Carry label: current in-hand goods (good1, good2)
 * Utility label: utility of carrying bundle (not including home inventory)
+* Turn Rate dropdown: pacing (Unlimited or X tps)
+* Respawn dropdown: Off / Every Step / 2 / 5 / 10 (modulo-based invocation of respawn scheduler)
 
-Update cadence is 4 Hz (separate lightweight timer). No mutation or stepping occurs via this panel.
+Agent metrics update cadence is 4 Hz (lightweight timer). Respawn interval changes are deterministic given identical user interaction order and do not reseed RNG.
 
 ## Preferences Architecture (Gate 2 Foundation)
 
