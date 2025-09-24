@@ -7,7 +7,9 @@ install:
 	$(PYTHON) -m pip install -e .[dev]
 
 dev:
-	$(PYTHON) -m $(PACKAGE).main
+	# Launch the new GUI shell by default (Start Menu + controller stack).
+	# To run the legacy minimal bootstrap instead: ECONSIM_NEW_GUI=0 make dev
+	ECONSIM_NEW_GUI=1 $(PYTHON) -m $(PACKAGE).main
 
 lint:
 	ruff check src tests

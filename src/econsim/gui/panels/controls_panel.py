@@ -85,6 +85,21 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         layout.addWidget(QLabel("Turn Rate:"))
         layout.addWidget(self._speed_box)
         layout.addWidget(self._pacing_label)
+        # Respawn pacing dropdown (invokes scheduler only every Nth step). Deterministic arithmetic.
+        self._respawn_box = QComboBox()
+        self._respawn_box.setToolTip("Respawn frequency: how often the resource respawn scheduler runs.")
+        self._respawn_options = [
+            ("Off", None),
+            ("Every Step", 1),
+            ("Every 2", 2),
+            ("Every 5", 5),
+            ("Every 10", 10),
+        ]
+        for label, val in self._respawn_options:
+            self._respawn_box.addItem(label, userData=val)
+        self._respawn_box.currentIndexChanged.connect(self._change_respawn_interval)  # type: ignore[arg-type]
+        layout.addWidget(QLabel("Respawn:"))
+        layout.addWidget(self._respawn_box)
         layout.addStretch(1)
         layout.addWidget(back_btn)
 
@@ -142,6 +157,16 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
             self._pacing_label.setText("(pacing)")
         else:
             self._pacing_label.setText("")
+
+    def _change_respawn_interval(self, idx: int) -> None:
+        data = self._respawn_box.itemData(idx)
+        try:
+            if data is None:
+                self._controller.set_respawn_interval(None)
+            else:
+                self._controller.set_respawn_interval(int(data))
+        except Exception:
+            pass
 
     # --- Mode Configuration -------------------------------------------------
     def configure_for_mode(self, mode: str) -> None:

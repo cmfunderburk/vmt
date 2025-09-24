@@ -38,6 +38,11 @@ class SimulationController:
         # Mode flag (decision vs legacy). Default True unless an explicit legacy marker is later injected.
         # The EmbeddedPygameWidget passes decision_mode to its own stepping path; we mirror via a public setter.
         self._use_decision_mode: bool = True
+        # Respawn interval mirrors simulation's internal setting; exposed for UI control.
+        try:
+            self._respawn_interval_cache = simulation._respawn_interval  # type: ignore[attr-defined]
+        except Exception:
+            self._respawn_interval_cache = 1
 
     def pause(self) -> None:
         self._paused = True
@@ -81,6 +86,22 @@ class SimulationController:
 
     def playback_tps(self) -> float | None:
         return self._playback_tps
+
+    # --- Respawn Interval Control ---------------------------------------
+    def set_respawn_interval(self, interval: int | None) -> None:
+        """Expose respawn pacing to GUI.
+
+        None / <=0 disables respawn; 1 = every step; N = every Nth step.
+        Deterministic given identical user interaction sequence.
+        """
+        try:
+            self.simulation.set_respawn_interval(interval)  # type: ignore[attr-defined]
+            self._respawn_interval_cache = interval
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    def respawn_interval(self) -> int | None:
+        return getattr(self, "_respawn_interval_cache", None)
 
     def _should_step_now(self, now: float) -> bool:
         """Return True if an auto step should occur at this timestamp.

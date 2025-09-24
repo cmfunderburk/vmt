@@ -46,6 +46,7 @@ class Simulation:
     _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
+    _respawn_interval: int | None = 1       # New: how frequently to invoke respawn (1 => every step, None/<=0 => disabled)
 
     def __post_init__(self) -> None:  # pragma: no cover (simple init)
         if self.config is not None and self._rng is None:
@@ -72,10 +73,13 @@ class Simulation:
                 agent.collect(self.grid)
     # Respawn hook (inert if scheduler not attached)
         if self.respawn_scheduler is not None and self._rng is not None:
-            try:
-                self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)
-            except Exception as exc:  # pragma: no cover - defensive placeholder
-                print(f"[RespawnWarning] scheduler error: {exc}")
+            # Only invoke respawn when interval condition satisfied.
+            if self._respawn_interval and self._respawn_interval > 0:
+                if (self._steps % self._respawn_interval) == 0:
+                    try:
+                        self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)
+                    except Exception as exc:  # pragma: no cover - defensive placeholder
+                        print(f"[RespawnWarning] scheduler error: {exc}")
         # Metrics hook (placeholder logic handled inside collector)
         if self.metrics_collector is not None:
             try:
@@ -164,6 +168,20 @@ class Simulation:
             sim.metrics_collector = MetricsCollector()
 
         return sim
+
+    # --- Runtime Configuration -------------------------------------------
+    def set_respawn_interval(self, interval: int | None) -> None:
+        """Adjust how often the respawn scheduler is invoked.
+
+        interval = 1  => every step (default)
+        interval = N>1 => every Nth step
+        interval None or <=0 => disable respawn without detaching scheduler
+        Deterministic: purely arithmetic on step counter.
+        """
+        if interval is None or interval <= 0:
+            self._respawn_interval = None
+        else:
+            self._respawn_interval = int(interval)
 
 
 __all__ = ["Simulation"]

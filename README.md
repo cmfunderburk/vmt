@@ -29,8 +29,11 @@ python3 -m venv vmt-dev
 source vmt-dev/bin/activate
 pip install -e .[dev]
 
-# Launch demo GUI (decision mode ON by default; press 'O' to toggle overlay)
+# Launch new GUI (Start Menu → choose scenario). Decision mode ON by default; press 'O' in simulation to toggle overlay.
 make dev
+
+# (Optional) Run legacy minimal bootstrap window (no Start Menu) instead of new GUI
+ECONSIM_NEW_GUI=0 make dev
 
 # Run full test suite (decision, determinism, respawn, metrics, snapshot, perf)
 pytest -q
@@ -46,7 +49,7 @@ ECONSIM_LEGACY_RANDOM=1 make dev
 Use the factory for deterministic, hook-aware simulation setup:
 ```python
 from econsim.simulation.config import SimConfig
-from econsim.simulation.world import Simulation
+from econsim.simulatioqn.world import Simulation
 import random
 
 cfg = SimConfig(

@@ -97,24 +97,22 @@ class RespawnScheduler:
         if to_spawn <= 0:
             return 0
 
-        # Enumerate empty cells deterministically (row-major) then shuffle
-        occupied = getattr(grid, "_resources", {})  # trusted internal use
-        empties: List[Tuple[int, int]] = []
+        # Enumerate ALL empty cells (row-major) then shuffle for a uniform selection over the entire grid.
+        # Previous prefix+shuffle approach biased toward top-left when deficit small (early break).
+        # Complexity: O(#empties). With typical grids (<= 64x64) and modest densities this is acceptable and
+        # remains linear in grid cells (still within performance guardrails). If future scalability requires
+        # optimization we can re‑introduce a stratified sampling method behind a feature flag.
+        occupied = getattr(grid, "_resources", {})
         if current >= total_cells:  # grid full
             return 0
-        target_collect = to_spawn * 2  # modest oversample for shuffle randomness
+        empties: List[Tuple[int, int]] = []
         for y in range(grid.height):
             for x in range(grid.width):
                 if (x, y) not in occupied:
                     empties.append((x, y))
-                    if len(empties) >= target_collect:
-                        break
-            if len(empties) >= target_collect:
-                break
         if not empties:
             return 0
-
-        rng.shuffle(empties)  # deterministic under RNG
+        rng.shuffle(empties)
         spawn_list = empties[:to_spawn]
 
         spawned = 0
