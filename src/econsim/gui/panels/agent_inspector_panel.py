@@ -29,6 +29,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         
         # Agent details
         self._carry_label = QLabel("Carry: —")
+        self._home_label = QLabel("Home: —") 
         self._utility_label = QLabel("Utility: —")
         
         # Populate agent list (deterministic order by agent ID)
@@ -40,6 +41,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         # Layout assembly
         layout.addLayout(agent_row)
         layout.addWidget(self._carry_label)
+        layout.addWidget(self._home_label)
         layout.addWidget(self._utility_label)
         layout.addStretch()
         
@@ -70,6 +72,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         current_data = self._agent_box.currentData()
         if current_data is None:
             self._carry_label.setText("Carry: —")
+            self._home_label.setText("Home: —")
             self._utility_label.setText("Utility: —")
             return
         
@@ -79,7 +82,12 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
             carry_text = f"Carry: (g1={carry_bundle[0]}, g2={carry_bundle[1]})"
             self._carry_label.setText(carry_text)
             
-            # Get agent utility
+            # Get agent home bundle  
+            home_bundle = self._controller.agent_home_bundle(current_data)
+            home_text = f"Home: (g1={home_bundle[0]}, g2={home_bundle[1]})"
+            self._home_label.setText(home_text)
+            
+            # Get agent utility (now includes total wealth: carrying + home)
             utility = self._controller.agent_carry_utility(current_data)
             utility_text = f"Utility: {utility:.3f}" if utility is not None else "Utility: —"
             self._utility_label.setText(utility_text)
@@ -87,6 +95,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         except Exception:
             # Graceful fallback if controller methods not available
             self._carry_label.setText("Carry: (unavailable)")
+            self._home_label.setText("Home: (unavailable)")
             self._utility_label.setText("Utility: (unavailable)")
 
 

@@ -26,7 +26,6 @@ class _SimulationProto(Protocol):  # pragma: no cover - typing helper only
 
 class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested separately)
     FRAME_INTERVAL_MS = 16  # ~60 FPS target
-    SURFACE_SIZE = (320, 320)
     _sim_rng: random.Random | None  # lazily-created RNG for simulation
 
     def __init__(
@@ -42,6 +41,14 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         # deterministic RNG argument. We'll internally manage a Random instance.
         self._simulation: _SimulationProto | None = simulation
         self._sim_rng = None  # set in first tick if simulation provided
+        
+        # Get viewport size from simulation config, fallback to 320x320
+        viewport_size = 320
+        if simulation is not None:
+            config = getattr(simulation, 'config', None)
+            if config is not None:
+                viewport_size = getattr(config, 'viewport_size', 320)
+        self.SURFACE_SIZE = (viewport_size, viewport_size)
         # Cache decision mode default (Gate 6 integration finalization):
         # Precedence: explicit constructor param > env flag > default True.
         # Env flag ECONSIM_LEGACY_RANDOM=1 forces legacy random walk.

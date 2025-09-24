@@ -47,6 +47,7 @@ class MenuSelection:
     decision_mode_enabled: bool
     endowment_pattern: str
     perception_radius: int
+    viewport_size: int
 
 
 class StartMenuPage(QWidget):  # pragma: no cover (GUI)
@@ -191,6 +192,18 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         perception_row.addStretch()
         advanced_layout.addLayout(perception_row)
         
+        # Viewport Size (square)
+        viewport_row = QHBoxLayout()
+        viewport_row.addWidget(QLabel("Viewport Size:"))
+        self.viewport_box = QSpinBox()
+        self.viewport_box.setRange(320, 800)
+        self.viewport_box.setSingleStep(80)  # Nice increments: 320, 400, 480, 560, 640, 720, 800
+        self.viewport_box.setValue(320)
+        viewport_row.addWidget(self.viewport_box)
+        viewport_row.addWidget(QLabel("× same (square)"))
+        viewport_row.addStretch()
+        advanced_layout.addLayout(viewport_row)
+        
         # Metrics Enabled
         self.metrics_cb = QCheckBox("Metrics Enabled")
         self.metrics_cb.setChecked(True)
@@ -290,6 +303,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
             decision_mode_enabled=decision_mode_enabled,
             endowment_pattern=self.endowment_box.currentText(),
             perception_radius=perception_radius,
+            viewport_size=self.viewport_box.value(),
         )
         self._on_launch(selection)
 

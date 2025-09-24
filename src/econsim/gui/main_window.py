@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
                 preference_type=selection.preference_type,
                 turn_auto_interval_ms=None,
                 start_paused=selection.start_paused,
+                viewport_size=selection.viewport_size,
             )
             controller = SessionFactory.build(descriptor)
         except Exception as exc:  # pragma: no cover - user input / validation path
@@ -95,12 +96,12 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         # Top section: Pygame viewport (left) + Control panels (right)
         content_layout = QHBoxLayout()
         
-        # Left side: Pygame viewport (fixed 320x320)
+        # Left side: Pygame viewport (configurable size)
         pygame_widget = EmbeddedPygameWidget(
             simulation=controller.simulation,
             decision_mode=(descriptor.mode != "legacy"),
         )
-        pygame_widget.setFixedSize(320, 320)  # Enforce viewport size per ASCII layout
+        pygame_widget.setFixedSize(descriptor.viewport_size, descriptor.viewport_size)  # Enforce viewport size per selection
         # Attach back-reference so widget can consult controller pause state / record timestamps
         setattr(pygame_widget, "_controller_ref", controller)
         

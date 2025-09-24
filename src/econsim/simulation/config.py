@@ -34,6 +34,7 @@ class SimConfig:
     seed: int = 0
     enable_respawn: bool = True
     enable_metrics: bool = True
+    viewport_size: int = 320
 
     def validate(self) -> None:
         """Perform lightweight invariant checks (Gate 6 integration).
@@ -48,6 +49,8 @@ class SimConfig:
             raise ValueError("respawn_target_density must be within [0,1]")
         if self.respawn_rate < 0:
             raise ValueError("respawn_rate must be non-negative")
+        if not (320 <= self.viewport_size <= 800):
+            raise ValueError("viewport_size must be within [320, 800]")
         if self.max_spawn_per_tick < 0:
             raise ValueError("max_spawn_per_tick must be non-negative")
         # Boolean flags implicitly validated; could add type checks if untrusted sources used.

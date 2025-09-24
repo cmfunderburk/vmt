@@ -185,8 +185,17 @@ class SimulationController:
                 return int(inv.get("good1", 0)), int(inv.get("good2", 0))
         return (0, 0)
 
+    def agent_home_bundle(self, agent_id: int) -> tuple[int, int]:
+        """Return (good1, good2) home inventory for agent or (0,0) if not found."""
+        agents = getattr(self.simulation, "agents", [])
+        for a in agents:
+            if getattr(a, "id", None) == agent_id:
+                inv = getattr(a, "home_inventory", {})
+                return int(inv.get("good1", 0)), int(inv.get("good2", 0))
+        return (0, 0)
+
     def agent_carry_utility(self, agent_id: int) -> float | None:
-        """Compute utility of the agent's carrying bundle (without home inventory).
+        """Compute utility of the agent's total wealth (carrying + home inventory).
 
         Returns None if preference or agent not accessible. This is a pure
         computation using already-held state; no mutation performed.
@@ -197,12 +206,14 @@ class SimulationController:
                 pref = getattr(a, "preference", None)
                 if pref is None or not hasattr(pref, "utility"):
                     return None
-                inv = getattr(a, "carrying", {})
+                carry_inv = getattr(a, "carrying", {})
+                home_inv = getattr(a, "home_inventory", {})
                 # Preference utility expects a bundle (x,y) or mapping; implementations accept tuple.
                 try:
-                    g1 = float(inv.get("good1", 0))
-                    g2 = float(inv.get("good2", 0))
-                    return float(pref.utility((g1, g2)))  # type: ignore[arg-type]
+                    # Total wealth = carrying + home inventory
+                    g1_total = float(carry_inv.get("good1", 0)) + float(home_inv.get("good1", 0))
+                    g2_total = float(carry_inv.get("good2", 0)) + float(home_inv.get("good2", 0))
+                    return float(pref.utility((g1_total, g2_total)))  # type: ignore[arg-type]
                 except Exception:
                     return None
         return None

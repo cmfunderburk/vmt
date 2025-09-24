@@ -28,6 +28,7 @@ class SimulationSessionDescriptor:
     enable_metrics: bool
     preference_type: str
     turn_auto_interval_ms: int | None
+    viewport_size: int = 320
     start_paused: bool = False
 
 
@@ -53,6 +54,7 @@ class SessionFactory:
             seed=descriptor.seed,
             enable_respawn=descriptor.enable_respawn,
             enable_metrics=descriptor.enable_metrics,
+            viewport_size=descriptor.viewport_size,
         )
 
         # Preference factory mapping (single preference type Phase A)

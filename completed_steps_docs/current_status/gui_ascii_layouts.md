@@ -34,6 +34,7 @@ Legend:
 |     Grid Size:         [ 12 ] × [ 12 ]                                          |
 |     Resource Density:  [ 0.25 ]                                                 |
 |     Perception Radius: [ 8 ]                                                    |
+|     Viewport Size:     [ 320 ] × same (square)                                  |
 |     Metrics Enabled:   [x]                                                      |
 |                                                                                  |
 |----------------------------------------------------------------------------------|
@@ -46,6 +47,7 @@ Notes:
 - Start Paused checkbox sets controller paused state before first step.
 - Randomize button reseeds both internal and external RNG seeding plan.
 - Advanced panel remains collapsed by default for classroom simplicity.
+- Viewport Size controls the square Pygame surface dimensions (320x320 to 800x800).
 
 ---
 ## 2. Baseline Simulation Screen (Post-Launch)
@@ -57,7 +59,7 @@ High-level layout: Viewport left; stacked control / overlay / metrics panels on 
 | VMT EconSim (Simulation)                                                         |
 |----------------------------------------------------------------------------------|
 | +-----------------------------+  +--------------------------------------------+  |
-| | PYGAME VIEWPORT (320x320)  |  | CONTROLS                                    |  |
+| | PYGAME VIEWPORT (configurable) | CONTROLS                                    |  |
 | |                             |  |--------------------------------------------|  |
 | |  [Grid of cells]            |  |  [Pause/Resume]  [Step 1]  [Step 5]        |  |
 | |  Agents: A0 A1 ...          |  |  Turn Rate: [ Unlimited  v ]               |  |
