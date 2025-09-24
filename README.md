@@ -8,10 +8,10 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 
 | Area | Implemented (Usable) | Pending / Not Yet Integrated |
 |------|----------------------|-------------------------------|
-| Rendering Core | PyQt6 window + embedded 320x320 Pygame surface (~62 FPS) | GUI controls / menus / scenario panels |
+| Rendering Core | PyQt6 window + embedded Pygame surface (~62 FPS, configurable 320×320 to 800×800) | GUI controls / menus / scenario panels |
 | Preferences | Cobb-Douglas, Perfect Substitutes, Leontief + factory | N-good generalization, adaptive forms |
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
-| Agents | Carrying vs home inventories, modes, greedy decision, tie-break determinism, randomized non-overlapping home placement + on-grid home labels (H{id}) | Trading, production/consumption, richer behaviors |
+| Agents | Carrying vs home inventories with wealth accumulation, modes, greedy decision, tie-break determinism, randomized non-overlapping home placement + on-grid home labels (H{id}), utility reflects total wealth (carrying + home) | Trading, production/consumption, richer behaviors |
 | Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests; GUI default ON; env / param override | Multi-step planning |
 | Respawn | Density-based scheduler (factory flag), deterministic alternating A/B types, uniform seeded placement + GUI respawn interval control (Off / 1 / 2 / 5 / 10) | Weighted / adaptive multi-type distribution, richer policies |
 | Metrics | Factory-attached collector + determinism hash | Additional economic metrics suite |
@@ -29,7 +29,7 @@ python3 -m venv vmt-dev
 source vmt-dev/bin/activate
 pip install -e .[dev]
 
-# Launch new GUI (Start Menu → choose scenario). Decision mode ON by default; press 'O' in simulation to toggle overlay.
+# Launch new GUI (Start Menu → choose scenario, configure viewport size). Decision mode ON by default; press 'O' in simulation to toggle overlay.
 make dev
 
 # (Optional) Run legacy minimal bootstrap window (no Start Menu) instead of new GUI
@@ -62,6 +62,7 @@ cfg = SimConfig(
 	seed=123,
 	enable_respawn=True,
 	enable_metrics=True,
+	viewport_size=640,  # configurable 320-800
 )
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ext_rng = random.Random(999)
@@ -73,8 +74,8 @@ Legacy manual wiring is supported but deprecated.
 
 ## 5. Known Gaps / Explicit Limitations
 1. Trading, production, consumption, and economic metrics (e.g., inequality) not implemented.
-2. No menus / control panels / scenario loader.
-3. Advanced overlays (utility contours, analytics) not implemented.
+2. Advanced overlays (utility contours, analytics) not implemented.
+3. Multi-scenario educational progression system not yet built.
 
 ## 6. Gate 6 (Integration Summary)
 Delivered:
@@ -124,17 +125,19 @@ See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
 | Copilot Instructions | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
 
 ---
-Last updated: 2025-09-23 (Docs alignment gate – adds alternating respawn + agent metrics UI + square grid cells + randomized homes & home labels).
+Last updated: 2025-09-24 (GUI enhancements – configurable viewport, agent wealth accumulation, complete GUI controls).
 
-### Recent Increment (Square Grid, Agent Metrics UI, Alternating Respawn, Randomized Homes)
+### Recent Increment (Configurable Viewport, Agent Wealth Accumulation, Complete GUI)
 Added:
-* Square grid cell rendering (cell size unified to min dimension; preserves existing coordinate mapping; unused margin left blank to avoid extra math).
-* Controls panel agent inspection: dropdown (stable ID sort) + live carrying bundle & utility (4 Hz lightweight timer). Pure read-only; determinism hash unaffected (`test_agent_metrics_ui.py`).
-* Multi-type respawn baseline: scheduler alternates resource types A/B deterministically (internal toggle) ensuring diversity without added per-step complexity (`test_respawn_type_diversity.py`).
-* Uniform respawn placement: full empty-cell enumeration + seeded shuffle (removes earlier positional bias toward top-left). GUI dropdown controls spawn frequency (Off / Every Step / Every N) without affecting determinism (pure modulo arithmetic).
-* Randomized non-overlapping agent home placement (deterministic secondary RNG seeded by `seed+9973`) replacing clustered top-left spawn; each home labeled `H{id}` rendered in its cell bottom-left (font cached; negligible overhead).
-Performance: negligible overhead (alternation O(1) per spawn; UI timer low-frequency; home labels reuse cached font; random placement done once at session build).
-Determinism: preserved (agent home set drawn deterministically from ordered population with fixed seed offset; rendering pure function of state; no hash drift expected or observed).
+* **Configurable Viewport**: Pygame surface size selectable from 320×320 to 800×800 (square constraint) in Start Menu Advanced panel. Maintains determinism and performance across all sizes.
+* **Agent Wealth Accumulation**: Agents now accumulate goods at home base. Utility calculation includes total wealth (carrying + home inventory). GUI shows both "Carry:" and "Home:" inventories separately in Agent Inspector panel.
+* **Complete GUI Controls**: Full-featured Start Menu with scenario selection, parameter configuration, and Advanced panel (grid size, density, perception radius, viewport size). Simulation page includes grouped panels: Controls, Overlays, Metrics, Agent Inspector.
+* **Enhanced Agent Inspector**: Individual agent state tracking with dropdown selection, separate display of carrying vs home inventories, and total utility calculation reflecting accumulated wealth.
+* **Multi-type respawn baseline**: scheduler alternates resource types A/B deterministically ensuring diversity without added per-step complexity.
+* **Randomized non-overlapping agent home placement** (deterministic secondary RNG seeded by `seed+9973`) with `H{id}` labels rendered in cells.
+
+Performance: Configurable viewport maintains ~62 FPS across all sizes. Agent wealth tracking adds negligible overhead. All GUI components preserve determinism.
+Determinism: Viewport size doesn't affect simulation state. Wealth accumulation preserves all hash parity. GUI interactions remain read-only for simulation state.
 
 
 ## Project Overview
@@ -163,7 +166,7 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 ```bash
 # Working demonstration
 source vmt-dev/bin/activate
-make dev                               # Launch GUI (agent metrics panel + alternating respawn + respawn interval dropdown)
+make dev                               # Launch GUI (configurable viewport + agent wealth tracking + full controls panel)
 make test                              # 104 tests pass (determinism, decision, respawn diversity, metrics, snapshot, perf, GUI pacing, overlays)
 make lint                              # Code quality enforced
 python scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
@@ -237,9 +240,18 @@ Gate-based technical validation approach:
 Controls panel includes:
 * Agent dropdown: deterministic list of agent IDs (sorted)
 * Carry label: current in-hand goods (good1, good2)
-* Utility label: utility of carrying bundle (not including home inventory)
+* Home label: accumulated wealth at home base (good1, good2)
+* Utility label: utility of total wealth (carrying + home inventory)
 * Turn Rate dropdown: pacing (Unlimited or X tps)
 * Respawn dropdown: Off / Every Step / 2 / 5 / 10 (modulo-based invocation of respawn scheduler)
+
+### Start Menu Configuration
+Advanced panel (collapsed by default) includes:
+* Grid Size: NxN simulation grid dimensions
+* Resource Density: initial resource placement probability
+* Perception Radius: agent decision-making scan radius
+* Viewport Size: configurable Pygame surface size (320×320 to 800×800, square)
+* Metrics Enabled: toggle metrics collection and hash computation
 
 Agent metrics update cadence is 4 Hz (lightweight timer). Respawn interval changes are deterministic given identical user interaction order and do not reseed RNG.
 
@@ -504,12 +516,13 @@ ECONSIM_NEW_GUI=1 make dev
 ```
 
 ### Components (Phase A)
-- Start Menu (scenario + parameters + Randomize Seed)
+- Start Menu (scenario + parameters + Randomize Seed + Advanced configuration panel)
 - Simulation Page:
-  - Embedded 320x320 Pygame viewport
-  - Controls Panel (Pause/Resume, Step 1, Step 5, Hash Refresh)
+  - Embedded Pygame viewport (configurable 320×320 to 800×800)
+  - Controls Panel (Pause/Resume, Step 1, Step 5, Hash Refresh, Turn Rate)
   - Metrics Panel (ticks, remaining resources, steps/sec, hash via refresh) + optional auto-refresh
-  - Overlays Panel (Grid, Agent IDs, Target Arrows)
+  - Agent Inspector Panel (individual agent state: Carry, Home, Utility)
+  - Overlays Panel (Grid, Agent IDs, Target Arrows, Home Labels)
   - Back to Menu (safe teardown & new session launch)
 
 ### Overlay Toggles
