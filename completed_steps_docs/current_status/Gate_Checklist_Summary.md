@@ -127,7 +127,7 @@ This document consolidates the verification criteria and completion status from 
 - [x] Widget performance: ~60.98 FPS typical, ≥30 floor
 - [x] Documentation updated with factory examples
 
-## Gate Docs Update — Documentation Reconciliation ⚠️ ABANDONED
+## Gate Docs Update — Documentation Reconciliation ⚠️ PARTIAL
 
 **Pending Criteria** (10 items listed but execution incomplete):
 - [ ] README updated with square grid, alternating respawn, metrics UI

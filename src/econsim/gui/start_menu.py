@@ -23,11 +23,6 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QSpinBox,
     QDoubleSpinBox,
-    QCheckBox,
-    QRadioButton,
-    QButtonGroup,
-    QGroupBox,
-
 )
 
 
@@ -43,10 +38,6 @@ class MenuSelection:
     enable_metrics: bool
     preference_type: str
     start_paused: bool
-    respawn_interval: Optional[int]  # None = Off, or 1,2,5,10 steps
-    decision_mode_enabled: bool
-    endowment_pattern: str
-    perception_radius: int
 
 
 class StartMenuPage(QWidget):  # pragma: no cover (GUI)
@@ -54,157 +45,76 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         super().__init__(parent)
         self._on_launch = on_launch
         layout = QVBoxLayout(self)
-        
-        # Title
-        title = QLabel("VMT EconSim (Start Menu)")
-        title.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(title)
-        
-        # Scenario selection
-        scenario_row = QHBoxLayout()
-        scenario_row.addWidget(QLabel("Scenario:"))
+        layout.addWidget(QLabel("Select Scenario"))
+
         self.scenario_box = QComboBox()
-        self.scenario_box.addItems([  # type: ignore[arg-type]
-            "baseline", 
-            "bilateral_exchange", 
-            "money_market"
+        self.scenario_box.addItems([
+            "baseline_decision",
+            "legacy_random",
         ])
-        # For now, only baseline is functional
-        self.scenario_box.setCurrentText("baseline")
-        self.scenario_box.setEnabled(False)  # Disable until other scenarios implemented
-        scenario_row.addWidget(self.scenario_box)
-        scenario_row.addStretch()
-        layout.addLayout(scenario_row)
-        
-        # Preferences section
-        layout.addWidget(QLabel("Preferences (initial agents)"))
-        
-        # Agent count (disabled for baseline as noted in ASCII)
-        count_row = QHBoxLayout()
-        count_row.addWidget(QLabel("  Count:"))
-        self.agents_box = QSpinBox()
-        self.agents_box.setRange(1, 200)
-        self.agents_box.setValue(4)
-        self.agents_box.setEnabled(False)  # Disabled until scenario supports agent input
-        count_row.addWidget(self.agents_box)
-        count_row.addWidget(QLabel("(disabled until scenario supports agent input)"))
-        count_row.addStretch()
-        layout.addLayout(count_row)
-        
-        # Preference type
-        pref_row = QHBoxLayout()
-        pref_row.addWidget(QLabel("  Pref Mix:"))
+        layout.addWidget(self.scenario_box)
+
+        layout.addWidget(QLabel("Preference Type"))
         self.pref_box = QComboBox()
-        self.pref_box.addItems(["Cobb-Douglas", "Perfect Substitutes", "Leontief"])  # type: ignore[arg-type]
-        pref_row.addWidget(self.pref_box)
-        pref_row.addStretch()
-        layout.addLayout(pref_row)
-        
-        # Endowment Pattern (inactive in baseline per ASCII)
-        endow_row = QHBoxLayout()
-        endow_row.addWidget(QLabel("Endowment Pattern:"))
-        self.endowment_box = QComboBox()
-        self.endowment_box.addItems(["uniform", "random", "clustered"])  # type: ignore[arg-type]
-        self.endowment_box.setEnabled(False)  # Inactive in baseline
-        endow_row.addWidget(self.endowment_box)
-        endow_row.addWidget(QLabel("(inactive in baseline)"))
-        endow_row.addStretch()
-        layout.addLayout(endow_row)
-        
-        # Seed controls with Start Paused
-        seed_row = QHBoxLayout()
-        seed_row.addWidget(QLabel("Seed:"))
-        self.seed_edit = QLineEdit(str(1234))
-        seed_row.addWidget(self.seed_edit)
-        rand_btn = QPushButton("Randomize")
-        rand_btn.clicked.connect(self._randomize_seed)  # type: ignore[arg-type]
-        seed_row.addWidget(rand_btn)
-        
-        self.start_paused_cb = QCheckBox("Start Paused")
-        self.start_paused_cb.setChecked(False)
-        seed_row.addWidget(self.start_paused_cb)
-        seed_row.addStretch()
-        layout.addLayout(seed_row)
-        
-        # Respawn Interval
-        respawn_row = QHBoxLayout()
-        respawn_row.addWidget(QLabel("Respawn Interval:"))
-        self.respawn_box = QComboBox()
-        self.respawn_box.addItems(["Off", "1", "2", "5", "10"])  # type: ignore[arg-type]
-        respawn_row.addWidget(self.respawn_box)
-        respawn_row.addStretch()
-        layout.addLayout(respawn_row)
-        
-        # Decision Mode radio buttons
-        decision_row = QHBoxLayout()
-        decision_row.addWidget(QLabel("Decision Mode:"))
-        self.decision_enabled = QRadioButton("Enabled")
-        self.decision_disabled = QRadioButton("Disabled") 
-        self.decision_enabled.setChecked(True)  # Default to enabled
-        self.decision_group = QButtonGroup()
-        self.decision_group.addButton(self.decision_enabled)
-        self.decision_group.addButton(self.decision_disabled)
-        decision_row.addWidget(self.decision_enabled)
-        decision_row.addWidget(self.decision_disabled)
-        decision_row.addStretch()
-        layout.addLayout(decision_row)
-        
-        # Advanced panel (collapsed by default)
-        self.advanced_group = QGroupBox("Advanced")
-        self.advanced_group.setCheckable(True)
-        self.advanced_group.setChecked(False)  # Collapsed by default
-        advanced_layout = QVBoxLayout(self.advanced_group)
-        
-        # Perception Radius
-        perception_row = QHBoxLayout()
-        perception_row.addWidget(QLabel("Perception Radius:"))
-        self.perception_box = QSpinBox()
-        self.perception_box.setRange(1, 20)
-        self.perception_box.setValue(8)
-        perception_row.addWidget(self.perception_box)
-        perception_row.addStretch()
-        advanced_layout.addLayout(perception_row)
-        
-        # Metrics Enabled
-        self.metrics_cb = QCheckBox("Metrics Enabled")
-        self.metrics_cb.setChecked(True)
-        advanced_layout.addWidget(self.metrics_cb)
-        
-        layout.addWidget(self.advanced_group)
-        
-        # Hidden legacy fields for compatibility (grid size, density)
+        self.pref_box.addItems(["cobb_douglas", "perfect_substitutes", "leontief"])
+        layout.addWidget(self.pref_box)
+        # Grid size inputs
+        grid_row = QHBoxLayout()
         self.grid_w = QSpinBox()
         self.grid_w.setRange(4, 128)
         self.grid_w.setValue(12)
-        self.grid_w.hide()
         self.grid_h = QSpinBox()
-        self.grid_h.setRange(4, 128) 
+        self.grid_h.setRange(4, 128)
         self.grid_h.setValue(12)
-        self.grid_h.hide()
+        grid_row.addWidget(QLabel("Grid W"))
+        grid_row.addWidget(self.grid_w)
+        grid_row.addWidget(QLabel("Grid H"))
+        grid_row.addWidget(self.grid_h)
+        layout.addLayout(grid_row)
+
+        # Agent count input
+        agent_row = QHBoxLayout()
+        self.agents_box = QSpinBox()
+        self.agents_box.setRange(1, 200)
+        self.agents_box.setValue(4)
+        agent_row.addWidget(QLabel("Agents"))
+        agent_row.addWidget(self.agents_box)
+        layout.addLayout(agent_row)
+
+        # Density input
+        density_row = QHBoxLayout()
         self.density_box = QDoubleSpinBox()
         self.density_box.setDecimals(3)
         self.density_box.setRange(0.0, 1.0)
         self.density_box.setSingleStep(0.05)
         self.density_box.setValue(0.25)
-        self.density_box.hide()
-        
-        # Launch buttons
-        button_row = QHBoxLayout()
+        density_row.addWidget(QLabel("Density"))
+        density_row.addWidget(self.density_box)
+        layout.addLayout(density_row)
+
+        # Seed controls
+        seed_row = QHBoxLayout()
+        self.seed_edit = QLineEdit(str(1234))
+        rand_btn = QPushButton("Randomize Seed")
+        rand_btn.clicked.connect(self._randomize_seed)  # type: ignore[arg-type]
+        seed_row.addWidget(QLabel("Seed"))
+        seed_row.addWidget(self.seed_edit)
+        seed_row.addWidget(rand_btn)
+        layout.addLayout(seed_row)
+
+        # Start Paused toggle
+        from PyQt6.QtWidgets import QCheckBox  # local import to avoid expanding top imports
+        pause_row = QHBoxLayout()
+        self.start_paused_cb = QCheckBox("Start Paused")
+        self.start_paused_cb.setChecked(False)
+        pause_row.addWidget(self.start_paused_cb)
+        layout.addLayout(pause_row)
+
+        # Launch
         launch_btn = QPushButton("Launch Simulation")
         launch_btn.clicked.connect(self._emit_selection)  # type: ignore[arg-type]
-        button_row.addWidget(launch_btn)
-        
-        quit_btn = QPushButton("Quit")
-        quit_btn.clicked.connect(self._quit_application)  # type: ignore[arg-type]
-        button_row.addWidget(quit_btn)
-        button_row.addStretch()
-        layout.addLayout(button_row)
-        
-        layout.addStretch()
-    def _quit_application(self) -> None:
-        """Handle quit button click."""
-        import sys
-        sys.exit(0)
+        layout.addWidget(launch_btn)
+        layout.addStretch(1)
 
     # --- Handlers -------------------------------------------------------------
     def _randomize_seed(self) -> None:
@@ -231,25 +141,6 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Input Error", str(exc))
             return
-        # Get respawn interval
-        respawn_text = self.respawn_box.currentText()
-        respawn_interval = None if respawn_text == "Off" else int(respawn_text)
-        
-        # Get decision mode
-        decision_mode_enabled = self.decision_enabled.isChecked()
-        
-        # Get advanced settings
-        perception_radius = self.perception_box.value()
-        metrics_enabled = bool(self.metrics_cb.isChecked())
-        
-        # Map preference type back to internal format
-        pref_map = {
-            "Cobb-Douglas": "cobb_douglas",
-            "Perfect Substitutes": "perfect_substitutes",
-            "Leontief": "leontief"
-        }
-        pref_type = pref_map.get(self.pref_box.currentText(), "cobb_douglas")
-        
         selection = MenuSelection(
             scenario=scenario,
             mode=mode,
@@ -258,13 +149,9 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
             agents=agents,
             density=density_val,
             enable_respawn=True,
-            enable_metrics=metrics_enabled,
-            preference_type=pref_type,
+            enable_metrics=True,
+            preference_type=self.pref_box.currentText(),
             start_paused=bool(self.start_paused_cb.isChecked()),
-            respawn_interval=respawn_interval,
-            decision_mode_enabled=decision_mode_enabled,
-            endowment_pattern=self.endowment_box.currentText(),
-            perception_radius=perception_radius,
         )
         self._on_launch(selection)
 

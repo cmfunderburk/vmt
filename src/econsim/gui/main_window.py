@@ -21,8 +21,6 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QMessageBox,
     QVBoxLayout,
-    QHBoxLayout,
-    QGroupBox,
 )
 
 from .start_menu import StartMenuPage, MenuSelection
@@ -31,7 +29,6 @@ from .simulation_controller import SimulationController
 from .panels.controls_panel import ControlsPanel
 from .panels.metrics_panel import MetricsPanel
 from .panels.overlays_panel import OverlaysPanel
-from .panels.status_footer_bar import StatusFooterBar
 from .embedded_pygame import EmbeddedPygameWidget  # reuse existing rendering widget
 
 
@@ -42,7 +39,6 @@ class _SimulationPageBundle:
     pygame_widget: EmbeddedPygameWidget
     controls: ControlsPanel
     metrics: MetricsPanel
-    agent_inspector: QWidget
 
 
 class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tests later)
@@ -88,64 +84,19 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
             QMessageBox.critical(self, "Launch Error", f"Failed to build simulation: {exc}")
             return
 
-        # Build simulation page lazily with horizontal layout per ASCII design
+        # Build simulation page lazily
         sim_container = QWidget()
-        main_layout = QVBoxLayout(sim_container)
-        
-        # Top section: Pygame viewport (left) + Control panels (right)
-        content_layout = QHBoxLayout()
-        
-        # Left side: Pygame viewport (fixed 320x240)
+        layout = QVBoxLayout(sim_container)
+        # Reuse existing widget for rendering; pass simulation + decision mode
         pygame_widget = EmbeddedPygameWidget(
             simulation=controller.simulation,
             decision_mode=(descriptor.mode != "legacy"),
         )
-        pygame_widget.setFixedSize(320, 240)  # Enforce viewport size per ASCII layout
         # Attach back-reference so widget can consult controller pause state / record timestamps
         setattr(pygame_widget, "_controller_ref", controller)
-        
-        # Right side: Control panels in vertical stack
-        panels_layout = QVBoxLayout()
-        
-        # Create panels with group boxes per ASCII layout
-        from .panels.agent_inspector_panel import AgentInspectorPanel
-        
-        # Controls group
-        controls_group = QGroupBox("CONTROLS")
-        controls_layout = QVBoxLayout(controls_group)
         controls = ControlsPanel(on_back=self._request_return_to_menu, controller=controller)
-        controls_layout.addWidget(controls)
-        
-        # Overlays group  
-        overlays_group = QGroupBox("OVERLAYS")
-        overlays_layout = QVBoxLayout(overlays_group)
-        if pygame_widget.overlay_state:
-            overlay_panel = OverlaysPanel(pygame_widget.overlay_state)
-            overlays_layout.addWidget(overlay_panel)
-        
-        # Metrics group
-        metrics_group = QGroupBox("METRICS")
-        metrics_layout = QVBoxLayout(metrics_group)
         metrics = MetricsPanel(controller=controller)
-        metrics_layout.addWidget(metrics)
-        
-        # Agent Inspector group
-        inspector_group = QGroupBox("AGENT INSPECTOR")
-        inspector_layout = QVBoxLayout(inspector_group)
-        agent_inspector = AgentInspectorPanel(controller=controller)
-        inspector_layout.addWidget(agent_inspector)
-        
-        # Add grouped panels to right side
-        panels_layout.addWidget(controls_group)
-        panels_layout.addWidget(overlays_group)
-        panels_layout.addWidget(metrics_group)
-        panels_layout.addWidget(inspector_group)
-        panels_layout.addStretch()  # Push panels to top
-        
-        # Add left and right sides to content layout
-        content_layout.addWidget(pygame_widget)
-        content_layout.addLayout(panels_layout)
-        
+        overlay_panel = OverlaysPanel(pygame_widget.overlay_state) if pygame_widget.overlay_state else None
         # Align controller decision mode with widget decision mode (for manual steps determinism)
         try:
             controller.set_decision_mode(descriptor.mode != "legacy")  # type: ignore[attr-defined]
@@ -156,22 +107,17 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
             controls.configure_for_mode(descriptor.mode)  # type: ignore[attr-defined]
         except Exception:
             pass
-        
-        # Add content and status footer to main layout
-        main_layout.addLayout(content_layout)
-        
-        # Status footer bar per ASCII layout design
-        if pygame_widget.overlay_state:
-            status_footer = StatusFooterBar(controller=controller, overlay_state=pygame_widget.overlay_state)
-            main_layout.addWidget(status_footer)
-        
+        layout.addWidget(pygame_widget)
+        layout.addWidget(controls)
+        layout.addWidget(metrics)
+        if overlay_panel is not None:
+            layout.addWidget(overlay_panel)
         self._session = _SimulationPageBundle(
             container=sim_container,
             controller=controller,
             pygame_widget=pygame_widget,
             controls=controls,
             metrics=metrics,
-            agent_inspector=agent_inspector,
         )
         # Replace placeholder
         self._stack.removeWidget(self._stack.widget(self.SIM_INDEX))
@@ -206,7 +152,7 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
     # --- Close Event ---------------------------------------------------------
     def closeEvent(self, event):  # type: ignore[override]
         self._teardown_session()
-        super().closeEvent(event)  # type: ignore[arg-type]
+        super().closeEvent(event)
 
 
 def should_use_new_gui() -> bool:
