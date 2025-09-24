@@ -6,7 +6,7 @@ This document consolidates the objectives, scope, and deliverables from all comp
 **Goal**: Establish stable embedded rendering widget with measurable performance (≥30 FPS target 60 FPS)
 
 **Key Deliverables**:
-- PyQt6 window with embedded 320x320 Pygame surface 
+- PyQt6 window with embedded 320x240 Pygame surface 
 - Offscreen fallback for headless CI (SDL_VIDEODRIVER=dummy)
 - Performance baseline: `scripts/perf_stub.py` returning ≥30 FPS
 - Clean shutdown sequence: stop timer → pygame.quit() → QApplication.quit()

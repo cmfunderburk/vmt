@@ -95,12 +95,12 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         # Top section: Pygame viewport (left) + Control panels (right)
         content_layout = QHBoxLayout()
         
-        # Left side: Pygame viewport (fixed 320x320)
+        # Left side: Pygame viewport (fixed 320x240)
         pygame_widget = EmbeddedPygameWidget(
             simulation=controller.simulation,
             decision_mode=(descriptor.mode != "legacy"),
         )
-        pygame_widget.setFixedSize(320, 320)  # Enforce viewport size per ASCII layout
+        pygame_widget.setFixedSize(320, 240)  # Enforce viewport size per ASCII layout
         # Attach back-reference so widget can consult controller pause state / record timestamps
         setattr(pygame_widget, "_controller_ref", controller)
         

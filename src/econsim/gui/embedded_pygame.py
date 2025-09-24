@@ -26,7 +26,7 @@ class _SimulationProto(Protocol):  # pragma: no cover - typing helper only
 
 class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested separately)
     FRAME_INTERVAL_MS = 16  # ~60 FPS target
-    SURFACE_SIZE = (320, 320)
+    SURFACE_SIZE = (320, 240)
     _sim_rng: random.Random | None  # lazily-created RNG for simulation
 
     def __init__(

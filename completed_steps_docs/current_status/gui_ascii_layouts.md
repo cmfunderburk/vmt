@@ -6,7 +6,7 @@ Scope: High-level spatial sketches (not pixel‑accurate) of current / planned G
 Legend:
 - `[]` Checkbox  | `( )` Radio / exclusive option | `[#####]` Progress / filled area (illustrative)
 - Uppercase labels = section headers; monospace alignment approximates proportional layout
-- Viewport is fixed 320x320 embedded Pygame surface; surrounding panels are PyQt widgets.
+- Viewport is fixed 320x240 embedded Pygame surface; surrounding panels are PyQt widgets.
 
 ---
 ## 1. Start Menu (Initial Screen)
@@ -19,7 +19,7 @@ Legend:
 |            (Other future: bilateral_exchange, money_market)                     |
 |                                                                                  |
 | Preferences (initial agents)                                                     |
-|   Count:          [   4 ]                                                        |
+|   Count:          [   4 ]   (disabled until scenario supports agents input)      |
 |   Pref Mix:       [ Cobb-Douglas  v ]                                            |
 |                                                                                  |
 | Endowment Pattern: [ uniform         v ] (inactive in baseline)                  |
@@ -31,8 +31,6 @@ Legend:
 |                                                                                  |
 | Advanced (collapsed) ▸                                                          |
 |   When expanded:                                                                |
-|     Grid Size:         [ 12 ] × [ 12 ]                                          |
-|     Resource Density:  [ 0.25 ]                                                 |
 |     Perception Radius: [ 8 ]                                                    |
 |     Metrics Enabled:   [x]                                                      |
 |                                                                                  |
@@ -57,7 +55,7 @@ High-level layout: Viewport left; stacked control / overlay / metrics panels on 
 | VMT EconSim (Simulation)                                                         |
 |----------------------------------------------------------------------------------|
 | +-----------------------------+  +--------------------------------------------+  |
-| | PYGAME VIEWPORT (320x320)  |  | CONTROLS                                    |  |
+| | PYGAME VIEWPORT (320x240)  |  | CONTROLS                                    |  |
 | |                             |  |--------------------------------------------|  |
 | |  [Grid of cells]            |  |  [Pause/Resume]  [Step 1]  [Step 5]        |  |
 | |  Agents: A0 A1 ...          |  |  Turn Rate: [ Unlimited  v ]               |  |

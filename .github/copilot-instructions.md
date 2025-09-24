@@ -1,5 +1,5 @@
 ## VMT Copilot Instructions (High‑Signal, ~50 lines)
-Context: Educational micro‑econ spatial sim. PyQt6 shell embeds ONE fixed 320x320 Pygame Surface. Prime directives: determinism, single QTimer frame loop, O(agents+resources) step, minimal allocations.
+Context: Educational micro‑econ spatial sim. PyQt6 shell embeds ONE fixed 320x240 Pygame Surface. Prime directives: determinism, single QTimer frame loop, O(agents+resources) step, minimal allocations.
 
 Architecture: Dual GUI paths via feature flags. New GUI (`ECONSIM_NEW_GUI=1`) provides start menu + simulation controller stack. Legacy path creates minimal bootstrap window. Both share the core `EmbeddedPygameWidget` rendering pipeline.
 
