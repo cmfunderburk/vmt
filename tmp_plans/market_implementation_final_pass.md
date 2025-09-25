@@ -11,139 +11,123 @@ Purpose: Consolidate outstanding concerns, identify inconsistencies, enumerate r
 
 ## 1. Endowment Distribution
 Conflict: Original text includes “Minimum guarantee” (raise zeros). Decision D-Endow-3 locks allowing zeros.
-Action Needed (R1): Remove guarantee step; replace with explicit “zeros permitted; no redistribution after apportionment.”
+Resolved (R1 Adopted): Remove guarantee step; explicit: zeros permitted; no redistribution after apportionment.
 RNG Fallback: Original mentions RNG for fractional ties; D-Endow-2 removed RNG.
-Action Needed (R2): Delete RNG fallback references; clarify ordering only (-fractional_part, group priority).
+Resolved (R2 Adopted): Delete RNG fallback references; clarify ordering only (-fractional_part, group priority).
 
 Home vs Carry: Immediate withdrawal leaves home=0 post-step0 yet later prose implies potential home inventory nuance.
-Action Needed (R3): Clarify sales/utility-loss logic references carrying only (home=0 early phase).
+Resolved (R3 Adopted): Clarify sales/utility-loss logic references carrying only (home=0 early phase).
 
 ---
 
 ## 2. Market (Legacy Ratio) vs Money Mode
 Earlier “Market Exchange” (barter ratio) decisions (D-Market-5/6) superseded by Money Mode M1–M12.
-Action Needed (R4): Mark barter section DEPRECATED (historical only); canonical path = Money Mode (numeraire).
-Close D-Market-5/6 referencing supersession by M6–M12.
+Resolved (R4 Adopted): Barter section marked DEPRECATED (historical only); canonical path = Money Mode (numeraire). Close D-Market-5/6 referencing supersession by M6–M12.
 
 ---
 
 ## 3. Money Distribution Consistency
 M3: uniform initial_agent_money=5.
 M4: pattern-based (reuse endowment weights; total = n*5).
-Need Choice (R5): Keep pattern-based (document scaling rule) OR revert to uniform.
+Decision (R5 Pattern Chosen): Adopt pattern-based distribution (teaching inequality); document scaling rule and determinism ordering.
 
 ---
 
 ## 4. Price History Ambiguity
 M8 accepted “history=yes” (store price history). M10 (Option 2) only logs current prices (no history).
-Need Choice (R6):
-A) Adjust M8 → history=no (simplify).
-B) Implement price_history list inside economy (memory O(steps)).
+Decision (R6 Store List): Implement price_history list inside economy (memory O(steps)); will add gating note if memory becomes concern.
 
 ---
 
 ## 5. Snapshot Schema Alignment
 M9: Single appended `economy` dict; earlier docs still list discrete marketplace fields (ratio mode).
-Action Needed (R5 already used; continue numbering): (R7) Replace old snapshot additions with: append `economy` dict (mode, kappa, anchor_good, price_scale, prices, market_money, agent_money, blocked_sales). Note barter fields omitted intentionally.
-Bilateral bitmask ordering: Plan to append `bilateral_traded_with` (if bilateral mode) BEFORE `economy`.
-Need Confirmation (R7): Order = existing legacy fields → (if bilateral) bilateral_traded_with → (if money) economy.
+Resolved (R7 Confirmed): Replace old snapshot additions with: append `economy` dict (mode, kappa, anchor_good, price_scale, prices, price_history, market_money, agent_money, blocked_sales). Barter fields omitted intentionally. Ordering: existing legacy fields → (if bilateral) bilateral_traded_with bitmask (planned, gated) → (if money) economy.
 
 ---
 
 ## 6. Utility Aggregation Wording
-Need unified statement: “When uses_total_inventory flag true (bilateral, money), utility uses home+carrying; baseline uses carrying unless deposit changes home.”
-Action Needed (R8): Replace fragmented descriptions with single invariant.
+Unified Statement (R8 Adopted): When uses_total_inventory flag true (bilateral, money), utility aggregates home+carrying; baseline mode uses carrying only unless a deposit action (future) mutates home. Home remains zero post-initial withdrawal in current phases, so bilateral execution draws exclusively from carrying.
 
 ---
 
 ## 7. Performance Exception Declaration
-M12 introduces O(n log n) (sorting by utility-loss) while D-Perf-1=B disallows uncontrolled O(n^2) but silent on sorts.
-Action Needed (R9): Explicitly list allowed O(n log n): “Money-mode sale ordering (M12).”
+Performance (R9 Adopted): Explicitly allowed O(n log n) step: Money-mode sale ordering (M12). All other new features must remain O(agents+resources) unless separately gated.
 
 ---
 
 ## 8. Utility-Loss Ordering Scale
-M12: Must freeze scaling constant for converting float loss to int for deterministic sort.
-Action Needed (R10): Define LOSS_SCALE = 1_000_000_000; document changing it is hash-impacting.
+Loss Scaling (R10 Adopted): Define LOSS_SCALE = 1_000_000_000 for deterministic integer sorting of utility-loss. Changing value is hash-impacting and requires determinism gate review.
 
 ---
 
 ## 9. Marginal Utility / Loss Helpers
-Decision: pure function + agent wrapper (D-Util-3).
-Action Needed (R11): Assign path `simulation/util_math.py` with:
+Utility Math (R11 Adopted): Path reserved `simulation/util_math.py` (future implementation). Will contain:
 - marginal_utility(...)
 - utility_loss_if_remove(...)
+NOTE: Avoid duplication with existing `preferences/helpers.py`; centralization occurs when money mode implementation begins.
 
 ---
 
 ## 10. Metrics Invariants
-Need explicit invariants to aid regression:
-- price_g1 == price_scale (anchor).
-- total_agent_money + market_money constant each step.
-- M segment absent if mode != money.
-Action Needed (R12): Add these invariants.
+Metrics / Invariants (R12 Adopted):
+- Anchor price invariant: price[anchor_good] == price_scale each step.
+- Conservation: sum(agent_money) + market_money constant (initial endowment total).
+- Conditional segment: economy dict only present when mode == money.
+Future tests: test_price_anchor_invariant, test_money_conservation.
 
 ---
 
 ## 11. Sale Candidate Preconditions
-Clarify: Only goods with quantity >0 create sale candidate (prevents spurious blocked counts).
-Action Needed (R13): Document explicitly.
+Sale Candidate Precondition (R13 Adopted): Only goods with quantity >0 create sale candidate; zero-quantity goods skipped, preventing artificial blocked counts.
 
 ---
 
 ## 12. Spatial Marketplace Requirement
-Original barter design referenced 2x2 central area; Money Mode decisions ignore spatial constraint.
-Need Choice (R14):
-A) Drop spatial requirement (trade anywhere).
-B) Retain 2x2 presence requirement (adds movement gating).
+Spatial Requirement (R14 Keep): Retain 2x2 central marketplace presence requirement for money-mode trades (movement gating preserved). Rationale: pedagogical emphasis on congestion & spatial friction. Document deterministic identification of central area. (Future flag could relax.)
 
 ---
 
 ## 13. Additional Test Coverage
-Pending additions if not already listed:
+Planned Test Additions (R15 Adopted):
 - test_money_conservation
 - test_sale_ordering_utility_loss
 - test_price_anchor_invariant
-- test_money_distribution_pattern (only if pattern-based retained)
-Action Needed (R15): Confirm inclusion.
+- test_money_distribution_pattern (pattern-based distribution confirmed)
+All to be added prior to enabling money mode execution gate.
 
 ---
 
 ## 14. Base Mode Naming Consistency
-Docs alternate “baseline” vs “basic.”
-Need Choice (R16): Select canonical label (recommend “baseline” for existing references) and update all mentions.
+Naming Consistency (R16 Adopted): Canonical label: “baseline mode” (replace any “basic”).
 
 ---
 
 ## 15. GUI Display Labels
-Need final user-facing names:
-- Bilateral Exchange
-- Money Market Exchange (suggested)
-Action Needed (R17): Confirm or adjust labels.
+GUI Labels (R17 Adopted): “Bilateral Exchange” and “Money Market Exchange” as user-facing mode names.
 
 ---
 
 ## Summary Decision Table
 
-| Ref | Topic | Pending Decision |
-|-----|-------|------------------|
-| R1 | Remove min guarantee step | Yes/No |
-| R2 | Remove RNG tie fallback text | Yes/No |
-| R3 | Clarify home=0 post-withdrawal sale logic | Yes/No |
-| R4 | Deprecate barter market section | Yes/No |
-| R5 | Money distribution approach | Pattern / Uniform |
-| R6 | Price history storage | A=no history / B=store |
-| R7 | Snapshot append ordering final | Confirm/Adjust |
-| R8 | Unified utility aggregation statement | Yes/No |
-| R9 | Declare O(n log n) exception (M12) | Yes/No |
-| R10 | LOSS_SCALE constant inclusion | Yes/No (value?) |
-| R11 | Helper file path util_math.py | Confirm/Adjust |
-| R12 | Metrics invariants doc | Yes/No |
-| R13 | Candidate requires qty>0 doc | Yes/No |
-| R14 | Spatial marketplace requirement | Drop / Keep |
-| R15 | Add test cases list | Yes/No |
-| R16 | Canonical base mode label | baseline / basic |
-| R17 | GUI labels | Confirm/Adjust |
+| Ref | Topic | Resolution |
+|-----|-------|-----------|
+| R1 | Remove min guarantee step | Adopted |
+| R2 | Remove RNG tie fallback text | Adopted |
+| R3 | Clarify home=0 carrying-only | Adopted |
+| R4 | Deprecate barter section | Adopted |
+| R5 | Money distribution pattern | Adopted (Pattern) |
+| R6 | Store price history list | Adopted (Store) |
+| R7 | Snapshot ordering | Confirmed |
+| R8 | Unified utility aggregation | Adopted |
+| R9 | O(n log n) exception | Adopted |
+| R10 | LOSS_SCALE constant | Adopted (1e9) |
+| R11 | util_math.py path | Adopted |
+| R12 | Metrics invariants | Adopted |
+| R13 | Qty>0 candidate rule | Adopted |
+| R14 | Keep spatial 2x2 | Adopted |
+| R15 | Planned tests list | Adopted |
+| R16 | Label “baseline” | Adopted |
+| R17 | GUI labels set | Adopted |
 
 ---
 

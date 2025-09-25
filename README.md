@@ -74,6 +74,7 @@ Legacy manual wiring is supported but deprecated.
 
 ## 5. Known Gaps / Explicit Limitations
 1. Trading, production, consumption, and economic metrics (e.g., inequality) not implemented.
+	- Planned invariant (pre-implementation): only items currently being carried will ever be eligible for bilateral exchange; home (banked) inventory is non-circulating during trade resolution.
 2. Advanced overlays (utility contours, analytics) not implemented.
 3. Multi-scenario educational progression system not yet built.
 

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, List, Tuple, Dict
 import random as _random
 
 try:  # Local import guard (optional config not always present yet)
@@ -36,6 +36,8 @@ from .agent import Agent
 from .grid import Grid
 from .respawn import RespawnScheduler  # type: ignore
 from .metrics import MetricsCollector  # type: ignore
+from .trade import enumerate_intents_for_cell, TradeIntent, execute_single_intent  # type: ignore
+import os
 
 
 @dataclass(slots=True)
@@ -48,6 +50,9 @@ class Simulation:
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
     _respawn_interval: int | None = 1       # New: how frequently to invoke respawn (1 => every step, None/<=0 => disabled)
+    # Draft trade intents (Phase 2 feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
+    # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
+    trade_intents: list[TradeIntent] | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover (simple init)
         if self.config is not None and self._rng is None:
@@ -72,6 +77,33 @@ class Simulation:
                 agent.move_random(self.grid, rng)
             for agent in self.agents:
                 agent.collect(self.grid)
+        # Draft trade intent enumeration (feature flag; no state mutation)
+        draft_enabled = os.environ.get("ECONSIM_TRADE_DRAFT") == "1"
+        exec_enabled = os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+        if draft_enabled or exec_enabled:  # exec implies enumeration path
+            intents: List[TradeIntent] = []
+            # Build co-location index (O(n))
+            cell_map: Dict[Tuple[int, int], List[Agent]] = {}
+            for a in self.agents:
+                cell_map.setdefault((a.x, a.y), []).append(a)
+            for coloc_agents in cell_map.values():
+                if len(coloc_agents) > 1:
+                    intents.extend(enumerate_intents_for_cell(coloc_agents))
+            self.trade_intents = intents
+            executed: TradeIntent | None = None
+            if exec_enabled and intents:
+                # Build id map once
+                agents_by_id: Dict[int, Agent] = {a.id: a for a in self.agents}
+                executed = execute_single_intent(intents, agents_by_id)
+            if self.metrics_collector is not None:
+                try:
+                    self.metrics_collector.trade_intents_generated += len(intents)  # type: ignore[attr-defined]
+                    if exec_enabled and executed is not None:
+                        self.metrics_collector.trades_executed += 1  # type: ignore[attr-defined]
+                except Exception:  # pragma: no cover
+                    pass
+        else:
+            self.trade_intents = None
     # Respawn hook (inert if scheduler not attached)
         if self.respawn_scheduler is not None and self._rng is not None:
             # Only invoke respawn when interval condition satisfied.

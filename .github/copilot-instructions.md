@@ -1,5 +1,5 @@
 ## VMT Copilot Instructions (High‑Signal, ~50 lines)
-Context: Educational micro‑econ spatial sim. PyQt6 shell embeds ONE fixed 320x320 Pygame Surface. Prime directives: determinism, single QTimer frame loop, O(agents+resources) step, minimal allocations.
+Context: Educational micro‑econ spatial sim. PyQt6 shell embeds ONE configurable Pygame Surface (320×320 to 800×800). Prime directives: determinism, single QTimer frame loop, O(agents+resources) step, minimal allocations.
 
 Architecture: Dual GUI paths via feature flags. New GUI (`ECONSIM_NEW_GUI=1`) provides start menu + simulation controller stack. Legacy path creates minimal bootstrap window. Both share the core `EmbeddedPygameWidget` rendering pipeline.
 
@@ -40,11 +40,14 @@ State / Serialization:
 Complexity Discipline:
 - Per-step O(agents+resources). No all-pairs scans, pathfinding, or heuristic planning without feature flag + perf test.
 
+Planned Trading Invariant (document early to prevent drift):
+- Future bilateral exchange (feature-flagged) may only transfer units an agent is currently carrying; home inventory is immutable during trade resolution (acts as banked wealth, non-circulating). Any trade implementation violating this must be rejected. Update metrics hash only when trade feature graduates a gate.
+
 Allowed Fast Path: new preference type, deterministic overlay (O(n)), append metrics field (with tests), respawn/overlay parameter plumbing, minor doc sync. Forbidden: threads, extra timers, silent tie-break edits, constant changes, mutable preference state, unordered iteration, hidden RNG.
 
 Teardown Order: `closeEvent` → stop timer → `pygame.quit()` → `super().closeEvent(event)`; mirror for new subsystems.
 
-Workflow Commands: install `pip install -e .[dev]`; run GUI `make dev`; tests `make test`; lint `make lint`; types `make type`; perf `make perf`; legacy random walk `ECONSIM_LEGACY_RANDOM=1 make dev`; FPS debug `ECONSIM_DEBUG_FPS=1 make dev`.
+Workflow Commands: install `pip install -e .[dev]`; run GUI `make dev`; tests `make test`; lint `make lint`; types `make type`; perf `make perf`; legacy random walk `ECONSIM_LEGACY_RANDOM=1 make dev`; FPS debug `ECONSIM_DEBUG_FPS=1 make dev`; legacy bootstrap GUI `ECONSIM_NEW_GUI=0 make dev`.
 
 Gate Workflow (Before Push): Create `Gate_N_todos.md` + `GATE_N_CHECKLIST.md` → stakeholder agreement → execute steps → `GATE_N_EVAL.md` retrospective (criteria→evidence, perf/debt/risks) → only then commit. No silent scope creep.
 

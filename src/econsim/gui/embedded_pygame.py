@@ -332,6 +332,12 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                         ex = tx * cell_w + cell_w // 2
                                         ey = ty * cell_h + cell_h // 2
                                         pygame.draw.line(self._surface, (255, 255, 0), (sx, sy), (ex, ey), 1)
+                        # Trade draft debug overlay (flag gated) rendered after other overlays for readability
+                        try:
+                            from ._trade_debug_overlay import render_trade_debug  # local import to keep optional
+                            render_trade_debug(self._surface, font, sim, x_offset=4, y_offset=4)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
 

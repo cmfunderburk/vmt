@@ -268,5 +268,16 @@ class Agent:
     def pos(self) -> Position:
         return (self.x, self.y)
 
+    # Aggregated inventory (carrying + home) without mutation (future trade / analytics helper)
+    def total_inventory(self) -> dict[str, int]:
+        if not self.carrying and not self.home_inventory:
+            return {}
+        # Copy home first, then overlay carrying counts
+        combined: dict[str, int] = dict(self.home_inventory)
+        for k, v in self.carrying.items():
+            if v:
+                combined[k] = combined.get(k, 0) + v
+        return combined
+
 
 __all__ = ["Agent", "Position", "AgentMode"]
