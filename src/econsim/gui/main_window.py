@@ -183,12 +183,7 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
             controller.set_decision_mode(decision_enabled)  # type: ignore[attr-defined]
         except Exception:
             pass
-        # Apply bilateral exchange checkbox (if present on menu page)
-        try:
-            bilateral_enabled = bool(getattr(self._menu_page, 'bilateral_cb').isChecked())  # type: ignore[attr-defined]
-            controller.set_bilateral_enabled(bilateral_enabled)  # type: ignore[attr-defined]
-        except Exception:
-            pass
+        # Bilateral exchange is now controlled via the simulation controls panel, not start menu
         # Configure initial playback pacing per mode (turn vs continuous/legacy)
         try:
             controls.configure_for_mode(descriptor.mode)  # type: ignore[attr-defined]

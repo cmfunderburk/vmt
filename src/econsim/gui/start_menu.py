@@ -68,14 +68,13 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         self.scenario_box = QComboBox()
         self.scenario_box.addItems([  # type: ignore[arg-type]
             "baseline", 
-            "bilateral_exchange", 
             "money_market"
         ])
         # For now, only baseline is functional
         self.scenario_box.setCurrentText("baseline")
         # Disable non-implemented scenarios with tooltip guidance
         model = self.scenario_box.model()
-        for name in ("bilateral_exchange", "money_market"):
+        for name in ("money_market",):
             idx = self.scenario_box.findText(name)
             if idx >= 0:
                 item = model.item(idx)
@@ -207,17 +206,16 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         decision_row.addStretch()
         layout.addLayout(decision_row)
         
-        # Advanced panel (now only contains experimental features)
+        # Advanced panel (currently empty - bilateral exchange now controlled in simulation)
         self.advanced_group = QGroupBox("Advanced")
         self.advanced_group.setCheckable(True)
         self.advanced_group.setChecked(False)  # Collapsed by default
         advanced_layout = QVBoxLayout(self.advanced_group)
         
-        # Bilateral Exchange (Experimental) master toggle (Phase 2)
-        self.bilateral_cb = QCheckBox("Bilateral Exchange (Experimental)")
-        self.bilateral_cb.setChecked(False)
-        self.bilateral_cb.setToolTip("Enable draft intent enumeration, single execution per tick, and GUI trade info overlay.")
-        advanced_layout.addWidget(self.bilateral_cb)
+        # Note: Bilateral Exchange controls moved to simulation controls panel
+        note_label = QLabel("Advanced features are controlled in the simulation controls panel.")
+        note_label.setStyleSheet("color: #666; font-style: italic;")
+        advanced_layout.addWidget(note_label)
         
         layout.addWidget(self.advanced_group)
         

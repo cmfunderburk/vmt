@@ -43,24 +43,16 @@ class SimulationController:
             self._respawn_interval_cache = simulation._respawn_interval  # type: ignore[attr-defined]
         except Exception:
             self._respawn_interval_cache = 20  # Default to every 20 turns
-        # Bilateral exchange GUI master toggle (Phase 2). Default off.
-        self._bilateral_enabled: bool = False
-        # Granular trade gating (draft vs execution) exposed to GUI. Execution implies draft.
-        self._trade_draft_enabled: bool = False
-        self._trade_exec_enabled: bool = False
-        # Debug overlay flag (user-facing; maps to env for existing overlay code path)
-        self._trade_debug_enabled: bool = False
-        # Foraging enable (new gating; default on). Mirrors env flag ECONSIM_FORAGE_ENABLED.
-        self._forage_enabled: bool = True
+        # Simplified behavior controls (replaces complex 4-checkbox system)
+        self._forage_enabled: bool = True  # Default: foraging enabled
+        self._bilateral_enabled: bool = False  # Default: no trading
 
     # --- Bilateral Exchange Feature Flag (GUI-scope; does not auto-set env) -----
     def set_bilateral_enabled(self, enabled: bool) -> None:
-        """Enable/disable bilateral exchange (enumeration + execution + GUI info).
-
-        For initial implementation, we map this to the existing environment flag
-        expectations used inside Simulation.step. To avoid mid-test/global leakage,
-        we set os.environ keys on transition only. Future refactor could plumb
-        flags directly into Simulation.step call path instead of env usage.
+        """Enable/disable bilateral exchange (simplified from 4-checkbox system).
+        
+        When enabled: sets ECONSIM_TRADE_DRAFT=1, ECONSIM_TRADE_EXEC=1, ECONSIM_TRADE_GUI_INFO=1
+        When disabled: removes all trade environment flags
         """
         import os
         want = bool(enabled)
@@ -71,99 +63,16 @@ class SimulationController:
             os.environ["ECONSIM_TRADE_DRAFT"] = "1"
             os.environ["ECONSIM_TRADE_EXEC"] = "1"
             os.environ["ECONSIM_TRADE_GUI_INFO"] = "1"
-            self._trade_draft_enabled = True
-            self._trade_exec_enabled = True
         else:
-            # Remove flags (gracefully) so subsequent steps skip enumeration
+            # Remove flags so subsequent steps skip trading entirely
             for k in ("ECONSIM_TRADE_DRAFT", "ECONSIM_TRADE_EXEC", "ECONSIM_TRADE_GUI_INFO"):
                 if k in os.environ:
                     del os.environ[k]
-            self._trade_draft_enabled = False
-            self._trade_exec_enabled = False
 
     def bilateral_enabled(self) -> bool:
         return self._bilateral_enabled
 
-    # --- Granular Trade Toggles --------------------------------------------
-    def set_trade_draft_enabled(self, enabled: bool) -> None:
-        """Enable/disable only draft enumeration.
-
-        If execution currently enabled and draft is being disabled, execution is also disabled
-        (execution logically depends on draft intents). Does NOT flip the user-facing bilateral
-        master toggle automatically (they can be decoupled for advanced exploration).
-        """
-        import os
-        want = bool(enabled)
-        if want == self._trade_draft_enabled:
-            return
-        self._trade_draft_enabled = want
-        if want:
-            os.environ["ECONSIM_TRADE_DRAFT"] = "1"
-            # Keep bilateral master coherent if both granular toggles active
-            if self._trade_exec_enabled:
-                os.environ["ECONSIM_TRADE_EXEC"] = "1"
-            self._bilateral_enabled = self._trade_exec_enabled and True
-        else:
-            # Turning off draft disables execution too
-            if "ECONSIM_TRADE_DRAFT" in os.environ:
-                del os.environ["ECONSIM_TRADE_DRAFT"]
-            if self._trade_exec_enabled:
-                self.set_trade_exec_enabled(False)
-            self._bilateral_enabled = False
-
-    def trade_draft_enabled(self) -> bool:
-        return self._trade_draft_enabled
-
-    def set_trade_exec_enabled(self, enabled: bool) -> None:
-        """Enable/disable execution (implies draft).
-
-        Enabling execution auto-enables draft. Disabling execution leaves draft state untouched.
-        """
-        import os
-        want = bool(enabled)
-        if want == self._trade_exec_enabled:
-            return
-        self._trade_exec_enabled = want
-        if want:
-            # Ensure draft on first
-            if not self._trade_draft_enabled:
-                self.set_trade_draft_enabled(True)
-            os.environ["ECONSIM_TRADE_EXEC"] = "1"
-            os.environ["ECONSIM_TRADE_GUI_INFO"] = "1"  # enable summary line
-            self._bilateral_enabled = True
-        else:
-            if "ECONSIM_TRADE_EXEC" in os.environ:
-                del os.environ["ECONSIM_TRADE_EXEC"]
-            # GUI info summary depends on execution; remove but leave draft intact
-            if "ECONSIM_TRADE_GUI_INFO" in os.environ:
-                del os.environ["ECONSIM_TRADE_GUI_INFO"]
-            self._bilateral_enabled = self._trade_draft_enabled and False
-
-    def trade_exec_enabled(self) -> bool:
-        return self._trade_exec_enabled
-
-    # --- Trade Debug Overlay Toggle ----------------------------------------
-    def set_trade_debug_enabled(self, enabled: bool) -> None:
-        import os
-        want = bool(enabled)
-        if want == self._trade_debug_enabled:
-            return
-        self._trade_debug_enabled = want
-        if want:
-            # Reuse existing draft flag requirement. Do not force execution.
-            if not self._trade_draft_enabled:
-                self.set_trade_draft_enabled(True)
-            os.environ["ECONSIM_TRADE_DRAFT"] = "1"
-            os.environ["ECONSIM_TRADE_DEBUG_OVERLAY"] = "1"
-        else:
-            # Intentionally do not remove ECONSIM_TRADE_DRAFT; user might rely on draft without debug
-            if "ECONSIM_TRADE_DEBUG_OVERLAY" in os.environ:
-                del os.environ["ECONSIM_TRADE_DEBUG_OVERLAY"]
-
-    def trade_debug_enabled(self) -> bool:
-        return self._trade_debug_enabled
-
-    # --- Foraging Gating ---------------------------------------------------
+    # --- Foraging Controls (Simplified Behavior System) -------------------
     def set_forage_enabled(self, enabled: bool) -> None:
         import os
         want = bool(enabled)
@@ -425,8 +334,8 @@ class SimulationController:
 
     # --- Trade Inspector Support Methods -----------------------------------
     def trade_execution_enabled(self) -> bool:
-        """Check if trade execution is enabled (alias for consistency)."""
-        return self.trade_exec_enabled()
+        """Check if trade execution is enabled (simplified from granular controls)."""
+        return self.bilateral_enabled()
     
     def active_intents_count(self) -> int:
         """Get count of active trade intents."""
