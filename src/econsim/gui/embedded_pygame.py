@@ -350,6 +350,9 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                         pygame.draw.rect(self._surface, agent_color, rect)
                         # Outline for visibility
                         pygame.draw.rect(self._surface, (20, 20, 20), rect, 1)
+                
+                # Highlight selected agent with light green border
+                self._draw_selected_agent_highlight(sorted_agents, cell_w, cell_h)
                 # Draw home labels (H{id}) only if overlay_state.show_home_labels True.
                 try:
                     if overlay_state is not None and getattr(overlay_state, "show_home_labels", False):
@@ -544,6 +547,52 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         except Exception:
             pass
         super().closeEvent(event)  # type: ignore[arg-type]
+
+    def _draw_selected_agent_highlight(self, sorted_agents: list, cell_w: int, cell_h: int) -> None:
+        """Draw a light green border around the currently selected agent's cell."""
+        try:
+            # Get the selected agent ID from the agent inspector panel
+            agent_inspector = getattr(self, "agent_inspector", None)
+            if agent_inspector is None:
+                return
+            
+            selected_agent_id = agent_inspector.get_selected_agent_id()
+            if selected_agent_id is None:
+                return
+            
+            # Find the selected agent in the sorted agents list
+            selected_agent = None
+            for agent in sorted_agents:
+                if getattr(agent, "id", None) == selected_agent_id:
+                    selected_agent = agent
+                    break
+            
+            if selected_agent is None:
+                return
+            
+            # Get agent position
+            ax = getattr(selected_agent, "x", 0)
+            ay = getattr(selected_agent, "y", 0)
+            
+            # Draw light green border around the cell (3 pixels wide for visibility)
+            light_green = (144, 238, 144)  # Light green color
+            border_width = 3
+            
+            cell_rect = pygame.Rect(ax * cell_w, ay * cell_h, cell_w, cell_h)
+            
+            # Draw border by drawing unfilled rectangles with different thicknesses
+            for i in range(border_width):
+                border_rect = pygame.Rect(
+                    cell_rect.x - i, 
+                    cell_rect.y - i, 
+                    cell_rect.width + 2*i, 
+                    cell_rect.height + 2*i
+                )
+                pygame.draw.rect(self._surface, light_green, border_rect, 1)
+            
+        except Exception:
+            # Defensive: highlighting is non-critical, don't break rendering if it fails
+            pass
 
     # --- Testing Helpers (non-public) ------------------------------
     def get_surface_bytes(self) -> bytes:

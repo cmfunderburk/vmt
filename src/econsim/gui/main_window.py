@@ -162,6 +162,9 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         agent_inspector = AgentInspectorPanel(controller=controller)
         inspector_layout.addWidget(agent_inspector)
         
+        # Connect agent inspector to pygame widget for visual highlighting
+        pygame_widget.agent_inspector = agent_inspector  # type: ignore[attr-defined]
+        
         # Add grouped panels to right side
         panels_layout.addWidget(controls_group)
         panels_layout.addWidget(overlays_group)

@@ -71,6 +71,10 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
     def _on_agent_changed(self) -> None:
         """Handle agent selection change."""
         self._update_display()
+
+    def get_selected_agent_id(self) -> int | None:
+        """Get the currently selected agent ID, or None if no agent selected."""
+        return self._agent_box.currentData()
     
     def _update_display(self) -> None:
         """Update the agent details display."""
