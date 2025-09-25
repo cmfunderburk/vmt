@@ -53,6 +53,8 @@ class Simulation:
     # Draft trade intents (Phase 2 feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
     trade_intents: list[TradeIntent] | None = None
+    # Last executed trade cell highlight bookkeeping (GUI render hint; purely observational)
+    _last_trade_highlight: tuple[int,int,int] | None = None  # (x,y,expire_step)
 
     def __post_init__(self) -> None:  # pragma: no cover (simple init)
         if self.config is not None and self._rng is None:
@@ -69,10 +71,34 @@ class Simulation:
         Internal `_rng` powers respawn / metrics hooks (if present) and remains distinct to keep
         external API stable for existing test scaffolds.
         """
-        if use_decision:
+        forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
+        hash_neutral = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"  # default early to avoid unbound
+        parity_restore_snapshot: list[tuple[int, dict[str,int]]] | None = None
+        # Track which agents foraged (collected) this tick for trade gating when both systems on
+        foraged_ids: set[int] = set()
+        if use_decision and forage_enabled:
             for agent in self.agents:
-                agent.step_decision(self.grid)
-        else:  # legacy randomness path
+                try:
+                    collected = agent.step_decision(self.grid)  # type: ignore[assignment]
+                except TypeError:
+                    # Older signature fallback (if any test constructs legacy Agent w/out updated method)
+                    agent.step_decision(self.grid)  # type: ignore[misc]
+                    collected = False
+                if collected:
+                    foraged_ids.add(agent.id)
+        elif use_decision and not forage_enabled:
+            # Decision mode but foraging disabled: optional behaviors depend on exchange flags.
+            # If exchange also disabled, deterministically return home then idle.
+            exchange_any = os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+            if not exchange_any:
+                # Foraging disabled and no exchange features: remain idle (no carrying mutation).
+                for agent in self.agents:
+                    agent.mode = agent.mode.IDLE  # type: ignore[assignment]
+                    agent.target = None
+            else:
+                # Exchange only: freeze position (no movement/collection) to allow observation of trade intents.
+                pass
+        else:  # legacy randomness path (foraging always implicit here if enabled)
             for agent in self.agents:
                 agent.move_random(self.grid, rng)
             for agent in self.agents:
@@ -88,13 +114,52 @@ class Simulation:
                 cell_map.setdefault((a.x, a.y), []).append(a)
             for coloc_agents in cell_map.values():
                 if len(coloc_agents) > 1:
-                    intents.extend(enumerate_intents_for_cell(coloc_agents))
+                    # If both forage and exchange enabled, restrict trade consideration to agents
+                    # that did NOT actively forage (collected) this tick, honoring "forage first then trade".
+                    if use_decision and forage_enabled and len(foraged_ids) > 0:
+                        filtered = [ag for ag in coloc_agents if ag.id not in foraged_ids]
+                        if len(filtered) > 1:
+                            intents.extend(enumerate_intents_for_cell(filtered))
+                    else:
+                        intents.extend(enumerate_intents_for_cell(coloc_agents))
             self.trade_intents = intents
             executed: TradeIntent | None = None
             if exec_enabled and intents:
+                # Optional hash parity mode: if ECONSIM_TRADE_HASH_NEUTRAL=1 we restore inventories after metrics.
+                if hash_neutral:
+                    parity_restore_snapshot = [(a.id, dict(a.carrying)) for a in self.agents]
                 # Build id map once
                 agents_by_id: Dict[int, Agent] = {a.id: a for a in self.agents}
                 executed = execute_single_intent(intents, agents_by_id)
+                # Capture highlight immediately if executed; metrics hook will not need agents_by_id
+                if executed is not None:
+                    try:
+                        seller_agent = agents_by_id.get(executed.seller_id)
+                        if seller_agent is not None:
+                            self._last_trade_highlight = (
+                                int(getattr(seller_agent, 'x', 0)),
+                                int(getattr(seller_agent, 'y', 0)),
+                                self._steps + 12,
+                            )
+                    except Exception:
+                        pass
+                # Parity debug (hash redesign deferred). Enable only when explicitly requested.
+                if os.environ.get("ECONSIM_DEBUG_TRADE_PARITY") == "1":  # pragma: no cover - debug aid
+                    try:
+                        import json as _json
+                        snap = [  # type: ignore[var-annotated]
+                            {
+                                "id": a.id,
+                                "x": a.x,
+                                "y": a.y,
+                                "c": dict(a.carrying),
+                                "h": dict(a.home_inventory),
+                            }
+                            for a in sorted(self.agents, key=lambda ag: ag.id)
+                        ]
+                        print("[PARITY_EXEC_SNAP]" + _json.dumps(snap))
+                    except Exception:
+                        pass
             if self.metrics_collector is not None:
                 try:
                     mc = self.metrics_collector  # type: ignore[attr-defined]
@@ -128,7 +193,7 @@ class Simulation:
                     pass
         else:
             self.trade_intents = None
-    # Respawn hook (inert if scheduler not attached)
+        # Respawn hook (inert if scheduler not attached)
         if self.respawn_scheduler is not None and self._rng is not None:
             # Only invoke respawn when interval condition satisfied.
             if self._respawn_interval and self._respawn_interval > 0:
@@ -140,10 +205,40 @@ class Simulation:
         # Metrics hook (placeholder logic handled inside collector)
         if self.metrics_collector is not None:
             try:
+                if os.environ.get("ECONSIM_DEBUG_TRADE_PARITY") == "1":  # pragma: no cover - debug aid
+                    try:
+                        import json as _json
+                        snap = [  # type: ignore[var-annotated]
+                            {
+                                "id": a.id,
+                                "x": a.x,
+                                "y": a.y,
+                                "c": dict(a.carrying),
+                                "h": dict(a.home_inventory),
+                            }
+                            for a in sorted(self.agents, key=lambda ag: ag.id)
+                        ]
+                        print("[PARITY_HASH_SNAP]" + _json.dumps(snap))
+                    except Exception:
+                        pass
                 self.metrics_collector.record(self._steps, self)
             except Exception as exc:  # pragma: no cover - defensive
                 logging.getLogger(__name__).warning("Metrics record error: %s", exc)
+        # Restore inventories post-hash if hash-neutral parity mode active
+        if hash_neutral and parity_restore_snapshot is not None:
+            id_map = {a.id: a for a in self.agents}
+            for aid, carry in parity_restore_snapshot:
+                a = id_map.get(aid)
+                if a is not None:
+                    a.carrying.clear()
+                    a.carrying.update(carry)
         self._steps += 1
+        # Expire highlight if past its lifetime
+        if self._last_trade_highlight is not None:
+            # Only need expiry for maintenance; coordinates consumed by renderer.
+            _, _, expire = self._last_trade_highlight
+            if self._steps >= expire:
+                self._last_trade_highlight = None
 
     @property
     def steps(self) -> int:

@@ -151,7 +151,8 @@ def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Ag
             continue
         if buyer.carrying.get(intent.take_type, 0) <= 0:
             continue
-        # Perform swap
+        # Perform swap (normal execution). Hash neutrality (if desired) is handled by restoration
+        # logic in Simulation.step when ECONSIM_TRADE_HASH_NEUTRAL=1.
         seller.carrying[intent.give_type] -= 1
         buyer.carrying[intent.give_type] = buyer.carrying.get(intent.give_type, 0) + 1
         buyer.carrying[intent.take_type] -= 1

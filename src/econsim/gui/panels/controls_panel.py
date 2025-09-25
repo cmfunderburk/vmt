@@ -13,7 +13,7 @@ Playback throttling is implemented in `SimulationController` and consulted by
 from __future__ import annotations
 
 from typing import Callable
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout, QCheckBox
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout, QCheckBox, QGroupBox, QFormLayout
 
 
 from ..simulation_controller import SimulationController
@@ -89,21 +89,60 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         respawn_row.addWidget(self._respawn_box)
         layout.addLayout(respawn_row)
         
-        # Bilateral exchange live toggle (Phase 2)
-        self._bilateral_cb = QCheckBox("Bilateral Exchange")
-        self._bilateral_cb.setToolTip("Enable/disable bilateral trade enumeration & execution at runtime.")
+        # Trade controls group
+        trade_group = QGroupBox("Trade Controls")
+        trade_form = QFormLayout()
+
+        self._bilateral_cb = QCheckBox("Master (Draft+Exec)")
+        self._bilateral_cb.setToolTip("Enable both trade draft enumeration and execution (sets both flags).")
         try:
             self._bilateral_cb.setChecked(self._controller.bilateral_enabled())  # type: ignore[attr-defined]
         except Exception:
             self._bilateral_cb.setChecked(False)
-        layout.addWidget(self._bilateral_cb)
 
-    # Back to menu button
+        self._trade_draft_cb = QCheckBox("Draft Intents")
+        self._trade_draft_cb.setToolTip("Enumerate potential bilateral trade intents (no execution).")
+        try:
+            self._trade_draft_cb.setChecked(self._controller.trade_draft_enabled())  # type: ignore[attr-defined]
+        except Exception:
+            self._trade_draft_cb.setChecked(False)
+
+        self._trade_exec_cb = QCheckBox("Execute Trades")
+        self._trade_exec_cb.setToolTip("Execute the highest-priority drafted trade each step (implies draft).")
+        try:
+            self._trade_exec_cb.setChecked(self._controller.trade_exec_enabled())  # type: ignore[attr-defined]
+        except Exception:
+            self._trade_exec_cb.setChecked(False)
+
+        self._trade_debug_cb = QCheckBox("Debug Overlay")
+        self._trade_debug_cb.setToolTip("Show first few drafted trade intents and last executed trade summary.")
+        try:
+            self._trade_debug_cb.setChecked(self._controller.trade_debug_enabled())  # type: ignore[attr-defined]
+        except Exception:
+            self._trade_debug_cb.setChecked(False)
+
+        trade_form.addRow(self._bilateral_cb)
+        trade_form.addRow(self._trade_draft_cb)
+        trade_form.addRow(self._trade_exec_cb)
+        trade_form.addRow(self._trade_debug_cb)
+        trade_group.setLayout(trade_form)
+        layout.addWidget(trade_group)
+
+        # Foraging enable toggle (new)
+        self._forage_cb = QCheckBox("Foraging Enabled")
+        self._forage_cb.setToolTip("Enable/disable baseline resource foraging (when off, agents only trade or return home).")
+        try:
+            self._forage_cb.setChecked(self._controller.forage_enabled())  # type: ignore[attr-defined]
+        except Exception:
+            self._forage_cb.setChecked(True)
+        layout.addWidget(self._forage_cb)
+
+        # Back to menu button
         back_btn = QPushButton("Back to Menu")
         back_btn.setToolTip("Return to the start menu and end the current simulation")
         back_btn.setAccessibleName("back-to-menu-button")
         layout.addWidget(back_btn)
-        
+
         # Wire signals
         self._pause_btn.clicked.connect(self._toggle_pause)  # type: ignore[arg-type]
         step1.clicked.connect(self._do_step1)  # type: ignore[arg-type]
@@ -113,6 +152,11 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         self._speed_box.currentIndexChanged.connect(self._change_speed)  # type: ignore[arg-type]
         self._respawn_box.currentIndexChanged.connect(self._change_respawn_interval)  # type: ignore[arg-type]
         self._bilateral_cb.stateChanged.connect(self._toggle_bilateral)  # type: ignore[arg-type]
+        # Granular trade controls
+        self._trade_draft_cb.stateChanged.connect(self._toggle_trade_draft)  # type: ignore[arg-type]
+        self._trade_exec_cb.stateChanged.connect(self._toggle_trade_exec)  # type: ignore[arg-type]
+        self._trade_debug_cb.stateChanged.connect(self._toggle_trade_debug)  # type: ignore[arg-type]
+        self._forage_cb.stateChanged.connect(self._toggle_forage)  # type: ignore[arg-type]
 
     def _toggle_pause(self) -> None:
         if self._controller.is_paused():
@@ -178,6 +222,54 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
                         sim.trade_intents = None  # type: ignore[attr-defined]
                     except Exception:
                         pass
+            # Sync granular boxes to reflect master state
+            if enable:
+                self._trade_draft_cb.setChecked(True)
+                self._trade_exec_cb.setChecked(True)
+        except Exception:
+            pass
+
+    def _toggle_trade_draft(self) -> None:
+        try:
+            enable = self._trade_draft_cb.isChecked()
+            self._controller.set_trade_draft_enabled(enable)  # type: ignore[attr-defined]
+            # If draft turned off, also uncheck execution & master
+            if not enable:
+                if self._trade_exec_cb.isChecked():
+                    self._trade_exec_cb.setChecked(False)
+                if self._bilateral_cb.isChecked():
+                    self._bilateral_cb.setChecked(False)
+        except Exception:
+            pass
+
+    def _toggle_trade_exec(self) -> None:
+        try:
+            enable = self._trade_exec_cb.isChecked()
+            self._controller.set_trade_exec_enabled(enable)  # type: ignore[attr-defined]
+            if enable:
+                # Ensure draft + master reflect execution dependency
+                if not self._trade_draft_cb.isChecked():
+                    self._trade_draft_cb.setChecked(True)
+                if not self._bilateral_cb.isChecked():
+                    self._bilateral_cb.setChecked(True)
+            else:
+                # Execution off -> master might still be off if only draft remains
+                if self._bilateral_cb.isChecked():
+                    self._bilateral_cb.setChecked(False)
+        except Exception:
+            pass
+
+    def _toggle_trade_debug(self) -> None:
+        try:
+            enable = self._trade_debug_cb.isChecked()
+            self._controller.set_trade_debug_enabled(enable)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def _toggle_forage(self) -> None:
+        try:
+            enable = self._forage_cb.isChecked()
+            self._controller.set_forage_enabled(enable)  # type: ignore[attr-defined]
         except Exception:
             pass
 

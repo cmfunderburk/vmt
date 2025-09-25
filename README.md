@@ -82,13 +82,18 @@ Legacy manual wiring is supported but deprecated.
 Status: Single-unit reciprocal trade prototype behind UI + environment flags. Phase 3 adds optional priority reordering (flag-gated) and a fairness_round advisory metric. Determinism hash unchanged when features disabled.
 
 Activation Paths:
-* Start Menu (Advanced): check "Bilateral Exchange (Experimental)" before launching.
-* Runtime: Controls panel checkbox "Bilateral Exchange" enables/disables enumeration & execution live.
+* Start Menu (Advanced): enable trade draft / execution toggles (if exposed) or master checkbox.
+* Runtime: Controls panel Trade Controls group:
+	* Master (Draft+Exec) – enables both draft enumeration and execution.
+	* Draft Intents – enumerate intents only.
+	* Execute Trades – execute highest-priority intent (implies draft).
+	* Debug Overlay – shows first few intents + last executed summary (requires draft).
 
 Feature Flags (auto-managed by GUI when toggled):
 * `ECONSIM_TRADE_DRAFT=1` – enumerate draft intents (no execution).
 * `ECONSIM_TRADE_EXEC=1` – execute at most one intent per step (implies draft enumeration).
 * `ECONSIM_TRADE_GUI_INFO=1` – show executed trade summary overlay line.
+* `ECONSIM_TRADE_DEBUG_OVERLAY=1` – (internal helper; currently tied to Debug Overlay toggle).
 
 Current Mechanics:
 * Rule: single reciprocal marginal utility improvement (approx) triggers one unit swap of (good1 ↔ good2).
@@ -108,6 +113,50 @@ Phase 3 Delivered:
 * Autouse test fixture clears `ECONSIM_TRADE_*` flags preventing cross-test leakage.
 
 Future: multi-intent policies, fairness-driven scheduling, analytics overlays.
+
+### 5.2 Foraging Enable Flag
+
+The baseline resource collection ("foraging") can now be disabled at runtime for instructional contrast with pure trading scenarios.
+
+Environment Flag:
+* `ECONSIM_FORAGE_ENABLED=1` (default if unset) – agents move, target, and collect resources.
+* `ECONSIM_FORAGE_ENABLED=0` – disables collection logic; when trading disabled agents deterministically return home & idle; when trading enabled they may participate in trades without gathering new goods.
+
+GUI Controls:
+* Controls Panel → "Foraging Enabled" checkbox reflects and mutates the flag (sets explicit `0` rather than deleting to preserve disabled state deterministically).
+
+#### 5.2.1 Idle Path Semantics (Updated)
+When both foraging and trading features are disabled (`ECONSIM_FORAGE_ENABLED=0`, `ECONSIM_TRADE_DRAFT` unset/`0`, `ECONSIM_TRADE_EXEC` unset/`0`), agents now immediately enter an idle state without marching home and depositing carried goods. This change:
+* Preserves any pre-existing carrying inventory for invariance across feature toggles during demonstrations.
+* Avoids silent inventory mutation that could confuse students when toggling systems on/off mid-session.
+* Keeps per-step complexity O(agents) with no extra movement calculations.
+
+Educational Rationale: The previous behavior (deterministic return-home + deposit) obscured the contrast between active collection vs. inactive economic systems. The new idle semantics make the “nothing is happening because both systems are off” state visually and analytically transparent.
+
+No changes to determinism hash were required; the path is purely a no-op w.r.t. inventories and positions.
+
+### 5.3 Behavior Gating Matrix
+
+Decision mode per-step behavior depends on combinations of Foraging and Trade settings:
+
+| Forage | Trade Draft | Trade Exec | Resulting Behavior |
+|--------|-------------|------------|--------------------|
+| Off | Off | Off | Agents move toward home then idle; no intents |
+| Off | On | Off | Intents enumerated (may be empty); no execution |
+| Off | On | On | Intents enumerated; at most one trade executed per step |
+| On | Off | Off | Normal collection only |
+| On | On | Off | Collect first; non-foraging agents (if any) can draft intents |
+| On | On | On | Collect first; non-foraging agents can trade (one execution) |
+
+Note: When both foraging and trading are enabled, any agent that successfully collected a resource this step is excluded from that step's trade enumeration ("forage first then trade" educational sequencing).
+
+### 5.4 Executed Trade Visual Feedback
+
+Recent executed trade cell is outlined with a pulsing highlight (deterministic timing) for a short fixed window (currently 12 steps) when overlays are visible, aiding classroom narration without altering simulation state.
+
+### 5.5 Determinism Hash Parity (Temporary Deferral)
+
+The determinism hash currently includes agents' carrying inventories. Since execution mutates carrying bundles, draft-only vs draft+execution runs diverge. A previously strict parity test (`test_hash_parity_execution_flag`) has been marked `xfail` with an explicit reason while a future hash design revision (likely separating carrying vs banked wealth or introducing a controlled canonical post-trade normalization) is scoped. All other determinism guarantees remain intact.
 
 ## 6. Gate 6 (Integration Summary)
 Delivered:

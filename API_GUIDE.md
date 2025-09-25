@@ -168,6 +168,7 @@ These flags control the prototype reciprocal bilateral exchange system. Default 
 | `ECONSIM_TRADE_EXEC=1` | Execute at most one intent per step | Implies draft enumeration; updates trade metrics. |
 | `ECONSIM_TRADE_GUI_INFO=1` | Overlay executed trade summary line | Pure rendering; no state mutation. |
 | `ECONSIM_TRADE_PRIORITY_DELTA=1` | Order intents by (-ΔU, seller_id, buyer_id, give_type, take_type) | Optional; baseline keeps first element 0.0; hash-neutral when off. |
+| `ECONSIM_TRADE_DEBUG_OVERLAY=1` | Show first few drafted intents + last executed | Set by GUI Debug Overlay checkbox (requires draft). |
 
 Runtime GUI Integration:
 * Start Menu checkbox sets all three active flags for initial session.
@@ -183,6 +184,44 @@ Design Invariants:
 * Test isolation: Autouse fixture clears `ECONSIM_TRADE_*` env vars each test.
 
 Future Enhancements (flag-gated): fairness rotation index, multi-trade analysis, priority upgrade, pedagogical analytics overlays.
+
+### 13.1 Foraging Enable Flag
+
+| Flag | Effect | Notes |
+|------|--------|-------|
+| `ECONSIM_FORAGE_ENABLED=1` (default if unset) | Agents collect resources in decision mode | Standard behavior |
+| `ECONSIM_FORAGE_ENABLED=0` | Disables collection logic | Agents either trade-only (if trade flags set) or idle (no forced home march/deposit) when trading disabled |
+
+Disabling foraging sets explicit `0` (tests rely on explicitness; deletion treated as enabled fallback).
+
+#### 13.1.1 Idle Path Semantics (Updated)
+When both foraging and trading are disabled (`ECONSIM_FORAGE_ENABLED=0`, trade flags unset), agents now immediately remain idle in place. They no longer perform an automatic deterministic walk home and deposit their carried goods. This preserves existing carrying inventory across feature toggles and avoids unintended state mutation during instructional demonstrations.
+
+Rationale:
+* Inventory invariance while exploring feature combinations.
+* Clear visual signal that all economic subsystems are inactive.
+* Maintains O(agents) per-step cost (pure no-op path).
+
+### 13.2 Combined Gating Matrix (Decision Mode)
+
+| Forage | Draft | Exec | Behavior Summary |
+|--------|-------|------|------------------|
+| 0 | 0 | 0 | Idle (no movement/collection/deposit); no intents |
+| 0 | 1 | 0 | Draft only; intents may be empty |
+| 0 | 1 | 1 | Draft + single execution per step |
+| 1 | 0 | 0 | Normal foraging (movement + collection) |
+| 1 | 1 | 0 | Forage first; non-foraging agents (if any) may draft |
+| 1 | 1 | 1 | Forage first; non-foraging agents may execute one trade |
+
+Collectors (agents that successfully gathered a resource this step) are excluded from that same step's trade enumeration when both systems are active.
+
+### 13.3 Executed Trade Highlight
+
+Recent executed trade cell is outlined (pulsing deterministic color cycle) for 12 steps when overlays are visible. Purely visual; does not affect determinism hash.
+
+### 13.4 Determinism Hash Parity (Deferred Adjustment)
+
+Current hash includes carrying inventories; execution mutates them, so draft-only vs draft+execution runs diverge. A historical parity test is temporarily marked `xfail` while a future hash revision (e.g., isolating pre-trade canonical state or excluding carrying deltas under execution flag) is evaluated.
 
 ## 13. Troubleshooting
 | Symptom | Cause | Fix |

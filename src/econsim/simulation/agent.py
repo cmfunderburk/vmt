@@ -173,7 +173,7 @@ class Agent:
         best: tuple[float, int, int, int] | None = None  # key = (-delta_u, dist, x, y)
         best_meta: tuple[int, int] | None = None
         max_dist = default_PERCEPTION_RADIUS
-    # Use sorted iteration (deterministic ordering helper)
+        # Use sorted iteration (deterministic ordering helper)
         iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
         for rx, ry, rtype in iterator:
             dist = self._manhattan(self.x, self.y, rx, ry)
@@ -213,8 +213,13 @@ class Agent:
             self.target = best_meta
             self.mode = AgentMode.FORAGE
 
-    def step_decision(self, grid: Grid) -> None:
-        """Perform one decision+movement+interaction step (without RNG)."""
+    def step_decision(self, grid: Grid) -> bool:
+        """Perform one decision+movement+interaction step (without RNG).
+
+        Returns True if the agent actively foraged (collected a resource this tick),
+        False otherwise. This return value is advisory and ignored by existing
+        callers that do not capture it (backward compatible).
+        """
         # Select/refresh target if none or mode requires it
         if self.target is None or self.mode not in (AgentMode.FORAGE):
             self.select_target(grid)
@@ -246,6 +251,7 @@ class Agent:
                 self.select_target(grid)
         # Deposit if arriving home
         self.maybe_deposit()
+        return bool(collected)
 
     # --- Serialization (Optional Future Use) ----------------------
     def serialize(self) -> Mapping[str, Any]:
