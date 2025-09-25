@@ -42,7 +42,7 @@ class SimulationController:
         try:
             self._respawn_interval_cache = simulation._respawn_interval  # type: ignore[attr-defined]
         except Exception:
-            self._respawn_interval_cache = 1
+            self._respawn_interval_cache = 20  # Default to every 20 turns
         # Bilateral exchange GUI master toggle (Phase 2). Default off.
         self._bilateral_enabled: bool = False
         # Granular trade gating (draft vs execution) exposed to GUI. Execution implies draft.

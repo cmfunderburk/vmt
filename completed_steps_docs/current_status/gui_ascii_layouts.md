@@ -16,29 +16,25 @@ Legend:
 | VMT EconSim (Start Menu)                                                         |
 |----------------------------------------------------------------------------------|
 | Scenario: [ baseline            v ]                                              |
-|            (Other future: bilateral_exchange, money_market)                     |
+|            (Other future: money_market)                                          |
 |                                                                                  |
 | Preferences (initial agents)                                                     |
-|   Count:          [   4 ]                                                        |
+|   Num Agents:     [   4 ]                                                        |
 |   Pref Mix:       [ Cobb-Douglas  v ]                                            |
+|   Grid Size:      [ 20 ] × [ 20 ]                                                |
+|     Resource Density:  [ 0.25 ]                                                  |
+|     Perception Radius: [ 8 ]                                                     |
+|     Viewport Size:     [ 800 ] × same (square)                                   |
+|     Metrics Enabled:   [x]                                                       |
 |                                                                                  |
 | Endowment Pattern: [ uniform         v ] (inactive in baseline)                  |
 |                                                                                  |
 | Seed:             [  1234 ]   [Randomize]    Start Paused [x]                    |
 |                                                                                  |
-| Respawn Interval: [ Off  v ]   (Off / 1 / 2 / 5 / 10)                            |
 | Decision Mode:    (o) Enabled    ( ) Disabled                                    |
-|                                                                                  |
-| Advanced (collapsed) ▸                                                          |
-|   When expanded:                                                                |
-|     Grid Size:         [ 12 ] × [ 12 ]                                          |
-|     Resource Density:  [ 0.25 ]                                                 |
-|     Perception Radius: [ 8 ]                                                    |
-|     Viewport Size:     [ 320 ] × same (square)                                  |
-|     Metrics Enabled:   [x]                                                      |
-|                                                                                  |
+| (needs description of what option does, or remove)
 |----------------------------------------------------------------------------------|
-| [ Launch Simulation ]   [ Quit ]                                                |
+| [ Launch Simulation ]   [ Quit ]                                                 |
 +----------------------------------------------------------------------------------+
 ```
 
@@ -46,7 +42,7 @@ Notes:
 - Only baseline scenario currently active. Future scenarios (bilateral_exchange, money_market) appear in dropdown but may be disabled.
 - Start Paused checkbox sets controller paused state before first step.
 - Randomize button reseeds both internal and external RNG seeding plan.
-- Advanced panel remains collapsed by default for classroom simplicity.
+- Advanced panel (now only experimental features) remains collapsed by default for classroom simplicity.
 - Viewport Size controls the square Pygame surface dimensions (320x320 to 800x800).
 
 ---
@@ -59,7 +55,7 @@ High-level layout: Viewport left; stacked control / overlay / metrics panels on 
 | VMT EconSim (Simulation)                                                         |
 |----------------------------------------------------------------------------------|
 | +-----------------------------+  +--------------------------------------------+  |
-| | PYGAME VIEWPORT (configurable) | CONTROLS                                    |  |
+| | PYGAME VIEWPORT (configurable) | CONTROLS                                   |  |
 | |                             |  |--------------------------------------------|  |
 | |  [Grid of cells]            |  |  [Pause/Resume]  [Step 1]  [Step 5]        |  |
 | |  Agents: A0 A1 ...          |  |  Turn Rate: [ Unlimited  v ]               |  |
@@ -70,18 +66,18 @@ High-level layout: Viewport left; stacked control / overlay / metrics panels on 
 |                                  |  [x] Home Labels [x] Targets               |  |
 |                                  |                                            |  |
 |                                  | METRICS                                    |  |
-|                                  |  Step:  128                                 |  |
-|                                  |  Agents: 4   Resources: 17                  |  |
-|                                  |  Carry g1: 11  Carry g2: 6                  |  |
-|                                  |  Home g1: 3   Home g2: 9                    |  |
-|                                  |  Steps/sec: 61.8 (est)                      |  |
+|                                  |  Step:  128                                |  |
+|                                  |  Agents: 4   Resources: 17                 |  |
+|                                  |  Carry g1: 11  Carry g2: 6                 |  |
+|                                  |  Home g1: 3   Home g2: 9                   |  |
+|                                  |  Steps/sec: 61.8 (est)                     |  |
 |                                  |                                            |  |
 |                                  | AGENT INSPECTOR                            |  |
-|                                  |  Agent: [ 0  v ]                            |  |
-|                                  |  Carry: (g1=2, g2=1)                        |  |
-|                                  |  Utility: 4.732                             |  |
+|                                  |  Agent: [ 0  v ]                           |  |
+|                                  |  Carry: (g1=2, g2=1)                       |  |
+|                                  |  Utility: 4.732                            |  |
 |                                  |                                            |  |
-|                                  | [ Back to Menu ]                            |  |
+|                                  | [ Back to Menu ]                           |  |
 | +-----------------------------+  +--------------------------------------------+  |
 | | Status / Overlay Footer: Grid On | Overlay: ON | Mode: Decision | Paused: No | |
 | +-------------------------------------------------------------------------+----+ |

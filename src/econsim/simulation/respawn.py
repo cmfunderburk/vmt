@@ -1,25 +1,25 @@
 """Resource respawn scheduler (introduced Gate 5, factory-attached in Gate 6).
 
-Maintains a target *density* of resources using a deterministic RNG. Each
-step moves the grid toward the target by spawning at most a bounded number
-of new resources in empty cells. Enumeration of candidate cells is
-deterministic (row-major) and randomized only by a seeded shuffle for
-reproducibility.
+Maintains a target *density* of resources using a deterministic RNG. The
+scheduler replenishes consumed resources to maintain the target count at
+configurable intervals (controlled by simulation stepping logic).
 
 Algorithm Summary:
 1. Compute ``target_count = floor(target_density * total_cells)``.
-2. If below target, compute deficit and desired spawn (deficit * respawn_rate).
-3. Enumerate a limited prefix of empty cells (early stop) → shuffle → take slice.
-4. Insert new resources (currently all type 'A').
+2. If current count < target, compute deficit.
+3. Spawn enough new resources in empty cells to restore target count.
+4. Randomly assign resource types (A or B) with equal probability.
 
 Capabilities:
-* Deterministic convergence toward density without overshoot (assert enforced)
-* Bounded per-tick work via ``max_spawn_per_tick`` & early enumeration stop
+* Deterministic replenishment using seeded RNG
+* Maintains exact target density after consumption
+* Random distribution of both position and resource type
+* Interval-based respawn controlled by simulation step logic
 
-Deferred / Not Yet Included:
-* Multi-type respawn balancing (A vs B proportion strategies)
-* Spatial clustering / exclusion zones
-* Adaptive spawn rate modulation based on consumption velocity
+Example: 10x10 grid (100 cells), density 0.25 (25 resources target)
+- Turn 1: 25 resources, agents collect 4 → 21 remain
+- Turn 2: 21 resources, agents collect 4 → 17 remain  
+- Turn 3: 17 resources, agents collect 4 → 13 remain, then respawn adds 12 → 25 total
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from .grid import Grid
 
 @dataclass(slots=True)
 class RespawnScheduler:
-    """Maintain a target density of resources.
+    """Maintain a target density of resources by replenishing consumed resources.
 
     Parameters
     ----------
@@ -47,8 +47,7 @@ class RespawnScheduler:
 
     target_density: float
     max_spawn_per_tick: int
-    respawn_rate: float  # conceptual: fraction of deficit addressed each tick (0..1]
-    _next_type_flag: bool = False  # internal alternating flag (not externally exposed)
+    respawn_rate: float  # fraction of deficit addressed each tick (0..1]
 
     def __post_init__(self) -> None:  # pragma: no cover (simple validation)
         if self.max_spawn_per_tick < 0:
@@ -57,10 +56,6 @@ class RespawnScheduler:
             raise ValueError("target_density must be >=0")
         if not (self.respawn_rate >= 0.0):
             raise ValueError("respawn_rate must be >=0")
-        # Internal deterministic toggle to alternate resource types (A,B) for diversity.
-        # Not serialized (scheduler not part of snapshot yet); parity derivable from total spawns if needed.
-        # _next_type_flag already part of dataclass; ensure boolean
-        self._next_type_flag = bool(self._next_type_flag)
 
     def step(self, grid: Grid, rng: random.Random, *, step_index: int) -> int:  # noqa: ARG002
         """Spawn resources, moving the grid toward the target density.
@@ -117,9 +112,9 @@ class RespawnScheduler:
 
         spawned = 0
         for (x, y) in spawn_list:
-            rtype = "B" if self._next_type_flag else "A"
+            # Randomly assign resource type (A or B) with equal probability
+            rtype = "A" if rng.random() < 0.5 else "B"
             grid.add_resource(x, y, rtype)
-            self._next_type_flag = not self._next_type_flag
             spawned += 1
 
         # Ensure we never overshoot target (defensive assertion)

@@ -49,7 +49,7 @@ class Simulation:
     _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
-    _respawn_interval: int | None = 1       # New: how frequently to invoke respawn (1 => every step, None/<=0 => disabled)
+    _respawn_interval: int | None = 20      # New: how frequently to invoke respawn (20 => every 20 steps, None/<=0 => disabled)
     # Draft trade intents (Phase 2 feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
     trade_intents: list[TradeIntent] | None = None

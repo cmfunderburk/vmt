@@ -44,7 +44,7 @@ class MenuSelection:
     enable_metrics: bool
     preference_type: str
     start_paused: bool = False
-    respawn_interval: Optional[int] = None  # None = Off, or 1,2,5,10 steps
+    respawn_interval: Optional[int] = None  # None = Off, or 1,5,10,20 steps
     decision_mode_enabled: bool = True
     endowment_pattern: str = "uniform"
     perception_radius: int = 8
@@ -93,7 +93,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         
         # Agent count
         count_row = QHBoxLayout()
-        count_row.addWidget(QLabel("  Count:"))
+        count_row.addWidget(QLabel("  Num Agents:"))
         self.agents_box = QSpinBox()
         self.agents_box.setRange(1, 200)
         self.agents_box.setValue(4)
@@ -109,6 +109,63 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         pref_row.addWidget(self.pref_box)
         pref_row.addStretch()
         layout.addLayout(pref_row)
+        
+        # Grid Size (moved from advanced)
+        grid_row = QHBoxLayout()
+        grid_row.addWidget(QLabel("  Grid Size:"))
+        self.grid_w = QSpinBox()
+        self.grid_w.setRange(4, 128)
+        self.grid_w.setValue(20)  # Changed default from 12 to 20
+        grid_row.addWidget(self.grid_w)
+        grid_row.addWidget(QLabel("×"))
+        self.grid_h = QSpinBox()
+        self.grid_h.setRange(4, 128) 
+        self.grid_h.setValue(20)  # Changed default from 12 to 20
+        grid_row.addWidget(self.grid_h)
+        grid_row.addStretch()
+        layout.addLayout(grid_row)
+        
+        # Resource Density (moved from advanced)
+        density_row = QHBoxLayout()
+        density_row.addWidget(QLabel("    Resource Density:"))
+        self.density_box = QDoubleSpinBox()
+        self.density_box.setDecimals(3)
+        self.density_box.setRange(0.0, 1.0)
+        self.density_box.setSingleStep(0.05)
+        self.density_box.setValue(0.25)
+        density_row.addWidget(self.density_box)
+        density_row.addStretch()
+        layout.addLayout(density_row)
+        
+        # Perception Radius (moved from advanced)
+        perception_row = QHBoxLayout()
+        perception_row.addWidget(QLabel("    Perception Radius:"))
+        self.perception_box = QSpinBox()
+        self.perception_box.setRange(1, 20)
+        self.perception_box.setValue(8)
+        perception_row.addWidget(self.perception_box)
+        perception_row.addStretch()
+        layout.addLayout(perception_row)
+        
+        # Viewport Size (moved from advanced)
+        viewport_row = QHBoxLayout()
+        viewport_row.addWidget(QLabel("    Viewport Size:"))
+        self.viewport_box = QSpinBox()
+        self.viewport_box.setRange(320, 800)
+        self.viewport_box.setSingleStep(80)  # Nice increments: 320, 400, 480, 560, 640, 720, 800
+        self.viewport_box.setValue(800)  # Changed default from 320 to 800
+        viewport_row.addWidget(self.viewport_box)
+        viewport_row.addWidget(QLabel("× same (square)"))
+        viewport_row.addStretch()
+        layout.addLayout(viewport_row)
+        
+        # Metrics Enabled (moved from advanced)
+        metrics_row = QHBoxLayout()
+        self.metrics_cb = QCheckBox("Metrics Enabled")
+        self.metrics_cb.setChecked(True)
+        metrics_row.addWidget(self.metrics_cb)
+        metrics_row.addStretch()
+        layout.addLayout(metrics_row)
         
         # Endowment Pattern (inactive in baseline per ASCII)
         endow_row = QHBoxLayout()
@@ -136,15 +193,6 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         seed_row.addStretch()
         layout.addLayout(seed_row)
         
-        # Respawn Interval
-        respawn_row = QHBoxLayout()
-        respawn_row.addWidget(QLabel("Respawn Interval:"))
-        self.respawn_box = QComboBox()
-        self.respawn_box.addItems(["Off", "1", "2", "5", "10"])  # type: ignore[arg-type]
-        respawn_row.addWidget(self.respawn_box)
-        respawn_row.addStretch()
-        layout.addLayout(respawn_row)
-        
         # Decision Mode radio buttons
         decision_row = QHBoxLayout()
         decision_row.addWidget(QLabel("Decision Mode:"))
@@ -159,65 +207,12 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         decision_row.addStretch()
         layout.addLayout(decision_row)
         
-        # Advanced panel (collapsed by default)
+        # Advanced panel (now only contains experimental features)
         self.advanced_group = QGroupBox("Advanced")
         self.advanced_group.setCheckable(True)
         self.advanced_group.setChecked(False)  # Collapsed by default
         advanced_layout = QVBoxLayout(self.advanced_group)
         
-        # Grid Size
-        grid_row = QHBoxLayout()
-        grid_row.addWidget(QLabel("Grid Size:"))
-        self.grid_w = QSpinBox()
-        self.grid_w.setRange(4, 128)
-        self.grid_w.setValue(12)
-        grid_row.addWidget(self.grid_w)
-        grid_row.addWidget(QLabel("×"))
-        self.grid_h = QSpinBox()
-        self.grid_h.setRange(4, 128) 
-        self.grid_h.setValue(12)
-        grid_row.addWidget(self.grid_h)
-        grid_row.addStretch()
-        advanced_layout.addLayout(grid_row)
-        
-        # Resource Density
-        density_row = QHBoxLayout()
-        density_row.addWidget(QLabel("Resource Density:"))
-        self.density_box = QDoubleSpinBox()
-        self.density_box.setDecimals(3)
-        self.density_box.setRange(0.0, 1.0)
-        self.density_box.setSingleStep(0.05)
-        self.density_box.setValue(0.25)
-        density_row.addWidget(self.density_box)
-        density_row.addStretch()
-        advanced_layout.addLayout(density_row)
-        
-        # Perception Radius
-        perception_row = QHBoxLayout()
-        perception_row.addWidget(QLabel("Perception Radius:"))
-        self.perception_box = QSpinBox()
-        self.perception_box.setRange(1, 20)
-        self.perception_box.setValue(8)
-        perception_row.addWidget(self.perception_box)
-        perception_row.addStretch()
-        advanced_layout.addLayout(perception_row)
-        
-        # Viewport Size (square)
-        viewport_row = QHBoxLayout()
-        viewport_row.addWidget(QLabel("Viewport Size:"))
-        self.viewport_box = QSpinBox()
-        self.viewport_box.setRange(320, 800)
-        self.viewport_box.setSingleStep(80)  # Nice increments: 320, 400, 480, 560, 640, 720, 800
-        self.viewport_box.setValue(320)
-        viewport_row.addWidget(self.viewport_box)
-        viewport_row.addWidget(QLabel("× same (square)"))
-        viewport_row.addStretch()
-        advanced_layout.addLayout(viewport_row)
-        
-        # Metrics Enabled
-        self.metrics_cb = QCheckBox("Metrics Enabled")
-        self.metrics_cb.setChecked(True)
-        advanced_layout.addWidget(self.metrics_cb)
         # Bilateral Exchange (Experimental) master toggle (Phase 2)
         self.bilateral_cb = QCheckBox("Bilateral Exchange (Experimental)")
         self.bilateral_cb.setChecked(False)
@@ -288,9 +283,8 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Input Error", str(exc))
             return
-        # Get respawn interval
-        respawn_text = self.respawn_box.currentText()
-        respawn_interval = None if respawn_text == "Off" else int(respawn_text)
+        # Respawn interval removed from start menu - will be set in simulation controls
+        respawn_interval = 20  # Default value (every 20 turns)
         
         # Get decision mode
         decision_mode_enabled = self.decision_enabled.isChecked()
@@ -332,8 +326,8 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
 
         Bounds intentionally conservative to protect perf & determinism expectations.
         """
-        if not (4 <= w <= 64 and 4 <= h <= 64):
-            raise ValueError(f"Grid size out of bounds (4-64): {w}x{h}")
+        if not (4 <= w <= 128 and 4 <= h <= 128):
+            raise ValueError(f"Grid size out of bounds (4-128): {w}x{h}")
         if not (1 <= agents <= 64):
             raise ValueError(f"Agents out of bounds (1-64): {agents}")
         if not (0.0 <= density <= 1.0):

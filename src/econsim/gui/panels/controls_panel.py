@@ -80,12 +80,14 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         self._respawn_options: list[tuple[str, int | None]] = [
             ("Off", None),
             ("Every 1", 1),
-            ("Every 2", 2),
             ("Every 5", 5),
             ("Every 10", 10),
+            ("Every 20", 20),
         ]
         for label, val in self._respawn_options:
             self._respawn_box.addItem(label, userData=val)
+        # Set default to "Every 20"
+        self._respawn_box.setCurrentText("Every 20")
         respawn_row.addWidget(self._respawn_box)
         layout.addLayout(respawn_row)
         
