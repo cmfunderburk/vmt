@@ -107,28 +107,32 @@ class Simulation:
                     # Execute the step to actually move toward home / deposit
                     agent.step_decision(self.grid)
             else:
-                # Exchange enabled but foraging disabled: agents withdraw home goods and move randomly to find trading partners
+                # Exchange enabled but foraging disabled: agents immediately start bilateral exchange
                 for agent in self.agents:
-                    # If agent is at home with inventory, withdraw it for trading
+                    # CRITICAL FIX: If agent is still in FORAGE mode but foraging is disabled, transition them
+                    if agent.mode == AgentMode.FORAGE and not forage_enabled:
+                        # Immediately transition to IDLE for bilateral exchange (skip return home)
+                        agent.mode = AgentMode.IDLE
+                        agent.target = None
+                    
+                    # If agent is at home, withdraw available inventory for trading
                     if agent.at_home() and sum(agent.home_inventory.values()) > 0:
                         agent.withdraw_all()
-                        # Don't set FORAGE mode - that makes them seek resources
-                        agent.mode = AgentMode.IDLE  # Use IDLE but allow random movement
+                        agent.mode = AgentMode.IDLE
                         agent.target = None
-                    # If agent has home inventory but is not at home, send them home to get it
-                    elif not agent.at_home() and sum(agent.home_inventory.values()) > 0:
-                        agent.mode = AgentMode.RETURN_HOME
-                        agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
                     
-                    # For agents returning home in exchange mode, handle withdrawal
+                    # All agents should be in IDLE mode for bilateral exchange
+                    # (No return home step when bilateral exchange is enabled)
                     if agent.mode == AgentMode.RETURN_HOME:
-                        agent.maybe_withdraw_for_trading()
+                        # Skip return home, go directly to bilateral exchange
+                        agent.mode = AgentMode.IDLE
+                        agent.target = None
                     
                     # In bilateral exchange mode, use tiered movement logic
                     if agent.mode == AgentMode.IDLE:
                         self._handle_bilateral_exchange_movement(agent, rng)
                     else:
-                        # Still use decision logic for agents returning home
+                        # Fallback for any remaining modes
                         agent.step_decision(self.grid)
         else:  # legacy randomness path (foraging always implicit here if enabled)
             for agent in self.agents:
@@ -405,7 +409,7 @@ class Simulation:
                 partner.is_trading = True
                 
                 # Attempt a trade - if no beneficial trade, clear partnership and search again
-                trade_occurred = agent.attempt_trade_with_partner(partner)
+                trade_occurred = agent.attempt_trade_with_partner(partner, self.metrics_collector, self._steps)
                 if not trade_occurred:
                     # No more beneficial trades possible, end trading session with cooldowns
                     agent.end_trading_session(partner)

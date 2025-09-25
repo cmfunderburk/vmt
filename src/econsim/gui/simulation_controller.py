@@ -45,7 +45,7 @@ class SimulationController:
             self._respawn_interval_cache = 20  # Default to every 20 turns
         # Simplified behavior controls (replaces complex 4-checkbox system)
         self._forage_enabled: bool = True  # Default: foraging enabled
-        self._bilateral_enabled: bool = False  # Default: no trading
+        self._bilateral_enabled: bool = True  # Default: bilateral exchange enabled for better debugging
 
     # --- Bilateral Exchange Feature Flag (GUI-scope; does not auto-set env) -----
     def set_bilateral_enabled(self, enabled: bool) -> None:
@@ -109,6 +109,20 @@ class SimulationController:
             )
         except Exception:
             return None
+
+    def agent_trade_history(self, agent_id: int) -> list[dict[str, object]] | None:
+        """Return the last 5 trades for a specific agent.
+        
+        Returns None if bilateral exchange disabled or no trades recorded.
+        Each trade record contains: step, partner_id, gave, received, delta_utility, role.
+        """
+        if not self._bilateral_enabled:
+            return None
+        mc = getattr(self.simulation, "metrics_collector", None)
+        if mc is None or not hasattr(mc, "agent_trade_histories"):
+            return None
+        
+        return mc.agent_trade_histories.get(agent_id, [])
 
     def pause(self) -> None:
         self._paused = True
@@ -429,6 +443,56 @@ class SimulationController:
     def should_pause_on_trade(self) -> bool:
         """Check if simulation should pause on trade execution."""
         return getattr(self, '_pause_on_trade', False)
+
+    # --- Event Log Support --------------------------------------------------
+    
+    def get_current_step(self) -> int:
+        """Get the current simulation step number."""
+        return self.simulation.steps
+    
+    def get_recent_trades(self, step: int) -> list[dict[str, Any]]:
+        """Get trade events that occurred in the specified step."""
+        trades = []
+        
+        # Check if bilateral exchange is enabled and we have metrics
+        if not self._bilateral_enabled:
+            return trades
+            
+        mc = getattr(self.simulation, "metrics_collector", None)
+        if mc is None:
+            return trades
+        
+        try:
+            # Get recent trade history from metrics collector
+            # For now, we'll check if there are any trades recorded for this step
+            # This is a simplified implementation - in a full system you'd track
+            # trades per step more systematically
+            
+            # Check last trade to see if it matches current step
+            last_trade = mc.last_executed_trade
+            if last_trade and last_trade.get('step') == step:
+                # Format trade for display using same fields as trade summary
+                trade_info = {
+                    'agent_a_id': last_trade.get('seller', '?'),
+                    'agent_b_id': last_trade.get('buyer', '?'), 
+                    'goods_a_to_b': last_trade.get('give_type', '?'),
+                    'goods_b_to_a': last_trade.get('take_type', '?'),
+                    'delta_utility': last_trade.get('delta_utility', 0)
+                }
+                trades.append(trade_info)
+                
+        except Exception:
+            # Graceful fallback
+            pass
+            
+        return trades
+    
+    def get_recent_target_selections(self, step: int) -> list[dict[str, Any]]:
+        """Get agent target selection events for the specified step."""
+        # For now, return empty list - this would require more extensive 
+        # agent behavior tracking to implement properly
+        # In a future implementation, agents could log their decision events
+        return []
 
     def teardown(self) -> None:
         # Placeholder for future resource clean shutdown hooks

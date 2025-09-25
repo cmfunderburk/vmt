@@ -16,5 +16,6 @@ class OverlayState:
     show_agent_ids: bool = True
     show_target_arrow: bool = True
     show_home_labels: bool = True
+    show_trade_lines: bool = True  # Show lines connecting trading partners
 
 __all__ = ["OverlayState"]

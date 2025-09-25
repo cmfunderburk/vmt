@@ -447,6 +447,46 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                             )
                                         except Exception:
                                             pass
+                            # Show trade partner connections (bilateral exchange debug)
+                            if overlay_state.show_trade_lines:
+                                drawn_pairs = set()  # Track pairs to avoid drawing lines twice
+                                for agent in sorted_agents:
+                                    partner_id = getattr(agent, "trade_partner_id", None)
+                                    if partner_id is not None:
+                                        # Find the partner agent
+                                        partner_agent = None
+                                        for other_agent in sorted_agents:
+                                            if getattr(other_agent, "id", None) == partner_id:
+                                                partner_agent = other_agent
+                                                break
+                                        
+                                        if partner_agent is not None:
+                                            agent_id = getattr(agent, "id", -1)
+                                            # Avoid drawing the same line twice (A->B and B->A)
+                                            pair = tuple(sorted([agent_id, partner_id]))
+                                            if pair not in drawn_pairs:
+                                                drawn_pairs.add(pair)
+                                                
+                                                # Agent positions
+                                                ax = getattr(agent, "x", 0)
+                                                ay = getattr(agent, "y", 0)
+                                                px = getattr(partner_agent, "x", 0) 
+                                                py = getattr(partner_agent, "y", 0)
+                                                
+                                                # Draw line between trading partners
+                                                start_pos = (
+                                                    int(ax * cell_w + cell_w // 2),
+                                                    int(ay * cell_h + cell_h // 2),
+                                                )
+                                                end_pos = (
+                                                    int(px * cell_w + cell_w // 2),
+                                                    int(py * cell_h + cell_h // 2),
+                                                )
+                                                
+                                                # Use cyan color to distinguish from target arrows (yellow)
+                                                pygame.draw.line(  # type: ignore[arg-type]
+                                                    self._surface, (0, 255, 255), start_pos, end_pos, 2
+                                                )
                         # Enhanced trade visualization (includes original debug overlay with visual enhancements)
                         try:
                             from ._enhanced_trade_visualization import render_enhanced_trade_visualization

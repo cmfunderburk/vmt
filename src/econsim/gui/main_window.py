@@ -136,6 +136,7 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         
         # Create panels with group boxes per ASCII layout
         from .panels.agent_inspector_panel import AgentInspectorPanel
+        from .panels.event_log_panel import EventLogPanel
         
         # Controls group
         controls_group = QGroupBox("CONTROLS")
@@ -172,11 +173,20 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         panels_layout.addWidget(inspector_group)
         panels_layout.addStretch()  # Push panels to top
         
-        # Add left and right sides to content layout
+        # Event Log group (left side)
+        event_log_group = QGroupBox("EVENT LOG")
+        event_log_layout = QVBoxLayout(event_log_group)
+        event_log = EventLogPanel(controller=controller)
+        event_log_layout.addWidget(event_log)
+        event_log_group.setFixedWidth(300)  # Fixed width for consistent layout
+        
+        # Add all three sections to content layout: [Event Log] [Pygame] [Panels]
+        content_layout.addWidget(event_log_group, 0)
         content_layout.addWidget(pygame_widget, 0)
         content_layout.addLayout(panels_layout, 1)
-        content_layout.setStretch(0, 0)
-        content_layout.setStretch(1, 1)
+        content_layout.setStretch(0, 0)  # Event log: fixed width
+        content_layout.setStretch(1, 0)  # Pygame: fixed size
+        content_layout.setStretch(2, 1)  # Panels: expandable
 
         # Align controller decision mode with widget decision mode (for manual steps determinism)
         try:

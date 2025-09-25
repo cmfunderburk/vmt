@@ -601,11 +601,12 @@ class Agent:
         elif dy != 0:
             self.y += 1 if dy > 0 else -1
 
-    def attempt_trade_with_partner(self, other_agent: "Agent") -> bool:
+    def attempt_trade_with_partner(self, other_agent: "Agent", metrics_collector: Any = None, current_step: int = 0) -> bool:
         """Attempt a 1-for-1 trade with the partner agent.
         
         Returns True if a trade was executed, False if no beneficial trade found.
         Trades are utility-improving swaps of 1 unit of each good type.
+        Records trade in metrics collector if provided.
         """
         if not self.is_colocated_with(other_agent):
             return False
@@ -633,6 +634,15 @@ class Agent:
                 self.carrying["good2"] += 1
                 other_agent.carrying["good1"] += 1
                 other_agent.carrying["good2"] -= 1
+                
+                # Record trade in metrics if available
+                if metrics_collector is not None and hasattr(metrics_collector, 'record_bilateral_trade'):
+                    my_delta_u = my_new_u - my_current_u
+                    partner_delta_u = partner_new_u - partner_current_u
+                    metrics_collector.record_bilateral_trade(
+                        current_step, self.id, other_agent.id,
+                        "good1", "good2", my_delta_u, partner_delta_u
+                    )
                 return True
         
         # Try swapping 1 good2 for 1 good1
@@ -658,6 +668,15 @@ class Agent:
                 self.carrying["good1"] += 1
                 other_agent.carrying["good2"] += 1
                 other_agent.carrying["good1"] -= 1
+                
+                # Record trade in metrics if available
+                if metrics_collector is not None and hasattr(metrics_collector, 'record_bilateral_trade'):
+                    my_delta_u = my_new_u - my_current_u
+                    partner_delta_u = partner_new_u - partner_current_u
+                    metrics_collector.record_bilateral_trade(
+                        current_step, self.id, other_agent.id,
+                        "good2", "good1", my_delta_u, partner_delta_u
+                    )
                 return True
         
         return False  # No beneficial trade found
