@@ -205,7 +205,12 @@ class Agent:
                 best_meta = (rx, ry)
 
         if best_meta is None:
-            if self.carrying_total() > 0:
+            # No single resource gives positive ΔU - try prospecting for Leontief agents
+            prospect_target = self._try_leontief_prospecting(grid, raw_bundle)
+            if prospect_target is not None:
+                self.target = prospect_target
+                self.mode = AgentMode.FORAGE
+            elif self.carrying_total() > 0:
                 self.mode = AgentMode.RETURN_HOME
                 self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
             else:
@@ -214,6 +219,168 @@ class Agent:
         else:
             self.target = best_meta
             self.mode = AgentMode.FORAGE
+
+    def _try_leontief_prospecting(self, grid: Grid, raw_bundle: tuple[float, float]) -> Position | None:
+        """Attempt prospecting behavior for Leontief agents when no single resource gives positive ΔU.
+        
+        Returns the best first resource to collect when building a complementary bundle,
+        or None if no viable prospects exist.
+        """
+        # Only apply prospecting to Leontief preference agents
+        if getattr(self.preference, 'TYPE_NAME', '') != 'leontief':
+            return None
+        
+        best_prospect: tuple[float, int, int, int] | None = None  # key = (-score, dist, x, y)
+        best_prospect_pos: Position | None = None
+        max_dist = default_PERCEPTION_RADIUS
+        
+        # Use sorted iteration for deterministic ordering
+        iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
+        
+        for rx, ry, rtype in iterator:
+            dist_to_resource = self._manhattan(self.x, self.y, rx, ry)
+            if dist_to_resource > max_dist:
+                continue
+            
+            good = RESOURCE_TYPE_TO_GOOD.get(rtype)
+            if not good:
+                continue
+                
+            # Find the best complementary resource for this starting resource
+            prospect_score = self._calculate_prospect_score(
+                (rx, ry), rtype, grid, raw_bundle, max_dist
+            )
+            
+            if prospect_score > 0.0:
+                key = (-prospect_score, dist_to_resource, rx, ry)
+                if best_prospect is None or key < best_prospect:
+                    best_prospect = key
+                    best_prospect_pos = (rx, ry)
+        
+        return best_prospect_pos
+
+    def _calculate_prospect_score(
+        self, 
+        resource_pos: Position, 
+        resource_type: str, 
+        grid: Grid, 
+        current_bundle: tuple[float, float],
+        max_dist: int
+    ) -> float:
+        """Calculate prospect score for a resource when building complementary bundles.
+        
+        Score = expected utility gain from collecting both complementary resources / total effort
+        """
+        rx, ry = resource_pos
+        dist_to_first = self._manhattan(self.x, self.y, rx, ry)
+        
+        # Find nearest complementary resource
+        complement_pos, complement_dist = self._find_nearest_complement_resource(
+            resource_pos, resource_type, grid, max_dist
+        )
+        
+        if complement_pos is None:
+            return 0.0  # No complement available
+        
+        # Calculate total effort: home -> resource1 -> resource2 -> home
+        cx, cy = complement_pos
+        dist_between = self._manhattan(rx, ry, cx, cy)
+        dist_home = self._manhattan(cx, cy, int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
+        total_effort = dist_to_first + dist_between + dist_home
+        
+        # Calculate expected utility gain from collecting both resources
+        first_good = RESOURCE_TYPE_TO_GOOD[resource_type]
+        complement_type = self._peek_resource_type_at(grid, cx, cy)
+        if complement_type is None:
+            return 0.0
+            
+        second_good = RESOURCE_TYPE_TO_GOOD.get(complement_type)
+        if second_good is None:
+            return 0.0
+        
+        # Simulate final bundle after collecting both resources
+        final_bundle = [current_bundle[0], current_bundle[1]]
+        if first_good == "good1":
+            final_bundle[0] += 1.0
+        else:
+            final_bundle[1] += 1.0
+            
+        if second_good == "good1":
+            final_bundle[0] += 1.0
+        else:
+            final_bundle[1] += 1.0
+        
+        # Calculate utility gain (use epsilon lift for consistent evaluation)
+        base_bundle = current_bundle
+        if base_bundle[0] == 0.0 or base_bundle[1] == 0.0:
+            base_bundle = (base_bundle[0] + EPSILON_UTILITY, base_bundle[1] + EPSILON_UTILITY)
+            
+        final_bundle_tuple = (final_bundle[0], final_bundle[1])
+        if final_bundle[0] == 0.0 or final_bundle[1] == 0.0:
+            final_bundle_tuple = (final_bundle[0] + EPSILON_UTILITY, final_bundle[1] + EPSILON_UTILITY)
+        
+        base_utility = self.preference.utility(base_bundle)
+        final_utility = self.preference.utility(final_bundle_tuple)
+        utility_gain = final_utility - base_utility
+        
+        # Score = utility gain per unit effort
+        return utility_gain / (total_effort + 1e-9)
+
+    def _find_nearest_complement_resource(
+        self, 
+        resource_pos: Position, 
+        resource_type: str, 
+        grid: Grid, 
+        max_dist: int
+    ) -> tuple[Position | None, int]:
+        """Find the nearest resource that complements the given resource type.
+        
+        Returns (position, distance) or (None, 0) if no complement found.
+        """
+        rx, ry = resource_pos
+        current_good = RESOURCE_TYPE_TO_GOOD.get(resource_type)
+        if current_good is None:
+            return None, 0
+        
+        # Determine what complementary good we need
+        complement_good = "good2" if current_good == "good1" else "good1"
+        complement_resource_type = None
+        for rtype, good in RESOURCE_TYPE_TO_GOOD.items():
+            if good == complement_good:
+                complement_resource_type = rtype
+                break
+        
+        if complement_resource_type is None:
+            return None, 0
+        
+        best_complement: tuple[int, int, int] | None = None  # (dist, x, y)
+        iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
+        
+        for cx, cy, ctype in iterator:
+            if ctype != complement_resource_type:
+                continue
+            if (cx, cy) == resource_pos:  # Skip the same resource
+                continue
+                
+            dist = self._manhattan(rx, ry, cx, cy)
+            if dist > max_dist * 2:  # Allow longer distances for complements
+                continue
+                
+            key = (dist, cx, cy)
+            if best_complement is None or key < best_complement:
+                best_complement = key
+        
+        if best_complement is None:
+            return None, 0
+        
+        return (best_complement[1], best_complement[2]), best_complement[0]
+
+    def _peek_resource_type_at(self, grid: Grid, x: int, y: int) -> str | None:
+        """Non-destructively peek at the resource type at a given position."""
+        for rx, ry, rtype in grid.iter_resources():
+            if rx == x and ry == y:
+                return rtype
+        return None
 
     def step_decision(self, grid: Grid) -> bool:
         """Perform one decision+movement+interaction step (without RNG).
