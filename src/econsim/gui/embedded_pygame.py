@@ -131,24 +131,20 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         sprites_dir_emoji = project_root / "vmt_sprites_agents_emoji"
         
         try:
-            # Load multiple agent sprites from emoji folder
+            # Load multiple agent sprites from pack 2
             agent_sprite_names = [
-                "agent_emoji_builder_64.png",
-                "agent_emoji_chef_64.png",
-                "agent_emoji_diplomat_64.png",
-                "agent_emoji_guard_64.png",
-                "agent_emoji_medic_64.png",
-                "agent_emoji_merchant_64.png",
-                "agent_emoji_ranger_64.png",
-                "agent_emoji_robot_64.png",
-                "agent_emoji_scholar_64.png",
-                "agent_emoji_scientist_64.png"
+                "agent_explorer_64.png",
+                "agent_farmer_64.png", 
+                "agent_green_64.png",
+                "agent_miner_64.png",
+                "agent_purple_64.png",
+                "agent_trader_64.png"
             ]
             
             for sprite_name in agent_sprite_names:
-                sprite_path = sprites_dir_emoji / sprite_name
+                sprite_path = sprites_dir_2 / sprite_name
                 if sprite_path.exists():
-                    # Store with key like "agent_emoji_builder", "agent_emoji_chef", etc.
+                    # Store with key like "agent_explorer", "agent_farmer", etc.
                     sprite_key = sprite_name.replace("_64.png", "")
                     sprites[sprite_key] = pygame.image.load(str(sprite_path)).convert_alpha()
             
@@ -334,7 +330,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     ay = getattr(agent, "y", 0)
                     
                     # Get agent's specific sprite type
-                    agent_sprite_type = getattr(agent, "sprite_type", "agent_emoji_builder")
+                    agent_sprite_type = getattr(agent, "sprite_type", "agent_explorer")
                     if agent_sprite_type in self._sprites:
                         # Use agent's specific sprite
                         sprite = self._sprites[agent_sprite_type]
