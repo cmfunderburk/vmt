@@ -13,7 +13,7 @@ non-overlapping agent home placement with on-grid home labels. Python 3.11+ assu
 - `Simulation`: orchestrates agents + grid per step; optional hooks for respawn & metrics.
 - `Preferences`: pluggable utility forms (Cobb-Douglas, Perfect Substitutes, Leontief) via factory.
 - Hooks (manual wiring now): `RespawnScheduler`, `MetricsCollector`.
-    - Respawn baseline now alternates resource types A ↔ B deterministically (no added complexity).
+    - Respawn baseline now assigns random resource types A/B deterministically (no added complexity).
 
 ## 2. Factory Construction (Preferred – Gate 6)
 ```python
@@ -96,7 +96,7 @@ print("determinism hash:", sim.metrics_collector.determinism_hash())
 Notes:
 * Hooks are inert unless explicitly assigned when bypassing the factory.
 * Determinism hash covers agents + resources each step (ordering sensitive).
-* Alternating resource type spawn (A/B) is handled internally by `RespawnScheduler` (baseline diversity).
+* Random resource type spawn (A/B) is handled internally by `RespawnScheduler` (baseline diversity).
 
 ## 6. Snapshot & Replay
 ```python
@@ -127,13 +127,13 @@ Parameter validation raises `PreferenceError` on invalid input.
 - Agent list order conveys priority in simultaneous contests.
 - Epsilon bootstrap (`EPSILON_UTILITY`) lifts zero bundles to avoid stall.
 - Metrics hash canonical ordering: sorted agents + sorted resources.
-- Respawn diversity: simple alternating A/B sequence (seed + spawn order fully determines types; no extra RNG draws).
+- Respawn diversity: simple random A/B assignment (seed + spawn order fully determines types; no extra RNG draws).
 - Agent home placement: deterministic `random.sample` of all grid cells using secondary RNG seeded with `seed+9973`.
     Changing the offset or introducing additional draws would alter home distribution for a given seed; gate any such change.
 
 ## 9. Performance Notes
 - Frame target ~60 FPS (GUI path). Avoid enlarging 320x320 surface or adding per-tick allocations.
-- Decision loop complexity: O(agents + visible resources). Respawn & metrics remain linear; alternation adds O(1) per spawn.
+- Decision loop complexity: O(agents + visible resources). Respawn & metrics remain linear; random assignment adds O(1) per spawn.
 
 ## 10. Controller Introspection (Agent Metrics Accessors)
 The GUI leverages read-only helper methods on `SimulationController` (exposed via the new UI path). They are pure and safe for overlays/testing:
@@ -150,14 +150,14 @@ Properties:
 ## 11. Current Limitations
 | Limitation | Impact | Planned Resolution |
 |------------|--------|-------------------|
-| Weighted multi-type respawn | Only simple A/B alternation | Future strategy gate |
+| Weighted multi-type respawn | Only simple A/B random assignment | Future strategy gate |
 | GUI trade / production | Economic depth limited | Interaction & production gates |
 | Utility contour overlays | Limited pedagogical visualization | Future overlay gate |
 | No menus / overlays control | Hard-coded visuals | Gate 8 basic controls |
 | Trading / production absent | Economic depth limited | Gates 7–9 sequencing |
 
 ## 12. Snapshot & Replay Integrity
-Unchanged: snapshot excludes `RespawnScheduler` internal alternation flag; replay parity relies on reproducing spawn order. If future serialization includes scheduler state, include the alternation toggle at the end of existing fields.
+Unchanged: snapshot excludes `RespawnScheduler` internal state; replay parity relies on reproducing spawn order. If future serialization includes scheduler state, include the random assignment state at the end of existing fields.
 
 ## 13. Experimental Bilateral Exchange Flags (Gate Bilateral2 Phase 3)
 These flags control the prototype reciprocal bilateral exchange system. Default off preserves determinism hash.

@@ -91,6 +91,37 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         respawn_row.addWidget(self._respawn_box)
         layout.addLayout(respawn_row)
         
+        # Respawn rate control (percentage of deficit)
+        respawn_rate_row = QHBoxLayout()
+        respawn_rate_row.addWidget(QLabel("Respawn Rate:"))
+        self._respawn_rate_box = QComboBox()
+        self._respawn_rate_box.setToolTip("Percentage of resource deficit to respawn each time")
+        self._respawn_rate_box.setAccessibleName("respawn-rate-combo")
+        self._respawn_rate_options: list[tuple[str, float]] = [
+            ("10%", 0.1),
+            ("25%", 0.25),
+            ("50%", 0.5),
+            ("75%", 0.75),
+            ("100%", 1.0),
+        ]
+        for label, val in self._respawn_rate_options:
+            self._respawn_rate_box.addItem(label, userData=val)
+        # Set to current respawn rate from controller
+        try:
+            current_rate = self._controller.respawn_rate()  # type: ignore[attr-defined]
+            for i, (label, val) in enumerate(self._respawn_rate_options):
+                if abs(val - current_rate) < 0.01:  # Close enough match
+                    self._respawn_rate_box.setCurrentIndex(i)
+                    break
+            else:
+                # Default to "100%" if no match found
+                self._respawn_rate_box.setCurrentText("100%")
+        except Exception:
+            # Default to "100%" for full replenishment
+            self._respawn_rate_box.setCurrentText("100%")
+        respawn_rate_row.addWidget(self._respawn_rate_box)
+        layout.addLayout(respawn_rate_row)
+        
         # Trade controls group
         trade_group = QGroupBox("Trade Controls")
         trade_form = QFormLayout()
@@ -153,6 +184,7 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         back_btn.clicked.connect(on_back)  # type: ignore[arg-type]
         self._speed_box.currentIndexChanged.connect(self._change_speed)  # type: ignore[arg-type]
         self._respawn_box.currentIndexChanged.connect(self._change_respawn_interval)  # type: ignore[arg-type]
+        self._respawn_rate_box.currentIndexChanged.connect(self._change_respawn_rate)  # type: ignore[arg-type]
         self._bilateral_cb.stateChanged.connect(self._toggle_bilateral)  # type: ignore[arg-type]
         # Granular trade controls
         self._trade_draft_cb.stateChanged.connect(self._toggle_trade_draft)  # type: ignore[arg-type]
@@ -209,6 +241,14 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
                 self._controller.set_respawn_interval(None)
             else:
                 self._controller.set_respawn_interval(int(data))
+        except Exception:
+            pass
+
+    def _change_respawn_rate(self, idx: int) -> None:
+        data = self._respawn_rate_box.itemData(idx)
+        try:
+            if data is not None:
+                self._controller.set_respawn_rate(float(data))  # type: ignore[attr-defined]
         except Exception:
             pass
 

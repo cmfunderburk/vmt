@@ -13,7 +13,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
 | Agents | Carrying vs home inventories with wealth accumulation, modes, greedy decision, tie-break determinism, randomized non-overlapping home placement + on-grid home labels (H{id}), utility reflects total wealth (carrying + home) | Trading, production/consumption, richer behaviors |
 | Decision Mode | Greedy ΔU selection (epsilon bootstrap) + tests; GUI default ON; env / param override | Multi-step planning |
-| Respawn | Density-based scheduler (factory flag), deterministic alternating A/B types, uniform seeded placement + GUI respawn interval control (Off / 1 / 2 / 5 / 10) | Weighted / adaptive multi-type distribution, richer policies |
+| Respawn | Dual GUI controls: **Interval** (Off/1/5/10/20 steps, default 20) + **Rate** (10%/25%/50%/75%/100% deficit replenishment, default 100%). Random A/B type assignment, uniform seeded placement. | Weighted / adaptive multi-type distribution, richer policies |
 | Metrics | Factory-attached collector + determinism hash | Additional economic metrics suite |
 | Snapshot / Replay | Serialize + restore + hash parity tests | Scenario library management |
 | Configuration | `SimConfig` + `Simulation.from_config` factory | Extended scenario descriptors |
@@ -214,7 +214,7 @@ Added:
 * **Agent Wealth Accumulation**: Agents now accumulate goods at home base. Utility calculation includes total wealth (carrying + home inventory). GUI shows both "Carry:" and "Home:" inventories separately in Agent Inspector panel.
 * **Complete GUI Controls**: Full-featured Start Menu with scenario selection, parameter configuration, and Advanced panel (grid size, density, perception radius, viewport size). Simulation page includes grouped panels: Controls, Overlays, Metrics, Agent Inspector.
 * **Enhanced Agent Inspector**: Individual agent state tracking with dropdown selection, separate display of carrying vs home inventories, and total utility calculation reflecting accumulated wealth.
-* **Multi-type respawn baseline**: scheduler alternates resource types A/B deterministically ensuring diversity without added per-step complexity.
+* **Multi-type respawn baseline**: scheduler assigns random resource types A/B deterministically ensuring diversity without added per-step complexity.
 * **Randomized non-overlapping agent home placement** (deterministic secondary RNG seeded by `seed+9973`) with `H{id}` labels rendered in cells.
 
 Performance: Configurable viewport maintains ~62 FPS across all sizes. Agent wealth tracking adds negligible overhead. All GUI components preserve determinism.
@@ -312,7 +312,7 @@ Gate-based technical validation approach:
 - **Testing Surface Access**: Added `get_surface_bytes()` for safe render assertions
 
 ### **🎯 Upcoming Focus**
--- Weighted / adaptive multi-type respawn strategies (beyond simple alternation)
+-- Weighted / adaptive multi-type respawn strategies (beyond current random assignment)
 -- Trade interactions & richer economic behaviors
 -- Utility contour & marginal rate visualization overlays
 -- Parameterized scenario loading & persistence
@@ -324,15 +324,21 @@ Controls panel includes:
 * Home label: accumulated wealth at home base (good1, good2)
 * Utility label: utility of total wealth (carrying + home inventory)
 * Turn Rate dropdown: pacing (Unlimited or X tps)
-* Respawn dropdown: Off / Every Step / 2 / 5 / 10 (modulo-based invocation of respawn scheduler)
+* Respawn Interval dropdown: Off / Every 1 / 5 / 10 / 20 steps (default 20; when respawn occurs)
+* Respawn Rate dropdown: 10% / 25% / 50% / 75% / 100% (default 100%; percentage of deficit replenished each time)
 
 ### Start Menu Configuration
-Advanced panel (collapsed by default) includes:
-* Grid Size: NxN simulation grid dimensions
-* Resource Density: initial resource placement probability
-* Perception Radius: agent decision-making scan radius
-* Viewport Size: configurable Pygame surface size (320×320 to 800×800, square)
+Preferences section (main area) includes:
+* Num Agents: agent count (default 4)
+* Pref Mix: preference type (Cobb-Douglas, Perfect Substitutes, Leontief)
+* Grid Size: NxN simulation grid dimensions (default 20×20)
+* Resource Density: target percentage of cells with resources (default 0.25 = 25%)
+* Perception Radius: agent decision-making scan radius (default 8)
+* Viewport Size: configurable Pygame surface size (default 800×800, square)
 * Metrics Enabled: toggle metrics collection and hash computation
+
+Advanced panel (experimental features only, collapsed by default):
+* Bilateral Exchange: enable experimental trading features
 
 Agent metrics update cadence is 4 Hz (lightweight timer). Respawn interval changes are deterministic given identical user interaction order and do not reseed RNG.
 

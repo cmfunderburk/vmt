@@ -16,10 +16,7 @@ Construction Path: `Simulation.from_config(SimConfig, preference_factory, agent_
 
 Testing Strategy: Determinism via reproducible hash tests (`test_determinism_hash.py`), performance gates (`make perf`, acceptable floor ≥30 FPS), decision mode validation. All state-changing features require regression tests. Test structure mirrors src layout: `tests/unit/test_*.py`.
 
-Respawn & Interval:
-- Alternating resource types A↔B deterministic toggle + uniform seeded empty‑cell shuffle (removes positional bias)
-- Interval gating: `(step % interval)==0`; GUI dropdown maps (Off→None, 1,2,5,10). Disabling leaves scheduler attached but inert.
-- Agent homes: deterministic secondary RNG (`seed+9973`), non‑overlapping; home labels cached font.
+Respawn System: Dual control via GUI dropdowns. **Interval**: when respawn occurs (Off, 1,5,10,20 steps; default 20). **Rate**: percentage of deficit respawned (10%,25%,50%,75%,100%; default 100%). Maintains target density from start menu. Random A/B type assignment, uniform empty‑cell shuffle from internal RNG. Agent homes use secondary seed offset (`seed+9973`).
 
 Rendering Rules:
 - Keep pipeline intact; no per-pixel Python mutation.

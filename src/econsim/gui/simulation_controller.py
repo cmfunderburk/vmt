@@ -260,6 +260,30 @@ class SimulationController:
     def respawn_interval(self) -> int | None:
         return getattr(self, "_respawn_interval_cache", None)
 
+    def set_respawn_rate(self, rate: float) -> None:
+        """Set the respawn rate (fraction of deficit respawned each time).
+        
+        Rate should be between 0.0 and 1.0, where:
+        - 0.1 = respawn 10% of deficit each time
+        - 1.0 = respawn 100% of deficit each time (full replenishment)
+        """
+        try:
+            scheduler = getattr(self.simulation, "respawn_scheduler", None)
+            if scheduler is not None:
+                scheduler.respawn_rate = max(0.0, min(1.0, float(rate)))
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    def respawn_rate(self) -> float:
+        """Get the current respawn rate."""
+        try:
+            scheduler = getattr(self.simulation, "respawn_scheduler", None)
+            if scheduler is not None:
+                return scheduler.respawn_rate
+        except Exception:
+            pass
+        return 1.0  # Default to 100%
+
     def _should_step_now(self, now: float) -> bool:
         """Return True if an auto step should occur at this timestamp.
 
