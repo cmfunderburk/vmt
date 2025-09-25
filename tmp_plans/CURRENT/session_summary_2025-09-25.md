@@ -1,9 +1,13 @@
-# Session Summary (2025-09-25)
+# Session Summary (2025-09-25) - Updated
 
 ## Overview
-This session finalized the dual gating implementation (foraging + bilateral exchange), stabilized GUI behavior, documented newly introduced idle semantics when all behavioral systems are disabled, and validated performance/determinism after refactors. All planned feature/documentation tasks (besides the deferred hash parity redesign) are complete and test suite is green (`141 passed, 8 skipped, 1 xfailed`).
+**Previous Session**: Finalized dual gating implementation (foraging + bilateral exchange), stabilized GUI behavior, documented idle semantics, validated performance/determinism. Test suite: `141 passed, 8 skipped, 1 xfailed`.
+
+**Current Session**: Completed major GUI reorganization, implemented dual respawn controls, comprehensively updated documentation, and refined agent instruction guidelines. All changes maintain performance and determinism invariants while significantly improving user experience and code maintainability.
 
 ## Key Changes Since Last Commit
+
+### Previous Session Accomplishments
 1. Foraging & Trade Gating
    - Added explicit `ECONSIM_FORAGE_ENABLED` flag with GUI checkbox; fixed disable semantics (explicit `0` instead of deletion).
    - Implemented four-way gating matrix (forage off/on × trade draft/exec) plus granular GUI trade controls (Master, Draft, Execute, Debug Overlay).
@@ -27,14 +31,55 @@ This session finalized the dual gating implementation (foraging + bilateral exch
    - README/API_GUIDE updated with: Foraging flag, updated gating matrix, executed trade highlight, idle semantics, determinism hash parity deferral rationale.
    - Added explicit rationale for idle path change (inventory invariance & pedagogical clarity).
 
+### Current Session Accomplishments
+
+#### 1. GUI Architecture Reorganization
+- **Start Menu Restructure**: Moved all "Advanced" settings (Grid Size, Resource Density, Perception Radius, Viewport Size, Metrics Enabled) directly into main preferences area for better discoverability
+- **Default Value Updates**: Changed defaults to grid 20x20 (from 12x12) and viewport 800x800 (from 320x320) for better educational visibility
+- **Simplified Advanced Panel**: Reduced advanced panel to only experimental/developer features (trade settings), removing UI clutter
+- **Removed Respawn from Start Menu**: Moved respawn controls entirely to simulation runtime controls for more intuitive user flow
+
+#### 2. Dual Respawn Control System Implementation
+- **Interval Control**: Added dropdown for respawn timing (Off/1/5/10/20 steps, default 20) controlling *when* respawn occurs
+- **Rate Control**: Added dropdown for respawn percentage (10%/25%/50%/75%/100%, default 100%) controlling *how much* deficit gets replenished each time
+- **GUI Integration**: Both controls available in simulation Controls panel with proper signal/slot connections
+- **Controller Methods**: Added `set_respawn_rate()` and `respawn_rate()` methods to `SimulationController`
+- **Config Updates**: Updated `SimConfig` defaults (respawn_rate=1.0, max_spawn_per_tick=100) and `World` defaults (respawn_interval=20)
+
+#### 3. Respawn Algorithm Refinement
+- **Corrected Logic Understanding**: Clarified that respawn maintains target density by replenishing *consumed* resources, not replacing all resources periodically
+- **Random Assignment**: Changed from alternating A/B type assignment to random assignment for more natural resource distribution
+- **Deterministic Behavior**: Maintained deterministic seeded random assignment preserving reproducibility
+
+#### 4. Comprehensive Documentation Updates
+- **README.md**: Updated respawn system documentation, GUI control descriptions, start menu configuration details, and technical references
+- **API_GUIDE.md**: Updated all respawn behavior descriptions, performance notes, limitations table, and snapshot documentation
+- **CHANGELOG.md**: Updated feature descriptions to reflect random assignment vs alternating behavior
+- **.github/copilot-instructions.md**: Already correctly documented dual control system
+- **Consistency Pass**: Ensured all documentation accurately reflects implemented behavior
+
+#### 5. Code Quality & Validation
+- **Signal Connections**: Proper PyQt6 signal handling for new respawn rate control
+- **State Synchronization**: GUI controls properly sync with underlying simulation state
+- **Testing Validation**: All existing tests continue to pass with new defaults and behavior
+- **Performance Verification**: No performance regression from dual control system
+
 ## Deferred / Open Items
 - Determinism hash parity redesign (currently xfailed test). Requires decision on whether to exclude carrying deltas under execution or introduce a canonical post-trade normalization.
 - No major refactors applied to trade priority algorithm beyond flag-gated delta utility ordering (still optional).
 
 ## Quality & Invariants Status
-- Determinism invariants (tie-break key, sorted resource iteration, agent ordering) intact.
-- Performance invariant (>30 FPS) validated post changes.
-- Single QTimer frame loop and no additional timers/threads preserved.
+- **Determinism**: All invariants (tie-break key, sorted resource iteration, agent ordering) intact across both sessions
+- **Performance**: Maintains >30 FPS floor; GUI reorganization and dual controls add no measurable overhead
+- **Architecture**: Single QTimer frame loop preserved; no additional timers/threads introduced
+- **Documentation**: Comprehensive update ensuring all docs reflect actual implementation behavior
+- **User Experience**: Significant improvement through GUI reorganization and intuitive dual respawn controls
+
+## Next Session Preparation
+- All major GUI/respawn work complete and documented
+- Test suite passing with new defaults and behavior
+- Documentation synchronized across all files
+- Ready for next development phase or new feature work
 - No mutation introduced in overlay / debug rendering paths (pure read-only aside from highlight drawing derived from simulation state).
 
 ## Risks / Watch Points
