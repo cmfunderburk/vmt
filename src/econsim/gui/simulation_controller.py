@@ -480,12 +480,16 @@ class SimulationController:
         if current_step > self._last_checked_step:
             try:
                 last_trade = mc.last_executed_trade
-                # DEBUG: Print trade detection logic (enabled for debugging)
+                # DEBUG: Print trade detection logic and delta utility values
                 print(f"DEBUG: current_step={current_step}, last_checked_step={self._last_checked_step}")
                 print(f"DEBUG: last_trade={last_trade}")
                 
                 if (last_trade and 
                     last_trade.get('step', -1) > self._last_checked_step):
+                    
+                    # DEBUG: Check the raw delta_utility value
+                    raw_delta_u = last_trade.get('delta_utility', 0)
+                    print(f"DEBUG: Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})")
                     
                     # Format trade for display (use trade's actual step, not current step)
                     trade_step = last_trade.get('step', current_step)
@@ -494,9 +498,11 @@ class SimulationController:
                         'agent_b_id': last_trade.get('buyer', '?'), 
                         'goods_a_to_b': last_trade.get('give_type', '?'),
                         'goods_b_to_a': last_trade.get('take_type', '?'),
-                        'delta_utility': last_trade.get('delta_utility', 0),
+                        'delta_utility': raw_delta_u,  # Use raw value, no conversion
                         'step': trade_step
                     }
+                    
+                    print(f"DEBUG: Formatted trade_info delta_utility: {trade_info['delta_utility']}")
                     
                     # Add to history and trim to reasonable size
                     self._trade_history.append(trade_info)
