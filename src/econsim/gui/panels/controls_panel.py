@@ -34,6 +34,15 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         step1 = QPushButton("Step 1")
         step5 = QPushButton("Step 5") 
         refresh_hash = QPushButton("Refresh")
+
+        self._pause_btn.setToolTip("Pause or resume the simulation")
+        self._pause_btn.setAccessibleName("pause-resume-button")
+        step1.setToolTip("Advance the simulation by one step")
+        step1.setAccessibleName("step-one-button")
+        step5.setToolTip("Advance the simulation by five steps")
+        step5.setAccessibleName("step-five-button")
+        refresh_hash.setToolTip("Recompute the determinism hash for the current state")
+        refresh_hash.setAccessibleName("refresh-hash-button")
         
         button_layout.addWidget(self._pause_btn, 0, 0)
         button_layout.addWidget(step1, 0, 1)
@@ -52,6 +61,7 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         turn_row.addWidget(QLabel("Rate:"))
         self._speed_box = QComboBox()
         self._speed_box.setToolTip("Turn pacing rate")
+        self._speed_box.setAccessibleName("turn-rate-combo")
         self._speeds: list[float | None] = [None, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
         for s in self._speeds:
             if s is None:
@@ -66,6 +76,7 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         respawn_row.addWidget(QLabel("Respawn:"))
         self._respawn_box = QComboBox()
         self._respawn_box.setToolTip("Respawn frequency")
+        self._respawn_box.setAccessibleName("respawn-frequency-combo")
         self._respawn_options: list[tuple[str, int | None]] = [
             ("Off", None),
             ("Every 1", 1),
@@ -80,6 +91,8 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         
         # Back to menu button
         back_btn = QPushButton("Back to Menu")
+        back_btn.setToolTip("Return to the start menu and end the current simulation")
+        back_btn.setAccessibleName("back-to-menu-button")
         layout.addWidget(back_btn)
         
         # Wire signals

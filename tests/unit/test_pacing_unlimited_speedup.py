@@ -55,14 +55,21 @@ def test_switch_to_unlimited_increases_step_rate():
     # Ensure unpaused for pacing test
     if controller.is_paused():
         controller.resume()
+    # Ensure pacing is explicitly set to 1.0 tps for the baseline slice
+    controls = sess.controls  # type: ignore[attr-defined]
+    speed_box = getattr(controls, '_speed_box')
+    for i in range(speed_box.count()):
+        data = speed_box.itemData(i)
+        if data == 1.0:
+            speed_box.setCurrentIndex(i)
+            app.processEvents()
+            break
     # Slice 1 at 1.0 tps
     start_steps = controller.ticks()
     _pump(SLICE_SEC)
     mid_steps = controller.ticks()
     slice1 = mid_steps - start_steps
     # Switch to Unlimited (select first index where userData is None)
-    controls = sess.controls  # type: ignore[attr-defined]
-    speed_box = getattr(controls, '_speed_box')
     for i in range(speed_box.count()):
         if speed_box.itemData(i) is None:
             speed_box.setCurrentIndex(i)

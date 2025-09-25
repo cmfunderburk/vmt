@@ -31,6 +31,7 @@ try:  # Local import guard (optional config not always present yet)
 except Exception:  # pragma: no cover
     SimConfig = Any  # fallback for type checkers
 
+import logging
 from .agent import Agent
 from .grid import Grid
 from .respawn import RespawnScheduler  # type: ignore
@@ -79,13 +80,13 @@ class Simulation:
                     try:
                         self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)
                     except Exception as exc:  # pragma: no cover - defensive placeholder
-                        print(f"[RespawnWarning] scheduler error: {exc}")
+                        logging.getLogger(__name__).warning("Respawn scheduler error: %s", exc)
         # Metrics hook (placeholder logic handled inside collector)
         if self.metrics_collector is not None:
             try:
                 self.metrics_collector.record(self._steps, self)
             except Exception as exc:  # pragma: no cover - defensive
-                print(f"[MetricsWarning] record error: {exc}")
+                logging.getLogger(__name__).warning("Metrics record error: %s", exc)
         self._steps += 1
 
     @property

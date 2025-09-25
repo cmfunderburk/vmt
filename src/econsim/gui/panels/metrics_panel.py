@@ -21,6 +21,15 @@ class MetricsPanel(QWidget):  # pragma: no cover
         self.sps_lbl = QLabel("steps/sec: 0.0")
         refresh = QPushButton("Update Metrics")
         refresh.clicked.connect(self._update_values)  # type: ignore[arg-type]
+
+        self.ticks_lbl.setToolTip("Total simulation ticks")
+        self.ticks_lbl.setAccessibleName("metrics-ticks-label")
+        self.res_lbl.setToolTip("Remaining resources on the grid")
+        self.res_lbl.setAccessibleName("metrics-resources-label")
+        self.sps_lbl.setToolTip("Estimated steps per second (rolling window)")
+        self.sps_lbl.setAccessibleName("metrics-steps-per-second-label")
+        refresh.setToolTip("Refresh the metrics display")
+        refresh.setAccessibleName("metrics-refresh-button")
         layout.addWidget(self.ticks_lbl)
         layout.addWidget(self.res_lbl)
         layout.addWidget(self.sps_lbl)

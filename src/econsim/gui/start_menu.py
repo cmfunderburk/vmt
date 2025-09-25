@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 import random
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -27,7 +28,7 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QButtonGroup,
     QGroupBox,
-
+    QApplication,
 )
 
 
@@ -42,12 +43,12 @@ class MenuSelection:
     enable_respawn: bool
     enable_metrics: bool
     preference_type: str
-    start_paused: bool
-    respawn_interval: Optional[int]  # None = Off, or 1,2,5,10 steps
-    decision_mode_enabled: bool
-    endowment_pattern: str
-    perception_radius: int
-    viewport_size: int
+    start_paused: bool = False
+    respawn_interval: Optional[int] = None  # None = Off, or 1,2,5,10 steps
+    decision_mode_enabled: bool = True
+    endowment_pattern: str = "uniform"
+    perception_radius: int = 8
+    viewport_size: int = 320
 
 
 class StartMenuPage(QWidget):  # pragma: no cover (GUI)
@@ -72,6 +73,15 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         ])
         # For now, only baseline is functional
         self.scenario_box.setCurrentText("baseline")
+        # Disable non-implemented scenarios with tooltip guidance
+        model = self.scenario_box.model()
+        for name in ("bilateral_exchange", "money_market"):
+            idx = self.scenario_box.findText(name)
+            if idx >= 0:
+                item = model.item(idx)
+                if item is not None:
+                    item.setEnabled(False)
+                    item.setData("Not implemented yet", Qt.ItemDataRole.ToolTipRole)
         # Enable baseline, but note that other scenarios aren't implemented yet
         self.scenario_box.currentTextChanged.connect(self._on_scenario_changed)  # type: ignore[arg-type]
         scenario_row.addWidget(self.scenario_box)
@@ -226,8 +236,12 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         layout.addStretch()
     def _quit_application(self) -> None:
         """Handle quit button click."""
-        import sys
-        sys.exit(0)
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+        else:  # Fallback safety
+            import sys
+            sys.exit(0)
 
     def _on_scenario_changed(self, scenario_name: str) -> None:
         """Handle scenario selection changes."""

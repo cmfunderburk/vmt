@@ -11,13 +11,17 @@ logging, threading.
 from __future__ import annotations
 
 from time import perf_counter
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
 import random  # for simulation RNG typing
 
 import pygame
 from PyQt6.QtCore import QRect, QTimer
 from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtWidgets import QWidget
+import logging
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .simulation_controller import SimulationController
 
 
 class _SimulationProto(Protocol):  # pragma: no cover - typing helper only
@@ -41,6 +45,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         # deterministic RNG argument. We'll internally manage a Random instance.
         self._simulation: _SimulationProto | None = simulation
         self._sim_rng = None  # set in first tick if simulation provided
+        self.controller: "SimulationController | None" = None
         
         # Get viewport size from simulation config, fallback to 320x320
         viewport_size = 320
@@ -106,10 +111,20 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             import random
 
             if self._sim_rng is None:
-                # Seed based on start time fractional part for repeatable session if needed.
-                self._sim_rng = random.Random(12345)
+                # Seed RNG deterministically from simulation config seed for parity with
+                # controller manual stepping in legacy mode. Fallback to 0 when absent.
+                try:
+                    cfg = getattr(self._simulation, "config", None)
+                    seed = int(getattr(cfg, "seed", 0)) if cfg is not None else 0
+                except Exception:
+                    seed = 0
+                self._sim_rng = random.Random(seed)
             # If a SimulationController is attached (parent chain), check pause state
-            controller = getattr(self, "_controller_ref", None)
+            controller = self.controller
+            if controller is None:
+                controller = getattr(self, "_controller_ref", None)
+                if controller is not None:
+                    self.controller = controller  # legacy attachment shim
             paused = False
             if controller is not None:
                 try:
@@ -135,7 +150,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                             except Exception:
                                 pass
                     except Exception as exc:  # pragma: no cover - defensive
-                        print(f"[SimulationWarning] Step error: {exc}")
+                        logging.getLogger(__name__).warning("Simulation step error: %s", exc)
         self._update_scene()
         self.update()  # trigger paintEvent
         self._frame += 1
@@ -322,7 +337,11 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
 
         # PAUSED watermark (educational clarity): rendered last so it overlays simulation.
         # Only draw if a controller reference exists and indicates paused.
-        controller = getattr(self, "_controller_ref", None)
+        controller = self.controller
+        if controller is None:
+            controller = getattr(self, "_controller_ref", None)
+            if controller is not None:
+                self.controller = controller
         try:
             is_paused = bool(controller is not None and controller.is_paused())  # type: ignore[attr-defined]
         except Exception:  # pragma: no cover - defensive

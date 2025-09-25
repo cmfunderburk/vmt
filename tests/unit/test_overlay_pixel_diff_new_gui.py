@@ -43,8 +43,18 @@ def test_overlay_pixel_difference(app):
     base_bytes = w.get_surface_bytes()
     assert len(base_bytes) > 0
 
-    # Enable agent IDs + grid + target arrow (even if no target, other overlays should change output)
+    # Force base with overlays disabled, then enable and expect a difference
     assert w.overlay_state is not None
+    w.overlay_state.show_grid = False
+    w.overlay_state.show_agent_ids = False
+    w.overlay_state.show_target_arrow = False
+
+    for _ in range(5):
+        app.processEvents()
+        time.sleep(0.01)
+    base_bytes = w.get_surface_bytes()
+
+    # Enable overlays
     w.overlay_state.show_grid = True
     w.overlay_state.show_agent_ids = True
     w.overlay_state.show_target_arrow = True

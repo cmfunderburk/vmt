@@ -26,6 +26,15 @@ class OverlaysPanel(QWidget):  # pragma: no cover (simple wiring; behavior teste
         self._arrow_cb = QCheckBox("Target Arrows")
         self._homes_cb = QCheckBox("Home Labels")
 
+        self._grid_cb.setToolTip("Toggle grid line overlay")
+        self._grid_cb.setAccessibleName("overlay-toggle-grid")
+        self._ids_cb.setToolTip("Toggle agent ID labels")
+        self._ids_cb.setAccessibleName("overlay-toggle-agent-ids")
+        self._arrow_cb.setToolTip("Toggle agent target arrows")
+        self._arrow_cb.setAccessibleName("overlay-toggle-target-arrows")
+        self._homes_cb.setToolTip("Toggle agent home labels")
+        self._homes_cb.setAccessibleName("overlay-toggle-home-labels")
+
         # Initialize from current state
         self._grid_cb.setChecked(self._state.show_grid)
         self._ids_cb.setChecked(self._state.show_agent_ids)

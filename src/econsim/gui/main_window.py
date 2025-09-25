@@ -15,6 +15,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -55,6 +56,22 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         self._stack = QStackedWidget(self)
         self.setCentralWidget(self._stack)
         self._session: Optional[_SimulationPageBundle] = None
+        self.setStyleSheet(
+            """
+            QGroupBox {
+                font-weight: 600;
+                margin-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 6px;
+                padding: 0 4px;
+            }
+            QLabel {
+                font-size: 11px;
+            }
+            """
+        )
 
         # Build pages
         self._menu_page = StartMenuPage(on_launch=self._on_launch_requested, parent=self)
@@ -89,20 +106,29 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
             QMessageBox.critical(self, "Launch Error", f"Failed to build simulation: {exc}")
             return
 
+        decision_enabled = bool(selection.decision_mode_enabled)
+        if selection.mode == "legacy":
+            decision_enabled = False
+        if os.environ.get("ECONSIM_LEGACY_RANDOM") == "1":
+            decision_enabled = False
+
         # Build simulation page lazily with horizontal layout per ASCII design
         sim_container = QWidget()
         main_layout = QVBoxLayout(sim_container)
         
         # Top section: Pygame viewport (left) + Control panels (right)
         content_layout = QHBoxLayout()
-        
+        content_layout.setContentsMargins(0, 0, 0, 0)
+
         # Left side: Pygame viewport (configurable size)
         pygame_widget = EmbeddedPygameWidget(
             simulation=controller.simulation,
-            decision_mode=(descriptor.mode != "legacy"),
+            decision_mode=decision_enabled,
         )
         pygame_widget.setFixedSize(descriptor.viewport_size, descriptor.viewport_size)  # Enforce viewport size per selection
-        # Attach back-reference so widget can consult controller pause state / record timestamps
+        pygame_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Attach controller for pause state / pacing coordination (legacy alias retained for compatibility)
+        pygame_widget.controller = controller  # type: ignore[attr-defined]
         setattr(pygame_widget, "_controller_ref", controller)
         
         # Right side: Control panels in vertical stack
@@ -144,12 +170,14 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         panels_layout.addStretch()  # Push panels to top
         
         # Add left and right sides to content layout
-        content_layout.addWidget(pygame_widget)
-        content_layout.addLayout(panels_layout)
-        
+        content_layout.addWidget(pygame_widget, 0)
+        content_layout.addLayout(panels_layout, 1)
+        content_layout.setStretch(0, 0)
+        content_layout.setStretch(1, 1)
+
         # Align controller decision mode with widget decision mode (for manual steps determinism)
         try:
-            controller.set_decision_mode(descriptor.mode != "legacy")  # type: ignore[attr-defined]
+            controller.set_decision_mode(decision_enabled)  # type: ignore[attr-defined]
         except Exception:
             pass
         # Configure initial playback pacing per mode (turn vs continuous/legacy)
@@ -178,6 +206,7 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         self._stack.removeWidget(self._stack.widget(self.SIM_INDEX))
         self._stack.insertWidget(self.SIM_INDEX, sim_container)
         self._stack.setCurrentIndex(self.SIM_INDEX)
+        pygame_widget.setFocus()
 
     # --- Return to Menu -------------------------------------------------------
     def _request_return_to_menu(self) -> None:

@@ -140,12 +140,12 @@ The GUI leverages read-only helper methods on `SimulationController` (exposed vi
 ```python
 controller.list_agent_ids()            # -> list[int]
 controller.agent_carry_bundle(aid)     # -> (good1:int, good2:int)
-controller.agent_carry_utility(aid)    # -> float | None (utility of carrying bundle only)
+controller.agent_carry_utility(aid)    # -> float | None (utility of total wealth: carrying + home)
 ```
 Properties:
 * Deterministic ordering (sorted IDs)
 * No mutation or RNG usage
-* Utility computed from current carrying goods only (home inventory excluded by design for immediate marginal context)
+* Utility computed from the agent's total wealth (carrying + home inventory)
 
 ## 11. Current Limitations
 | Limitation | Impact | Planned Resolution |
@@ -178,3 +178,15 @@ Representative tests (browse under `tests/unit/`):
 
 ---
 Last updated: 2025-09-23 (Docs update: alternating respawn, controller accessors, agent metrics UI).
+
+## 14. Environment Variables
+- `ECONSIM_NEW_GUI=1` – Launch the new Start Menu + panels shell (default for `make dev`).
+- `ECONSIM_LEGACY_RANDOM=1` – Force legacy random movement in the widget when `decision_mode` parameter is not explicitly passed.
+- `ECONSIM_LEGACY_ANIM_BG=1` – Enable legacy animated background in the Pygame viewport (off by default).
+- `ECONSIM_METRICS_AUTO=1` – Auto-refresh metrics panel. Optional: `ECONSIM_METRICS_AUTO_INTERVAL_MS` to override interval (min 250ms enforced).
+- `ECONSIM_DEBUG_FPS=1` – Print `[FPS]` diagnostic lines once per second in the widget.
+
+## 15. Start Menu Behavior
+- Baseline scenario exposes the Decision Mode radio; disabling it launches the simulation in legacy random mode while keeping the Start Menu flow intact.
+- Legacy scenario is available for regression comparisons but forces legacy stepping regardless of the radio selection.
+- Non-implemented scenarios (e.g., `bilateral_exchange`, `money_market`) are disabled in the dropdown with a “Not implemented yet” tooltip to avoid modal interruptions.

@@ -32,13 +32,13 @@ def _launch() -> MainWindow:
 def test_agent_dropdown_and_labels_update():
     win = _launch()
     sess = getattr(win, '_session')
-    controls = sess.controls  # type: ignore[attr-defined]
-    box = getattr(controls, '_agent_box')
+    inspector = sess.agent_inspector  # type: ignore[attr-defined]
+    box = getattr(inspector, '_agent_box')
     assert box.count() >= 1, 'Expected at least one agent in dropdown'
     # Trigger update manually
-    controls._update_agent_metrics()  # type: ignore[attr-defined]
-    carry_label = getattr(controls, '_agent_carry_label')
-    util_label = getattr(controls, '_agent_util_label')
-    assert carry_label.text().startswith('carry:'), 'Carry label not populated'
-    assert util_label.text().startswith('U:'), 'Utility label not populated'
+    inspector._update_display()  # type: ignore[attr-defined]
+    carry_label = getattr(inspector, '_carry_label')
+    util_label = getattr(inspector, '_utility_label')
+    assert carry_label.text().startswith('Carry:'), 'Carry label not populated'
+    assert util_label.text().startswith('Utility:'), 'Utility label not populated'
     win.close()
