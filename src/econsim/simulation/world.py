@@ -49,7 +49,7 @@ class Simulation:
     _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
-    _respawn_interval: int | None = 20      # New: how frequently to invoke respawn (20 => every 20 steps, None/<=0 => disabled)
+    _respawn_interval: int | None = 5       # New: how frequently to invoke respawn (5 => every 5 steps, None/<=0 => disabled)
     # Draft trade intents (Phase 2 feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
     trade_intents: list[TradeIntent] | None = None
@@ -300,9 +300,22 @@ class Simulation:
                     ) from exc
                 _pref_factory = lambda i: CobbDouglasPreference(alpha=0.5)  # type: ignore
 
+            # Available agent sprite types for random assignment
+            agent_sprite_types = [
+                "agent_explorer",
+                "agent_farmer", 
+                "agent_green",
+                "agent_miner",
+                "agent_purple",
+                "agent_trader"
+            ]
+            
             for idx, (x, y) in enumerate(agent_positions):
                 pref = _pref_factory(idx)  # type: ignore[misc]
-                agents.append(Agent(id=idx, x=int(x), y=int(y), preference=pref))
+                # Randomly assign sprite type using config seed + agent index for determinism
+                sprite_rng = _random.Random(int(config.seed) + idx + 1000)  # offset to avoid conflicts
+                sprite_type = sprite_rng.choice(agent_sprite_types)
+                agents.append(Agent(id=idx, x=int(x), y=int(y), preference=pref, sprite_type=sprite_type))
 
         sim = cls(grid=grid, agents=agents, config=config)
 

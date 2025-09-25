@@ -29,7 +29,7 @@ class SimConfig:
     initial_resources: Sequence[ResourceEntry]
     perception_radius: int = 8
     respawn_target_density: float = 0.25
-    respawn_rate: float = 1.0  # Default to 100% (full replenishment) - now GUI configurable
+    respawn_rate: float = 0.25  # Default to 25% (partial replenishment) - now GUI configurable
     max_spawn_per_tick: int = 100  # High enough to handle full deficit respawn
     seed: int = 0
     enable_respawn: bool = True

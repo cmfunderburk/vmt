@@ -40,6 +40,7 @@ class Snapshot:
                     "carrying": dict(a.carrying),
                     "home_inventory": dict(a.home_inventory),
                     "preference": a.preference.serialize(),
+                    "sprite_type": a.sprite_type,
                 }
             )
         return Snapshot(step=sim.steps, grid=grid_data, agents=agents_data)
@@ -59,6 +60,8 @@ class Snapshot:
             else:  # fallback: use current position
                 hx = int(payload["x"])
                 hy = int(payload["y"])
+            # Get sprite type with fallback
+            sprite_type = payload.get("sprite_type", "agent_explorer")
             a = Agent(
                 id=int(payload["id"]),
                 x=int(payload["x"]),
@@ -66,6 +69,7 @@ class Snapshot:
                 preference=pref,
                 home_x=hx,
                 home_y=hy,
+                sprite_type=sprite_type,
             )
             # Restore inventories
             for k, v in payload.get("carrying", {}).items():  # type: ignore[index]

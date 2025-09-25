@@ -123,26 +123,39 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         import os
         from pathlib import Path
         
-        # Get the project root directory (where vmt_sprites_pack_1 is located)
+        # Get the project root directory (where sprite packs are located)
         current_file = Path(__file__)
         project_root = current_file.parent.parent.parent.parent  # src/econsim/gui/ -> src/econsim/ -> src/ -> root/
-        sprites_dir = project_root / "vmt_sprites_pack_1"
+        sprites_dir_1 = project_root / "vmt_sprites_pack_1"
+        sprites_dir_2 = project_root / "vmt_sprites_pack_2"
         
         try:
-            # Load agent sprite (blue for now)
-            agent_sprite_path = sprites_dir / "agent_blue_64.png"
-            if agent_sprite_path.exists():
-                sprites["agent"] = pygame.image.load(str(agent_sprite_path)).convert_alpha()
+            # Load multiple agent sprites from pack 2
+            agent_sprite_names = [
+                "agent_explorer_64.png",
+                "agent_farmer_64.png", 
+                "agent_green_64.png",
+                "agent_miner_64.png",
+                "agent_purple_64.png",
+                "agent_trader_64.png"
+            ]
+            
+            for sprite_name in agent_sprite_names:
+                sprite_path = sprites_dir_2 / sprite_name
+                if sprite_path.exists():
+                    # Store with key like "agent_explorer", "agent_farmer", etc.
+                    sprite_key = sprite_name.replace("_64.png", "")
+                    sprites[sprite_key] = pygame.image.load(str(sprite_path)).convert_alpha()
             
             # Load resource sprites
-            # good1 = food (type A), good2 = stone (type B)
-            food_sprite_path = sprites_dir / "resource_food_64.png"
+            # good1 = food (type A), good2 = tools (type B)
+            food_sprite_path = sprites_dir_1 / "resource_food_64.png"
             if food_sprite_path.exists():
                 sprites["resource_A"] = pygame.image.load(str(food_sprite_path)).convert_alpha()
                 
-            stone_sprite_path = sprites_dir / "resource_stone_64.png"
-            if stone_sprite_path.exists():
-                sprites["resource_B"] = pygame.image.load(str(stone_sprite_path)).convert_alpha()
+            tools_sprite_path = sprites_dir_2 / "resource_tools_64.png"
+            if tools_sprite_path.exists():
+                sprites["resource_B"] = pygame.image.load(str(tools_sprite_path)).convert_alpha()
                 
         except Exception as e:
             # Fallback: if sprite loading fails, use empty dict (will fall back to rectangles)
@@ -208,6 +221,14 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self._update_scene()
         self.update()  # trigger paintEvent
         self._frame += 1
+        
+        # Reset frame step counter for frame-based turn pacing
+        controller = getattr(self, "_controller", None)
+        if controller is not None and hasattr(controller, "reset_frame_step_counter"):
+            try:
+                controller.reset_frame_step_counter()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         now = perf_counter()
         if now - self._fps_last_report >= 1.0:
             # Gate legacy diagnostic FPS print behind explicit env flag to avoid log spam in normal runs.
@@ -307,9 +328,11 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     ax = getattr(agent, "x", 0)
                     ay = getattr(agent, "y", 0)
                     
-                    if "agent" in self._sprites:
-                        # Use sprite
-                        sprite = self._sprites["agent"]
+                    # Get agent's specific sprite type
+                    agent_sprite_type = getattr(agent, "sprite_type", "agent_explorer")
+                    if agent_sprite_type in self._sprites:
+                        # Use agent's specific sprite
+                        sprite = self._sprites[agent_sprite_type]
                         # Scale sprite to fit cell size
                         scaled_sprite = pygame.transform.scale(sprite, (cell_w, cell_h))
                         self._surface.blit(scaled_sprite, (ax * cell_w, ay * cell_h))

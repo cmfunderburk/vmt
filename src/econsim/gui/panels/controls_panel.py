@@ -60,14 +60,16 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         turn_row = QHBoxLayout()
         turn_row.addWidget(QLabel("Rate:"))
         self._speed_box = QComboBox()
-        self._speed_box.setToolTip("Turn pacing rate")
+        self._speed_box.setToolTip("Turn pacing rate (turns per second)")
         self._speed_box.setAccessibleName("turn-rate-combo")
-        self._speeds: list[float | None] = [None, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
+        self._speeds: list[float | None] = [0.5, 1.0, 5.0, 10.0, 20.0, None]
         for s in self._speeds:
             if s is None:
                 self._speed_box.addItem("Unlimited", userData=None)
             else:
                 self._speed_box.addItem(f"{s} tps", userData=s)
+        # Set default to 5 turns per second
+        self._speed_box.setCurrentText("5.0 tps")
         turn_row.addWidget(self._speed_box)
         layout.addLayout(turn_row)
         
@@ -86,8 +88,8 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         ]
         for label, val in self._respawn_options:
             self._respawn_box.addItem(label, userData=val)
-        # Set default to "Every 20"
-        self._respawn_box.setCurrentText("Every 20")
+        # Set default to "Every 5"
+        self._respawn_box.setCurrentText("Every 5")
         respawn_row.addWidget(self._respawn_box)
         layout.addLayout(respawn_row)
         
@@ -114,11 +116,11 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
                     self._respawn_rate_box.setCurrentIndex(i)
                     break
             else:
-                # Default to "100%" if no match found
-                self._respawn_rate_box.setCurrentText("100%")
+                # Default to "25%" if no match found
+                self._respawn_rate_box.setCurrentText("25%")
         except Exception:
-            # Default to "100%" for full replenishment
-            self._respawn_rate_box.setCurrentText("100%")
+            # Default to "25%" for moderate replenishment
+            self._respawn_rate_box.setCurrentText("25%")
         respawn_rate_row.addWidget(self._respawn_rate_box)
         layout.addLayout(respawn_rate_row)
         
@@ -191,6 +193,9 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         self._trade_exec_cb.stateChanged.connect(self._toggle_trade_exec)  # type: ignore[arg-type]
         self._trade_debug_cb.stateChanged.connect(self._toggle_trade_debug)  # type: ignore[arg-type]
         self._forage_cb.stateChanged.connect(self._toggle_forage)  # type: ignore[arg-type]
+        
+        # Initialize controller with default speed (5.0 tps)
+        self._controller.set_playback_tps(5.0)
 
     def _toggle_pause(self) -> None:
         if self._controller.is_paused():
@@ -319,8 +324,7 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
     def configure_for_mode(self, mode: str) -> None:
         """Adjust default playback based on launch mode.
 
-        Turn mode: start at 1.0 tps (educational pacing).
-        Continuous / legacy: start Unlimited (no throttle).
+        All modes now default to 5.0 tps (moderate educational pacing).
         """
         # Find indices
         def _find(value: float | None) -> int:
@@ -328,13 +332,9 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
                 if self._speed_box.itemData(i) == value:
                     return i
             return 0
-        if mode == "turn":
-            idx_1 = _find(1.0)
-            self._speed_box.setCurrentIndex(idx_1)
-            self._controller.set_playback_tps(1.0)
-        else:
-            idx_unl = _find(None)
-            self._speed_box.setCurrentIndex(idx_unl)
-            self._controller.set_playback_tps(None)
+        # Set default to 5.0 tps for all modes
+        idx_5 = _find(5.0)
+        self._speed_box.setCurrentIndex(idx_5)
+        self._controller.set_playback_tps(5.0)
 
 __all__ = ["ControlsPanel"]
