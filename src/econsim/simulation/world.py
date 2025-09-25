@@ -302,12 +302,16 @@ class Simulation:
 
             # Available agent sprite types for random assignment
             agent_sprite_types = [
-                "agent_explorer",
-                "agent_farmer", 
-                "agent_green",
-                "agent_miner",
-                "agent_purple",
-                "agent_trader"
+                "agent_emoji_builder",
+                "agent_emoji_chef",
+                "agent_emoji_diplomat",
+                "agent_emoji_guard",
+                "agent_emoji_medic",
+                "agent_emoji_merchant",
+                "agent_emoji_ranger",
+                "agent_emoji_robot",
+                "agent_emoji_scholar",
+                "agent_emoji_scientist"
             ]
             
             for idx, (x, y) in enumerate(agent_positions):

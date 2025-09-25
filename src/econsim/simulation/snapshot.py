@@ -61,7 +61,7 @@ class Snapshot:
                 hx = int(payload["x"])
                 hy = int(payload["y"])
             # Get sprite type with fallback
-            sprite_type = payload.get("sprite_type", "agent_explorer")
+            sprite_type = payload.get("sprite_type", "agent_emoji_builder")
             a = Agent(
                 id=int(payload["id"]),
                 x=int(payload["x"]),
