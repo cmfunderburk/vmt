@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
+import os
 
 from .agent import Agent
 from econsim.preferences.helpers import marginal_utility
@@ -25,6 +26,8 @@ class TradeIntent:
     take_type: str
     quantity: int
     priority: PriorityKey
+    # New (Gate Bilateral2 Phase 1): combined utility delta (buyer+seller) if executed (placeholder until integrated)
+    delta_utility: float = 0.0
 
     def as_tuple(self) -> Tuple[int, int, str, str, int, PriorityKey]:
         return (
@@ -54,13 +57,24 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
     # Pre-compute marginal utilities
     mu_cache: dict[int, dict[str, float]] = {}
     for a in agents:
-        mu_cache[a.id] = marginal_utility(a.preference, a.carrying, a.home_inventory, epsilon_lift=True)
+        mu_cache[a.id] = marginal_utility(
+            a.preference,
+            a.carrying,
+            a.home_inventory,
+            epsilon_lift=True,
+            include_missing_two_goods=True,
+        )
+    use_delta_priority = os.environ.get("ECONSIM_TRADE_PRIORITY_DELTA") == "1"
     for i in range(n):
         ai = agents[i]
         mui = mu_cache.get(ai.id, {})
         for j in range(i + 1, n):
             aj = agents[j]
             muj = mu_cache.get(aj.id, {})
+            # Pre-compute a simplistic combined marginal improvement estimate for each potential direction.
+            # NOTE: We use marginal utility difference (desired - offered) per agent and sum; this is *not* yet
+            # the full preference utility re-evaluation (keeps constant time & avoids allocations). A later
+            # gate may tighten this to exact utility delta.
             # Direction: ai gives good1, aj gives good2
             if (
                 ai.carrying.get("good1", 0) > 0
@@ -68,7 +82,12 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and mui.get("good2", 0.0) > mui.get("good1", 0.0)
                 and muj.get("good1", 0.0) > muj.get("good2", 0.0)
             ):
-                priority: PriorityKey = (0.0, ai.id, aj.id, "good1", "good2")
+                # Combined marginal lift approximation
+                delta_u: float = (mui.get("good2", 0.0) - mui.get("good1", 0.0)) + (muj.get("good1", 0.0) - muj.get("good2", 0.0))
+                if use_delta_priority:
+                    priority: PriorityKey = (-delta_u, ai.id, aj.id, "good1", "good2")
+                else:
+                    priority = (0.0, ai.id, aj.id, "good1", "good2")
                 out.append(
                     TradeIntent(
                         seller_id=ai.id,
@@ -77,6 +96,7 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                         take_type="good2",
                         quantity=1,
                         priority=priority,
+                        delta_utility=delta_u,
                     )
                 )
             # Opposite direction: ai gives good2, aj gives good1
@@ -86,7 +106,11 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and mui.get("good1", 0.0) > mui.get("good2", 0.0)
                 and muj.get("good2", 0.0) > muj.get("good1", 0.0)
             ):
-                priority: PriorityKey = (0.0, ai.id, aj.id, "good2", "good1")
+                delta_u = (mui.get("good1", 0.0) - mui.get("good2", 0.0)) + (muj.get("good2", 0.0) - muj.get("good1", 0.0))
+                if use_delta_priority:
+                    priority: PriorityKey = (-delta_u, ai.id, aj.id, "good2", "good1")
+                else:
+                    priority = (0.0, ai.id, aj.id, "good2", "good1")
                 out.append(
                     TradeIntent(
                         seller_id=ai.id,
@@ -95,6 +119,7 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                         take_type="good1",
                         quantity=1,
                         priority=priority,
+                        delta_utility=delta_u,
                     )
                 )
     # Deterministic ordering (sort by priority tuple)

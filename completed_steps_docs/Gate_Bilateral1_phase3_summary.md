@@ -61,6 +61,27 @@ Carrying-only Invariant: Only goods in `carrying` are tradable; home inventory i
 5. GUI: inspector / log for last executed trade (read-only overlay or side panel) maybe behind `ECONSIM_TRADE_INSPECT=1` flag.
 6. Consider probabilistic acceptance (if utility gains marginal) – would require strict determinism design (e.g., deterministic tie-break fallback) or rejection.
 
+## Next Gate Reference
+Subsequent GUI integration, ΔU surfacing, executed trade highlight, and fairness seed tracking are defined under Gate Bilateral2 documents:
+- `GATE_BILATERAL2_TODOS.md`
+- `GATE_BILATERAL2_CHECKLIST.md`
+- `GATE_BILATERAL2_EVAL.md`
+
+Gate Bilateral2 maintains hash parity with all new flags disabled and prepares analytic foundations without altering core loop complexity.
+
+## Post-Gate Augmentation (ΔU Field Added)
+As part of Gate Bilateral2 Phase 1, a `delta_utility` approximation (sum of marginal lifts for buyer and seller) was appended to each `TradeIntent`. This did not modify intent ordering (priority first element remains placeholder 0.0) and remains hash-neutral because:
+1. Determinism hash excludes trade intent contents entirely (only inventories/resources feed hash).
+2. No new randomness or iteration reordering introduced; computation uses already cached marginal utilities.
+3. Priority tuple unchanged; downstream execution still picks the first viable intent under existing ordering.
+
+Added metrics (hash-excluded):
+- `realized_utility_gain_total`
+- `trade_ticks` / `no_trade_ticks`
+- `last_executed_trade` (structured summary)
+
+These are preparatory analytics for GUI surfacing and do not alter simulation state evolution.
+
 ## Acceptance Snapshot
 - Core gate objectives (single reciprocal marginal utility trade, determinism neutral, tests passing) achieved.
 - Ready for stakeholder review before expanding scope.

@@ -61,6 +61,8 @@ def test_overlay_renders_with_intents(monkeypatch) -> None:  # type: ignore[miss
 
 def test_overlay_noop_without_flag(monkeypatch) -> None:  # type: ignore[missing-annotations]
     monkeypatch.delenv("ECONSIM_TRADE_DRAFT", raising=False)
+    # Also ensure execution flag is cleared to avoid enumeration via leftover test state
+    monkeypatch.delenv("ECONSIM_TRADE_EXEC", raising=False)
     sim = _build_sim([(0,0),(0,0)])
     sim.agents[0].carrying['good1'] = 1
     sim.agents[1].carrying['good2'] = 1

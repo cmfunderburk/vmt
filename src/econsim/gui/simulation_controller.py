@@ -43,6 +43,56 @@ class SimulationController:
             self._respawn_interval_cache = simulation._respawn_interval  # type: ignore[attr-defined]
         except Exception:
             self._respawn_interval_cache = 1
+        # Bilateral exchange GUI master toggle (Phase 2). Default off.
+        self._bilateral_enabled: bool = False
+
+    # --- Bilateral Exchange Feature Flag (GUI-scope; does not auto-set env) -----
+    def set_bilateral_enabled(self, enabled: bool) -> None:
+        """Enable/disable bilateral exchange (enumeration + execution + GUI info).
+
+        For initial implementation, we map this to the existing environment flag
+        expectations used inside Simulation.step. To avoid mid-test/global leakage,
+        we set os.environ keys on transition only. Future refactor could plumb
+        flags directly into Simulation.step call path instead of env usage.
+        """
+        import os
+        want = bool(enabled)
+        if want == self._bilateral_enabled:
+            return
+        self._bilateral_enabled = want
+        if want:
+            os.environ["ECONSIM_TRADE_DRAFT"] = "1"
+            os.environ["ECONSIM_TRADE_EXEC"] = "1"
+            os.environ["ECONSIM_TRADE_GUI_INFO"] = "1"
+        else:
+            # Remove flags (gracefully) so subsequent steps skip enumeration
+            for k in ("ECONSIM_TRADE_DRAFT", "ECONSIM_TRADE_EXEC", "ECONSIM_TRADE_GUI_INFO"):
+                if k in os.environ:
+                    del os.environ[k]
+
+    def bilateral_enabled(self) -> bool:
+        return self._bilateral_enabled
+
+    def last_trade_summary(self) -> str | None:
+        """Return a succinct human-readable summary of the last executed trade.
+
+        None if feature disabled or no trade executed yet. Pure read-only formatting.
+        """
+        if not self._bilateral_enabled:
+            return None
+        mc = getattr(self.simulation, "metrics_collector", None)
+        if mc is None:
+            return None
+        lt = getattr(mc, "last_executed_trade", None)
+        if not lt:
+            return None
+        try:
+            return (
+                f"step {lt.get('step')} seller {lt.get('seller')} → buyer {lt.get('buyer')} "
+                f"give {lt.get('give_type')} / take {lt.get('take_type')} ΔU={lt.get('delta_utility'):.3f}"
+            )
+        except Exception:
+            return None
 
     def pause(self) -> None:
         self._paused = True

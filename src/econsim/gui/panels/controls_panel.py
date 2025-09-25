@@ -13,7 +13,7 @@ Playback throttling is implemented in `SimulationController` and consulted by
 from __future__ import annotations
 
 from typing import Callable
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout, QCheckBox
 
 
 from ..simulation_controller import SimulationController
@@ -89,7 +89,16 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         respawn_row.addWidget(self._respawn_box)
         layout.addLayout(respawn_row)
         
-        # Back to menu button
+        # Bilateral exchange live toggle (Phase 2)
+        self._bilateral_cb = QCheckBox("Bilateral Exchange")
+        self._bilateral_cb.setToolTip("Enable/disable bilateral trade enumeration & execution at runtime.")
+        try:
+            self._bilateral_cb.setChecked(self._controller.bilateral_enabled())  # type: ignore[attr-defined]
+        except Exception:
+            self._bilateral_cb.setChecked(False)
+        layout.addWidget(self._bilateral_cb)
+
+    # Back to menu button
         back_btn = QPushButton("Back to Menu")
         back_btn.setToolTip("Return to the start menu and end the current simulation")
         back_btn.setAccessibleName("back-to-menu-button")
@@ -103,6 +112,7 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         back_btn.clicked.connect(on_back)  # type: ignore[arg-type]
         self._speed_box.currentIndexChanged.connect(self._change_speed)  # type: ignore[arg-type]
         self._respawn_box.currentIndexChanged.connect(self._change_respawn_interval)  # type: ignore[arg-type]
+        self._bilateral_cb.stateChanged.connect(self._toggle_bilateral)  # type: ignore[arg-type]
 
     def _toggle_pause(self) -> None:
         if self._controller.is_paused():
@@ -153,6 +163,21 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
                 self._controller.set_respawn_interval(None)
             else:
                 self._controller.set_respawn_interval(int(data))
+        except Exception:
+            pass
+
+    def _toggle_bilateral(self) -> None:
+        try:
+            enable = self._bilateral_cb.isChecked()
+            self._controller.set_bilateral_enabled(enable)  # type: ignore[attr-defined]
+            # Clear stale intents if disabling so overlay/inspector empties quickly
+            if not enable:
+                sim = getattr(self._controller, 'simulation', None)
+                if sim is not None and hasattr(sim, 'trade_intents'):
+                    try:
+                        sim.trade_intents = None  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
         except Exception:
             pass
 

@@ -26,6 +26,7 @@ def marginal_utility(
     home: Mapping[str, int],
     *,
     epsilon_lift: bool = False,
+    include_missing_two_goods: bool = False,
 ) -> Dict[str, float]:
     """Compute approximate marginal utility for +1 unit of each observed good.
 
@@ -41,7 +42,10 @@ def marginal_utility(
     if not merged:
         return {}
     # Build a stable snapshot list of goods
-    goods = sorted(merged.keys())
+    if include_missing_two_goods:
+        goods = sorted(set(merged.keys()).union({"good1", "good2"}))
+    else:
+        goods = sorted(merged.keys())
     # Base utility once (preference expected pure)
     # Current preference interface expects a 2-good bundle (x,y); future generalization may adapt.
     # Map 'good1'/'good2' if present, else treat missing as 0.

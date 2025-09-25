@@ -80,7 +80,7 @@ class Simulation:
         # Draft trade intent enumeration (feature flag; no state mutation)
         draft_enabled = os.environ.get("ECONSIM_TRADE_DRAFT") == "1"
         exec_enabled = os.environ.get("ECONSIM_TRADE_EXEC") == "1"
-        if draft_enabled or exec_enabled:  # exec implies enumeration path
+        if draft_enabled or exec_enabled:  # enumeration only when a trade feature flag is active
             intents: List[TradeIntent] = []
             # Build co-location index (O(n))
             cell_map: Dict[Tuple[int, int], List[Agent]] = {}
@@ -97,9 +97,33 @@ class Simulation:
                 executed = execute_single_intent(intents, agents_by_id)
             if self.metrics_collector is not None:
                 try:
-                    self.metrics_collector.trade_intents_generated += len(intents)  # type: ignore[attr-defined]
-                    if exec_enabled and executed is not None:
-                        self.metrics_collector.trades_executed += 1  # type: ignore[attr-defined]
+                    mc = self.metrics_collector  # type: ignore[attr-defined]
+                    mc.trade_intents_generated += len(intents)  # type: ignore[attr-defined]
+                    if exec_enabled:
+                        if executed is not None:
+                            mc.trades_executed += 1  # type: ignore[attr-defined]
+                            # Update realized utility gain (approx) using stored delta_utility
+                            try:
+                                mc.realized_utility_gain_total += float(getattr(executed, "delta_utility", 0.0))  # type: ignore[attr-defined]
+                            except Exception:  # pragma: no cover
+                                pass
+                            # Fairness round increment (Phase 3 advisory metric)
+                            try:
+                                mc.fairness_round += 1  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                            # Record last executed trade summary
+                            mc.last_executed_trade = {
+                                "step": self._steps,
+                                "seller": executed.seller_id,
+                                "buyer": executed.buyer_id,
+                                "give_type": executed.give_type,
+                                "take_type": executed.take_type,
+                                "delta_utility": getattr(executed, "delta_utility", 0.0),
+                            }
+                            mc.trade_ticks += 1  # type: ignore[attr-defined]
+                        else:
+                            mc.no_trade_ticks += 1  # type: ignore[attr-defined]
                 except Exception:  # pragma: no cover
                     pass
         else:

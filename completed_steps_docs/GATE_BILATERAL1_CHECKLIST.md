@@ -15,6 +15,7 @@
 
 ## Metrics & Overlay
 - [x] Metrics fields appended: `trade_intents_generated`, `trades_executed` (excluded from hash)
+- [x] Added (Bilateral2 P1): `realized_utility_gain_total`, `trade_ticks`, `no_trade_ticks`, `last_executed_trade` (all hash-excluded)
 - [x] Overlay debug listing first N intents (N≤3) behind draft flag
 - [x] Overlay path pixel baseline unaffected when draft off
 
@@ -22,7 +23,7 @@
 - [x] Execution flag `ECONSIM_TRADE_EXEC=1` implies draft enumeration
 - [x] Single trade per tick executed if at least one valid intent
 - [x] Trade limited to carrying inventory; home inventory unchanged
-- [ ] Priority ordering enhanced with real (-ΔU_combined, seller_id, buyer_id, give_type, take_type)  (CURRENT: placeholder 0.0; ΔU calculation not yet integrated)
+- [ ] Priority ordering enhanced with real (-ΔU_combined, seller_id, buyer_id, give_type, take_type)  (ΔU approximation stored on intents but not used for ordering yet)
 - [x] Single trade per tick enforced (tests)
 - [x] Hash parity vs draft retained (execution counters excluded from hash)
 - [ ] Perf overhead exec vs baseline ≤2.5% (formal measurement planned; early runs within target)

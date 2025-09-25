@@ -218,6 +218,11 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         self.metrics_cb = QCheckBox("Metrics Enabled")
         self.metrics_cb.setChecked(True)
         advanced_layout.addWidget(self.metrics_cb)
+        # Bilateral Exchange (Experimental) master toggle (Phase 2)
+        self.bilateral_cb = QCheckBox("Bilateral Exchange (Experimental)")
+        self.bilateral_cb.setChecked(False)
+        self.bilateral_cb.setToolTip("Enable draft intent enumeration, single execution per tick, and GUI trade info overlay.")
+        advanced_layout.addWidget(self.bilateral_cb)
         
         layout.addWidget(self.advanced_group)
         

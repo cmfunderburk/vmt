@@ -31,6 +31,8 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         self._carry_label = QLabel("Carry: —")
         self._home_label = QLabel("Home: —") 
         self._utility_label = QLabel("Utility: —")
+        # Last trade summary (Phase 2 – only populated when bilateral feature enabled)
+        self._last_trade_label = QLabel("Last Trade: —")
         
         # Populate agent list (deterministic order by agent ID)
         self._populate_agent_list()
@@ -43,6 +45,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         layout.addWidget(self._carry_label)
         layout.addWidget(self._home_label)
         layout.addWidget(self._utility_label)
+        layout.addWidget(self._last_trade_label)
         layout.addStretch()
         
         # Auto-refresh timer (4 Hz max per requirements)
@@ -91,6 +94,15 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
             utility = self._controller.agent_carry_utility(current_data)
             utility_text = f"Utility: {utility:.3f}" if utility is not None else "Utility: —"
             self._utility_label.setText(utility_text)
+            # Last trade summary (read-only)
+            try:
+                summary = getattr(self._controller, "last_trade_summary", lambda: None)()
+                if summary:
+                    self._last_trade_label.setText(f"Last Trade: {summary}")
+                else:
+                    self._last_trade_label.setText("Last Trade: —")
+            except Exception:
+                self._last_trade_label.setText("Last Trade: —")
             
         except Exception:
             # Graceful fallback if controller methods not available

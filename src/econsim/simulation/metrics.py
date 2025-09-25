@@ -35,9 +35,15 @@ class MetricsCollector:
     """
 
     enabled: bool = True
-    # Placeholder future trade counters (Gate Bilateral1 Phase 1): deliberately excluded from hash
     trade_intents_generated: int = 0
     trades_executed: int = 0
+    # Bilateral2 Phase 1 additions (hash-excluded):
+    realized_utility_gain_total: float = 0.0
+    trade_ticks: int = 0
+    no_trade_ticks: int = 0
+    last_executed_trade: dict[str, object] | None = None  # {seller,buyer,give,take,delta_utility,step}
+    trades_executed: int = 0
+    fairness_round: int = 0  # Phase 3: increments per executed trade (advisory, hash-excluded)
     _records: List[Dict[str, Any]] = field(default_factory=lambda: [])
     _hash: Any | None = field(default=None, init=False, repr=False)  # sha256 object
 

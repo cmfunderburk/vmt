@@ -159,6 +159,31 @@ Properties:
 ## 12. Snapshot & Replay Integrity
 Unchanged: snapshot excludes `RespawnScheduler` internal alternation flag; replay parity relies on reproducing spawn order. If future serialization includes scheduler state, include the alternation toggle at the end of existing fields.
 
+## 13. Experimental Bilateral Exchange Flags (Gate Bilateral2 Phase 3)
+These flags control the prototype reciprocal bilateral exchange system. Default off preserves determinism hash.
+
+| Flag | Effect | Notes |
+|------|--------|-------|
+| `ECONSIM_TRADE_DRAFT=1` | Enumerate per-cell trade intents (no execution) | Populates `simulation.trade_intents` for overlay/introspection. |
+| `ECONSIM_TRADE_EXEC=1` | Execute at most one intent per step | Implies draft enumeration; updates trade metrics. |
+| `ECONSIM_TRADE_GUI_INFO=1` | Overlay executed trade summary line | Pure rendering; no state mutation. |
+| `ECONSIM_TRADE_PRIORITY_DELTA=1` | Order intents by (-ΔU, seller_id, buyer_id, give_type, take_type) | Optional; baseline keeps first element 0.0; hash-neutral when off. |
+
+Runtime GUI Integration:
+* Start Menu checkbox sets all three active flags for initial session.
+* Controls panel checkbox toggles all flags live; disabling clears any displayed intents.
+
+Metrics Added (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round` (advisory).
+
+Design Invariants:
+* Single trade per tick (current phase).
+* Only carried goods are tradable; home inventory remains banked and immutable during trade execution.
+* `delta_utility` becomes part of ordering only when `ECONSIM_TRADE_PRIORITY_DELTA=1` (negative combined delta as first key component).
+* Multiset invariance: Dedicated test assures ordering-only effect.
+* Test isolation: Autouse fixture clears `ECONSIM_TRADE_*` env vars each test.
+
+Future Enhancements (flag-gated): fairness rotation index, multi-trade analysis, priority upgrade, pedagogical analytics overlays.
+
 ## 13. Troubleshooting
 | Symptom | Cause | Fix |
 |---------|-------|-----|
@@ -177,7 +202,7 @@ Representative tests (browse under `tests/unit/`):
 - `test_determinism_hash.py` – hash stability vs divergence.
 
 ---
-Last updated: 2025-09-23 (Docs update: alternating respawn, controller accessors, agent metrics UI).
+Last updated: 2025-09-24 (Bilateral Phase 3: priority flag + fairness_round, test isolation fixture).
 
 ## 14. Environment Variables
 - `ECONSIM_NEW_GUI=1` – Launch the new Start Menu + panels shell (default for `make dev`).

@@ -78,6 +78,37 @@ Legacy manual wiring is supported but deprecated.
 2. Advanced overlays (utility contours, analytics) not implemented.
 3. Multi-scenario educational progression system not yet built.
 
+### 5.1 Bilateral Exchange (Experimental – Gate Bilateral2 Phase 3)
+Status: Single-unit reciprocal trade prototype behind UI + environment flags. Phase 3 adds optional priority reordering (flag-gated) and a fairness_round advisory metric. Determinism hash unchanged when features disabled.
+
+Activation Paths:
+* Start Menu (Advanced): check "Bilateral Exchange (Experimental)" before launching.
+* Runtime: Controls panel checkbox "Bilateral Exchange" enables/disables enumeration & execution live.
+
+Feature Flags (auto-managed by GUI when toggled):
+* `ECONSIM_TRADE_DRAFT=1` – enumerate draft intents (no execution).
+* `ECONSIM_TRADE_EXEC=1` – execute at most one intent per step (implies draft enumeration).
+* `ECONSIM_TRADE_GUI_INFO=1` – show executed trade summary overlay line.
+
+Current Mechanics:
+* Rule: single reciprocal marginal utility improvement (approx) triggers one unit swap of (good1 ↔ good2).
+* Intent Fields: seller, buyer, give_type, take_type, delta_utility (approx combined marginal lift), priority tuple.
+* Metrics (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round` (increments per executed trade; advisory only).
+* Inspector: shows last trade summary when enabled; cleared immediately upon disable.
+
+Determinism Safeguards:
+* Feature off (default) → simulation identical to pre-trade build.
+* All trade metrics excluded from determinism hash; delta_utility informational only.
+* Priority reordering gated (`ECONSIM_TRADE_PRIORITY_DELTA`) leaving baseline ordering intact when off.
+
+Phase 3 Delivered:
+* Priority flag `ECONSIM_TRADE_PRIORITY_DELTA=1` sets intent priority to `(-delta_utility, seller_id, buyer_id, give_type, take_type)`.
+* `fairness_round` metric increments per executed trade (advisory, hash-excluded).
+* Multiset invariance test ensures flag only changes ordering (not which intents exist).
+* Autouse test fixture clears `ECONSIM_TRADE_*` flags preventing cross-test leakage.
+
+Future: multi-intent policies, fairness-driven scheduling, analytics overlays.
+
 ## 6. Gate 6 (Integration Summary)
 Delivered:
 * `Simulation.from_config` (seeded RNG + optional respawn & metrics)
@@ -126,7 +157,7 @@ See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
 | Copilot Instructions | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
 
 ---
-Last updated: 2025-09-24 (GUI enhancements – configurable viewport, agent wealth accumulation, complete GUI controls).
+Last updated: 2025-09-24 (Bilateral Phase 3: priority flag + fairness_round; GUI enhancements – configurable viewport, agent wealth accumulation, complete GUI controls).
 
 ### Recent Increment (Configurable Viewport, Agent Wealth Accumulation, Complete GUI)
 Added:
