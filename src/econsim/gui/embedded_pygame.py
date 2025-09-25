@@ -447,12 +447,29 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                             )
                                         except Exception:
                                             pass
-                        # Trade draft debug overlay (flag gated) rendered after other overlays for readability
+                        # Enhanced trade visualization (includes original debug overlay with visual enhancements)
                         try:
-                            from ._trade_debug_overlay import render_trade_debug  # local import to keep optional
-                            render_trade_debug(self._surface, font, sim, x_offset=4, y_offset=4)
+                            from ._enhanced_trade_visualization import render_enhanced_trade_visualization
+                            
+                            # Get visualization options from controller if available
+                            viz_options = {'show_arrows': True, 'show_highlights': True}
+                            if hasattr(self, '_controller') and hasattr(self._controller, 'get_trade_visualization_options'):
+                                viz_options = self._controller.get_trade_visualization_options()
+                            
+                            render_enhanced_trade_visualization(
+                                self._surface, font, sim, 
+                                cell_w=cell_w, cell_h=cell_h,
+                                show_arrows=viz_options.get('show_arrows', True), 
+                                show_highlights=viz_options.get('show_highlights', True),
+                                x_offset=4, y_offset=4
+                            )
                         except Exception:
-                            pass
+                            # Fallback to original debug overlay if enhanced version fails
+                            try:
+                                from ._trade_debug_overlay import render_trade_debug
+                                render_trade_debug(self._surface, font, sim, x_offset=4, y_offset=4)
+                            except Exception:
+                                pass
                         # Executed trade highlight (if recent). Draw after debug overlay so it stands out under IDs.
                         try:
                             hl = getattr(sim, '_last_trade_highlight', None)

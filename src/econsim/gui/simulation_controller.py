@@ -8,7 +8,7 @@ Phase A responsibilities:
 """
 from __future__ import annotations
 
-from typing import Optional, Deque
+from typing import Optional, Deque, Any
 from collections import deque
 from time import perf_counter
 
@@ -422,6 +422,104 @@ class SimulationController:
         self._step_times.append(perf_counter())
         # Invalidate hash cache (new step implies potential hash change)
         self._hash_cache = None
+
+    # --- Trade Inspector Support Methods -----------------------------------
+    def trade_execution_enabled(self) -> bool:
+        """Check if trade execution is enabled (alias for consistency)."""
+        return self.trade_exec_enabled()
+    
+    def active_intents_count(self) -> int:
+        """Get count of active trade intents."""
+        try:
+            intents = getattr(self.simulation, 'trade_intents', None)
+            return len(intents) if intents else 0
+        except Exception:
+            return 0
+    
+    def get_active_intents(self) -> list[Any]:
+        """Get list of active trade intents for inspector display."""
+        try:
+            intents = getattr(self.simulation, 'trade_intents', None)
+            return list(intents) if intents else []
+        except Exception:
+            return []
+    
+
+    
+    def calculate_total_welfare_change(self) -> float:
+        """Calculate total welfare change from all current intents."""
+        try:
+            intents = self.get_active_intents()
+            return sum(getattr(intent, 'delta_utility', 0.0) for intent in intents)
+        except Exception:
+            return 0.0
+    
+    def count_trading_pairs(self) -> int:
+        """Count unique trading pairs in current intents."""
+        try:
+            intents = self.get_active_intents()
+            pairs = set()
+            for intent in intents:
+                seller = getattr(intent, 'seller_id', None)
+                buyer = getattr(intent, 'buyer_id', None)
+                if seller is not None and buyer is not None:
+                    # Normalize pair order for uniqueness
+                    pair = tuple(sorted([seller, buyer]))
+                    pairs.add(pair)
+            return len(pairs)
+        except Exception:
+            return 0
+    
+    def analyze_preference_diversity(self) -> str:
+        """Analyze preference type diversity among agents."""
+        try:
+            agents = getattr(self.simulation, 'agents', [])
+            if not agents:
+                return "No agents"
+            
+            # Count preference types
+            pref_counts: dict[str, int] = {}
+            for agent in agents:
+                pref = getattr(agent, 'preference', None)
+                if pref is not None:
+                    pref_type = type(pref).__name__
+                    pref_counts[pref_type] = pref_counts.get(pref_type, 0) + 1
+            
+            if not pref_counts:
+                return "Unknown preferences"
+            
+            # Format diversity summary
+            if len(pref_counts) == 1:
+                pref_name = next(iter(pref_counts.keys())).replace('Preference', '')
+                return f"Homogeneous ({pref_name})"
+            else:
+                return f"Mixed ({len(pref_counts)} types)"
+                
+        except Exception:
+            return "Analysis error"
+    
+    def set_trade_visualization_options(self, *, show_arrows: bool, show_highlights: bool) -> None:
+        """Set visualization options for enhanced trade display."""
+        # Store options for renderer integration
+        self._trade_viz_options = {
+            'show_arrows': show_arrows,
+            'show_highlights': show_highlights
+        }
+    
+    def get_trade_visualization_options(self) -> dict[str, bool]:
+        """Get current trade visualization options."""
+        return getattr(self, '_trade_viz_options', {
+            'show_arrows': True, 
+            'show_highlights': True
+        })
+    
+    def set_pause_on_trade(self, enabled: bool) -> None:
+        """Set whether to pause simulation when trades occur."""
+        self._pause_on_trade = bool(enabled)
+    
+    def should_pause_on_trade(self) -> bool:
+        """Check if simulation should pause on trade execution."""
+        return getattr(self, '_pause_on_trade', False)
 
     def teardown(self) -> None:
         # Placeholder for future resource clean shutdown hooks

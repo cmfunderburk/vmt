@@ -327,6 +327,7 @@ class TestCoLocationPerformance:
     def test_enumeration_correctness_with_multiple_agents(self, monkeypatch) -> None:  # type: ignore[missing-annotations]
         """Test that all valid pairwise trades are found with multiple agents."""
         monkeypatch.setenv("ECONSIM_TRADE_DRAFT", "1")
+        monkeypatch.setenv("ECONSIM_FORAGE_ENABLED", "0")
         
         # 4 agents with known complementary preferences
         sim = _sim_with_agents([(0, 0), (0, 0), (0, 0), (0, 0)])
@@ -346,7 +347,7 @@ class TestCoLocationPerformance:
         monkeypatch.setattr(Agent, "move_random", lambda self, grid, rng: None)
         
         rng = random.Random(150)
-        sim.step(rng, use_decision=False)
+        sim.step(rng, use_decision=True)
         
         intents = sim.trade_intents or []
         
