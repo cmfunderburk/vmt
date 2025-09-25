@@ -399,6 +399,24 @@ class SimulationController:
                     return None
         return None
 
+    def agent_preference_type(self, agent_id: int) -> str | None:
+        """Get the preference type name for the specified agent.
+
+        Returns the TYPE_NAME of the agent's preference or None if not accessible.
+        """
+        agents = getattr(self.simulation, "agents", [])
+        for a in agents:
+            if getattr(a, "id", None) == agent_id:
+                pref = getattr(a, "preference", None)
+                if pref is None:
+                    return None
+                try:
+                    # Get the TYPE_NAME attribute from the preference
+                    return getattr(pref, "TYPE_NAME", None)
+                except Exception:
+                    return None
+        return None
+
     # Internal hook used by widget when auto-stepping
     def _record_step_timestamp(self) -> None:
         self._step_times.append(perf_counter())

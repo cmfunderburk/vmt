@@ -105,7 +105,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         pref_row = QHBoxLayout()
         pref_row.addWidget(QLabel("  Pref Mix:"))
         self.pref_box = QComboBox()
-        self.pref_box.addItems(["Cobb-Douglas", "Perfect Substitutes", "Leontief"])  # type: ignore[arg-type]
+        self.pref_box.addItems(["Cobb-Douglas", "Perfect Substitutes", "Leontief", "Random"])  # type: ignore[arg-type]
         pref_row.addWidget(self.pref_box)
         pref_row.addStretch()
         layout.addLayout(pref_row)
@@ -297,7 +297,8 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         pref_map = {
             "Cobb-Douglas": "cobb_douglas",
             "Perfect Substitutes": "perfect_substitutes",
-            "Leontief": "leontief"
+            "Leontief": "leontief",
+            "Random": "random"
         }
         pref_type = pref_map.get(self.pref_box.currentText(), "cobb_douglas")
         

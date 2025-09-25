@@ -57,18 +57,41 @@ class SessionFactory:
             viewport_size=descriptor.viewport_size,
         )
 
-        # Preference factory mapping (single preference type Phase A)
-        def pref_factory(idx: int):  # minimal switch
-            if descriptor.preference_type == 'cobb_douglas':
+        # Preference factory mapping (single preference type Phase A + random)
+        def pref_factory(idx: int):  # minimal switch with improved error handling
+            try:
+                if descriptor.preference_type == 'cobb_douglas':
+                    from econsim.preferences.cobb_douglas import CobbDouglasPreference
+                    return CobbDouglasPreference(alpha=0.5)
+                elif descriptor.preference_type == 'perfect_substitutes':
+                    from econsim.preferences.perfect_substitutes import PerfectSubstitutesPreference
+                    return PerfectSubstitutesPreference(a=1.0, b=1.0)
+                elif descriptor.preference_type == 'leontief':
+                    from econsim.preferences.leontief import LeontiefPreference
+                    return LeontiefPreference(a=1.0, b=1.0)
+                elif descriptor.preference_type == 'random':
+                    # Random preference assignment - deterministic based on seed + agent index
+                    # Use different offset than sprite assignment (2000 vs 1000) to avoid conflicts
+                    pref_rng = random.Random(descriptor.seed + idx + 2000)
+                    pref_types = ['cobb_douglas', 'perfect_substitutes', 'leontief']
+                    chosen_type = pref_rng.choice(pref_types)
+                    
+                    if chosen_type == 'cobb_douglas':
+                        from econsim.preferences.cobb_douglas import CobbDouglasPreference
+                        return CobbDouglasPreference(alpha=0.5)
+                    elif chosen_type == 'perfect_substitutes':
+                        from econsim.preferences.perfect_substitutes import PerfectSubstitutesPreference
+                        return PerfectSubstitutesPreference(a=1.0, b=1.0)
+                    elif chosen_type == 'leontief':
+                        from econsim.preferences.leontief import LeontiefPreference
+                        return LeontiefPreference(a=1.0, b=1.0)
+                else:
+                    raise ValueError(f"Unknown preference type: {descriptor.preference_type}")
+            except Exception as e:
+                # Fallback to Cobb-Douglas on any error to prevent crashes
+                print(f"Warning: Error creating preference for agent {idx}: {e}. Using Cobb-Douglas fallback.")
                 from econsim.preferences.cobb_douglas import CobbDouglasPreference
                 return CobbDouglasPreference(alpha=0.5)
-            if descriptor.preference_type == 'perfect_substitutes':
-                from econsim.preferences.perfect_substitutes import PerfectSubstitutesPreference
-                return PerfectSubstitutesPreference(a=1.0, b=1.0)
-            if descriptor.preference_type == 'leontief':
-                from econsim.preferences.leontief import LeontiefPreference
-                return LeontiefPreference(a=1.0, b=1.0)
-            raise ValueError(f"Unknown preference type: {descriptor.preference_type}")
 
         # Agent spawn positions: deterministic random non-overlapping homes.
         # Use a secondary RNG keyed off seed+constant so resource layout (above) remains identical

@@ -31,6 +31,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         self._carry_label = QLabel("Carry: —")
         self._home_label = QLabel("Home: —") 
         self._utility_label = QLabel("Utility: —")
+        self._preference_label = QLabel("Preference: —")
         # Last trade summary (Phase 2 – only populated when bilateral feature enabled)
         self._last_trade_label = QLabel("Last Trade: —")
         
@@ -45,6 +46,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
         layout.addWidget(self._carry_label)
         layout.addWidget(self._home_label)
         layout.addWidget(self._utility_label)
+        layout.addWidget(self._preference_label)
         layout.addWidget(self._last_trade_label)
         layout.addStretch()
         
@@ -77,6 +79,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
             self._carry_label.setText("Carry: —")
             self._home_label.setText("Home: —")
             self._utility_label.setText("Utility: —")
+            self._preference_label.setText("Preference: —")
             return
         
         try:
@@ -94,6 +97,11 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
             utility = self._controller.agent_carry_utility(current_data)
             utility_text = f"Utility: {utility:.3f}" if utility is not None else "Utility: —"
             self._utility_label.setText(utility_text)
+            
+            # Get agent preference type
+            preference_type = self._controller.agent_preference_type(current_data)
+            preference_text = f"Preference: {preference_type}" if preference_type else "Preference: —"
+            self._preference_label.setText(preference_text)
             # Last trade summary (read-only)
             try:
                 summary = getattr(self._controller, "last_trade_summary", lambda: None)()
@@ -109,6 +117,7 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
             self._carry_label.setText("Carry: (unavailable)")
             self._home_label.setText("Home: (unavailable)")
             self._utility_label.setText("Utility: (unavailable)")
+            self._preference_label.setText("Preference: (unavailable)")
 
 
 __all__ = ["AgentInspectorPanel"]
