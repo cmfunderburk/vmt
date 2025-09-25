@@ -8,7 +8,7 @@ Phase A responsibilities:
 """
 from __future__ import annotations
 
-from typing import Optional, Deque
+from typing import Optional, Deque, Any
 from collections import deque
 from time import perf_counter
 
@@ -43,24 +43,23 @@ class SimulationController:
             self._respawn_interval_cache = simulation._respawn_interval  # type: ignore[attr-defined]
         except Exception:
             self._respawn_interval_cache = 20  # Default to every 20 turns
-        # Bilateral exchange GUI master toggle (Phase 2). Default off.
-        self._bilateral_enabled: bool = False
-        # Granular trade gating (draft vs execution) exposed to GUI. Execution implies draft.
-        self._trade_draft_enabled: bool = False
-        self._trade_exec_enabled: bool = False
-        # Debug overlay flag (user-facing; maps to env for existing overlay code path)
-        self._trade_debug_enabled: bool = False
-        # Foraging enable (new gating; default on). Mirrors env flag ECONSIM_FORAGE_ENABLED.
-        self._forage_enabled: bool = True
+        # Simplified behavior controls (replaces complex 4-checkbox system)
+        self._forage_enabled: bool = True  # Default: foraging enabled
+        self._bilateral_enabled: bool = False  # Will be set to True below to trigger env var setup
+        
+        # Trade tracking for event log
+        self._trade_history: list[dict[str, Any]] = []  # Recent trades across all steps
+        self._last_checked_step = -1  # Track which step we last checked for trades
+        
+        # Initialize bilateral exchange (this will set environment variables)
+        self.set_bilateral_enabled(True)  # Default: bilateral exchange enabled for better debugging
 
     # --- Bilateral Exchange Feature Flag (GUI-scope; does not auto-set env) -----
     def set_bilateral_enabled(self, enabled: bool) -> None:
-        """Enable/disable bilateral exchange (enumeration + execution + GUI info).
-
-        For initial implementation, we map this to the existing environment flag
-        expectations used inside Simulation.step. To avoid mid-test/global leakage,
-        we set os.environ keys on transition only. Future refactor could plumb
-        flags directly into Simulation.step call path instead of env usage.
+        """Enable/disable bilateral exchange (simplified from 4-checkbox system).
+        
+        When enabled: sets ECONSIM_TRADE_DRAFT=1, ECONSIM_TRADE_EXEC=1, ECONSIM_TRADE_GUI_INFO=1
+        When disabled: removes all trade environment flags
         """
         import os
         want = bool(enabled)
@@ -71,99 +70,16 @@ class SimulationController:
             os.environ["ECONSIM_TRADE_DRAFT"] = "1"
             os.environ["ECONSIM_TRADE_EXEC"] = "1"
             os.environ["ECONSIM_TRADE_GUI_INFO"] = "1"
-            self._trade_draft_enabled = True
-            self._trade_exec_enabled = True
         else:
-            # Remove flags (gracefully) so subsequent steps skip enumeration
+            # Remove flags so subsequent steps skip trading entirely
             for k in ("ECONSIM_TRADE_DRAFT", "ECONSIM_TRADE_EXEC", "ECONSIM_TRADE_GUI_INFO"):
                 if k in os.environ:
                     del os.environ[k]
-            self._trade_draft_enabled = False
-            self._trade_exec_enabled = False
 
     def bilateral_enabled(self) -> bool:
         return self._bilateral_enabled
 
-    # --- Granular Trade Toggles --------------------------------------------
-    def set_trade_draft_enabled(self, enabled: bool) -> None:
-        """Enable/disable only draft enumeration.
-
-        If execution currently enabled and draft is being disabled, execution is also disabled
-        (execution logically depends on draft intents). Does NOT flip the user-facing bilateral
-        master toggle automatically (they can be decoupled for advanced exploration).
-        """
-        import os
-        want = bool(enabled)
-        if want == self._trade_draft_enabled:
-            return
-        self._trade_draft_enabled = want
-        if want:
-            os.environ["ECONSIM_TRADE_DRAFT"] = "1"
-            # Keep bilateral master coherent if both granular toggles active
-            if self._trade_exec_enabled:
-                os.environ["ECONSIM_TRADE_EXEC"] = "1"
-            self._bilateral_enabled = self._trade_exec_enabled and True
-        else:
-            # Turning off draft disables execution too
-            if "ECONSIM_TRADE_DRAFT" in os.environ:
-                del os.environ["ECONSIM_TRADE_DRAFT"]
-            if self._trade_exec_enabled:
-                self.set_trade_exec_enabled(False)
-            self._bilateral_enabled = False
-
-    def trade_draft_enabled(self) -> bool:
-        return self._trade_draft_enabled
-
-    def set_trade_exec_enabled(self, enabled: bool) -> None:
-        """Enable/disable execution (implies draft).
-
-        Enabling execution auto-enables draft. Disabling execution leaves draft state untouched.
-        """
-        import os
-        want = bool(enabled)
-        if want == self._trade_exec_enabled:
-            return
-        self._trade_exec_enabled = want
-        if want:
-            # Ensure draft on first
-            if not self._trade_draft_enabled:
-                self.set_trade_draft_enabled(True)
-            os.environ["ECONSIM_TRADE_EXEC"] = "1"
-            os.environ["ECONSIM_TRADE_GUI_INFO"] = "1"  # enable summary line
-            self._bilateral_enabled = True
-        else:
-            if "ECONSIM_TRADE_EXEC" in os.environ:
-                del os.environ["ECONSIM_TRADE_EXEC"]
-            # GUI info summary depends on execution; remove but leave draft intact
-            if "ECONSIM_TRADE_GUI_INFO" in os.environ:
-                del os.environ["ECONSIM_TRADE_GUI_INFO"]
-            self._bilateral_enabled = self._trade_draft_enabled and False
-
-    def trade_exec_enabled(self) -> bool:
-        return self._trade_exec_enabled
-
-    # --- Trade Debug Overlay Toggle ----------------------------------------
-    def set_trade_debug_enabled(self, enabled: bool) -> None:
-        import os
-        want = bool(enabled)
-        if want == self._trade_debug_enabled:
-            return
-        self._trade_debug_enabled = want
-        if want:
-            # Reuse existing draft flag requirement. Do not force execution.
-            if not self._trade_draft_enabled:
-                self.set_trade_draft_enabled(True)
-            os.environ["ECONSIM_TRADE_DRAFT"] = "1"
-            os.environ["ECONSIM_TRADE_DEBUG_OVERLAY"] = "1"
-        else:
-            # Intentionally do not remove ECONSIM_TRADE_DRAFT; user might rely on draft without debug
-            if "ECONSIM_TRADE_DEBUG_OVERLAY" in os.environ:
-                del os.environ["ECONSIM_TRADE_DEBUG_OVERLAY"]
-
-    def trade_debug_enabled(self) -> bool:
-        return self._trade_debug_enabled
-
-    # --- Foraging Gating ---------------------------------------------------
+    # --- Foraging Controls (Simplified Behavior System) -------------------
     def set_forage_enabled(self, enabled: bool) -> None:
         import os
         want = bool(enabled)
@@ -200,6 +116,20 @@ class SimulationController:
             )
         except Exception:
             return None
+
+    def agent_trade_history(self, agent_id: int) -> list[dict[str, object]] | None:
+        """Return the last 5 trades for a specific agent.
+        
+        Returns None if bilateral exchange disabled or no trades recorded.
+        Each trade record contains: step, partner_id, gave, received, delta_utility, role.
+        """
+        if not self._bilateral_enabled:
+            return None
+        mc = getattr(self.simulation, "metrics_collector", None)
+        if mc is None or not hasattr(mc, "agent_trade_histories"):
+            return None
+        
+        return mc.agent_trade_histories.get(agent_id, [])
 
     def pause(self) -> None:
         self._paused = True
@@ -422,6 +352,180 @@ class SimulationController:
         self._step_times.append(perf_counter())
         # Invalidate hash cache (new step implies potential hash change)
         self._hash_cache = None
+
+    # --- Trade Inspector Support Methods -----------------------------------
+    def trade_execution_enabled(self) -> bool:
+        """Check if trade execution is enabled (simplified from granular controls)."""
+        return self.bilateral_enabled()
+    
+    def active_intents_count(self) -> int:
+        """Get count of active trade intents."""
+        try:
+            intents = getattr(self.simulation, 'trade_intents', None)
+            return len(intents) if intents else 0
+        except Exception:
+            return 0
+    
+    def get_active_intents(self) -> list[Any]:
+        """Get list of active trade intents for inspector display."""
+        try:
+            intents = getattr(self.simulation, 'trade_intents', None)
+            return list(intents) if intents else []
+        except Exception:
+            return []
+    
+
+    
+    def calculate_total_welfare_change(self) -> float:
+        """Calculate total welfare change from all current intents."""
+        try:
+            intents = self.get_active_intents()
+            return sum(getattr(intent, 'delta_utility', 0.0) for intent in intents)
+        except Exception:
+            return 0.0
+    
+    def count_trading_pairs(self) -> int:
+        """Count unique trading pairs in current intents."""
+        try:
+            intents = self.get_active_intents()
+            pairs = set()
+            for intent in intents:
+                seller = getattr(intent, 'seller_id', None)
+                buyer = getattr(intent, 'buyer_id', None)
+                if seller is not None and buyer is not None:
+                    # Normalize pair order for uniqueness
+                    pair = tuple(sorted([seller, buyer]))
+                    pairs.add(pair)
+            return len(pairs)
+        except Exception:
+            return 0
+    
+    def analyze_preference_diversity(self) -> str:
+        """Analyze preference type diversity among agents."""
+        try:
+            agents = getattr(self.simulation, 'agents', [])
+            if not agents:
+                return "No agents"
+            
+            # Count preference types
+            pref_counts: dict[str, int] = {}
+            for agent in agents:
+                pref = getattr(agent, 'preference', None)
+                if pref is not None:
+                    pref_type = type(pref).__name__
+                    pref_counts[pref_type] = pref_counts.get(pref_type, 0) + 1
+            
+            if not pref_counts:
+                return "Unknown preferences"
+            
+            # Format diversity summary
+            if len(pref_counts) == 1:
+                pref_name = next(iter(pref_counts.keys())).replace('Preference', '')
+                return f"Homogeneous ({pref_name})"
+            else:
+                return f"Mixed ({len(pref_counts)} types)"
+                
+        except Exception:
+            return "Analysis error"
+    
+    def set_trade_visualization_options(self, *, show_arrows: bool, show_highlights: bool) -> None:
+        """Set visualization options for enhanced trade display."""
+        # Store options for renderer integration
+        self._trade_viz_options = {
+            'show_arrows': show_arrows,
+            'show_highlights': show_highlights
+        }
+    
+    def get_trade_visualization_options(self) -> dict[str, bool]:
+        """Get current trade visualization options."""
+        return getattr(self, '_trade_viz_options', {
+            'show_arrows': True, 
+            'show_highlights': True
+        })
+    
+    def set_pause_on_trade(self, enabled: bool) -> None:
+        """Set whether to pause simulation when trades occur."""
+        self._pause_on_trade = bool(enabled)
+    
+    def should_pause_on_trade(self) -> bool:
+        """Check if simulation should pause on trade execution."""
+        return getattr(self, '_pause_on_trade', False)
+
+    # --- Event Log Support --------------------------------------------------
+    
+    def get_current_step(self) -> int:
+        """Get the current simulation step number."""
+        return self.simulation.steps
+    
+    def get_recent_trades(self, step: int) -> list[dict[str, Any]]:
+        """Get trade events that occurred in the specified step."""
+        # First, update our trade history to check for any new trades
+        self._update_trade_history()
+        
+        # Return trades that occurred in the requested step
+        return [trade for trade in self._trade_history if trade.get('step') == step]
+    
+    def _update_trade_history(self) -> None:
+        """Update internal trade history by checking for new trades."""
+        if not self._bilateral_enabled:
+            return
+            
+        mc = getattr(self.simulation, "metrics_collector", None)
+        if mc is None:
+            return
+        
+        current_step = self.simulation.steps
+        
+        # If we have a new step, check for new trades
+        if current_step > self._last_checked_step:
+            try:
+                last_trade = mc.last_executed_trade
+                # DEBUG: Print trade detection logic and delta utility values
+                print(f"DEBUG: current_step={current_step}, last_checked_step={self._last_checked_step}")
+                print(f"DEBUG: last_trade={last_trade}")
+                
+                if (last_trade and 
+                    last_trade.get('step', -1) > self._last_checked_step):
+                    
+                    # DEBUG: Check the raw delta_utility value
+                    raw_delta_u = last_trade.get('delta_utility', 0)
+                    print(f"DEBUG: Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})")
+                    
+                    # Format trade for display (use trade's actual step, not current step)
+                    trade_step = last_trade.get('step', current_step)
+                    trade_info = {
+                        'agent_a_id': last_trade.get('seller', '?'),
+                        'agent_b_id': last_trade.get('buyer', '?'), 
+                        'goods_a_to_b': last_trade.get('give_type', '?'),
+                        'goods_b_to_a': last_trade.get('take_type', '?'),
+                        'delta_utility': raw_delta_u,  # Use raw value, no conversion
+                        'step': trade_step
+                    }
+                    
+                    print(f"DEBUG: Formatted trade_info delta_utility: {trade_info['delta_utility']}")
+                    
+                    # Add to history and trim to reasonable size
+                    self._trade_history.append(trade_info)
+                    if len(self._trade_history) > 50:  # Keep last 50 trades
+                        self._trade_history = self._trade_history[-50:]
+                    
+                    # DEBUG: Confirm trade was added (enabled for debugging)
+                    print(f"DEBUG: Added trade to history. Total trades: {len(self._trade_history)}")
+                else:
+                    print(f"DEBUG: No new trade detected (bilateral_enabled={self._bilateral_enabled})")
+                        
+            except Exception:
+                # Graceful fallback
+                pass
+                
+            self._last_checked_step = current_step
+    
+    def get_recent_target_selections(self, step: int) -> list[dict[str, Any]]:
+        """Get agent target selection events for the specified step."""
+        # For now, return empty list - this would require more extensive 
+        # agent behavior tracking to implement properly
+        # In a future implementation, agents could log their decision events
+        return []
 
     def teardown(self) -> None:
         # Placeholder for future resource clean shutdown hooks

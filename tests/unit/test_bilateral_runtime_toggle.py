@@ -23,6 +23,8 @@ def test_runtime_toggle_enables_and_disables(monkeypatch):  # type: ignore[no-un
     # Freeze movement to keep agents co-located across steps
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
     controller = SimulationController(simulation=sim)
+    # First disable bilateral exchange to test the toggle behavior
+    controller.set_bilateral_enabled(False)
     rng = random.Random(7)
     # Step with feature disabled → no intents
     sim.step(rng, use_decision=False)

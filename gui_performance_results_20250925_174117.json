@@ -1,0 +1,58 @@
+[
+  {
+    "test_name": "Test 1: 40 agents, perception 10",
+    "config": {
+      "agents": 40,
+      "grid_size": [
+        64,
+        64
+      ],
+      "density": 0.5,
+      "perception": 10
+    },
+    "performance": {
+      "min_fps": 1.6480020736083552,
+      "max_fps": 1613.4393083495527,
+      "avg_fps": 631.3491101670066,
+      "total_steps": 1000,
+      "avg_step_time_ms": 17.0963111569763
+    },
+    "simulation": {
+      "total_trades": 0,
+      "total_resources_collected": 0
+    },
+    "timing": {
+      "forage_phase_duration": 16.67339353999705,
+      "exchange_phase_duration": 0.4221907450009894,
+      "total_test_duration": 17.098093718999735
+    }
+  },
+  {
+    "test_name": "Test 2: 100 agents, perception 15",
+    "config": {
+      "agents": 100,
+      "grid_size": [
+        64,
+        64
+      ],
+      "density": 0.5,
+      "perception": 15
+    },
+    "performance": {
+      "min_fps": 0.8458622935574904,
+      "max_fps": 1370.5163595517615,
+      "avg_fps": 382.6154918795154,
+      "total_steps": 1000,
+      "avg_step_time_ms": 10.740411825980118
+    },
+    "simulation": {
+      "total_trades": 0,
+      "total_resources_collected": 0
+    },
+    "timing": {
+      "forage_phase_duration": 9.971258344998205,
+      "exchange_phase_duration": 0.767018372000166,
+      "total_test_duration": 10.74228635200052
+    }
+  }
+]

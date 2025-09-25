@@ -18,6 +18,56 @@ from econsim.preferences.helpers import marginal_utility
 PriorityKey = Tuple[float, int, int, str, str]
 
 
+def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent, 
+                                give_type: str, take_type: str) -> float:
+    """Compute exact combined utility change from a trade.
+    
+    Args:
+        agent_i: The agent giving 'give_type' and receiving 'take_type'
+        agent_j: The agent giving 'take_type' and receiving 'give_type' 
+        give_type: Good type that agent_i gives to agent_j
+        take_type: Good type that agent_j gives to agent_i
+        
+    Returns:
+        Combined utility delta (agent_i_after + agent_j_after - agent_i_before - agent_j_before)
+    """
+    # Current utility for both agents (based on total wealth: carrying + home)
+    # Add small epsilon to avoid corner bundle issues with Cobb-Douglas
+    EPSILON = 1e-12
+    def total_bundle(agent: Agent) -> tuple[float, float]:
+        carrying = agent.carrying
+        home = agent.home_inventory
+        good1_total = carrying.get("good1", 0) + home.get("good1", 0) + EPSILON
+        good2_total = carrying.get("good2", 0) + home.get("good2", 0) + EPSILON
+        return (float(good1_total), float(good2_total))
+    
+    bundle_i_before = total_bundle(agent_i)
+    bundle_j_before = total_bundle(agent_j)
+    
+    utility_i_before = agent_i.preference.utility(bundle_i_before)
+    utility_j_before = agent_j.preference.utility(bundle_j_before)
+    
+    # Post-trade bundles (simulate the 1-unit exchange)
+    if give_type == "good1" and take_type == "good2":
+        bundle_i_after = (bundle_i_before[0] - 1, bundle_i_before[1] + 1)
+        bundle_j_after = (bundle_j_before[0] + 1, bundle_j_before[1] - 1)
+    elif give_type == "good2" and take_type == "good1":
+        bundle_i_after = (bundle_i_before[0] + 1, bundle_i_before[1] - 1)
+        bundle_j_after = (bundle_j_before[0] - 1, bundle_j_before[1] + 1)
+    else:
+        # Unsupported trade types
+        return 0.0
+    
+    # Ensure non-negative bundles (trade shouldn't create negative inventories)
+    if any(x < 0 for x in bundle_i_after) or any(x < 0 for x in bundle_j_after):
+        return 0.0
+    
+    utility_i_after = agent_i.preference.utility(bundle_i_after)
+    utility_j_after = agent_j.preference.utility(bundle_j_after)
+    
+    return (utility_i_after + utility_j_after) - (utility_i_before + utility_j_before)
+
+
 @dataclass(slots=True)
 class TradeIntent:
     seller_id: int
@@ -71,10 +121,6 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
         for j in range(i + 1, n):
             aj = agents[j]
             muj = mu_cache.get(aj.id, {})
-            # Pre-compute a simplistic combined marginal improvement estimate for each potential direction.
-            # NOTE: We use marginal utility difference (desired - offered) per agent and sum; this is *not* yet
-            # the full preference utility re-evaluation (keeps constant time & avoids allocations). A later
-            # gate may tighten this to exact utility delta.
             # Direction: ai gives good1, aj gives good2
             if (
                 ai.carrying.get("good1", 0) > 0
@@ -82,8 +128,8 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and mui.get("good2", 0.0) > mui.get("good1", 0.0)
                 and muj.get("good1", 0.0) > muj.get("good2", 0.0)
             ):
-                # Combined marginal lift approximation
-                delta_u: float = (mui.get("good2", 0.0) - mui.get("good1", 0.0)) + (muj.get("good1", 0.0) - muj.get("good2", 0.0))
+                # Compute exact combined utility delta
+                delta_u: float = _compute_exact_utility_delta(ai, aj, "good1", "good2")
                 if use_delta_priority:
                     priority: PriorityKey = (-delta_u, ai.id, aj.id, "good1", "good2")
                 else:
@@ -106,7 +152,7 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and mui.get("good1", 0.0) > mui.get("good2", 0.0)
                 and muj.get("good2", 0.0) > muj.get("good1", 0.0)
             ):
-                delta_u = (mui.get("good1", 0.0) - mui.get("good2", 0.0)) + (muj.get("good2", 0.0) - muj.get("good1", 0.0))
+                delta_u = _compute_exact_utility_delta(ai, aj, "good2", "good1")
                 if use_delta_priority:
                     priority: PriorityKey = (-delta_u, ai.id, aj.id, "good2", "good1")
                 else:

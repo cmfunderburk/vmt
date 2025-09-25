@@ -42,8 +42,9 @@ class MetricsCollector:
     trade_ticks: int = 0
     no_trade_ticks: int = 0
     last_executed_trade: dict[str, object] | None = None  # {seller,buyer,give,take,delta_utility,step}
-    trades_executed: int = 0
     fairness_round: int = 0  # Phase 3: increments per executed trade (advisory, hash-excluded)
+    # Per-agent trade history (last 5 trades per agent, hash-excluded):
+    agent_trade_histories: Dict[int, List[Dict[str, Any]]] = field(default_factory=lambda: {})
     _records: List[Dict[str, Any]] = field(default_factory=lambda: [])
     _hash: Any | None = field(default=None, init=False, repr=False)  # sha256 object
 
@@ -115,6 +116,61 @@ class MetricsCollector:
 
     def records(self) -> Iterable[Dict[str, Any]]:  # lightweight accessor
         return tuple(self._records)
+
+    def record_bilateral_trade(self, step: int, agent1_id: int, agent2_id: int, 
+                             agent1_give: str, agent1_take: str, 
+                             agent1_delta_u: float, agent2_delta_u: float) -> None:
+        """Record a bilateral trade between two agents.
+        
+        Updates both agents' trade histories (last 5 trades each) and global last_executed_trade.
+        This method is hash-excluded since trade history is for UI display only.
+        """
+        # Create trade records for both agents
+        trade_record_1: Dict[str, Any] = {
+            "step": step,
+            "partner_id": agent2_id,
+            "gave": agent1_give,
+            "received": agent1_take,
+            "delta_utility": agent1_delta_u,
+            "role": "trader"
+        }
+        
+        trade_record_2: Dict[str, Any] = {
+            "step": step,
+            "partner_id": agent1_id,
+            "gave": agent1_take,  # What agent1 took is what agent2 gave
+            "received": agent1_give,  # What agent1 gave is what agent2 received
+            "delta_utility": agent2_delta_u,
+            "role": "trader"
+        }
+        
+        # Add to agent1's history
+        if agent1_id not in self.agent_trade_histories:
+            self.agent_trade_histories[agent1_id] = []
+        self.agent_trade_histories[agent1_id].append(trade_record_1)
+        if len(self.agent_trade_histories[agent1_id]) > 5:
+            self.agent_trade_histories[agent1_id].pop(0)  # Keep only last 5
+            
+        # Add to agent2's history  
+        if agent2_id not in self.agent_trade_histories:
+            self.agent_trade_histories[agent2_id] = []
+        self.agent_trade_histories[agent2_id].append(trade_record_2)
+        if len(self.agent_trade_histories[agent2_id]) > 5:
+            self.agent_trade_histories[agent2_id].pop(0)  # Keep only last 5
+        
+        # Update global last trade (for backward compatibility)
+        self.last_executed_trade = {
+            "step": step,
+            "seller": agent1_id,
+            "buyer": agent2_id,
+            "give_type": agent1_give,
+            "take_type": agent1_take,
+            "delta_utility": agent1_delta_u,
+        }
+        
+        # Update trade counts
+        self.trades_executed += 1
+        self.trade_ticks += 1
 
 
 __all__ = ["MetricsCollector"]

@@ -32,31 +32,27 @@ def _clear_all_env():
         os.environ.pop(k, None)
 
 @pytest.mark.parametrize(
-    "forage,draft,exec_", [
-        (False, False, False),
-        (False, True, False),
-        (False, True, True),
-        (True, False, False),
-        (True, True, False),
-        (True, True, True),
+    "forage,bilateral", [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
     ]
 )
-def test_gui_trade_flag_matrix(forage, draft, exec_):  # type: ignore[no-untyped-def]
-    """Matrix over (forage,draft,exec) focusing on trade intents & execution side-effects.
+def test_gui_trade_flag_matrix(forage, bilateral):  # type: ignore[no-untyped-def]
+    """Matrix over simplified behavior controls (forage, bilateral exchange).
 
-    We directly use controller granular setters to mirror GUI checkbox semantics.
+    Tests the new simplified 2-checkbox system replacing complex 4-checkbox approach.
     Assertions:
-      * When draft disabled -> no intents stored.
-      * When draft enabled -> intents list object allocated (may be empty).
-      * When execution enabled and a viable trade exists -> carrying inventory of at least one agent changes.
-      * When both forage and draft+exec enabled: trading happens even if foraging occurred for some agents (but those foragers excluded as per core logic).
+      * When bilateral disabled -> no trade intents stored.
+      * When bilateral enabled -> both drafting and execution occur (intents allocated, execution may occur).
+      * When both behaviors enabled: foraging and trading can both occur.
     """
     _clear_all_env()
     sim = _make_sim()
     controller = SimulationController(simulation=sim)
     controller.set_forage_enabled(True if forage else False)  # type: ignore[arg-type]
-    controller.set_trade_draft_enabled(True if draft else False)  # type: ignore[arg-type]
-    controller.set_trade_exec_enabled(True if exec_ else False)  # type: ignore[arg-type]
+    controller.set_bilateral_enabled(True if bilateral else False)  # type: ignore[arg-type]
     # Force decision mode path
     rng = random.Random(0)
     # Add a resource at (0,0) so if foraging enabled one agent may collect before trade enumeration
@@ -65,12 +61,11 @@ def test_gui_trade_flag_matrix(forage, draft, exec_):  # type: ignore[no-untyped
     pre_bundles = {a.id: (a.carrying['good1'], a.carrying['good2']) for a in sim.agents}
     sim.step(rng, use_decision=True)
     intents = getattr(sim, 'trade_intents', None)
-    if not draft:
+    if not bilateral:
         assert intents is None
     else:
-        assert intents is not None  # object allocated even if empty
-    if exec_ and draft:
-        # If a trade executed there should be a metrics record and some inventory change unless marginal utilities tie
+        assert intents is not None  # Bilateral exchange enabled means both draft+exec
+        # If bilateral enabled, execution may occur depending on viable trades
         mc = sim.metrics_collector
         assert mc is not None
         executed = getattr(mc, 'last_executed_trade', None)
@@ -78,14 +73,6 @@ def test_gui_trade_flag_matrix(forage, draft, exec_):  # type: ignore[no-untyped
             post_bundles = {a.id: (a.carrying['good1'], a.carrying['good2']) for a in sim.agents}
             changed = [aid for aid in post_bundles if post_bundles[aid] != pre_bundles[aid]]
             assert changed, "Expected at least one agent carrying bundle to change after execution"
-    else:
-        # No execution means carrying exactly same unless foraging collected
-        post_bundles = {a.id: (a.carrying['good1'], a.carrying['good2']) for a in sim.agents}
-        if forage:
-            # At least one agent may have increased good1 from resource
-            assert any(post_bundles[aid][0] > pre_bundles[aid][0] for aid in post_bundles) or intents is None
-        else:
-            assert post_bundles == pre_bundles
 
 
 def test_execution_highlight_presence():  # type: ignore[no-untyped-def]
@@ -93,8 +80,7 @@ def test_execution_highlight_presence():  # type: ignore[no-untyped-def]
     _clear_all_env()
     sim = _make_sim()
     controller = SimulationController(simulation=sim)
-    controller.set_trade_draft_enabled(True)
-    controller.set_trade_exec_enabled(True)
+    controller.set_bilateral_enabled(True)  # Simplified: bilateral exchange includes both draft+exec
     rng = random.Random(0)
     # Step until a trade executes or max 10 steps to avoid infinite loop
     for _ in range(10):

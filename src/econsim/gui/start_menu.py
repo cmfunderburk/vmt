@@ -68,14 +68,13 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         self.scenario_box = QComboBox()
         self.scenario_box.addItems([  # type: ignore[arg-type]
             "baseline", 
-            "bilateral_exchange", 
             "money_market"
         ])
         # For now, only baseline is functional
         self.scenario_box.setCurrentText("baseline")
         # Disable non-implemented scenarios with tooltip guidance
         model = self.scenario_box.model()
-        for name in ("bilateral_exchange", "money_market"):
+        for name in ("money_market",):
             idx = self.scenario_box.findText(name)
             if idx >= 0:
                 item = model.item(idx)
@@ -96,7 +95,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         count_row.addWidget(QLabel("  Num Agents:"))
         self.agents_box = QSpinBox()
         self.agents_box.setRange(1, 200)
-        self.agents_box.setValue(4)
+        self.agents_box.setValue(20)
         count_row.addWidget(self.agents_box)
         count_row.addStretch()
         layout.addLayout(count_row)
@@ -115,12 +114,12 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         grid_row.addWidget(QLabel("  Grid Size:"))
         self.grid_w = QSpinBox()
         self.grid_w.setRange(4, 128)
-        self.grid_w.setValue(20)  # Changed default from 12 to 20
+        self.grid_w.setValue(30)  # Changed default for workflow 1
         grid_row.addWidget(self.grid_w)
         grid_row.addWidget(QLabel("×"))
         self.grid_h = QSpinBox()
         self.grid_h.setRange(4, 128) 
-        self.grid_h.setValue(20)  # Changed default from 12 to 20
+        self.grid_h.setValue(30)  # Changed default for workflow 1
         grid_row.addWidget(self.grid_h)
         grid_row.addStretch()
         layout.addLayout(grid_row)
@@ -188,7 +187,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         seed_row.addWidget(rand_btn)
         
         self.start_paused_cb = QCheckBox("Start Paused")
-        self.start_paused_cb.setChecked(False)
+        self.start_paused_cb.setChecked(True)
         seed_row.addWidget(self.start_paused_cb)
         seed_row.addStretch()
         layout.addLayout(seed_row)
@@ -207,17 +206,16 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         decision_row.addStretch()
         layout.addLayout(decision_row)
         
-        # Advanced panel (now only contains experimental features)
+        # Advanced panel (currently empty - bilateral exchange now controlled in simulation)
         self.advanced_group = QGroupBox("Advanced")
         self.advanced_group.setCheckable(True)
         self.advanced_group.setChecked(False)  # Collapsed by default
         advanced_layout = QVBoxLayout(self.advanced_group)
         
-        # Bilateral Exchange (Experimental) master toggle (Phase 2)
-        self.bilateral_cb = QCheckBox("Bilateral Exchange (Experimental)")
-        self.bilateral_cb.setChecked(False)
-        self.bilateral_cb.setToolTip("Enable draft intent enumeration, single execution per tick, and GUI trade info overlay.")
-        advanced_layout.addWidget(self.bilateral_cb)
+        # Note: Bilateral Exchange controls moved to simulation controls panel
+        note_label = QLabel("Advanced features are controlled in the simulation controls panel.")
+        note_label.setStyleSheet("color: #666; font-style: italic;")
+        advanced_layout.addWidget(note_label)
         
         layout.addWidget(self.advanced_group)
         
