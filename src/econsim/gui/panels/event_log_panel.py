@@ -121,17 +121,23 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         try:
             # Check if controller has trade monitoring capability
             if hasattr(self._controller, 'get_recent_trades'):
-                recent_trades = self._controller.get_recent_trades(step)
-                
-                for trade in recent_trades:
-                    seller = trade.get('agent_a_id', '?')
-                    buyer = trade.get('agent_b_id', '?')
-                    give_type = trade.get('goods_a_to_b', '?')
-                    take_type = trade.get('goods_b_to_a', '?')
-                    delta_u = trade.get('delta_utility', 0)
-                    
-                    event_text = f"Step {step}: TRADE A{seller} → A{buyer} (give {give_type} / take {take_type}) ΔU={delta_u:.3f}"
-                    events.append(event_text)
+                # Check for trades in current step and previous step (since trades might be recorded
+                # with a slight delay or in the previous step due to timing)
+                for check_step in [step, step - 1]:
+                    if check_step >= 0:  # Don't check negative steps
+                        recent_trades = self._controller.get_recent_trades(check_step)
+                        
+                        for trade in recent_trades:
+                            seller = trade.get('agent_a_id', '?')
+                            buyer = trade.get('agent_b_id', '?')
+                            give_type = trade.get('goods_a_to_b', '?')
+                            take_type = trade.get('goods_b_to_a', '?')
+                            delta_u = trade.get('delta_utility', 0)
+                            trade_step = trade.get('step', check_step)
+                            
+                            # Format trade event for display (use actual trade step)
+                            event_text = f"Step {trade_step}: TRADE Agent {seller} ⟷ Agent {buyer} | {give_type} ⟷ {take_type} | ΔU={delta_u:.3f}"
+                            events.append(event_text)
                     
         except Exception:
             pass

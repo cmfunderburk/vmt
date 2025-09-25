@@ -213,15 +213,21 @@ class Simulation:
                                 mc.fairness_round += 1  # type: ignore[attr-defined]
                             except Exception:
                                 pass
-                            # Record last executed trade summary
-                            mc.last_executed_trade = {
-                                "step": self._steps,
-                                "seller": executed.seller_id,
-                                "buyer": executed.buyer_id,
-                                "give_type": executed.give_type,
-                                "take_type": executed.take_type,
-                                "delta_utility": getattr(executed, "delta_utility", 0.0),
-                            }
+                            # Record bilateral trade (this also sets last_executed_trade)
+                            seller_delta_u = getattr(executed, "delta_utility", 0.0)
+                            # Note: Using seller's delta_u for both agents since buyer's delta_u not available here
+                            # In a full implementation, this would be calculated separately
+                            buyer_delta_u = seller_delta_u  # Approximation for now
+                            
+                            mc.record_bilateral_trade(
+                                step=self._steps,
+                                agent1_id=executed.seller_id,
+                                agent2_id=executed.buyer_id, 
+                                agent1_give=executed.give_type,
+                                agent1_take=executed.take_type,
+                                agent1_delta_u=seller_delta_u,
+                                agent2_delta_u=buyer_delta_u
+                            )
                             mc.trade_ticks += 1  # type: ignore[attr-defined]
                         else:
                             mc.no_trade_ticks += 1  # type: ignore[attr-defined]

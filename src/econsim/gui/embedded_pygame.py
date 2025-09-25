@@ -487,29 +487,30 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                                 pygame.draw.line(  # type: ignore[arg-type]
                                                     self._surface, (0, 255, 255), start_pos, end_pos, 2
                                                 )
-                        # Enhanced trade visualization (includes original debug overlay with visual enhancements)
-                        try:
-                            from ._enhanced_trade_visualization import render_enhanced_trade_visualization
-                            
-                            # Get visualization options from controller if available
-                            viz_options = {'show_arrows': True, 'show_highlights': True}
-                            if hasattr(self, '_controller') and hasattr(self._controller, 'get_trade_visualization_options'):
-                                viz_options = self._controller.get_trade_visualization_options()
-                            
-                            render_enhanced_trade_visualization(
-                                self._surface, font, sim, 
-                                cell_w=cell_w, cell_h=cell_h,
-                                show_arrows=viz_options.get('show_arrows', True), 
-                                show_highlights=viz_options.get('show_highlights', True),
-                                x_offset=4, y_offset=4
-                            )
-                        except Exception:
-                            # Fallback to original debug overlay if enhanced version fails
-                            try:
-                                from ._trade_debug_overlay import render_trade_debug
-                                render_trade_debug(self._surface, font, sim, x_offset=4, y_offset=4)
-                            except Exception:
-                                pass
+                        # Enhanced trade visualization disabled - trade info now shown in event log panel
+                        # try:
+                        #     from ._enhanced_trade_visualization import render_enhanced_trade_visualization
+                        #     
+                        #     # Get visualization options from controller if available
+                        #     viz_options = {'show_arrows': True, 'show_highlights': True}
+                        #     if hasattr(self, '_controller') and hasattr(self._controller, 'get_trade_visualization_options'):
+                        #         viz_options = self._controller.get_trade_visualization_options()
+                        #     
+                        #     render_enhanced_trade_visualization(
+                        #         self._surface, font, sim, 
+                        #         cell_w=cell_w, cell_h=cell_h,
+                        #         show_arrows=viz_options.get('show_arrows', True), 
+                        #         show_highlights=viz_options.get('show_highlights', True),
+                        #         x_offset=4, y_offset=4
+                        #     )
+                        # except Exception:
+                            # Trade debug overlay disabled - trade info now shown in event log panel
+                            # try:
+                            #     from ._trade_debug_overlay import render_trade_debug
+                            #     render_trade_debug(self._surface, font, sim, x_offset=4, y_offset=4)
+                            # except Exception:
+                            #     pass
+                            pass
                         # Executed trade highlight (if recent). Draw after debug overlay so it stands out under IDs.
                         try:
                             hl = getattr(sim, '_last_trade_highlight', None)

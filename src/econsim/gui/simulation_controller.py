@@ -45,7 +45,14 @@ class SimulationController:
             self._respawn_interval_cache = 20  # Default to every 20 turns
         # Simplified behavior controls (replaces complex 4-checkbox system)
         self._forage_enabled: bool = True  # Default: foraging enabled
-        self._bilateral_enabled: bool = True  # Default: bilateral exchange enabled for better debugging
+        self._bilateral_enabled: bool = False  # Will be set to True below to trigger env var setup
+        
+        # Trade tracking for event log
+        self._trade_history: list[dict[str, Any]] = []  # Recent trades across all steps
+        self._last_checked_step = -1  # Track which step we last checked for trades
+        
+        # Initialize bilateral exchange (this will set environment variables)
+        self.set_bilateral_enabled(True)  # Default: bilateral exchange enabled for better debugging
 
     # --- Bilateral Exchange Feature Flag (GUI-scope; does not auto-set env) -----
     def set_bilateral_enabled(self, enabled: bool) -> None:
@@ -452,40 +459,60 @@ class SimulationController:
     
     def get_recent_trades(self, step: int) -> list[dict[str, Any]]:
         """Get trade events that occurred in the specified step."""
-        trades = []
+        # First, update our trade history to check for any new trades
+        self._update_trade_history()
         
-        # Check if bilateral exchange is enabled and we have metrics
+        # Return trades that occurred in the requested step
+        return [trade for trade in self._trade_history if trade.get('step') == step]
+    
+    def _update_trade_history(self) -> None:
+        """Update internal trade history by checking for new trades."""
         if not self._bilateral_enabled:
-            return trades
+            return
             
         mc = getattr(self.simulation, "metrics_collector", None)
         if mc is None:
-            return trades
+            return
         
-        try:
-            # Get recent trade history from metrics collector
-            # For now, we'll check if there are any trades recorded for this step
-            # This is a simplified implementation - in a full system you'd track
-            # trades per step more systematically
-            
-            # Check last trade to see if it matches current step
-            last_trade = mc.last_executed_trade
-            if last_trade and last_trade.get('step') == step:
-                # Format trade for display using same fields as trade summary
-                trade_info = {
-                    'agent_a_id': last_trade.get('seller', '?'),
-                    'agent_b_id': last_trade.get('buyer', '?'), 
-                    'goods_a_to_b': last_trade.get('give_type', '?'),
-                    'goods_b_to_a': last_trade.get('take_type', '?'),
-                    'delta_utility': last_trade.get('delta_utility', 0)
-                }
-                trades.append(trade_info)
+        current_step = self.simulation.steps
+        
+        # If we have a new step, check for new trades
+        if current_step > self._last_checked_step:
+            try:
+                last_trade = mc.last_executed_trade
+                # DEBUG: Print trade detection logic (enabled for debugging)
+                print(f"DEBUG: current_step={current_step}, last_checked_step={self._last_checked_step}")
+                print(f"DEBUG: last_trade={last_trade}")
                 
-        except Exception:
-            # Graceful fallback
-            pass
-            
-        return trades
+                if (last_trade and 
+                    last_trade.get('step', -1) > self._last_checked_step):
+                    
+                    # Format trade for display (use trade's actual step, not current step)
+                    trade_step = last_trade.get('step', current_step)
+                    trade_info = {
+                        'agent_a_id': last_trade.get('seller', '?'),
+                        'agent_b_id': last_trade.get('buyer', '?'), 
+                        'goods_a_to_b': last_trade.get('give_type', '?'),
+                        'goods_b_to_a': last_trade.get('take_type', '?'),
+                        'delta_utility': last_trade.get('delta_utility', 0),
+                        'step': trade_step
+                    }
+                    
+                    # Add to history and trim to reasonable size
+                    self._trade_history.append(trade_info)
+                    if len(self._trade_history) > 50:  # Keep last 50 trades
+                        self._trade_history = self._trade_history[-50:]
+                    
+                    # DEBUG: Confirm trade was added (enabled for debugging)
+                    print(f"DEBUG: Added trade to history. Total trades: {len(self._trade_history)}")
+                else:
+                    print(f"DEBUG: No new trade detected (bilateral_enabled={self._bilateral_enabled})")
+                        
+            except Exception:
+                # Graceful fallback
+                pass
+                
+            self._last_checked_step = current_step
     
     def get_recent_target_selections(self, step: int) -> list[dict[str, Any]]:
         """Get agent target selection events for the specified step."""
