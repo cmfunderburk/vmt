@@ -113,6 +113,43 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             self.overlay_state = OverlayState()  # type: ignore[assignment]
         except Exception:  # pragma: no cover - defensive import guard
             self.overlay_state = None
+        
+        # Load sprites for rendering
+        self._sprites = self._load_sprites()
+
+    def _load_sprites(self) -> dict[str, pygame.Surface]:
+        """Load sprite images for agents and resources."""
+        sprites = {}
+        import os
+        from pathlib import Path
+        
+        # Get the project root directory (where vmt_sprites_pack_1 is located)
+        current_file = Path(__file__)
+        project_root = current_file.parent.parent.parent.parent  # src/econsim/gui/ -> src/econsim/ -> src/ -> root/
+        sprites_dir = project_root / "vmt_sprites_pack_1"
+        
+        try:
+            # Load agent sprite (blue for now)
+            agent_sprite_path = sprites_dir / "agent_blue_64.png"
+            if agent_sprite_path.exists():
+                sprites["agent"] = pygame.image.load(str(agent_sprite_path)).convert_alpha()
+            
+            # Load resource sprites
+            # good1 = food (type A), good2 = stone (type B)
+            food_sprite_path = sprites_dir / "resource_food_64.png"
+            if food_sprite_path.exists():
+                sprites["resource_A"] = pygame.image.load(str(food_sprite_path)).convert_alpha()
+                
+            stone_sprite_path = sprites_dir / "resource_stone_64.png"
+            if stone_sprite_path.exists():
+                sprites["resource_B"] = pygame.image.load(str(stone_sprite_path)).convert_alpha()
+                
+        except Exception as e:
+            # Fallback: if sprite loading fails, use empty dict (will fall back to rectangles)
+            print(f"Warning: Could not load sprites: {e}")
+            sprites = {}
+            
+        return sprites
 
     # --- Frame Loop -----------------------------------------------------
     def _on_tick(self) -> None:
@@ -247,32 +284,49 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 # Draw resources
                 try:
                     for rx, ry, rtype in grid.iter_resources():  # type: ignore[attr-defined]
-                        color = RES_COLORS.get(rtype, (200, 200, 200))
-                        pygame.draw.rect(
-                            self._surface,
-                            color,
-                            pygame.Rect(rx * cell_w, ry * cell_h, cell_w, cell_h),
-                        )
+                        sprite_key = f"resource_{rtype}"
+                        if sprite_key in self._sprites:
+                            # Use sprite
+                            sprite = self._sprites[sprite_key]
+                            # Scale sprite to fit cell size
+                            scaled_sprite = pygame.transform.scale(sprite, (cell_w, cell_h))
+                            self._surface.blit(scaled_sprite, (rx * cell_w, ry * cell_h))
+                        else:
+                            # Fallback to colored rectangle
+                            color = RES_COLORS.get(rtype, (200, 200, 200))
+                            pygame.draw.rect(
+                                self._surface,
+                                color,
+                                pygame.Rect(rx * cell_w, ry * cell_h, cell_w, cell_h),
+                            )
                 except Exception:  # pragma: no cover - defensive
                     pass
-                # Draw agents (small squares with outline) - deterministic order
+                # Draw agents - deterministic order
                 sorted_agents = list(sorted(agents, key=lambda a: getattr(a, "id", 0)))
                 for agent in sorted_agents:
                     ax = getattr(agent, "x", 0)
                     ay = getattr(agent, "y", 0)
-                    inv = getattr(agent, "carrying", {})
-                    # Agent color shifts slightly with carried balance (good1 vs good2)
-                    g1 = float(inv.get("good1", 0))
-                    g2 = float(inv.get("good2", 0))
-                    total = g1 + g2 + 1e-6
-                    mix = g1 / total
-                    r = int(255 * (1 - mix))
-                    b = int(255 * mix)
-                    agent_color = (r, 40, b)
-                    rect = pygame.Rect(ax * cell_w, ay * cell_h, cell_w, cell_h)
-                    pygame.draw.rect(self._surface, agent_color, rect)
-                    # Outline for visibility
-                    pygame.draw.rect(self._surface, (20, 20, 20), rect, 1)
+                    
+                    if "agent" in self._sprites:
+                        # Use sprite
+                        sprite = self._sprites["agent"]
+                        # Scale sprite to fit cell size
+                        scaled_sprite = pygame.transform.scale(sprite, (cell_w, cell_h))
+                        self._surface.blit(scaled_sprite, (ax * cell_w, ay * cell_h))
+                    else:
+                        # Fallback to colored rectangle with inventory-based coloring
+                        inv = getattr(agent, "carrying", {})
+                        g1 = float(inv.get("good1", 0))
+                        g2 = float(inv.get("good2", 0))
+                        total = g1 + g2 + 1e-6
+                        mix = g1 / total
+                        r = int(255 * (1 - mix))
+                        b = int(255 * mix)
+                        agent_color = (r, 40, b)
+                        rect = pygame.Rect(ax * cell_w, ay * cell_h, cell_w, cell_h)
+                        pygame.draw.rect(self._surface, agent_color, rect)
+                        # Outline for visibility
+                        pygame.draw.rect(self._surface, (20, 20, 20), rect, 1)
                 # Draw home labels (H{id}) only if overlay_state.show_home_labels True.
                 try:
                     if overlay_state is not None and getattr(overlay_state, "show_home_labels", False):

@@ -8,7 +8,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 
 | Area | Implemented (Usable) | Pending / Not Yet Integrated |
 |------|----------------------|-------------------------------|
-| Rendering Core | PyQt6 window + embedded Pygame surface (~62 FPS, configurable 320×320 to 800×800) | GUI controls / menus / scenario panels |
+| Rendering Core | PyQt6 window + embedded Pygame surface (~62 FPS, configurable 320×320 to 800×800) with sprite-based visuals (agents, resources) | GUI controls / menus / scenario panels |
 | Preferences | Cobb-Douglas, Perfect Substitutes, Leontief + factory | N-good generalization, adaptive forms |
 | Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
 | Agents | Carrying vs home inventories with wealth accumulation, modes, greedy decision, tie-break determinism, randomized non-overlapping home placement + on-grid home labels (H{id}), utility reflects total wealth (carrying + home) | Trading, production/consumption, richer behaviors |
@@ -307,7 +307,7 @@ Gate-based technical validation approach:
 - **Deterministic Behavior**: Advanced determinism test ensures identical (mode,pos,target,inventory) trajectories across runs
 - **Competition Resolution**: Contested resource test validates single-winner & loser retargeting without deadlock
 - **Preference Shift Behavior**: After unbalanced collection, agent switches to complementary good to raise utility
-- **Rendering Overlays**: Resources colored (A=yellow, B=cyan); agents color-blended by inventory composition
+- **Sprite-Based Rendering**: Agents display as blue sprites, resources as food (good1/A) and stone (good2/B) sprites with fallback to colored rectangles
 - **Performance Guards**: Decision throughput + micro benchmark preventing latent regression
 - **Testing Surface Access**: Added `get_surface_bytes()` for safe render assertions
 

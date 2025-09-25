@@ -22,6 +22,7 @@ Rendering Rules:
 - Keep pipeline intact; no per-pixel Python mutation.
 - Square cell sizing = min(surface_w//gw, surface_h//gh); leave extra margin unused (no centering math).
 - Cache fonts (`_overlay_font`, `_paused_font`); no per-agent font objects.
+- Sprite system: Loads sprites from `vmt_sprites_pack_1/` on init, scales to cell size per frame. Fallback to colored rectangles if loading fails.
 
 GUI / Pacing:
 - `simulation_controller.py` decides stepping via `_should_step_now`; paused start yields identical hash if resumed at same step sequence.
