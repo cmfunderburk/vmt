@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test-unit perf manual-tests test tests clean
+.PHONY: install dev lint format type test-unit perf manual-tests enhanced-tests batch-tests bookmarks test tests clean
 
 install:
 	$(PYTHON) -m pip install -e .[dev]
@@ -33,12 +33,42 @@ perf:
 manual-tests:
 	# Launch comprehensive manual GUI tests for unified target selection
 	# 7 educational scenarios with visual observation and phase transitions  
-	cd MANUAL_TESTS && $(PYTHON) test_start_menu.py
+	@if [ -d "vmt-dev" ]; then \
+		echo "Using virtual environment..."; \
+		. vmt-dev/bin/activate && cd MANUAL_TESTS && $(PYTHON) test_start_menu.py; \
+	else \
+		cd MANUAL_TESTS && $(PYTHON) test_start_menu.py; \
+	fi
 
 enhanced-tests:
 	# Launch enhanced test launcher with visual cards and comparison features
 	# Modern UI showing both original and framework test versions
-	cd MANUAL_TESTS && $(PYTHON) enhanced_test_launcher_v2.py
+	@if [ -d "vmt-dev" ]; then \
+		echo "Using virtual environment..."; \
+		. vmt-dev/bin/activate && cd MANUAL_TESTS && $(PYTHON) enhanced_test_launcher_v2.py; \
+	else \
+		cd MANUAL_TESTS && $(PYTHON) enhanced_test_launcher_v2.py; \
+	fi
+
+batch-tests:
+	# Launch standalone batch test runner for sequential execution
+	# Professional interface with progress tracking and time estimates
+	@if [ -d "vmt-dev" ]; then \
+		echo "Using virtual environment..."; \
+		. vmt-dev/bin/activate && cd MANUAL_TESTS && $(PYTHON) batch_test_runner.py; \
+	else \
+		cd MANUAL_TESTS && $(PYTHON) batch_test_runner.py; \
+	fi
+
+bookmarks:
+	# Launch standalone bookmark manager for organizing favorite configurations
+	# Save, categorize, search, and quick-launch test configurations
+	@if [ -d "vmt-dev" ]; then \
+		echo "Using virtual environment..."; \
+		. vmt-dev/bin/activate && cd MANUAL_TESTS && $(PYTHON) test_bookmarks.py; \
+	else \
+		cd MANUAL_TESTS && $(PYTHON) test_bookmarks.py; \
+	fi
 
 # Legacy aliases for backward compatibility
 test: test-unit

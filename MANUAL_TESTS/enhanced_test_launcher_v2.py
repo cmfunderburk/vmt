@@ -307,9 +307,11 @@ class EnhancedTestLauncher(QMainWindow):
         scroll.setWidget(self.cards_widget)
         layout.addWidget(scroll)
         
-        # Add configuration editor tab
+        # Add configuration editor, batch runner, and bookmark manager tabs
         try:
             from live_config_editor import LiveConfigEditor
+            from batch_test_runner import BatchTestRunner
+            from test_bookmarks import TestBookmarkManager
             
             # Create tab widget for main content
             main_tabs = QTabWidget()
@@ -333,6 +335,14 @@ class EnhancedTestLauncher(QMainWindow):
             # Configuration editor tab
             config_editor = LiveConfigEditor()
             main_tabs.addTab(config_editor, "⚙️ Configuration Editor")
+            
+            # Batch test runner tab
+            batch_runner = BatchTestRunner()
+            main_tabs.addTab(batch_runner, "🔄 Batch Runner")
+            
+            # Bookmark manager tab
+            bookmark_manager = TestBookmarkManager()
+            main_tabs.addTab(bookmark_manager, "⭐ Bookmarks")
             
             layout.addWidget(main_tabs)
             
