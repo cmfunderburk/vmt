@@ -54,3 +54,8 @@ where = ["src"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.pytest.ini_options]
+# Exclude GUI manual tests from pytest collection
+testpaths = ["tests"]
+norecursedirs = ["MANUAL_TESTS"]

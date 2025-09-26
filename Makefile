@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test-unit perf manual-tests clean
+.PHONY: install dev lint format type test-unit perf manual-tests test tests clean
 
 install:
 	$(PYTHON) -m pip install -e .[dev]
