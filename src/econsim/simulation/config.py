@@ -35,6 +35,9 @@ class SimConfig:
     enable_respawn: bool = True
     enable_metrics: bool = True
     viewport_size: int = 320
+    # Unified selection distance discount scaling factor (k) used in
+    # ΔU_base / (1 + k * distance^2). Range constrained in validate().
+    distance_scaling_factor: float = 0.0
 
     def validate(self) -> None:
         """Perform lightweight invariant checks (Gate 6 integration).
@@ -53,6 +56,8 @@ class SimConfig:
             raise ValueError("viewport_size must be within [320, 800]")
         if self.max_spawn_per_tick < 0:
             raise ValueError("max_spawn_per_tick must be non-negative")
+        if not (0.0 <= self.distance_scaling_factor <= 10.0):
+            raise ValueError("distance_scaling_factor must be within [0,10]")
         # Boolean flags implicitly validated; could add type checks if untrusted sources used.
 
 

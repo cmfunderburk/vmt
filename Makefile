@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test perf clean
+.PHONY: install dev lint format type test-unit perf manual-tests test tests clean
 
 install:
 	$(PYTHON) -m pip install -e .[dev]
@@ -22,11 +22,25 @@ format:
 type:
 	mypy src
 
-test:
+test-unit:
+	# Run comprehensive automated unit/integration tests (210+ tests)
+	# Used for development validation, determinism checks, and CI/CD
 	pytest -q
 
 perf:
 	$(PYTHON) scripts/perf_stub.py
+
+manual-tests:
+	# Launch comprehensive manual GUI tests for unified target selection
+	# 7 educational scenarios with visual observation and phase transitions  
+	cd MANUAL_TESTS && $(PYTHON) test_start_menu.py
+
+# Legacy aliases for backward compatibility
+test: test-unit
+	@echo "Note: 'make test' is now 'make test-unit'. Use 'make manual-tests' for GUI tests."
+
+tests: manual-tests
+	@echo "Note: 'make tests' is now 'make manual-tests'."
 
 clean:
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +

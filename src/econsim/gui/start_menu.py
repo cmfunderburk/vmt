@@ -49,6 +49,7 @@ class MenuSelection:
     endowment_pattern: str = "uniform"
     perception_radius: int = 8
     viewport_size: int = 320
+    distance_scaling_factor: float = 0.0
 
 
 class StartMenuPage(QWidget):  # pragma: no cover (GUI)
@@ -154,6 +155,18 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         perception_row.addWidget(self.perception_box)
         perception_row.addStretch()
         layout.addLayout(perception_row)
+
+        # Distance Scaling Factor k for unified selection (ΔU / (1 + k*dist^2))
+        k_row = QHBoxLayout()
+        k_row.addWidget(QLabel("    Distance Scaling k:"))
+        self.k_box = QDoubleSpinBox()
+        self.k_box.setDecimals(2)
+        self.k_box.setRange(0.0, 10.0)
+        self.k_box.setSingleStep(0.1)
+        self.k_box.setValue(0.0)
+        k_row.addWidget(self.k_box)
+        k_row.addStretch()
+        layout.addLayout(k_row)
         
         # Viewport Size (moved from advanced)
         viewport_row = QHBoxLayout()
@@ -325,6 +338,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
             endowment_pattern=self.endowment_box.currentText(),
             perception_radius=perception_radius,
             viewport_size=self.viewport_box.value(),
+            distance_scaling_factor=float(self.k_box.value()),
         )
         self._on_launch(selection)
 

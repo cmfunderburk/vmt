@@ -38,6 +38,7 @@ class AgentMode(str, Enum):  # str for readable serialization/debug
     FORAGE = "forage"
     RETURN_HOME = "return_home"
     IDLE = "idle"
+    MOVE_TO_PARTNER = "move_to_partner"
 
 
 # Perception radius (Manhattan) for decision logic (Gate 4 constant)
@@ -82,6 +83,9 @@ class Agent:
     force_deposit_once: bool = field(default=False, init=False, repr=False)
     # Unified target selection metadata (resource vs partner) for GUI/testing
     current_unified_task: tuple[str, object] | None = field(default=None, init=False, repr=False)
+    # Unified selection commitment (placeholder richer structure):
+    unified_commitment: dict[str, object] = field(default_factory=dict, init=False, repr=False)
+    unified_commitment_started: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
         # If home not explicitly set, default to spawn coords
@@ -161,32 +165,60 @@ class Agent:
         return moved
 
     def maybe_deposit(self) -> None:
-        """Deposit goods when returning home.
-
-        Legacy rule: when bilateral exchange is active we retain goods (no deposit) so
-        agents keep inventory to trade; they idle instead. We extend this with a one-time
-        forced deposit override (`force_deposit_once`) used when an agent returns home
-        after prolonged utility stagnation in bilateral exchange mode.
+        """Deposit goods when returning home with proper behavioral transitions.
+        
+        Behavioral transitions after deposit:
+        - Both forage + exchange enabled: withdraw goods and continue active behavior
+        - Only forage enabled: continue foraging (no withdrawal from home inventory)  
+        - Only exchange enabled: withdraw goods for trading
+        - Neither enabled: idle at home
+        - force_deposit_once override: always deposit and idle (stagnation recovery)
         """
         if self.mode == AgentMode.RETURN_HOME and self.at_home():
             import os
+            forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
             exchange_enabled = (
-                os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+                os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or 
+                os.environ.get("ECONSIM_TRADE_EXEC") == "1"
             )
-
-            if not exchange_enabled or self.force_deposit_once:
-                any_dep = self.deposit()
-                if any_dep:
-                    if self.force_deposit_once:
-                        # Clear override and go idle post-reset
-                        self.force_deposit_once = False
-                        self.mode = AgentMode.IDLE
-                    else:
-                        self.mode = AgentMode.FORAGE
+            
+            # Handle forced deposit override (from stagnation)
+            if self.force_deposit_once:
+                any_deposited = self.deposit()
+                if any_deposited:
+                    self.force_deposit_once = False
+                self.mode = AgentMode.IDLE  # Safety: only idle at home
                 self.target = None
+                return
+            
+            # Deposit logic based on enabled behaviors
+            any_deposited = self.deposit()
+            if any_deposited:
+                if forage_enabled and exchange_enabled:
+                    # Both enabled: withdraw goods and continue active behavior
+                    self.withdraw_all()
+                    self.mode = AgentMode.FORAGE  # Will seek resources/partners in unified selection
+                elif forage_enabled and not exchange_enabled:
+                    # Only forage: continue foraging without withdrawal
+                    self.mode = AgentMode.FORAGE
+                elif not forage_enabled and exchange_enabled:
+                    # Only exchange: withdraw for trading
+                    self.withdraw_all()
+                    self.mode = AgentMode.IDLE  # Will seek trade partners
+                else:
+                    # Neither enabled: idle at home
+                    self.mode = AgentMode.IDLE
             else:
-                self.mode = AgentMode.IDLE
-                self.target = None
+                # No goods to deposit - transition to appropriate mode
+                if forage_enabled:
+                    self.mode = AgentMode.FORAGE
+                elif exchange_enabled:
+                    self.withdraw_all()  # Get goods from home for trading
+                    self.mode = AgentMode.IDLE
+                else:
+                    self.mode = AgentMode.IDLE
+            
+            self.target = None
 
     def maybe_withdraw_for_trading(self) -> None:
         """Withdraw home inventory when at home for bilateral exchange mode.""" 
@@ -221,6 +253,12 @@ class Agent:
         
         if self.mode == AgentMode.RETURN_HOME:
             self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
+            return
+        
+        # If moving to partner, maintain target as meeting point
+        if self.mode == AgentMode.MOVE_TO_PARTNER:
+            if self.meeting_point is not None:
+                self.target = self.meeting_point
             return
         
         # If currently IDLE and foraging is disabled, stay idle and don't seek targets
@@ -467,7 +505,7 @@ class Agent:
         callers that do not capture it (backward compatible).
         """
         # Select/refresh target if none or mode requires it
-        if self.target is None or self.mode not in (AgentMode.FORAGE):
+        if self.target is None or self.mode not in (AgentMode.FORAGE, AgentMode.MOVE_TO_PARTNER):
             self.select_target(grid)
         # Movement toward target
         if self.target is not None and (self.x, self.y) != self.target:
@@ -498,6 +536,124 @@ class Agent:
         # Deposit if arriving home
         self.maybe_deposit()
         return bool(collected)
+
+    # --- Unified Target Selection (Scaffold) --------------------
+    def select_unified_target(
+        self,
+        grid: Grid,
+        nearby_agents: list["Agent"],
+        *,
+        enable_foraging: bool,
+        enable_trade: bool,
+        distance_scaling_factor: float,
+    ) -> tuple[str, object] | None:
+        """Compute and record best unified task.
+
+        This is a non-final scaffold: currently only evaluates resource candidates
+        using existing `compute_best_resource_candidate` logic when foraging enabled.
+        Trade partner scoring + distance-discounted utility integration will be
+        added in the next phase.
+        """
+        # Skip if forced deposit cycle active
+        if self.force_deposit_once:
+            return None
+        best_choice: tuple[str, object] | None = None
+        best_score: float = -1.0
+
+        # Helper: consider candidate with deterministic tie-break
+        def _maybe_commit(kind: str, payload: dict) -> None:
+            nonlocal best_choice, best_score
+            score = payload.get("discounted", -1.0)
+            if score < 0:
+                return
+            if best_choice is None:
+                best_choice = (kind, payload)
+                best_score = score
+                return
+            if score > best_score + 1e-15:  # strictly better
+                best_choice = (kind, payload)
+                best_score = score
+            elif abs(score - best_score) <= 1e-15:
+                # Deterministic tie-break: resources by (x,y); partners by partner_id
+                if kind == "resource" and best_choice[0] == "resource":
+                    cx, cy = payload["pos"]
+                    bx, by = best_choice[1]["pos"]  # type: ignore[index]
+                    if (cx, cy) < (bx, by):
+                        best_choice = (kind, payload)
+                elif kind == "partner" and best_choice[0] == "partner":
+                    if payload["partner_id"] < best_choice[1]["partner_id"]:  # type: ignore[index]
+                        best_choice = (kind, payload)
+                else:
+                    # Mixed types: prefer higher raw (undiscounted) ΔU; if still tie, choose lexicographically by kind
+                    raw_new = payload.get("delta_u", 0.0)
+                    raw_old = best_choice[1].get("delta_u", 0.0)  # type: ignore[index]
+                    if raw_new > raw_old + 1e-15:
+                        best_choice = (kind, payload)
+                    elif abs(raw_new - raw_old) <= 1e-15 and kind < best_choice[0]:
+                        best_choice = (kind, payload)
+
+        # Resource candidates
+        if enable_foraging:
+            pos, delta_u, key = self.compute_best_resource_candidate(grid)
+            if pos is not None and delta_u > 0.0:
+                dist = abs(pos[0] - self.x) + abs(pos[1] - self.y)
+                discounted = delta_u / (1.0 + distance_scaling_factor * (dist * dist))
+                _maybe_commit("resource", {"pos": pos, "delta_u": delta_u, "discounted": discounted, "dist": dist})
+
+        # Partner candidates (conservative estimate): scan nearby_agents list (already radius filtered by caller ideally)
+        if enable_trade and nearby_agents:
+            # Conservative heuristic: potential gain = max(0, mu_gain_partner - mu_loss_self) for one swap across goods
+            from econsim.preferences.helpers import marginal_utility as _mu
+            # Precompute own marginal utilities once (using carrying+home aggregated implicitly by helper)
+            self_mu = _mu(
+                self.preference,
+                self.carrying,
+                self.home_inventory,
+                epsilon_lift=True,
+                include_missing_two_goods=True,
+            )
+            for other in nearby_agents:
+                if other.id == self.id:
+                    continue
+                # Skip if already paired via older bilateral path (will be handled elsewhere)
+                if getattr(other, 'trade_partner_id', None) is not None or getattr(self, 'trade_partner_id', None) is not None:
+                    continue
+                other_mu = _mu(
+                    other.preference,
+                    other.carrying,
+                    other.home_inventory,
+                    epsilon_lift=True,
+                    include_missing_two_goods=True,
+                )
+                # Evaluate both swap directions; keep best positive conservative estimate
+                best_partner_delta = 0.0
+                # self gives good1, receives good2
+                if self.carrying.get('good1', 0) > 0 and other.carrying.get('good2', 0) > 0:
+                    gain_self = self_mu.get('good2', 0.0) - self_mu.get('good1', 0.0)
+                    gain_other = other_mu.get('good1', 0.0) - other_mu.get('good2', 0.0)
+                    combined = min(gain_self, gain_other)  # conservative (bottleneck)
+                    if combined > best_partner_delta:
+                        best_partner_delta = combined
+                # self gives good2, receives good1
+                if self.carrying.get('good2', 0) > 0 and other.carrying.get('good1', 0) > 0:
+                    gain_self = self_mu.get('good1', 0.0) - self_mu.get('good2', 0.0)
+                    gain_other = other_mu.get('good2', 0.0) - other_mu.get('good1', 0.0)
+                    combined = min(gain_self, gain_other)
+                    if combined > best_partner_delta:
+                        best_partner_delta = combined
+                if best_partner_delta <= 0.0:
+                    continue
+                dist = abs(other.x - self.x) + abs(other.y - self.y)
+                discounted = best_partner_delta / (1.0 + distance_scaling_factor * (dist * dist))
+                _maybe_commit("partner", {
+                    "partner_id": other.id,
+                    "delta_u": best_partner_delta,
+                    "discounted": discounted,
+                    "dist": dist,
+                })
+
+        self.current_unified_task = best_choice
+        return best_choice
 
     # --- Serialization (Optional Future Use) ----------------------
     def serialize(self) -> Mapping[str, Any]:

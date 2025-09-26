@@ -329,7 +329,8 @@ Transform abstract utility maximization into concrete, observable spatial behavi
 # Working demonstration
 source vmt-dev/bin/activate
 make dev                               # Launch GUI (configurable viewport + agent wealth tracking + full controls panel)
-make test                              # 104 tests pass (determinism, decision, respawn diversity, metrics, snapshot, perf, GUI pacing, overlays)
+make test-unit                         # 210+ tests pass (determinism, decision, respawn diversity, metrics, snapshot, perf, GUI pacing, overlays)
+make manual-tests                      # Launch educational GUI tests for unified target selection validation
 make lint                              # Code quality enforced
 python scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
 ```
@@ -507,7 +508,8 @@ pip install -e .[dev]
 make dev
 
 # Run tests and quality checks
-make test                    # Unit tests
+make test-unit               # Automated unit/integration tests (210+ tests)
+make manual-tests            # Educational GUI tests for behavior validation
 make lint                    # Code quality
 make format                  # Code formatting
 ```

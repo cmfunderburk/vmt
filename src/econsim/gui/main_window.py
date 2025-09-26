@@ -100,6 +100,7 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
                 turn_auto_interval_ms=None,
                 start_paused=selection.start_paused,
                 viewport_size=selection.viewport_size,
+                distance_scaling_factor=getattr(selection, 'distance_scaling_factor', 0.0),
             )
             controller = SessionFactory.build(descriptor)
         except Exception as exc:  # pragma: no cover - user input / validation path

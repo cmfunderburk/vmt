@@ -3,7 +3,13 @@
 All notable changes for the simulation & GUI (documentation alignment gate onwards). This file follows a simple reverse‑chronological order. Dates in ISO (YYYY-MM-DD).
 
 ## [Unreleased]
-- Placeholder for upcoming trading gate entries.
+### Added
+- Unified selection distance scaling factor (k) exposed in Start Menu and live-adjustable in Controls panel (Decision Params). Default 0.0 preserves prior behavior.
+### Changed
+- Unified selection pass now honors Leontief prospecting fallback (maintains prior non-unified behavior parity).
+### Notes
+- Distance scaling modifies scoring: discounted = ΔU / (1 + k * dist^2). Large k emphasizes local interactions; determinism preserved (tie-break rules unchanged).
+-- Placeholder for additional upcoming trading gate entries.
 
 ## 2025-09-23 – Documentation Alignment & Baseline Enhancements
 ### Added

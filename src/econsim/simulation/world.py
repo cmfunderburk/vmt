@@ -593,152 +593,205 @@ class Simulation:
 
     # --- Unified Selection Internal Helpers --------------------
     def _unified_selection_pass(self, rng: random.Random, foraged_ids: set[int]) -> None:
-        """Perform unified resource/partner candidate evaluation and movement.
+        """Unified selection pass using spatial index + distance-discounted utility.
 
-        Process:
-        1. Precompute best resource candidate per agent (no mutation besides storing helper data)
-        2. Determine partner scores via localized search (bounded by perception radius constant)
-        3. Decide per agent (stable order) with reservation sets to avoid duplicate claims
-        4. Execute one-step movement + interactions analogous to existing decision path
+        Replaces earlier heuristic dual-path chooser. Maintains O(n) build +
+        O(candidates) query via AgentSpatialGrid. Still honors forced deposit
+        cycles and existing pairing states.
         """
         from .constants import default_PERCEPTION_RADIUS
         from .agent import AgentMode
-        # Precompute resource candidates
-        resource_choices: dict[int, tuple[tuple[int,int] | None, float, tuple[float,int,int,int] | None]] = {}
-        for a in self.agents:
-            resource_choices[a.id] = a.compute_best_resource_candidate(self.grid)
-        # Reservation sets
+        from .spatial import AgentSpatialGrid
+        # Flags
+        import os
+        forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
+        draft_enabled = os.environ.get("ECONSIM_TRADE_DRAFT") == "1"
+        exec_enabled = os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+        trade_enabled = draft_enabled or exec_enabled
+        perception = default_PERCEPTION_RADIUS
+        # Distance scaling factor from config (append-only field) fallback 0.0
+        k = 0.0
+        try:
+            if self.config is not None:
+                k = float(getattr(self.config, "distance_scaling_factor", 0.0))
+        except Exception:
+            k = 0.0
+        # Build spatial index
+        index = AgentSpatialGrid(self.grid.width, self.grid.height)
+        for ag in self.agents:
+            index.add_agent(ag.x, ag.y, ag)
+        # Reservation sets (avoid duplicate resource claims / partner races)
         claimed_resources: set[tuple[int,int]] = set()
         claimed_partners: set[int] = set()
-        # Partner availability baseline
         agents_by_id = {a.id: a for a in self.agents}
-        # Iterate in stable agent order
         for a in self.agents:
             if a.force_deposit_once:
-                # Forced deposit cycle: ensure RETURN_HOME path
                 a.mode = AgentMode.RETURN_HOME
                 a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
-                a.step_decision(self.grid)  # Reuse deposit/move logic
-                continue
-            # Skip dead or currently paired/trading agents (let exchange movement manage them)
-            if getattr(a, 'trade_partner_id', None) is not None:
-                # Paired agents will be moved in a post-pass
-                continue
-            best_resource_pos, best_delta_u, best_key = resource_choices[a.id]
-            # Partner candidate search (radius-limited) - simple divergence heuristic
-            perception = default_PERCEPTION_RADIUS
-            partner_choice: tuple[float, tuple[float,int,int,int], int] | None = None  # (score, tie_key, partner_id)
-            for other in self.agents:
-                if other.id == a.id:
-                    continue
-                if other.id in claimed_partners:
-                    continue
-                if getattr(other, 'trade_partner_id', None) is not None:
-                    continue
-                dist = abs(other.x - a.x) + abs(other.y - a.y)
-                if dist > perception:
-                    continue
-                inv_div = abs(sum(a.carrying.values()) - sum(other.carrying.values()))
-                partner_score = (inv_div + 1.0) / (1 + dist)
-                tie = (-partner_score, dist, min(a.id, other.id), max(a.id, other.id))
-                if partner_choice is None or tie < partner_choice[1]:
-                    partner_choice = (partner_score, tie, other.id)
-            # Decide between resource and partner
-            chosen_kind = None
-            chosen_target = None
-            if partner_choice is not None and best_key is not None:
-                # Compare tie-keys directly with optional slight resource preference (no multiplier now)
-                if partner_choice[1] < best_key:  # partner strictly better
-                    chosen_kind = 'partner'
-                    chosen_target = partner_choice[2]
-                else:
-                    chosen_kind = 'resource'
-                    chosen_target = best_resource_pos
-            elif partner_choice is not None and best_key is None:
-                chosen_kind = 'partner'
-                chosen_target = partner_choice[2]
-            elif best_key is not None:
-                chosen_kind = 'resource'
-                chosen_target = best_resource_pos
-            # Apply decision
-            if chosen_kind == 'resource' and isinstance(chosen_target, tuple):
-                if chosen_target not in claimed_resources:
-                    claimed_resources.add(chosen_target)
-                    a.target = chosen_target
-                    a.mode = AgentMode.FORAGE
-                    collected = a.collect(self.grid)
-                    if collected:
-                        foraged_ids.add(a.id)
-                        a.target = None
-                    else:
-                        # Move one step toward target greedily (duplicate of movement logic) if not already there
-                        if a.target is not None and (a.x, a.y) != a.target:
-                            tx, ty = a.target
-                            dx = tx - a.x
-                            dy = ty - a.y
-                            if abs(dx) > abs(dy):
-                                a.x += 1 if dx > 0 else -1
-                            elif dy != 0:
-                                a.y += 1 if dy > 0 else -1
-                        # Try collect again if moved onto resource
-                        if a.target is not None and (a.x, a.y) == a.target:
-                            if self.grid.has_resource(a.x, a.y):
-                                if a.collect(self.grid):
-                                    foraged_ids.add(a.id)
-                                    a.target = None
-                    a.maybe_deposit()
-                    a.current_unified_task = ('resource', chosen_target)
-                else:
-                    a.current_unified_task = None
-            elif chosen_kind == 'partner' and isinstance(chosen_target, int):
-                partner = agents_by_id.get(chosen_target)
-                if partner is not None and partner.id not in claimed_partners and partner.trade_partner_id is None:
-                    claimed_partners.add(partner.id)
-                    # Establish pairing (mutual) and move toward meeting point
-                    a.pair_with_agent(partner)
-                    a.current_unified_task = ('partner', partner.id)
-                    a.move_toward_meeting_point(self.grid)
-                else:
-                    # Fallback: no valid partner, attempt resource movement if available
-                    if best_key is not None and best_resource_pos not in claimed_resources:
-                        claimed_resources.add(best_resource_pos)  # type: ignore[arg-type]
-                        a.target = best_resource_pos
-                        a.mode = AgentMode.FORAGE
-                        a.current_unified_task = ('resource', best_resource_pos)
                 a.maybe_deposit()
-            else:
-                # No choice => idle fallback / deposit if carrying
-                if a.carrying and a.carrying_total() > 0:
+                continue
+            if getattr(a, 'trade_partner_id', None) is not None:
+                # Already paired; movement handled in post-pass
+                continue
+            nearby = index.get_agents_in_radius(a.x, a.y, perception) if trade_enabled else []
+            # Remove self if present (defensive)
+            nearby = [nb for nb in nearby if nb.id != a.id]
+            choice = a.select_unified_target(
+                self.grid,
+                nearby,
+                enable_foraging=forage_enabled,
+                enable_trade=trade_enabled,
+                distance_scaling_factor=k,
+            )
+            if choice is None:
+                # No unified target found - try Leontief prospecting 
+                if forage_enabled and getattr(a.preference, 'TYPE_NAME', '') == 'leontief':
+                    try:
+                        raw_bundle = (float(a.carrying.get('good1',0)), float(a.carrying.get('good2',0)))
+                        prospect = a._try_leontief_prospecting(self.grid, raw_bundle)  # type: ignore[attr-defined]
+                        
+                        # Check if prospect is available (not claimed)
+                        if prospect is not None and prospect not in claimed_resources:
+                            claimed_resources.add(prospect)
+                            a.target = prospect
+                            a.mode = AgentMode.FORAGE
+                            # Move one step toward prospect immediately
+                            if (a.x, a.y) != prospect:
+                                tx, ty = prospect
+                                dx = tx - a.x; dy = ty - a.y
+                                if abs(dx) > abs(dy):
+                                    a.x += 1 if dx > 0 else -1
+                                elif dy != 0:
+                                    a.y += 1 if dy > 0 else -1
+                            continue
+                        elif prospect is not None:
+                            # Primary prospect is claimed - try any available resource as fallback
+                            fallback_target = None
+                            for rx, ry, _ in self.grid.iter_resources():
+                                if (rx, ry) not in claimed_resources:
+                                    fallback_target = (rx, ry)
+                                    break
+                            
+                            if fallback_target is not None:
+                                claimed_resources.add(fallback_target)
+                                a.target = fallback_target
+                                a.mode = AgentMode.FORAGE
+                                # Move one step toward fallback immediately
+                                tx, ty = fallback_target
+                                dx = tx - a.x; dy = ty - a.y
+                                if abs(dx) > abs(dy):
+                                    a.x += 1 if dx > 0 else -1
+                                elif dy != 0:
+                                    a.y += 1 if dy > 0 else -1
+                                continue
+                    except Exception:
+                        pass
+                # No target found - fall back to deposit/idle logic
+                if a.carrying_total() > 0:
                     a.mode = AgentMode.RETURN_HOME
                     a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                 else:
-                    # Explicit idle when no resources or partner choice (empty grid path)
                     a.mode = AgentMode.IDLE
                     a.target = None
-                a.current_unified_task = None
-        # Final idle normalization: if grid has zero resources and agent still marked FORAGE with no target, set IDLE
+                continue
+            kind, payload = choice
+            if kind == "resource":
+                pos = payload["pos"]  # type: ignore[index]
+                if pos in claimed_resources:
+                    # Already claimed; idle fallback
+                    if a.carrying_total() > 0:
+                        a.mode = AgentMode.RETURN_HOME
+                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                    else:
+                        a.mode = AgentMode.IDLE
+                        a.target = None
+                    continue
+                claimed_resources.add(pos)
+                a.target = pos
+                a.mode = AgentMode.FORAGE
+                # Immediate attempt collect if already on cell
+                collected = a.collect(self.grid)
+                if collected:
+                    foraged_ids.add(a.id)
+                    a.target = None
+                    # After collecting, check if should return home
+                    if a.carrying_total() > 0:
+                        a.mode = AgentMode.RETURN_HOME
+                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                else:
+                    # Move one step toward
+                    if a.target is not None and (a.x, a.y) != a.target:
+                        tx, ty = a.target
+                        dx = tx - a.x; dy = ty - a.y
+                        if abs(dx) > abs(dy):
+                            a.x += 1 if dx > 0 else -1
+                        elif dy != 0:
+                            a.y += 1 if dy > 0 else -1
+                        # Collect if arrived
+                        if a.target is not None and (a.x, a.y) == a.target and self.grid.has_resource(a.x, a.y):
+                            if a.collect(self.grid):
+                                foraged_ids.add(a.id)
+                                a.target = None
+                                # After collecting, check if should return home
+                                if a.carrying_total() > 0:
+                                    a.mode = AgentMode.RETURN_HOME
+                                    a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                a.maybe_deposit()
+            elif kind == "partner":
+                pid = payload["partner_id"]  # type: ignore[index]
+                if pid in claimed_partners:
+                    # Partner already claimed; fallback
+                    if a.carrying_total() > 0:
+                        a.mode = AgentMode.RETURN_HOME
+                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                    else:
+                        a.mode = AgentMode.IDLE
+                        a.target = None
+                    continue
+                partner = agents_by_id.get(pid)
+                if partner is None or getattr(partner, 'trade_partner_id', None) is not None:
+                    continue
+                claimed_partners.add(pid)
+                a.pair_with_agent(partner)
+                # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
+                from .agent import AgentMode
+                a.mode = AgentMode.MOVE_TO_PARTNER
+                a.target = a.meeting_point
+                partner.mode = AgentMode.MOVE_TO_PARTNER
+                partner.target = partner.meeting_point
+                # Initial convergence step
+                a.move_toward_meeting_point(self.grid)
+                partner.move_toward_meeting_point(self.grid)
+                # Deposit logic not triggered for partner pursuit
+            else:
+                # Unknown kind (future extension)
+                pass
+        # Normalize FORAGE agents with missing target if grid empty
         try:
             any_resources = any(True for _ in self.grid.iter_resources())
         except Exception:
-            any_resources = True  # conservative
+            any_resources = True
         if not any_resources:
             from .agent import AgentMode as _AM
             for a in self.agents:
-                if a.mode == _AM.FORAGE and (a.target is None):
-                    a.mode = _AM.IDLE
-        # Post-pass: advance movement for paired agents toward meeting point (both sides) so they converge.
-        from .agent import AgentMode as _AM2
+                if a.mode == _AM.FORAGE and a.target is None:
+                    # Safety check: agents with cargo should return home first
+                    if a.carrying_total() > 0 and not a.at_home():
+                        a.mode = _AM.RETURN_HOME
+                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                    elif a.at_home():
+                        a.mode = _AM.IDLE  # Only idle at home
+                    # If no cargo and not at home, let them continue seeking or return home
+        # Post-pass movement for existing pairings (finish convergence)
         for a in self.agents:
-            if a.trade_partner_id is not None:
-                partner = self._find_agent_by_id(a.trade_partner_id)
+            if getattr(a, 'trade_partner_id', None) is not None:
+                partner_id = getattr(a, 'trade_partner_id')
+                partner = self._find_agent_by_id(int(partner_id)) if partner_id is not None else None
                 if partner is None:
                     a.clear_trade_partner()
                     continue
-                # Only move if not yet co-located
                 if not a.is_colocated_with(partner):
                     a.move_toward_meeting_point(self.grid)
-                # After movement, if co-located leave pairing for intents to trigger trade via enumeration.
-                # (Optional future: clear pairing if no intents after N steps.)
 
 
 __all__ = ["Simulation"]
