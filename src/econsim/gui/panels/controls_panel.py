@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Callable
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout, QCheckBox, QGroupBox, QFormLayout
+from PyQt6.QtWidgets import QDoubleSpinBox
 
 
 from ..simulation_controller import SimulationController
@@ -123,6 +124,24 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
             self._respawn_rate_box.setCurrentText("25%")
         respawn_rate_row.addWidget(self._respawn_rate_box)
         layout.addLayout(respawn_rate_row)
+
+        # Decision parameter group (distance scaling k)
+        decision_group = QGroupBox("Decision Params")
+        decision_form = QFormLayout()
+        self._k_spin = QDoubleSpinBox()
+        self._k_spin.setDecimals(2)
+        self._k_spin.setRange(0.0, 10.0)
+        self._k_spin.setSingleStep(0.1)
+        # Initialize from simulation config if present
+        try:
+            current_k = float(getattr(self._controller.simulation.config, 'distance_scaling_factor', 0.0))  # type: ignore[attr-defined]
+        except Exception:
+            current_k = 0.0
+        self._k_spin.setValue(current_k)
+        self._k_spin.setToolTip("Distance scaling factor k for unified selection (ΔU / (1 + k·dist²))")
+        decision_form.addRow(QLabel("k:"), self._k_spin)
+        decision_group.setLayout(decision_form)
+        layout.addWidget(decision_group)
         
         # Behavior controls group (simplified from complex 4-checkbox system)
         behavior_group = QGroupBox("Behavior Controls")
@@ -167,6 +186,7 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
         # Simplified behavior controls
         self._forage_cb.stateChanged.connect(self._toggle_forage)  # type: ignore[arg-type]
         self._bilateral_cb.stateChanged.connect(self._toggle_bilateral)  # type: ignore[arg-type]
+        self._k_spin.valueChanged.connect(self._change_k)  # type: ignore[arg-type]
         
         # Initialize controller with default speed (5.0 tps)
         self._controller.set_playback_tps(5.0)
@@ -252,6 +272,17 @@ class ControlsPanel(QWidget):  # pragma: no cover (GUI)
                         sim.trade_intents = None  # type: ignore[attr-defined]
                     except Exception:
                         pass
+        except Exception:
+            pass
+
+    def _change_k(self, val: float) -> None:
+        """Live update distance scaling factor k in simulation config (append-only field)."""
+        try:
+            sim = self._controller.simulation
+            cfg = getattr(sim, 'config', None)
+            if cfg is not None and hasattr(cfg, 'distance_scaling_factor'):
+                # Clamp just in case
+                setattr(cfg, 'distance_scaling_factor', max(0.0, min(10.0, float(val))))
         except Exception:
             pass
 

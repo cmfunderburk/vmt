@@ -82,6 +82,9 @@ class Agent:
     force_deposit_once: bool = field(default=False, init=False, repr=False)
     # Unified target selection metadata (resource vs partner) for GUI/testing
     current_unified_task: tuple[str, object] | None = field(default=None, init=False, repr=False)
+    # Unified selection commitment (placeholder richer structure):
+    unified_commitment: dict[str, object] = field(default_factory=dict, init=False, repr=False)
+    unified_commitment_started: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
         # If home not explicitly set, default to spawn coords
@@ -498,6 +501,124 @@ class Agent:
         # Deposit if arriving home
         self.maybe_deposit()
         return bool(collected)
+
+    # --- Unified Target Selection (Scaffold) --------------------
+    def select_unified_target(
+        self,
+        grid: Grid,
+        nearby_agents: list["Agent"],
+        *,
+        enable_foraging: bool,
+        enable_trade: bool,
+        distance_scaling_factor: float,
+    ) -> tuple[str, object] | None:
+        """Compute and record best unified task.
+
+        This is a non-final scaffold: currently only evaluates resource candidates
+        using existing `compute_best_resource_candidate` logic when foraging enabled.
+        Trade partner scoring + distance-discounted utility integration will be
+        added in the next phase.
+        """
+        # Skip if forced deposit cycle active
+        if self.force_deposit_once:
+            return None
+        best_choice: tuple[str, object] | None = None
+        best_score: float = -1.0
+
+        # Helper: consider candidate with deterministic tie-break
+        def _maybe_commit(kind: str, payload: dict) -> None:
+            nonlocal best_choice, best_score
+            score = payload.get("discounted", -1.0)
+            if score < 0:
+                return
+            if best_choice is None:
+                best_choice = (kind, payload)
+                best_score = score
+                return
+            if score > best_score + 1e-15:  # strictly better
+                best_choice = (kind, payload)
+                best_score = score
+            elif abs(score - best_score) <= 1e-15:
+                # Deterministic tie-break: resources by (x,y); partners by partner_id
+                if kind == "resource" and best_choice[0] == "resource":
+                    cx, cy = payload["pos"]
+                    bx, by = best_choice[1]["pos"]  # type: ignore[index]
+                    if (cx, cy) < (bx, by):
+                        best_choice = (kind, payload)
+                elif kind == "partner" and best_choice[0] == "partner":
+                    if payload["partner_id"] < best_choice[1]["partner_id"]:  # type: ignore[index]
+                        best_choice = (kind, payload)
+                else:
+                    # Mixed types: prefer higher raw (undiscounted) ΔU; if still tie, choose lexicographically by kind
+                    raw_new = payload.get("delta_u", 0.0)
+                    raw_old = best_choice[1].get("delta_u", 0.0)  # type: ignore[index]
+                    if raw_new > raw_old + 1e-15:
+                        best_choice = (kind, payload)
+                    elif abs(raw_new - raw_old) <= 1e-15 and kind < best_choice[0]:
+                        best_choice = (kind, payload)
+
+        # Resource candidates
+        if enable_foraging:
+            pos, delta_u, key = self.compute_best_resource_candidate(grid)
+            if pos is not None and delta_u > 0.0:
+                dist = abs(pos[0] - self.x) + abs(pos[1] - self.y)
+                discounted = delta_u / (1.0 + distance_scaling_factor * (dist * dist))
+                _maybe_commit("resource", {"pos": pos, "delta_u": delta_u, "discounted": discounted, "dist": dist})
+
+        # Partner candidates (conservative estimate): scan nearby_agents list (already radius filtered by caller ideally)
+        if enable_trade and nearby_agents:
+            # Conservative heuristic: potential gain = max(0, mu_gain_partner - mu_loss_self) for one swap across goods
+            from econsim.preferences.helpers import marginal_utility as _mu
+            # Precompute own marginal utilities once (using carrying+home aggregated implicitly by helper)
+            self_mu = _mu(
+                self.preference,
+                self.carrying,
+                self.home_inventory,
+                epsilon_lift=True,
+                include_missing_two_goods=True,
+            )
+            for other in nearby_agents:
+                if other.id == self.id:
+                    continue
+                # Skip if already paired via older bilateral path (will be handled elsewhere)
+                if getattr(other, 'trade_partner_id', None) is not None or getattr(self, 'trade_partner_id', None) is not None:
+                    continue
+                other_mu = _mu(
+                    other.preference,
+                    other.carrying,
+                    other.home_inventory,
+                    epsilon_lift=True,
+                    include_missing_two_goods=True,
+                )
+                # Evaluate both swap directions; keep best positive conservative estimate
+                best_partner_delta = 0.0
+                # self gives good1, receives good2
+                if self.carrying.get('good1', 0) > 0 and other.carrying.get('good2', 0) > 0:
+                    gain_self = self_mu.get('good2', 0.0) - self_mu.get('good1', 0.0)
+                    gain_other = other_mu.get('good1', 0.0) - other_mu.get('good2', 0.0)
+                    combined = min(gain_self, gain_other)  # conservative (bottleneck)
+                    if combined > best_partner_delta:
+                        best_partner_delta = combined
+                # self gives good2, receives good1
+                if self.carrying.get('good2', 0) > 0 and other.carrying.get('good1', 0) > 0:
+                    gain_self = self_mu.get('good1', 0.0) - self_mu.get('good2', 0.0)
+                    gain_other = other_mu.get('good2', 0.0) - other_mu.get('good1', 0.0)
+                    combined = min(gain_self, gain_other)
+                    if combined > best_partner_delta:
+                        best_partner_delta = combined
+                if best_partner_delta <= 0.0:
+                    continue
+                dist = abs(other.x - self.x) + abs(other.y - self.y)
+                discounted = best_partner_delta / (1.0 + distance_scaling_factor * (dist * dist))
+                _maybe_commit("partner", {
+                    "partner_id": other.id,
+                    "delta_u": best_partner_delta,
+                    "discounted": discounted,
+                    "dist": dist,
+                })
+
+        self.current_unified_task = best_choice
+        return best_choice
 
     # --- Serialization (Optional Future Use) ----------------------
     def serialize(self) -> Mapping[str, Any]:

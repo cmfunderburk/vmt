@@ -30,6 +30,7 @@ class SimulationSessionDescriptor:
     turn_auto_interval_ms: int | None
     viewport_size: int = 320
     start_paused: bool = False
+    distance_scaling_factor: float = 0.0
 
 
 class SessionFactory:
@@ -55,6 +56,7 @@ class SessionFactory:
             enable_respawn=descriptor.enable_respawn,
             enable_metrics=descriptor.enable_metrics,
             viewport_size=descriptor.viewport_size,
+            distance_scaling_factor=getattr(descriptor, 'distance_scaling_factor', 0.0),
         )
 
         # Preference factory mapping (single preference type Phase A + random)
