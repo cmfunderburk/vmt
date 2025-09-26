@@ -28,7 +28,7 @@ try:
     from PyQt6.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
         QGridLayout, QScrollArea, QLabel, QPushButton, 
-        QFrame, QMessageBox, QCheckBox, QTextEdit
+        QFrame, QMessageBox, QCheckBox, QTextEdit, QTabWidget
     )
     from PyQt6.QtCore import Qt, pyqtSignal
     from PyQt6.QtGui import QFont
@@ -307,12 +307,44 @@ class EnhancedTestLauncher(QMainWindow):
         scroll.setWidget(self.cards_widget)
         layout.addWidget(scroll)
         
-        # Status area
-        self.status_area = QTextEdit()
-        self.status_area.setReadOnly(True)
-        self.status_area.setMaximumHeight(100)
-        self.status_area.setStyleSheet("background-color: #f8f9fa;")
-        layout.addWidget(self.status_area)
+        # Add configuration editor tab
+        try:
+            from live_config_editor import LiveConfigEditor
+            
+            # Create tab widget for main content
+            main_tabs = QTabWidget()
+            
+            # Gallery tab (existing content)
+            gallery_widget = QWidget()
+            gallery_layout = QVBoxLayout(gallery_widget)
+            
+            # Move existing scroll area to gallery tab
+            gallery_layout.addWidget(scroll)
+            
+            # Status area in gallery
+            self.status_area = QTextEdit()
+            self.status_area.setReadOnly(True)
+            self.status_area.setMaximumHeight(100)
+            self.status_area.setStyleSheet("background-color: #f8f9fa;")
+            gallery_layout.addWidget(self.status_area)
+            
+            main_tabs.addTab(gallery_widget, "🖼️ Test Gallery")
+            
+            # Configuration editor tab
+            config_editor = LiveConfigEditor()
+            main_tabs.addTab(config_editor, "⚙️ Configuration Editor")
+            
+            layout.addWidget(main_tabs)
+            
+        except ImportError:
+            # Fallback if config editor not available
+            layout.addWidget(scroll)
+            
+            self.status_area = QTextEdit()
+            self.status_area.setReadOnly(True)
+            self.status_area.setMaximumHeight(100)
+            self.status_area.setStyleSheet("background-color: #f8f9fa;")
+            layout.addWidget(self.status_area)
         
         # Status bar
         self.statusBar().showMessage("Ready to launch tests")

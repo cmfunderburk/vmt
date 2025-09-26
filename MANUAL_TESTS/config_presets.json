@@ -1,0 +1,238 @@
+[
+  {
+    "name": "Baseline Unified Target Selection (Template)",
+    "description": "Based on Validates unified target selection behavior with mixed preferences",
+    "config": {
+      "id": 1,
+      "name": "Baseline Unified Target Selection",
+      "description": "Validates unified target selection behavior with mixed preferences",
+      "grid_size": [
+        30,
+        30
+      ],
+      "agent_count": 20,
+      "resource_density": 0.25,
+      "perception_radius": 8,
+      "preference_mix": "mixed",
+      "seed": 12345,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510681",
+    "tags": [
+      "template",
+      "default"
+    ]
+  },
+  {
+    "name": "Sparse Long-Range (Template)",
+    "description": "Based on Tests distance-based decisions with sparse resources and long perception",
+    "config": {
+      "id": 2,
+      "name": "Sparse Long-Range",
+      "description": "Tests distance-based decisions with sparse resources and long perception",
+      "grid_size": [
+        50,
+        50
+      ],
+      "agent_count": 10,
+      "resource_density": 0.1,
+      "perception_radius": 15,
+      "preference_mix": "mixed",
+      "seed": 67890,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510691",
+    "tags": [
+      "template",
+      "default"
+    ]
+  },
+  {
+    "name": "High Density Local (Template)",
+    "description": "Based on Tests crowding behavior with many agents and short perception",
+    "config": {
+      "id": 3,
+      "name": "High Density Local",
+      "description": "Tests crowding behavior with many agents and short perception",
+      "grid_size": [
+        15,
+        15
+      ],
+      "agent_count": 30,
+      "resource_density": 0.8,
+      "perception_radius": 3,
+      "preference_mix": "mixed",
+      "seed": 11111,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510694",
+    "tags": [
+      "template",
+      "default"
+    ]
+  },
+  {
+    "name": "Large World Global (Template)",
+    "description": "Based on Tests global perception in sparse large world",
+    "config": {
+      "id": 4,
+      "name": "Large World Global",
+      "description": "Tests global perception in sparse large world",
+      "grid_size": [
+        60,
+        60
+      ],
+      "agent_count": 15,
+      "resource_density": 0.05,
+      "perception_radius": 25,
+      "preference_mix": "mixed",
+      "seed": 22222,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510695",
+    "tags": [
+      "template",
+      "default"
+    ]
+  },
+  {
+    "name": "Pure Cobb-Douglas (Template)",
+    "description": "Based on Tests balanced utility optimization with single preference type",
+    "config": {
+      "id": 5,
+      "name": "Pure Cobb-Douglas",
+      "description": "Tests balanced utility optimization with single preference type",
+      "grid_size": [
+        25,
+        25
+      ],
+      "agent_count": 25,
+      "resource_density": 0.4,
+      "perception_radius": 6,
+      "preference_mix": "cobb_douglas",
+      "seed": 44444,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510697",
+    "tags": [
+      "template",
+      "default"
+    ]
+  },
+  {
+    "name": "Pure Leontief (Template)",
+    "description": "Based on Tests complementary resource behavior with Leontief preferences",
+    "config": {
+      "id": 6,
+      "name": "Pure Leontief",
+      "description": "Tests complementary resource behavior with Leontief preferences",
+      "grid_size": [
+        25,
+        25
+      ],
+      "agent_count": 25,
+      "resource_density": 0.4,
+      "perception_radius": 6,
+      "preference_mix": "leontief",
+      "seed": 66666,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510698",
+    "tags": [
+      "template",
+      "default"
+    ]
+  },
+  {
+    "name": "Pure Perfect Substitutes (Template)",
+    "description": "Based on Tests interchangeable resource behavior",
+    "config": {
+      "id": 7,
+      "name": "Pure Perfect Substitutes",
+      "description": "Tests interchangeable resource behavior",
+      "grid_size": [
+        25,
+        25
+      ],
+      "agent_count": 25,
+      "resource_density": 0.4,
+      "perception_radius": 6,
+      "preference_mix": "perfect_substitutes",
+      "seed": 88888,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510703",
+    "tags": [
+      "template",
+      "default"
+    ]
+  },
+  {
+    "name": "Small Classroom Demo",
+    "description": "Quick demo for small groups - fast execution",
+    "config": {
+      "id": 999,
+      "name": "Small Demo",
+      "description": "Small classroom demonstration",
+      "grid_size": [
+        15,
+        15
+      ],
+      "agent_count": 8,
+      "resource_density": 0.3,
+      "perception_radius": 4,
+      "preference_mix": "mixed",
+      "seed": 12345,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510706",
+    "tags": [
+      "educational",
+      "demo",
+      "small"
+    ]
+  },
+  {
+    "name": "Competition Study",
+    "description": "High competition scenario for economic analysis",
+    "config": {
+      "id": 998,
+      "name": "Competition Study",
+      "description": "High competition economic analysis",
+      "grid_size": [
+        20,
+        20
+      ],
+      "agent_count": 30,
+      "resource_density": 0.15,
+      "perception_radius": 6,
+      "preference_mix": "mixed",
+      "seed": 54321,
+      "viewport_size": 600,
+      "custom_phases": null,
+      "debug_categories": null
+    },
+    "created": "2025-09-26T17:24:43.510709",
+    "tags": [
+      "educational",
+      "competition",
+      "analysis"
+    ]
+  }
+]
