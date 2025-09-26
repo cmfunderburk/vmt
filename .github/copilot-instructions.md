@@ -1,7 +1,7 @@
 ## VMT Copilot Instructions (High‑Signal, ~50 lines)
 Context: Educational micro‑econ spatial sim. PyQt6 hosts ONE embedded Pygame Surface (320–800 squared). Prime directives: determinism, single QTimer frame loop, O(agents+resources) step, minimal per‑tick allocations.
 
-Architecture: Dual GUI (Start Menu vs legacy) via `ECONSIM_NEW_GUI`; shared core: `EmbeddedPygameWidget` + `Simulation` (`simulation/world.py`).
+Architecture: Dual GUI (Start Menu vs legacy) via `ECONSIM_NEW_GUI=1` (default); shared core: `EmbeddedPygameWidget` + `Simulation` (`simulation/world.py`). Post-Gate 6 with bilateral exchange Phase 3 completed.
 
 Frame Pipeline (DO NOT ALTER): single `QTimer` (≈16ms) → `Simulation.step(ext_rng, use_decision)` (optional) → `_update_scene` → `update()` → `paintEvent` (Surface→bytes→`QImage`→`QPainter`). Forbidden: extra timers, threads, sleeps, blocking loops, surface reallocation, per‑pixel Python loops, resizing logic changes.
 
@@ -18,9 +18,9 @@ Respawn: Alternating A↔B assignment; placement = uniform seeded shuffle of emp
 
 Foraging Flag: `ECONSIM_FORAGE_ENABLED=0` disables resource collection. If trading also off → agents idle in place preserving carrying inventory (no implicit deposit). If trading on → agents may trade without new gathering (see bilateral system below).
 
-Trading (Feature-Gated, default ON): `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC`, `ECONSIM_TRADE_PRIORITY_DELTA`, `ECONSIM_TRADE_GUI_INFO`, `ECONSIM_TRADE_DEBUG_OVERLAY`. Only currently carried units exchange; home inventory immutable. At most one executed intent/step. Priority flag must ONLY reorder identical multiset of intents. Hash parity redesign pending; trade metrics excluded. Optional `ECONSIM_TRADE_HASH_NEUTRAL=1` restores carrying inventories post-hash (debug mode, not default). Disable by explicitly clearing exec/draft flags if a trade-free baseline is needed for tests or demos.
+Trading (Default ON in GUI): `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC`, `ECONSIM_TRADE_PRIORITY_DELTA`, `ECONSIM_TRADE_GUI_INFO`, `ECONSIM_TRADE_DEBUG_OVERLAY`. Bilateral exchange system with 6-tier decision logic: perception → pairing → pathfinding → co-location → trading → cooldowns. Only currently carried units exchange; home inventory immutable. At most one executed intent/step. Priority flag must ONLY reorder identical multiset of intents. Hash parity redesign pending; trade metrics excluded. Optional `ECONSIM_TRADE_HASH_NEUTRAL=1` restores carrying inventories post-hash (debug mode, not default). SimulationController toggles: `set_bilateral_enabled(bool)` manages flag cluster.
 
-Bilateral Exchange Movement (forage disabled & trade enabled path): Tiered partner search in `Simulation._handle_bilateral_exchange_movement`: perception radius scan → availability filters (cooldowns, pairing) → meeting-point movement → trading session with cooldown cleanup. Keep it O(agents); no global all-pairs beyond localized scan already implemented.
+Bilateral Exchange Movement (forage disabled & trade enabled path): Sophisticated partner search in `Simulation._handle_bilateral_exchange_movement`: perception radius scan → availability filters (cooldowns, pairing) → meeting-point pathfinding → co-location trading → dual cooldown system. Utility-maximizing 1-for-1 goods swapping using marginal utility calculations. Stagnation tracking prevents infinite loops. Keep it O(agents); no global all-pairs beyond localized scan already implemented.
 
 Rendering Rules:
 - Preserve pipeline; no per-agent font objects (cache `_overlay_font`, `_paused_font`).
