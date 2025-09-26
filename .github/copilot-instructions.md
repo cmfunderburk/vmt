@@ -33,7 +33,9 @@ Rendering Rules: Single surface; cell size = `min(surface_w//gw, surface_h//gh)`
 
 Serialization / Snapshot: Append‑only field additions in `snapshot.py`, `world.py`, `agent.py`, `grid.py` — NEVER reorder or remove; update determinism tests & reference hashes explicitly.
 
-Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) overlay; additional metrics (update hash contract + tests); respawn parameter plumbing; doc sync. Forbidden: tie‑break alteration, constant edits, adding randomness, extra timers/threads, unordered iteration where order matters, mutable preference state, silent hash schema change, per‑step quadratic scans.
+Manual Test Patterns (Current Technical Debt): All 7 tests in `MANUAL_TESTS/` share identical 3‑panel UI (debug log | pygame viewport | controls), phase transition logic, timer setup, and environment variable management — creating ~3000 lines of duplication. When adding manual tests: reuse existing patterns for consistency. For framework refactor (see `REFACTOR_PLAN.md`): extract `BaseManualTest`, `TestConfiguration` dataclass, `PhaseManager`, `DebugOrchestrator` — reduces new tests to ~30 lines vs 400 lines.
+
+Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) overlay; additional metrics (update hash contract + tests); respawn parameter plumbing; doc sync; manual test framework extraction (high‑impact, low‑risk). Forbidden: tie‑break alteration, constant edits, adding randomness, extra timers/threads, unordered iteration where order matters, mutable preference state, silent hash schema change, per‑step quadratic scans.
 
 Perf Expectations: ~62 FPS typical (floor ≥30). Validate with `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` (overlays <~2% overhead). Watch for regressions: surface realloc, object churn, logging in hot loop, accidental N^2 partner scans.
 
@@ -41,7 +43,11 @@ Testing & PR Flow: Run `make test-unit lint type perf`. Any state or perf‑sens
 
 Development Workflow: Virtual env `vmt-dev/`; entry point `make dev` (new GUI) or `ECONSIM_NEW_GUI=0 make dev` (legacy). Environment flags control features (see above). Live config via Controls panel; settings persist across GUI sessions. Factory construction via `Simulation.from_config()` preferred over manual wiring.
 
-Key Files Map: GUI embed `src/econsim/gui/embedded_pygame.py`; controller `src/econsim/gui/simulation_controller.py`; core sim `src/econsim/simulation/world.py`; agents `src/econsim/simulation/agent.py`; grid `src/econsim/simulation/grid.py`; spatial index `src/econsim/simulation/spatial.py`; trade `src/econsim/simulation/trade.py`; respawn `src/econsim/simulation/respawn.py`; metrics `src/econsim/simulation/metrics.py`; snapshot `src/econsim/simulation/snapshot.py`; preferences `src/econsim/preferences/*.py`; config `src/econsim/simulation/config.py`; perf harness `scripts/perf_stub.py`; tests `tests/unit/*`.
+Debug System: Centralized logging via `src/econsim/gui/debug_logger.py` with environment flags (`ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_DEBUG_TRADES`, etc). Manual tests include debug panels with 250ms update timers. Use `log_phase_transition()`, `log_comprehensive()` for educational scenarios.
+
+Manual Testing Framework: 7 educational scenarios in `MANUAL_TESTS/` (run via `make manual-tests` or individual `.py` files). Standard 6‑phase structure (900 turns): Both enabled (1‑200) → Forage only (201‑400) → Exchange only (401‑600) → Both disabled (601‑650) → Both enabled (651‑850) → Final disabled (851‑900). Phase transitions via environment variable management. Current tests have massive duplication (~400 lines each); refactor plan in `MANUAL_TESTS/REFACTOR_PLAN.md` proposes configuration‑driven approach with `TestConfiguration` dataclass + `BaseManualTest` framework.
+
+Key Files Map: GUI embed `src/econsim/gui/embedded_pygame.py`; controller `src/econsim/gui/simulation_controller.py`; core sim `src/econsim/simulation/world.py`; agents `src/econsim/simulation/agent.py`; grid `src/econsim/simulation/grid.py`; spatial index `src/econsim/simulation/spatial.py`; trade `src/econsim/simulation/trade.py`; respawn `src/econsim/simulation/respawn.py`; metrics `src/econsim/simulation/metrics.py`; snapshot `src/econsim/simulation/snapshot.py`; preferences `src/econsim/preferences/*.py`; config `src/econsim/simulation/config.py`; perf harness `scripts/perf_stub.py`; tests `tests/unit/*`; manual tests `MANUAL_TESTS/*.py`.
 
 Teardown Integrity: `closeEvent` stops timer → `pygame.quit()` → `super().closeEvent(event)`; mirror for new subsystems (no lingering timers/threads/resources).
 

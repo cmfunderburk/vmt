@@ -72,7 +72,7 @@ TEST_4_LARGE_WORLD = TestConfiguration(
     grid_size=(60, 60),
     agent_count=15,
     resource_density=0.05,
-    perception_radius=20,
+    perception_radius=25,  # Global awareness in large world
     preference_mix="mixed",
     seed=22222
 )

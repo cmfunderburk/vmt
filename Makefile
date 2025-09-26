@@ -35,6 +35,11 @@ manual-tests:
 	# 7 educational scenarios with visual observation and phase transitions  
 	cd MANUAL_TESTS && $(PYTHON) test_start_menu.py
 
+enhanced-tests:
+	# Launch enhanced test launcher with visual cards and comparison features
+	# Modern UI showing both original and framework test versions
+	cd MANUAL_TESTS && $(PYTHON) enhanced_test_launcher_v2.py
+
 # Legacy aliases for backward compatibility
 test: test-unit
 	@echo "Note: 'make test' is now 'make test-unit'. Use 'make manual-tests' for GUI tests."
