@@ -39,36 +39,36 @@ def _extract_controls(window: MainWindow):
     return sess.controls
 
 
-def test_start_paused_baseline_has_unlimited_default():
+def test_start_paused_baseline_has_five_tps_default():
     win = MainWindow()
     _launch_mode(win, 'continuous', start_paused=True)
     controls = _extract_controls(win)
     combo = getattr(controls, '_speed_box')
-    # Baseline still defaults to Unlimited even if started paused (user may throttle manually later).
-    assert combo.currentText().lower().startswith('unlimited'), f"Expected Unlimited default, got {combo.currentText()}"
+    # Baseline now defaults to 5.0 tps even if started paused.
+    assert combo.currentText().lower().startswith('5.0'), f"Expected 5.0 tps default, got {combo.currentText()}"
     win.close()
 
 
-def test_legacy_mode_defaults_unlimited():
+def test_legacy_mode_defaults_five_tps():
     win = MainWindow()
     _launch_mode(win, 'legacy')
     controls = _extract_controls(win)
     combo = getattr(controls, '_speed_box')
     label = getattr(controls, '_pacing_label', None)
-    assert combo.currentText().lower().startswith('unlimited'), f"Legacy mode should default to Unlimited, got {combo.currentText()}"
-    # Label should be absent or hidden
+    assert combo.currentText().lower().startswith('5.0'), f"Legacy mode should default to 5.0 tps, got {combo.currentText()}"
+    # Label should be absent or hidden (unchanged expectation)
     if label is not None:
         assert label.text() == '', "Pacing label text should be empty in legacy (unlimited) mode"
     win.close()
 
 
-def test_continuous_mode_defaults_unlimited():
+def test_continuous_mode_defaults_five_tps():
     win = MainWindow()
     _launch_mode(win, 'continuous')
     controls = _extract_controls(win)
     combo = getattr(controls, '_speed_box')
     label = getattr(controls, '_pacing_label', None)
-    assert combo.currentText().lower().startswith('unlimited'), f"Continuous mode should default to Unlimited, got {combo.currentText()}"
+    assert combo.currentText().lower().startswith('5.0'), f"Continuous mode should default to 5.0 tps, got {combo.currentText()}"
     if label is not None:
-        assert label.text() == '', "Pacing label text should be empty in continuous (unlimited) mode"
+        assert label.text() == '', "Pacing label text should be empty in continuous (throttled) mode"
     win.close()

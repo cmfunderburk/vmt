@@ -118,12 +118,13 @@ class MetricsCollector:
         return tuple(self._records)
 
     def record_bilateral_trade(self, step: int, agent1_id: int, agent2_id: int, 
-                             agent1_give: str, agent1_take: str, 
-                             agent1_delta_u: float, agent2_delta_u: float) -> None:
-        """Record a bilateral trade between two agents.
-        
-        Updates both agents' trade histories (last 5 trades each) and global last_executed_trade.
-        This method is hash-excluded since trade history is for UI display only.
+                               agent1_give: str, agent1_take: str, 
+                               agent1_delta_u: float, agent2_delta_u: float) -> None:
+        """Record bilateral trade history only (no counter increments).
+
+        Maintains per-agent rolling history (last 5) and updates ``last_executed_trade``.
+        Hash-excluded. Global counters (``trades_executed``, ``trade_ticks``, ``fairness_round``)
+        are updated by ``register_executed_trade`` to avoid double counting.
         """
         # Create trade records for both agents
         trade_record_1: Dict[str, Any] = {
@@ -168,9 +169,56 @@ class MetricsCollector:
             "delta_utility": agent1_delta_u,
         }
         
-        # Update trade counts
+    def register_executed_trade(self, *, step: int, agent1_id: int, agent2_id: int,
+                                agent1_give: str, agent1_take: str,
+                                agent1_delta_u: float, agent2_delta_u: float,
+                                realized_utility_gain: float | None = None,
+                                hash_neutral: bool = False) -> None:
+        """Single entry point for an executed trade.
+
+        Responsibilities:
+        * Increment global counters exactly once per executed trade
+        * Update realized utility gain total (approx) if provided
+        * Increment fairness_round (advisory metric)
+        * Delegate to ``record_bilateral_trade`` for histories / last_executed_trade
+        * Optionally ignore realized utility gain when ``hash_neutral`` debug mode active
+
+        Parameters
+        -----------
+        step: simulation step index
+        agent1_id / agent2_id: participants (agent1 corresponds to seller in current model)
+        agent1_give / agent1_take: resource types (strings)
+        agent1_delta_u / agent2_delta_u: approximate utility deltas (buyer approximated currently)
+        realized_utility_gain: optional explicit realized utility delta to aggregate (fallback to agent1_delta_u if None)
+        hash_neutral: when True, skips realized_utility aggregation (debug parity aid)
+        """
+        # Counters
         self.trades_executed += 1
         self.trade_ticks += 1
+        # Fairness advisory metric (one increment per executed trade)
+        try:
+            self.fairness_round += 1
+        except Exception:  # pragma: no cover - defensive
+            pass
+        # Realized utility (approx) unless suppressed
+        if not hash_neutral:
+            try:
+                gain = realized_utility_gain
+                if gain is None:
+                    gain = float(agent1_delta_u)
+                self.realized_utility_gain_total += float(gain)
+            except Exception:  # pragma: no cover
+                pass
+        # Delegate to history recorder (no counters inside)
+        self.record_bilateral_trade(
+            step=step,
+            agent1_id=agent1_id,
+            agent2_id=agent2_id,
+            agent1_give=agent1_give,
+            agent1_take=agent1_take,
+            agent1_delta_u=agent1_delta_u,
+            agent2_delta_u=agent2_delta_u,
+        )
 
 
 __all__ = ["MetricsCollector"]

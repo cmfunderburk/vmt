@@ -2,7 +2,7 @@
 
 An educational microeconomic simulation prototype combining a PyQt6 desktop shell with a deterministic spatial agent model (preferences, resource collection, decision logic).
 
-> This README reflects the **current state after Gate 6 integration (factory, decision default, overlay toggle, perf safeguards)**. The previous aspirational narrative lives in `README_aspirational.md`.
+> This README reflects the **current state after Gate 6 integration + Bilateral Exchange Phase 3 (priority flag, fairness metric, movement system)**. The previous aspirational narrative lives in `README_aspirational.md`.
 
 ## 1. Snapshot: Implemented vs Pending
 
@@ -73,13 +73,13 @@ print("hash=", sim.metrics_collector.determinism_hash())
 Legacy manual wiring is supported but deprecated.
 
 ## 5. Known Gaps / Explicit Limitations
-1. Trading, production, consumption, and economic metrics (e.g., inequality) not implemented.
-	- Planned invariant (pre-implementation): only items currently being carried will ever be eligible for bilateral exchange; home (banked) inventory is non-circulating during trade resolution.
+1. Production, consumption, and extended economic metrics (e.g., inequality) not implemented.
+	- Bilateral exchange implemented (Phase 3) but still feature‑gated & single‑unit scope.
 2. Advanced overlays (utility contours, analytics) not implemented.
 3. Multi-scenario educational progression system not yet built.
 
 ### 5.1 Bilateral Exchange (Experimental – Gate Bilateral2 Phase 3)
-Status: Single-unit reciprocal trade prototype behind UI + environment flags. Phase 3 adds optional priority reordering (flag-gated) and a fairness_round advisory metric. Determinism hash unchanged when features disabled.
+Status: Feature‑gated single‑unit reciprocal trade system (now enabled by default at startup) with deterministic intent enumeration and optional priority reordering. Adds fairness_round advisory metric. Determinism hash unchanged when features disabled (trade metrics excluded). Movement subsystem adds partner search + meeting point logic when foraging disabled.
 
 Activation Paths:
 * Start Menu (Advanced): enable trade draft / execution toggles (if exposed) or master checkbox.
@@ -96,23 +96,50 @@ Feature Flags (auto-managed by GUI when toggled):
 * `ECONSIM_TRADE_DEBUG_OVERLAY=1` – (internal helper; currently tied to Debug Overlay toggle).
 
 Current Mechanics:
-* Rule: single reciprocal marginal utility improvement (approx) triggers one unit swap of (good1 ↔ good2).
+* Rule: one marginally utility‑improving reciprocal unit swap (good1 ↔ good2) per executed step.
 * Intent Fields: seller, buyer, give_type, take_type, delta_utility (approx combined marginal lift), priority tuple.
-* Metrics (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round` (increments per executed trade; advisory only).
-* Inspector: shows last trade summary when enabled; cleared immediately upon disable.
+* Metrics (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round`.
+* Inspector / Event Log: last executed trade summary (cleared on disable).
+* Hash Neutral Debug: `ECONSIM_TRADE_HASH_NEUTRAL=1` restores carrying inventories post-hash for parity exploration (not default).
 
 Determinism Safeguards:
 * Feature off (default) → simulation identical to pre-trade build.
-* All trade metrics excluded from determinism hash; delta_utility informational only.
-* Priority reordering gated (`ECONSIM_TRADE_PRIORITY_DELTA`) leaving baseline ordering intact when off.
+* Trade metrics excluded from determinism hash; delta_utility informational only.
+* Priority reordering gated (`ECONSIM_TRADE_PRIORITY_DELTA`) — must not change multiset of intents.
+* Pairing movement path only active when foraging disabled & trade enabled (isolated branch avoids contaminating forage path).
 
 Phase 3 Delivered:
-* Priority flag `ECONSIM_TRADE_PRIORITY_DELTA=1` sets intent priority to `(-delta_utility, seller_id, buyer_id, give_type, take_type)`.
-* `fairness_round` metric increments per executed trade (advisory, hash-excluded).
-* Multiset invariance test ensures flag only changes ordering (not which intents exist).
-* Autouse test fixture clears `ECONSIM_TRADE_*` flags preventing cross-test leakage.
+* Priority flag `ECONSIM_TRADE_PRIORITY_DELTA=1` sets ordering: `(-delta_utility, seller_id, buyer_id, give_type, take_type)`.
+* `fairness_round` advisory metric (hash-excluded) increments per executed trade.
+* Multiset invariance test: priority flag only reorders, never adds/removes intents.
+* Pairing + cooldown system (see movement pseudocode) enabling partner selection & session lifecycle.
+* Autouse test fixture clears `ECONSIM_TRADE_*` env leakage across tests.
 
-Future: multi-intent policies, fairness-driven scheduling, analytics overlays.
+Future: multi-intent policies, partner quality heuristics, fairness-weighted scheduling, richer analytics overlays.
+
+#### 5.1.1 Bilateral Exchange Movement (Forage Disabled)
+When foraging is OFF and trading is ON, agents use a partner search + meeting workflow. Tiered algorithm ensures O(agents) per step (local perception only):
+
+Pseudocode:
+```
+for each agent:
+	if paired & colocated: attempt trade; if no beneficial trade -> end session (apply cooldowns)
+	elif paired & not colocated: move toward meeting point
+	else:
+		decrement general + partner-specific cooldowns
+		if on cooldown: move_random()
+		else:
+			nearby = find_nearby_agents(perception_radius)
+			if none: move_random()
+			elif one & available: pair + move_toward_meeting_point()
+			elif many: iterate nearest-first until available partner found else move_random()
+```
+Pairing availability excludes agents that are: already paired, currently trading, on general cooldown, or on mutual partner-specific cooldown.
+
+Visual Aids:
+* Cyan lines between active partners (overlay toggle).
+* Orange/yellow pulsing highlight for recently executed trade cell (~12 steps) (overlay on).
+* Light green multi-width outline for selected agent (Agent Inspector selection).
 
 ### 5.2 Foraging Enable Flag
 
@@ -141,7 +168,7 @@ Decision mode per-step behavior depends on combinations of Foraging and Trade se
 
 | Forage | Trade Draft | Trade Exec | Resulting Behavior |
 |--------|-------------|------------|--------------------|
-| Off | Off | Off | Agents move toward home then idle; no intents |
+| Off | Off | Off | Agents immediately idle in place (no movement); no intents |
 | Off | On | Off | Intents enumerated (may be empty); no execution |
 | Off | On | On | Intents enumerated; at most one trade executed per step |
 | On | Off | Off | Normal collection only |
@@ -194,6 +221,33 @@ Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist
 | `.github/copilot-instructions.md` | High-signal constraints & invariants |
 | `scripts/perf_stub.py` | Performance validation harness |
 
+### Glossary (High-Signal Domain Terms)
+| Term | Definition |
+|------|------------|
+| Foraging | Resource collection path: target selection → move 1 cell → collect if first → deposit when returning home. Can be disabled via `ECONSIM_FORAGE_ENABLED=0`. |
+| Bilateral Exchange | Feature‑gated trading system enabling at most one executed reciprocal unit swap per step (when foraging disabled path engaged). |
+| Intent | Proposed single-unit swap between two co-located agents (fields: seller, buyer, give_type, take_type, delta_utility, priority tuple). Enumeration hash‑excluded. |
+| Priority Tuple | Ordering key (flagged): `(-delta_utility, seller_id, buyer_id, give_type, take_type)`; reorders only (multiset invariant). |
+| fairness_round | Advisory counter incremented each executed trade (hash-excluded) indicating progression of exchanges. |
+| Hash Neutral Mode | Debug flag `ECONSIM_TRADE_HASH_NEUTRAL=1` restoring carrying inventories post-hash to explore parity; not enabled in normal runs. |
+| Carrying Inventory | Goods presently held (mutable during execution). Included in current determinism hash (pending redesign). |
+| Home Inventory | Goods deposited at agent home; immutable during trading; part of lifetime wealth/utility. |
+| Perception Radius | Maximum Manhattan (or configured) distance scanned for resources or nearby agents (decision & pairing scopes); constant default preserved for determinism. |
+| Respawn Interval | Step modulus controlling when respawn scheduler attempts placement (`(step % interval)==0`). |
+| Respawn Rate | Fraction of current deficit replaced on a respawn event (10–100%). |
+| Determinism Hash | Canonical reproducibility digest over simulation state (excludes trade metrics & debug overlays). |
+| Meeting Point | Deterministic intermediate cell agents path toward after pairing (abstracted in movement helper). |
+| Cooldown (General) | Post-trade or session delay preventing immediate re-pairing for an agent. |
+| Partner-Specific Cooldown | Pairwise delay blocking rapid re-trading with the same counterpart while allowing others. |
+| Pairing Availability | Agent eligible if: not already paired, not trading, general cooldown == 0, and mutual partner-specific cooldowns clear. |
+| OverlayState | GUI-side dataclass toggling read-only visual layers (grid, IDs, target arrows, home labels, trade lines). |
+| Executed Trade Highlight | Pulsing orange/yellow rectangle over last executed trade cell lasting ~12 steps (overlay only). |
+| External RNG | RNG passed into `Simulation.step` (legacy/random walk path); separated from internal RNG for determinism. |
+| Internal RNG | `Simulation._rng` used for respawn, home assignment, and future stochastic hooks—never influences external path unpredictably. |
+| Multiset Invariance | Property that enabling priority flag does not add/remove intents—only ordering differs; enforced by tests. |
+| Selected Agent Highlight | Light green multi-width border indicating agent chosen in Inspector (purely visual). |
+
+
 See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
 
 ### Quick Navigation
@@ -206,7 +260,21 @@ See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
 | Copilot Instructions | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
 
 ---
-Last updated: 2025-09-24 (Bilateral Phase 3: priority flag + fairness_round; GUI enhancements – configurable viewport, agent wealth accumulation, complete GUI controls).
+Last updated: 2025-09-25 (Bilateral Phase 3 complete: priority flag, fairness_round, pairing & movement system, visual trade cues, hash-neutral debug mode).
+
+### Recent Increment (Bilateral Exchange Phase 3 & Visual Enhancements)
+Added:
+* **Bilateral Pairing System**: Deterministic partner search & meeting point movement path (forage disabled mode).
+* **Trade Priority Flag**: Optional reordering without altering intent multiset.
+* **fairness_round Metric**: Advisory progression counter.
+* **Executed Trade Highlight**: Pulsing cell outline for 12 steps.
+* **Partner Connection Lines**: Cyan lines between paired agents (overlay toggle).
+* **Hash Neutral Debug Mode**: `ECONSIM_TRADE_HASH_NEUTRAL=1` to restore carrying inventories after metrics hash for parity diagnostics.
+* **Selected Agent Highlight**: Light green border synced with Agent Inspector.
+
+Removed / Updated:
+* Obsolete wording around “return home then idle” when systems disabled.
+* Sprite experiment references removed; sprite system now deterministic assignment from maintained packs.
 
 ### Recent Increment (Configurable Viewport, Agent Wealth Accumulation, Complete GUI)
 Added:
@@ -307,7 +375,7 @@ Gate-based technical validation approach:
 - **Deterministic Behavior**: Advanced determinism test ensures identical (mode,pos,target,inventory) trajectories across runs
 - **Competition Resolution**: Contested resource test validates single-winner & loser retargeting without deadlock
 - **Preference Shift Behavior**: After unbalanced collection, agent switches to complementary good to raise utility
-- **Sprite-Based Rendering**: Agents display as blue sprites, resources as food (good1/A) and stone (good2/B) sprites with fallback to colored rectangles
+- **Sprite-Based Rendering**: Deterministic sprite assignment from maintained packs; resources show themed icons (A=food, B=tools) with fallback colored rectangles
 - **Performance Guards**: Decision throughput + micro benchmark preventing latent regression
 - **Testing Surface Access**: Added `get_surface_bytes()` for safe render assertions
 

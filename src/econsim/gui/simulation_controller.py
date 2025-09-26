@@ -358,6 +358,10 @@ class SimulationController:
         """Check if trade execution is enabled (simplified from granular controls)."""
         return self.bilateral_enabled()
     
+    # Backward compatibility / inspector expectation: draft enabled mirrors bilateral flag in simplified model.
+    def trade_draft_enabled(self) -> bool:
+        return self.bilateral_enabled()
+    
     def active_intents_count(self) -> int:
         """Get count of active trade intents."""
         try:

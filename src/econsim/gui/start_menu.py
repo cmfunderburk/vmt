@@ -67,17 +67,26 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         scenario_row.addWidget(QLabel("Scenario:"))
         self.scenario_box = QComboBox()
         self.scenario_box.addItems([  # type: ignore[arg-type]
-            "baseline", 
+            "baseline",
+            "bilateral_exchange",
             "money_market"
         ])
         # For now, only baseline is functional
         self.scenario_box.setCurrentText("baseline")
         # Disable non-implemented scenarios with tooltip guidance
         model = self.scenario_box.model()
-        for name in ("money_market",):
+        try:
+            from PyQt6.QtGui import QStandardItemModel
+            std_model = model if isinstance(model, QStandardItemModel) else None
+        except Exception:  # pragma: no cover - safety
+            std_model = None
+        for name in ("bilateral_exchange", "money_market"):
             idx = self.scenario_box.findText(name)
-            if idx >= 0:
-                item = model.item(idx)
+            if idx >= 0 and std_model is not None:
+                try:
+                    item = std_model.item(idx)
+                except Exception:
+                    item = None
                 if item is not None:
                     item.setEnabled(False)
                     item.setData("Not implemented yet", Qt.ItemDataRole.ToolTipRole)

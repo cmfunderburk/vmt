@@ -100,9 +100,9 @@ def test_gui_checkboxes_toggle(monkeypatch):  # type: ignore[no-untyped-def]
     _clear_forage_flag(monkeypatch)
     sim = _build_sim([(0,0),(0,0)])
     controller = SimulationController(simulation=sim)
-    # Baseline defaults
+    # Baseline defaults (updated: bilateral exchange now enabled by default)
     assert controller.forage_enabled() is True
-    assert controller.bilateral_enabled() is False
+    assert controller.bilateral_enabled() is True
     # Build panel (Qt widgets need a QApplication; rely on global one if tests already created)
     try:
         from PyQt6.QtWidgets import QApplication

@@ -52,5 +52,6 @@ def test_widget_teardown_with_simulation():
     widget.close()
     app.processEvents()
 
-    # After close, pygame should be quit
-    assert not pygame.get_init(), "pygame should be uninitialized after widget closeEvent"
+    # Ref-counted behavior: pygame may remain initialized if other widgets/tests still active.
+    # Assert widget released its surface to prevent further drawing and potential segfaults.
+    assert getattr(widget, '_surface', None) is None, "Widget surface should be cleared after closeEvent"

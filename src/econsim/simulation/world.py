@@ -202,33 +202,21 @@ class Simulation:
                     mc.trade_intents_generated += len(intents)  # type: ignore[attr-defined]
                     if exec_enabled:
                         if executed is not None:
-                            mc.trades_executed += 1  # type: ignore[attr-defined]
-                            # Update realized utility gain (approx) using stored delta_utility
-                            try:
-                                mc.realized_utility_gain_total += float(getattr(executed, "delta_utility", 0.0))  # type: ignore[attr-defined]
-                            except Exception:  # pragma: no cover
-                                pass
-                            # Fairness round increment (Phase 3 advisory metric)
-                            try:
-                                mc.fairness_round += 1  # type: ignore[attr-defined]
-                            except Exception:
-                                pass
-                            # Record bilateral trade (this also sets last_executed_trade)
                             seller_delta_u = getattr(executed, "delta_utility", 0.0)
-                            # Note: Using seller's delta_u for both agents since buyer's delta_u not available here
-                            # In a full implementation, this would be calculated separately
-                            buyer_delta_u = seller_delta_u  # Approximation for now
-                            
-                            mc.record_bilateral_trade(
+                            buyer_delta_u = seller_delta_u  # Approximation placeholder
+                            hash_neutral_mode = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"
+                            # Unified metrics registration (counters + histories)
+                            mc.register_executed_trade(
                                 step=self._steps,
                                 agent1_id=executed.seller_id,
-                                agent2_id=executed.buyer_id, 
+                                agent2_id=executed.buyer_id,
                                 agent1_give=executed.give_type,
                                 agent1_take=executed.take_type,
                                 agent1_delta_u=seller_delta_u,
-                                agent2_delta_u=buyer_delta_u
+                                agent2_delta_u=buyer_delta_u,
+                                realized_utility_gain=seller_delta_u,
+                                hash_neutral=hash_neutral_mode,
                             )
-                            mc.trade_ticks += 1  # type: ignore[attr-defined]
                         else:
                             mc.no_trade_ticks += 1  # type: ignore[attr-defined]
                 except Exception:  # pragma: no cover
