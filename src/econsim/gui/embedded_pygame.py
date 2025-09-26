@@ -540,6 +540,46 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                     rx = hx * cell_w
                                     ry = hy * cell_h
                                     pygame.draw.rect(surf, col, pygame.Rect(rx, ry, cell_w, cell_h), 2)
+                            # Unified selection overlay: mark resource targets and partner pairings (lightweight)
+                            if (getattr(self, 'show_overlay', False) or self._legacy_show_overlay_alias):
+                                try:
+                                    from econsim.simulation.agent import Agent  # noqa: F401
+                                    for ag in sorted_agents:
+                                        task = getattr(ag, 'current_unified_task', None)
+                                        if not task:
+                                            continue
+                                        kind, payload = task
+                                        if kind == 'resource' and isinstance(ag.target, tuple):
+                                            tx, ty = ag.target
+                                            # Soft green outline for claimed resource
+                                            rx = int(tx * cell_w)
+                                            ry = int(ty * cell_h)
+                                            pygame.draw.rect(surf, (80, 255, 120), pygame.Rect(rx+1, ry+1, cell_w-2, cell_h-2), 2)
+                                        elif kind == 'partner' and isinstance(payload, int):
+                                            partner = None
+                                            for other in sorted_agents:
+                                                if getattr(other, 'id', -1) == payload:
+                                                    partner = other
+                                                    break
+                                            if partner is not None:
+                                                ax = ag.x * cell_w + cell_w // 2
+                                                ay = ag.y * cell_h + cell_h // 2
+                                                px = partner.x * cell_w + cell_w // 2
+                                                py = partner.y * cell_h + cell_h // 2
+                                                # Magenta dashed style approximation (alternating short segments)
+                                                segs = 6
+                                                for i in range(segs):
+                                                    t0 = i / segs
+                                                    t1 = (i + 0.5) / segs
+                                                    if t1 > 1:
+                                                        t1 = 1
+                                                    x0 = int(ax + (px - ax) * t0)
+                                                    y0 = int(ay + (py - ay) * t0)
+                                                    x1 = int(ax + (px - ax) * t1)
+                                                    y1 = int(ay + (py - ay) * t1)
+                                                    pygame.draw.line(surf, (255, 0, 200), (x0, y0), (x1, y1), 2)
+                                except Exception:
+                                    pass
                         except Exception:
                             pass
                     except Exception:

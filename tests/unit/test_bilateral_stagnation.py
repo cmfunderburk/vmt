@@ -64,6 +64,9 @@ def test_stagnation_forces_return_home_and_deposit(monkeypatch):
             break
     assert forced_triggered, 'Expected stagnation to trigger a forced return-home sequence'
 
+    # Capture pre-home inventory totals for later comparison
+    pre_home_totals = [sum(a.home_inventory.values()) for a in (a0, a1)]
+
     # Advance until deposit clears force_deposit_once (should become IDLE with inventories banked)
     for _ in range(50):
         sim.step(ext_rng, use_decision=True)
@@ -73,6 +76,10 @@ def test_stagnation_forces_return_home_and_deposit(monkeypatch):
     # After forced deposit, agents should not be stuck in perpetual trade (either no intents or minimal churn)
     intents_post = sim.trade_intents or []
     assert len(intents_post) == 0 or all(getattr(t, 'delta_utility', 0.0) > 0 for t in intents_post)
+
+    # Home inventories should have increased for at least one agent after deposit
+    post_home_totals = [sum(a.home_inventory.values()) for a in (a0, a1)]
+    assert any(post_home_totals[i] > pre_home_totals[i] for i in range(2)), 'Expected at least one agent to deposit goods'
 
     # Clean env
     os.environ.pop('ECONSIM_TRADE_DRAFT', None)

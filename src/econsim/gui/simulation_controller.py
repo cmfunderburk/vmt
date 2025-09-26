@@ -131,6 +131,29 @@ class SimulationController:
         
         return mc.agent_trade_histories.get(agent_id, [])
 
+    # --- Stagnation / Trade Diagnostics ---------------------------------
+    def agent_stagnation_steps(self, agent_id: int) -> int | None:
+        """Return current stagnation step count for an agent (None if unavailable)."""
+        for a in self.simulation.agents:
+            if a.id == agent_id:
+                return getattr(a, "trade_stagnation_steps", None)
+        return None
+
+    def agent_last_trade_utility(self, agent_id: int) -> float | None:
+        """Return last recorded utility baseline used for stagnation detection."""
+        for a in self.simulation.agents:
+            if a.id == agent_id:
+                return getattr(a, "last_trade_mode_utility", None)
+        return None
+
+    def trade_min_delta_threshold(self) -> float:
+        """Expose the current minimum combined utility delta required for an intent to execute."""
+        try:
+            from econsim.simulation.trade import MIN_TRADE_DELTA  # local import keeps GUI decoupled
+            return float(MIN_TRADE_DELTA)
+        except Exception:
+            return 0.0
+
     def pause(self) -> None:
         self._paused = True
 

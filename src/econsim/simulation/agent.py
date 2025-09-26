@@ -80,6 +80,8 @@ class Agent:
     last_trade_mode_utility: float = field(default=0.0, init=False, repr=False)
     trade_stagnation_steps: int = field(default=0, init=False, repr=False)
     force_deposit_once: bool = field(default=False, init=False, repr=False)
+    # Unified target selection metadata (resource vs partner) for GUI/testing
+    current_unified_task: tuple[str, object] | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         # If home not explicitly set, default to spawn coords
@@ -229,46 +231,10 @@ class Agent:
                 return
 
         # Gather candidate resources
+        # Evaluate best resource candidate (position, delta, key)
+        best_meta, _delta_u, _key = self.compute_best_resource_candidate(grid)
+        # Need raw_bundle for prospecting fallback logic
         raw_bundle = self._current_bundle()
-        # Epsilon augmentation: if any component zero, lift both by epsilon for utility baseline
-        if raw_bundle[0] == 0.0 or raw_bundle[1] == 0.0:
-            bundle = (raw_bundle[0] + EPSILON_UTILITY, raw_bundle[1] + EPSILON_UTILITY)
-        else:
-            bundle = raw_bundle
-        base_u = self.preference.utility(bundle)
-        best: tuple[float, int, int, int] | None = None  # key = (-delta_u, dist, x, y)
-        best_meta: tuple[int, int] | None = None
-        max_dist = default_PERCEPTION_RADIUS
-        # Use sorted iteration (deterministic ordering helper)
-        iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
-        # Use sorted iteration (deterministic ordering helper)
-        iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
-        for rx, ry, rtype in iterator:
-            dist = self._manhattan(self.x, self.y, rx, ry)
-            if dist > max_dist:
-                continue
-            good = RESOURCE_TYPE_TO_GOOD.get(rtype)
-            if not good:
-                continue
-            if good == "good1":
-                test_bundle = (bundle[0] + 1.0, bundle[1])
-            else:
-                test_bundle = (bundle[0], bundle[1] + 1.0)
-            # Apply epsilon lifting if the other dimension still effectively zero
-            # (Using original raw_bundle to detect zero pre-acquisition state)
-            if raw_bundle[0] == 0.0 or raw_bundle[1] == 0.0:
-                # ensure both components at least epsilon for consistent marginal evaluation
-                tb0 = test_bundle[0] if test_bundle[0] > 0 else EPSILON_UTILITY
-                tb1 = test_bundle[1] if test_bundle[1] > 0 else EPSILON_UTILITY
-                test_bundle = (tb0, tb1)
-            new_u = self.preference.utility(test_bundle)
-            delta_u = new_u - base_u
-            if delta_u <= 0.0:
-                continue
-            key = (-delta_u, dist, rx, ry)
-            if best is None or key < best:
-                best = key
-                best_meta = (rx, ry)
 
         if best_meta is None:
             # No single resource gives positive ΔU - try prospecting for Leontief agents
@@ -285,6 +251,51 @@ class Agent:
         else:
             self.target = best_meta
             self.mode = AgentMode.FORAGE
+
+    # --- Unified / Shared Candidate Computation -----------------
+    def compute_best_resource_candidate(self, grid: Grid) -> tuple[Position | None, float, tuple[float,int,int,int] | None]:
+        """Return best resource target (position, delta_u, tie_key) without mutating state.
+
+        tie_key matches deterministic ordering: (-ΔU, distance, x, y). Returns (None,0,None)
+        if no strictly positive ΔU resource is found within perception radius.
+        """
+        raw_bundle = self._current_bundle()
+        # Epsilon augmentation for baseline utility evaluation
+        if raw_bundle[0] == 0.0 or raw_bundle[1] == 0.0:
+            bundle = (raw_bundle[0] + EPSILON_UTILITY, raw_bundle[1] + EPSILON_UTILITY)
+        else:
+            bundle = raw_bundle
+        base_u = self.preference.utility(bundle)
+        max_dist = default_PERCEPTION_RADIUS
+        iterator = getattr(grid, "iter_resources_sorted", grid.iter_resources)()
+        best_key: tuple[float,int,int,int] | None = None
+        best_pos: Position | None = None
+        best_delta = 0.0
+        for rx, ry, rtype in iterator:
+            dist = self._manhattan(self.x, self.y, rx, ry)
+            if dist > max_dist:
+                continue
+            good = RESOURCE_TYPE_TO_GOOD.get(rtype)
+            if not good:
+                continue
+            if good == "good1":
+                test_bundle = (bundle[0] + 1.0, bundle[1])
+            else:
+                test_bundle = (bundle[0], bundle[1] + 1.0)
+            if raw_bundle[0] == 0.0 or raw_bundle[1] == 0.0:
+                tb0 = test_bundle[0] if test_bundle[0] > 0 else EPSILON_UTILITY
+                tb1 = test_bundle[1] if test_bundle[1] > 0 else EPSILON_UTILITY
+                test_bundle = (tb0, tb1)
+            new_u = self.preference.utility(test_bundle)
+            delta_u = new_u - base_u
+            if delta_u <= 0.0:
+                continue
+            key = (-delta_u, dist, rx, ry)
+            if best_key is None or key < best_key:
+                best_key = key
+                best_pos = (rx, ry)
+                best_delta = delta_u
+        return best_pos, best_delta, best_key
 
     def _try_leontief_prospecting(self, grid: Grid, raw_bundle: tuple[float, float]) -> Position | None:
         """Attempt prospecting behavior for Leontief agents when no single resource gives positive ΔU.
