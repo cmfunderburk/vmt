@@ -76,6 +76,10 @@ class Agent:
     is_trading: bool = field(default=False, init=False, repr=False)
     trade_cooldown: int = field(default=0, init=False, repr=False)  # Steps to wait before re-pairing
     partner_cooldowns: dict[int, int] = field(default_factory=dict, init=False, repr=False)  # Per-partner cooldown tracking
+    # Bilateral exchange stagnation tracking: utility at last improvement and steps since
+    last_trade_mode_utility: float = field(default=0.0, init=False, repr=False)
+    trade_stagnation_steps: int = field(default=0, init=False, repr=False)
+    force_deposit_once: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         # If home not explicitly set, default to spawn coords
@@ -155,23 +159,31 @@ class Agent:
         return moved
 
     def maybe_deposit(self) -> None:
-        """Deposit goods when returning home, but only if not in bilateral exchange mode."""
+        """Deposit goods when returning home.
+
+        Legacy rule: when bilateral exchange is active we retain goods (no deposit) so
+        agents keep inventory to trade; they idle instead. We extend this with a one-time
+        forced deposit override (`force_deposit_once`) used when an agent returns home
+        after prolonged utility stagnation in bilateral exchange mode.
+        """
         if self.mode == AgentMode.RETURN_HOME and self.at_home():
-            # Check if bilateral exchange is enabled - if so, don't deposit (keep goods for trading)
             import os
-            exchange_enabled = os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or os.environ.get("ECONSIM_TRADE_EXEC") == "1"
-            
-            if not exchange_enabled:
-                # Normal behavior: deposit goods when returning home
+            exchange_enabled = (
+                os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+            )
+
+            if not exchange_enabled or self.force_deposit_once:
                 any_dep = self.deposit()
-                # Transition after deposit: if we still expect to forage (carrying now zero)
                 if any_dep:
-                    # Decision logic will set mode appropriately later; default to FORAGE for now
-                    self.mode = AgentMode.FORAGE
-                    self.target = None
+                    if self.force_deposit_once:
+                        # Clear override and go idle post-reset
+                        self.force_deposit_once = False
+                        self.mode = AgentMode.IDLE
+                    else:
+                        self.mode = AgentMode.FORAGE
+                self.target = None
             else:
-                # Bilateral exchange mode: don't deposit, switch to IDLE for random movement to find trades
-                self.mode = AgentMode.IDLE  
+                self.mode = AgentMode.IDLE
                 self.target = None
 
     def maybe_withdraw_for_trading(self) -> None:
@@ -602,84 +614,14 @@ class Agent:
             self.y += 1 if dy > 0 else -1
 
     def attempt_trade_with_partner(self, other_agent: "Agent", metrics_collector: Any = None, current_step: int = 0) -> bool:
-        """Attempt a 1-for-1 trade with the partner agent.
-        
-        Returns True if a trade was executed, False if no beneficial trade found.
-        Trades are utility-improving swaps of 1 unit of each good type.
-        Records trade in metrics collector if provided.
+        """(Deprecated execution path) Movement pairing no longer executes trades.
+
+        The unified trade execution pipeline now lives exclusively in intent enumeration
+        + `execute_single_intent`. This method is retained only to maintain pairing flow
+        and returns False (no trade executed) so movement code can continue without
+        performing a swap here.
         """
-        if not self.is_colocated_with(other_agent):
-            return False
-            
-        # Try swapping 1 good1 for 1 good2
-        if self.carrying["good1"] > 0 and other_agent.carrying["good2"] > 0:
-            # Calculate utilities before swap
-            my_current_bundle = self._current_bundle()
-            partner_current_bundle = other_agent._current_bundle()
-            
-            my_current_u = self.preference.utility(my_current_bundle)
-            partner_current_u = other_agent.preference.utility(partner_current_bundle)
-            
-            # Calculate utilities after swap (I lose good1, gain good2)
-            my_new_bundle = (my_current_bundle[0] - 1, my_current_bundle[1] + 1)
-            partner_new_bundle = (partner_current_bundle[0] + 1, partner_current_bundle[1] - 1)
-            
-            my_new_u = self.preference.utility(my_new_bundle)
-            partner_new_u = other_agent.preference.utility(partner_new_bundle)
-            
-            # Both must benefit from the trade
-            if my_new_u > my_current_u and partner_new_u > partner_current_u:
-                # Execute the swap
-                self.carrying["good1"] -= 1
-                self.carrying["good2"] += 1
-                other_agent.carrying["good1"] += 1
-                other_agent.carrying["good2"] -= 1
-                
-                # Record trade in metrics if available
-                if metrics_collector is not None and hasattr(metrics_collector, 'record_bilateral_trade'):
-                    my_delta_u = my_new_u - my_current_u
-                    partner_delta_u = partner_new_u - partner_current_u
-                    metrics_collector.record_bilateral_trade(
-                        current_step, self.id, other_agent.id,
-                        "good1", "good2", my_delta_u, partner_delta_u
-                    )
-                return True
-        
-        # Try swapping 1 good2 for 1 good1
-        if self.carrying["good2"] > 0 and other_agent.carrying["good1"] > 0:
-            # Calculate utilities before swap
-            my_current_bundle = self._current_bundle()
-            partner_current_bundle = other_agent._current_bundle()
-            
-            my_current_u = self.preference.utility(my_current_bundle)
-            partner_current_u = other_agent.preference.utility(partner_current_bundle)
-            
-            # Calculate utilities after swap (I lose good2, gain good1)
-            my_new_bundle = (my_current_bundle[0] + 1, my_current_bundle[1] - 1)
-            partner_new_bundle = (partner_current_bundle[0] - 1, partner_current_bundle[1] + 1)
-            
-            my_new_u = self.preference.utility(my_new_bundle)
-            partner_new_u = other_agent.preference.utility(partner_new_bundle)
-            
-            # Both must benefit from the trade
-            if my_new_u > my_current_u and partner_new_u > partner_current_u:
-                # Execute the swap
-                self.carrying["good2"] -= 1
-                self.carrying["good1"] += 1
-                other_agent.carrying["good2"] += 1
-                other_agent.carrying["good1"] -= 1
-                
-                # Record trade in metrics if available
-                if metrics_collector is not None and hasattr(metrics_collector, 'record_bilateral_trade'):
-                    my_delta_u = my_new_u - my_current_u
-                    partner_delta_u = partner_new_u - partner_current_u
-                    metrics_collector.record_bilateral_trade(
-                        current_step, self.id, other_agent.id,
-                        "good2", "good1", my_delta_u, partner_delta_u
-                    )
-                return True
-        
-        return False  # No beneficial trade found
+        return False
 
     def is_colocated_with(self, other_agent: "Agent") -> bool:
         """Check if this agent is on the same tile as another agent."""

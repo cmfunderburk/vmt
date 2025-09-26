@@ -124,16 +124,23 @@ class Simulation:
                     # All agents should be in IDLE mode for bilateral exchange
                     # (No return home step when bilateral exchange is enabled)
                     if agent.mode == AgentMode.RETURN_HOME:
-                        # Skip return home, go directly to bilateral exchange
-                        agent.mode = AgentMode.IDLE
-                        agent.target = None
-                    
-                    # In bilateral exchange mode, use tiered movement logic
+                        # Preserve RETURN_HOME only if a forced deposit is pending (stagnation recovery)
+                        if getattr(agent, "force_deposit_once", False):
+                            # Let normal decision step move toward home & eventually deposit
+                            try:
+                                agent.step_decision(self.grid)
+                            except Exception:
+                                pass
+                            continue  # Do not enter bilateral movement this tick
+                        else:
+                            # Legacy behavior: convert to IDLE for exchange search
+                            agent.mode = AgentMode.IDLE
+                            agent.target = None
+
+                    # In bilateral exchange mode (IDLE), use tiered movement logic
                     if agent.mode == AgentMode.IDLE:
                         self._handle_bilateral_exchange_movement(agent, rng)
-                    else:
-                        # Fallback for any remaining modes
-                        agent.step_decision(self.grid)
+                    # Any other mode (should be rare here) just perform decision step for safety
         else:  # legacy randomness path (foraging always implicit here if enabled)
             for agent in self.agents:
                 agent.move_random(self.grid, rng)
@@ -388,6 +395,55 @@ class Simulation:
         4. If no agents found, move randomly
         5. Handle trading when co-located
         """
+        # Utility stagnation tracking: compare current utility to last improvement baseline.
+        # We use carrying bundle only; if first time (baseline 0) set immediately.
+        from econsim.simulation.agent import AgentMode  # local import to avoid cycle at module load
+        try:
+            # Only track stagnation while seeking/engaging in trade (IDLE random search or active pairing)
+            if agent.mode in (AgentMode.IDLE,) or agent.trade_partner_id is not None:
+                current_bundle = (
+                    float(agent.carrying.get("good1", 0)),
+                    float(agent.carrying.get("good2", 0)),
+                )
+                from .constants import EPSILON_UTILITY
+                from .trade import MIN_TRADE_DELTA  # local import to avoid load cycle issues
+                if current_bundle[0] == 0.0 or current_bundle[1] == 0.0:
+                    eval_bundle = (
+                        current_bundle[0] + EPSILON_UTILITY,
+                        current_bundle[1] + EPSILON_UTILITY,
+                    )
+                else:
+                    eval_bundle = current_bundle
+                current_u = agent.preference.utility(eval_bundle)
+                if agent.last_trade_mode_utility == 0.0:
+                    agent.last_trade_mode_utility = current_u
+                elif current_u - agent.last_trade_mode_utility > max(1e-12, MIN_TRADE_DELTA * 0.5):
+                    agent.last_trade_mode_utility = current_u
+                    agent.trade_stagnation_steps = 0
+                else:
+                    agent.trade_stagnation_steps += 1
+        except Exception:  # pragma: no cover - defensive guard
+            pass
+
+        # If stagnated for 100 consecutive steps, send agent home once to deposit then idle.
+        if (
+            agent.trade_stagnation_steps >= 100
+            and agent.mode not in (AgentMode.RETURN_HOME,)
+        ):
+            if agent.trade_partner_id is not None:
+                partner = self._find_agent_by_id(agent.trade_partner_id)
+                if partner is not None:
+                    agent.end_trading_session(partner)
+                else:
+                    agent.clear_trade_partner()
+            agent.force_deposit_once = True
+            agent.mode = AgentMode.RETURN_HOME
+            agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
+            # Reset counters so we don't repeatedly trigger before deposit occurs
+            agent.trade_stagnation_steps = 0
+            agent.last_trade_mode_utility = 0.0
+            return
+
         # If already paired and trading, handle trading logic
         if agent.trade_partner_id is not None:
             partner = self._find_agent_by_id(agent.trade_partner_id)

@@ -17,6 +17,10 @@ from econsim.preferences.helpers import marginal_utility
 # (-combined_delta_u, seller_id, buyer_id, give_type, take_type)
 PriorityKey = Tuple[float, int, int, str, str]
 
+# Minimum combined utility improvement required to keep/execute an intent.
+# Filters out micro-swaps that cause oscillation and appear as ΔU=0.000 after rounding.
+MIN_TRADE_DELTA = 1e-5
+
 
 def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent, 
                                 give_type: str, take_type: str) -> float:
@@ -130,21 +134,22 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
             ):
                 # Compute exact combined utility delta
                 delta_u: float = _compute_exact_utility_delta(ai, aj, "good1", "good2")
-                if use_delta_priority:
-                    priority: PriorityKey = (-delta_u, ai.id, aj.id, "good1", "good2")
-                else:
-                    priority = (0.0, ai.id, aj.id, "good1", "good2")
-                out.append(
-                    TradeIntent(
-                        seller_id=ai.id,
-                        buyer_id=aj.id,
-                        give_type="good1",
-                        take_type="good2",
-                        quantity=1,
-                        priority=priority,
-                        delta_utility=delta_u,
+                if delta_u >= MIN_TRADE_DELTA:
+                    if use_delta_priority:
+                        priority: PriorityKey = (-delta_u, ai.id, aj.id, "good1", "good2")
+                    else:
+                        priority = (0.0, ai.id, aj.id, "good1", "good2")
+                    out.append(
+                        TradeIntent(
+                            seller_id=ai.id,
+                            buyer_id=aj.id,
+                            give_type="good1",
+                            take_type="good2",
+                            quantity=1,
+                            priority=priority,
+                            delta_utility=delta_u,
+                        )
                     )
-                )
             # Opposite direction: ai gives good2, aj gives good1
             if (
                 ai.carrying.get("good2", 0) > 0
@@ -153,21 +158,22 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and muj.get("good2", 0.0) > muj.get("good1", 0.0)
             ):
                 delta_u = _compute_exact_utility_delta(ai, aj, "good2", "good1")
-                if use_delta_priority:
-                    priority: PriorityKey = (-delta_u, ai.id, aj.id, "good2", "good1")
-                else:
-                    priority = (0.0, ai.id, aj.id, "good2", "good1")
-                out.append(
-                    TradeIntent(
-                        seller_id=ai.id,
-                        buyer_id=aj.id,
-                        give_type="good2",
-                        take_type="good1",
-                        quantity=1,
-                        priority=priority,
-                        delta_utility=delta_u,
+                if delta_u >= MIN_TRADE_DELTA:
+                    if use_delta_priority:
+                        priority: PriorityKey = (-delta_u, ai.id, aj.id, "good2", "good1")
+                    else:
+                        priority = (0.0, ai.id, aj.id, "good2", "good1")
+                    out.append(
+                        TradeIntent(
+                            seller_id=ai.id,
+                            buyer_id=aj.id,
+                            give_type="good2",
+                            take_type="good1",
+                            quantity=1,
+                            priority=priority,
+                            delta_utility=delta_u,
+                        )
                     )
-                )
     # Deterministic ordering (sort by priority tuple)
     out.sort(key=lambda t: t.priority)
     return out

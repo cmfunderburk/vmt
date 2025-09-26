@@ -96,7 +96,8 @@ Feature Flags (auto-managed by GUI when toggled):
 * `ECONSIM_TRADE_DEBUG_OVERLAY=1` – (internal helper; currently tied to Debug Overlay toggle).
 
 Current Mechanics:
-* Rule: one marginally utility‑improving reciprocal unit swap (good1 ↔ good2) per executed step.
+* Rule: one marginally utility‑improving reciprocal unit swap (good1 ↔ good2) per executed step (unified intent execution pipeline; movement pairing no longer performs swaps directly).
+* Micro-delta filter: intents with combined utility gain < 1e-5 are discarded to prevent oscillatory 0.000 ΔU churn.
 * Intent Fields: seller, buyer, give_type, take_type, delta_utility (approx combined marginal lift), priority tuple.
 * Metrics (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round`.
 * Inspector / Event Log: last executed trade summary (cleared on disable).
@@ -135,6 +136,18 @@ for each agent:
 			elif many: iterate nearest-first until available partner found else move_random()
 ```
 Pairing availability excludes agents that are: already paired, currently trading, on general cooldown, or on mutual partner-specific cooldown.
+
+##### 5.1.1.a Stagnation Return-Home Rule (New)
+While in bilateral exchange search/trading mode (foraging disabled path), each agent tracks its last observed carrying-bundle utility. If an agent accrues **100 consecutive steps with no utility improvement**, it will:
+1. Break any active pairing (cooldowns applied as usual)
+2. Enter RETURN_HOME mode with a one-time forced deposit override (inventory is banked even though trading is enabled)
+3. After depositing, transition to IDLE with cleared stagnation counters
+
+Rationale: provides a gentle reset for agents stuck in cycles of unproductive partner searching, preparing inventory state for future (planned) adaptive decision rules without introducing hidden randomness.
+
+Update: With the unified trade execution path (pair movement no longer executes swaps) and micro-delta filtering (ΔU < 1e-5 suppressed), stagnation counters now reflect only meaningful improvements; tiny reversible swaps no longer mask inactivity.
+
+Determinism: threshold is a fixed constant; utility comparisons use the same epsilon-lift bundle adjustment as decision logic. No additional RNG or ordering changes introduced.
 
 Visual Aids:
 * Cyan lines between active partners (overlay toggle).
