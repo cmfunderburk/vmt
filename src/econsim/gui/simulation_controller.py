@@ -506,17 +506,18 @@ class SimulationController:
         # If we have a new step, check for new trades
         if current_step > self._last_checked_step:
             try:
+                from .debug_logger import log_trade
                 last_trade = mc.last_executed_trade
-                # DEBUG: Print trade detection logic and delta utility values
-                print(f"DEBUG: current_step={current_step}, last_checked_step={self._last_checked_step}")
-                print(f"DEBUG: last_trade={last_trade}")
+                # DEBUG: Trade detection logic and delta utility values
+                log_trade(f"current_step={current_step}, last_checked_step={self._last_checked_step}", current_step)
+                log_trade(f"last_trade={last_trade}", current_step)
                 
                 if (last_trade and 
                     last_trade.get('step', -1) > self._last_checked_step):
                     
                     # DEBUG: Check the raw delta_utility value
                     raw_delta_u = last_trade.get('delta_utility', 0)
-                    print(f"DEBUG: Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})")
+                    log_trade(f"Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})", current_step)
                     
                     # Format trade for display (use trade's actual step, not current step)
                     trade_step = last_trade.get('step', current_step)
@@ -529,7 +530,7 @@ class SimulationController:
                         'step': trade_step
                     }
                     
-                    print(f"DEBUG: Formatted trade_info delta_utility: {trade_info['delta_utility']}")
+                    log_trade(f"Formatted trade_info delta_utility: {trade_info['delta_utility']}", current_step)
                     
                     # Add to history and trim to reasonable size
                     self._trade_history.append(trade_info)
@@ -537,9 +538,9 @@ class SimulationController:
                         self._trade_history = self._trade_history[-50:]
                     
                     # DEBUG: Confirm trade was added (enabled for debugging)
-                    print(f"DEBUG: Added trade to history. Total trades: {len(self._trade_history)}")
+                    log_trade(f"Added trade to history. Total trades: {len(self._trade_history)}", current_step)
                 else:
-                    print(f"DEBUG: No new trade detected (bilateral_enabled={self._bilateral_enabled})")
+                    log_trade(f"No new trade detected (bilateral_enabled={self._bilateral_enabled})", current_step)
                         
             except Exception:
                 # Graceful fallback

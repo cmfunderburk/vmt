@@ -52,7 +52,26 @@ class Test1Window(QWidget):
         # Main layout
         main_layout = QHBoxLayout()
         
-        # Left side: pygame viewport (will be initialized with simulation later)
+        # Left side: debug log panel
+        debug_layout = QVBoxLayout()
+        debug_layout.addWidget(QLabel("Debug Log"))
+        
+        from PyQt6.QtWidgets import QTextEdit
+        from PyQt6.QtGui import QFont
+        self.debug_display = QTextEdit()
+        self.debug_display.setReadOnly(True)
+        self.debug_display.setMinimumWidth(300)
+        self.debug_display.setMinimumHeight(600)
+        self.debug_display.setStyleSheet("QTextEdit { background:#f2f2f2; border:1px solid #ccc; padding:2px; }")
+        self.debug_display.setFont(QFont("Courier", 8))
+        debug_layout.addWidget(self.debug_display)
+        
+        debug_widget = QWidget()
+        debug_widget.setLayout(debug_layout)
+        debug_widget.setFixedWidth(320)
+        main_layout.addWidget(debug_widget)
+        
+        # Center: pygame viewport (will be initialized with simulation later)
         self.pygame_widget = None  # Will be created with simulation
         self.pygame_placeholder = QLabel("Pygame viewport will appear here when test starts")
         self.pygame_placeholder.setFixedSize(600, 600)
@@ -100,6 +119,11 @@ class Test1Window(QWidget):
         self.step_timer = QTimer()
         self.step_timer.timeout.connect(self.simulation_step)
         
+        # Timer for debug log updates
+        self.debug_timer = QTimer()
+        self.debug_timer.timeout.connect(self.update_debug_log)
+        self.debug_timer.start(250)  # Update every 250ms
+        
         print("Test 1 Window created. Configuration:")
         print("- Grid: 30x30")
         print("- Agents: 20 with mixed preferences") 
@@ -144,6 +168,14 @@ class Test1Window(QWidget):
     def start_test(self):
         """Initialize and start the test simulation."""
         try:
+            # Enable comprehensive debug logging
+            os.environ['ECONSIM_DEBUG_AGENT_MODES'] = '1'
+            os.environ['ECONSIM_DEBUG_TRADES'] = '1'
+            os.environ['ECONSIM_DEBUG_SIMULATION'] = '1'
+            os.environ['ECONSIM_DEBUG_PHASES'] = '1'
+            os.environ['ECONSIM_DEBUG_DECISIONS'] = '1'
+            os.environ['ECONSIM_DEBUG_RESOURCES'] = '1'
+            
             # Set initial environment for Phase 1
             os.environ['ECONSIM_FORAGE_ENABLED'] = '1'
             os.environ['ECONSIM_TRADE_DRAFT'] = '1'
@@ -238,11 +270,13 @@ class Test1Window(QWidget):
         # Update display
         self.update_display()
         
-        # Print progress every 50 turns
+        # Log periodic status and progress every 50 turns
         if self.current_turn % 50 == 0:
             agent_count = len(self.simulation.agents)
             resource_count = len(list(self.simulation.grid.iter_resources()))
-            print(f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} agents, {resource_count} resources")
+            status_msg = f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} agents, {resource_count} resources"
+            from econsim.gui.debug_logger import log_comprehensive
+            log_comprehensive(f"PERIODIC STATUS: {status_msg}", self.current_turn)
         
         # Stop at turn 900
         if self.current_turn >= 900:
@@ -256,6 +290,7 @@ class Test1Window(QWidget):
     
     def check_phase_transition(self):
         """Check if we need to transition to a new phase."""
+        from econsim.gui.debug_logger import log_phase_transition, log_comprehensive
         new_phase = None
         
         if self.current_turn == 201 and self.phase == 1:
@@ -264,7 +299,9 @@ class Test1Window(QWidget):
             os.environ['ECONSIM_TRADE_DRAFT'] = '0'
             os.environ['ECONSIM_TRADE_EXEC'] = '0'
             new_phase = 2
-            print("\n📋 Phase 2: Only foraging enabled (turns 201-400)")
+            phase_desc = "Only foraging enabled (turns 201-400)"
+            log_phase_transition(2, self.current_turn, phase_desc)
+            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 2 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 401 and self.phase == 2:
             # Phase 3: Only exchange
@@ -272,7 +309,9 @@ class Test1Window(QWidget):
             os.environ['ECONSIM_TRADE_DRAFT'] = '1'
             os.environ['ECONSIM_TRADE_EXEC'] = '1'
             new_phase = 3
-            print("\n🔄 Phase 3: Only exchange enabled (turns 401-600)")
+            phase_desc = "Only exchange enabled (turns 401-600)"
+            log_phase_transition(3, self.current_turn, phase_desc)
+            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 3 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 601 and self.phase == 3:
             # Phase 4: Both disabled (shortened to 50 turns)
@@ -280,7 +319,9 @@ class Test1Window(QWidget):
             os.environ['ECONSIM_TRADE_DRAFT'] = '0'
             os.environ['ECONSIM_TRADE_EXEC'] = '0'
             new_phase = 4
-            print("\n⏸️  Phase 4: Both disabled - agents should idle (turns 601-650)")
+            phase_desc = "Both disabled - agents should idle (turns 601-650)"
+            log_phase_transition(4, self.current_turn, phase_desc)
+            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 4 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 651 and self.phase == 4:
             # Phase 5: Both enabled again
@@ -288,7 +329,9 @@ class Test1Window(QWidget):
             os.environ['ECONSIM_TRADE_DRAFT'] = '1'
             os.environ['ECONSIM_TRADE_EXEC'] = '1'
             new_phase = 5
-            print("\n🔄 Phase 5: Both enabled again (turns 651-850)")
+            phase_desc = "Both enabled again (turns 651-850)"
+            log_phase_transition(5, self.current_turn, phase_desc)
+            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 5 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 851 and self.phase == 5:
             # Phase 6: Final disabled
@@ -296,7 +339,9 @@ class Test1Window(QWidget):
             os.environ['ECONSIM_TRADE_DRAFT'] = '0'
             os.environ['ECONSIM_TRADE_EXEC'] = '0'
             new_phase = 6
-            print("\n⏹️  Phase 6: Final disabled phase (turns 851-900)")
+            phase_desc = "Final disabled phase (turns 851-900)"
+            log_phase_transition(6, self.current_turn, phase_desc)
+            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 6 at turn {self.current_turn}", self.current_turn)
         
         if new_phase:
             self.phase = new_phase
@@ -337,6 +382,45 @@ class Test1Window(QWidget):
             status = "Test completed!"
         
         self.status_text.setText(status)
+    
+    def update_debug_log(self):
+        """Update the debug log display with content from centralized log files."""
+        try:
+            # Import is already done at the top level, so we can use it directly
+            from econsim.gui.debug_logger import get_gui_logger
+            from pathlib import Path
+            
+            # Get the current log file path
+            logger = get_gui_logger()
+            log_path = logger.get_current_log_path()
+            
+            if log_path.exists():
+                # Read the latest log content
+                with open(log_path, 'r', encoding='utf-8') as f:
+                    log_content = f.read()
+                
+                # Split into lines and take the last N entries (skip header)
+                lines = log_content.split('\n')
+                # Skip the header lines (first 4 lines: title, timestamp, separator, blank line)
+                content_lines = [line for line in lines[4:] if line.strip()]
+                
+                # Keep only the most recent entries (last 50)
+                if len(content_lines) > 50:
+                    content_lines = content_lines[-50:]
+                
+                # Update the debug display with the log file content
+                debug_text = '\n'.join(content_lines)
+                self.debug_display.setPlainText(debug_text)
+                
+                # Auto-scroll to bottom to show latest entries
+                cursor = self.debug_display.textCursor()
+                cursor.movePosition(cursor.MoveOperation.End)
+                self.debug_display.setTextCursor(cursor)
+                self.debug_display.ensureCursorVisible()
+                
+        except Exception:
+            # Silent fallback - don't disrupt the test with debug log errors
+            pass
 
 def main():
     """Run the baseline test."""

@@ -96,6 +96,17 @@ class Agent:
         # Backward compatibility: expose carrying as 'inventory'
         object.__setattr__(self, "inventory", self.carrying)
 
+    def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
+        """Log agent mode transitions for debugging."""
+        from ..gui.debug_logger import log_agent_mode
+        log_agent_mode(self.id, old_mode.value, new_mode.value, reason)
+
+    def _set_mode(self, new_mode: AgentMode, reason: str = "") -> None:
+        """Set agent mode with debug logging."""
+        if new_mode != self.mode:
+            self._debug_log_mode_change(self.mode, new_mode, reason)
+            self.mode = new_mode
+
     # --- Movement --------------------------------------------------
     def move_random(
         self, grid: Grid, rng: random.Random
@@ -187,7 +198,7 @@ class Agent:
                 any_deposited = self.deposit()
                 if any_deposited:
                     self.force_deposit_once = False
-                self.mode = AgentMode.IDLE  # Safety: only idle at home
+                self._set_mode(AgentMode.IDLE, "forced deposit complete")
                 self.target = None
                 return
             
@@ -197,26 +208,26 @@ class Agent:
                 if forage_enabled and exchange_enabled:
                     # Both enabled: withdraw goods and continue active behavior
                     self.withdraw_all()
-                    self.mode = AgentMode.FORAGE  # Will seek resources/partners in unified selection
+                    self._set_mode(AgentMode.FORAGE, "deposited, both forage+trade enabled")
                 elif forage_enabled and not exchange_enabled:
                     # Only forage: continue foraging without withdrawal
-                    self.mode = AgentMode.FORAGE
+                    self._set_mode(AgentMode.FORAGE, "deposited, forage only")
                 elif not forage_enabled and exchange_enabled:
                     # Only exchange: withdraw for trading
                     self.withdraw_all()
-                    self.mode = AgentMode.IDLE  # Will seek trade partners
+                    self._set_mode(AgentMode.IDLE, "deposited, trade only")
                 else:
                     # Neither enabled: idle at home
-                    self.mode = AgentMode.IDLE
+                    self._set_mode(AgentMode.IDLE, "deposited, no behaviors enabled")
             else:
                 # No goods to deposit - transition to appropriate mode
                 if forage_enabled:
-                    self.mode = AgentMode.FORAGE
+                    self._set_mode(AgentMode.FORAGE, "no goods to deposit, forage enabled")
                 elif exchange_enabled:
                     self.withdraw_all()  # Get goods from home for trading
-                    self.mode = AgentMode.IDLE
+                    self._set_mode(AgentMode.IDLE, "no goods to deposit, trade enabled")
                 else:
-                    self.mode = AgentMode.IDLE
+                    self._set_mode(AgentMode.IDLE, "no goods to deposit, no behaviors enabled")
             
             self.target = None
 
@@ -279,16 +290,16 @@ class Agent:
             prospect_target = self._try_leontief_prospecting(grid, raw_bundle)
             if prospect_target is not None:
                 self.target = prospect_target
-                self.mode = AgentMode.FORAGE
+                self._set_mode(AgentMode.FORAGE, "prospecting target found")
             elif self.carrying_total() > 0:
-                self.mode = AgentMode.RETURN_HOME
+                self._set_mode(AgentMode.RETURN_HOME, "no targets, carrying goods")
                 self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
             else:
-                self.mode = AgentMode.IDLE
+                self._set_mode(AgentMode.IDLE, "no targets, no goods")
                 self.target = None
         else:
             self.target = best_meta
-            self.mode = AgentMode.FORAGE
+            self._set_mode(AgentMode.FORAGE, "resource target found")
 
     # --- Unified / Shared Candidate Computation -----------------
     def compute_best_resource_candidate(self, grid: Grid) -> tuple[Position | None, float, tuple[float,int,int,int] | None]:

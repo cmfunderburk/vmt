@@ -29,8 +29,9 @@ import time
 # Add src to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit
 from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtGui import QFont
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
@@ -53,7 +54,14 @@ class Test3Window(QWidget):
         # Main layout
         main_layout = QHBoxLayout()
         
-        # Left side: pygame viewport (will be initialized with simulation later)
+        # Left side: debug display
+        self.debug_display = QTextEdit()
+        self.debug_display.setReadOnly(True)
+        self.debug_display.setMaximumWidth(300)
+        self.debug_display.setFont(QFont("Consolas", 9))
+        main_layout.addWidget(self.debug_display)
+        
+        # Middle: pygame viewport (will be initialized with simulation later)
         self.pygame_widget = None  # Will be created with simulation
         self.pygame_placeholder = QLabel("Pygame viewport will appear here when test starts")
         self.pygame_placeholder.setFixedSize(600, 600)
@@ -101,6 +109,11 @@ class Test3Window(QWidget):
         self.step_timer = QTimer()
         self.step_timer.timeout.connect(self.simulation_step)
         
+        # Timer for debug log updates
+        self.debug_timer = QTimer()
+        self.debug_timer.timeout.connect(self.update_debug_log)
+        self.debug_timer.start(250)
+        
         print("Test 3 Window created. Configuration:")
         print("- Grid: 15x15")
         print("- Agents: 30 with mixed preferences") 
@@ -129,6 +142,33 @@ class Test3Window(QWidget):
         
         return preference_factory
     
+    def update_debug_log(self):
+        """Update debug log display with latest content from log files."""
+        gui_logs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "gui_logs")
+        
+        if not os.path.exists(gui_logs_dir):
+            return
+        
+        log_files = [f for f in os.listdir(gui_logs_dir) if f.endswith('.log')]
+        if not log_files:
+            return
+        
+        # Get the most recent log file
+        latest_file = max(log_files, key=lambda f: os.path.getctime(os.path.join(gui_logs_dir, f)))
+        log_path = os.path.join(gui_logs_dir, latest_file)
+        
+        try:
+            with open(log_path, 'r') as f:
+                content = f.read()
+            
+            # Update display and auto-scroll to bottom
+            self.debug_display.setPlainText(content)
+            cursor = self.debug_display.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.debug_display.setTextCursor(cursor)
+        except (FileNotFoundError, OSError):
+            pass  # Silently ignore file access issues
+    
     def on_speed_changed(self):
         """Handle speed selection change."""
         if hasattr(self, 'step_timer') and self.step_timer.isActive():
@@ -145,6 +185,14 @@ class Test3Window(QWidget):
     def start_test(self):
         """Initialize and start the test simulation."""
         try:
+                        # Enable comprehensive debug logging
+            os.environ['ECONSIM_DEBUG_AGENT_MODES'] = '1'
+            os.environ['ECONSIM_DEBUG_TRADES'] = '1'
+            os.environ['ECONSIM_DEBUG_SIMULATION'] = '1'
+            os.environ['ECONSIM_DEBUG_PHASES'] = '1'
+            os.environ['ECONSIM_DEBUG_DECISIONS'] = '1'
+            os.environ['ECONSIM_DEBUG_RESOURCES'] = '1'
+            
             # Set initial environment for Phase 1
             os.environ['ECONSIM_FORAGE_ENABLED'] = '1'
             os.environ['ECONSIM_TRADE_DRAFT'] = '1'
@@ -242,11 +290,7 @@ class Test3Window(QWidget):
         # Update display
         self.update_display()
         
-        # Print progress every 50 turns (crowded grid, frequent updates)
-        if self.current_turn % 50 == 0:
-            agent_count = len(self.simulation.agents)
-            resource_count = len(list(self.simulation.grid.iter_resources()))
-            print(f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} agents, {resource_count} resources")
+        # Status logging handled by centralized debug logger
         
         # Stop at turn 900
         if self.current_turn >= 900:
@@ -345,6 +389,14 @@ class Test3Window(QWidget):
             status = "Test completed!"
         
         self.status_text.setText(status)
+    
+    def closeEvent(self, event):
+        """Clean up timers on close."""
+        if hasattr(self, 'debug_timer'):
+            self.debug_timer.stop()
+        if hasattr(self, 'step_timer'):
+            self.step_timer.stop()
+        super().closeEvent(event)
 
 def main():
     """Run the high density local test."""

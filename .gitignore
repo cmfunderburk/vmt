@@ -81,3 +81,6 @@ coverage.xml
 *.pstat
 profile*
 
+# Debug logs
+gui_logs/
+

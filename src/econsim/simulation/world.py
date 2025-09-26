@@ -40,6 +40,12 @@ from .trade import enumerate_intents_for_cell, TradeIntent, execute_single_inten
 import os
 
 
+def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
+    """Log agent mode transitions for debugging."""
+    from ..gui.debug_logger import log_agent_mode
+    log_agent_mode(agent.id, old_mode.value, new_mode.value, reason)
+
+
 @dataclass(slots=True)
 class Simulation:
     grid: Grid
@@ -71,6 +77,12 @@ class Simulation:
         Internal `_rng` powers respawn / metrics hooks (if present) and remains distinct to keep
         external API stable for existing test scaffolds.
         """
+        # Comprehensive debug logging for simulation steps
+        from ..gui.debug_logger import log_comprehensive, log_simulation
+        step_num = self._steps + 1
+        log_comprehensive(f"=== SIMULATION STEP {step_num} START ===", step_num)
+        log_comprehensive(f"Agents: {len(self.agents)}, Resources: {self.grid.resource_count()}, Decision Mode: {use_decision}", step_num)
+        
         forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
         hash_neutral = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"  # default early to avoid unbound
         parity_restore_snapshot: list[tuple[int, dict[str,int]]] | None = None
@@ -309,6 +321,11 @@ class Simulation:
                 if a is not None:
                     a.carrying.clear()
                     a.carrying.update(carry)
+        
+        # End-of-step logging
+        step_num = self._steps + 1
+        log_comprehensive(f"=== SIMULATION STEP {step_num} END ===", step_num)
+        
         self._steps += 1
         # Expire highlight if past its lifetime
         if self._last_trade_highlight is not None:
@@ -482,6 +499,7 @@ class Simulation:
                 else:
                     agent.clear_trade_partner()
             agent.force_deposit_once = True
+            _debug_log_mode_change(agent, agent.mode, AgentMode.RETURN_HOME, "stagnation recovery")
             agent.mode = AgentMode.RETURN_HOME
             agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
             # Reset counters so we don't repeatedly trigger before deposit occurs
@@ -755,8 +773,10 @@ class Simulation:
                 a.pair_with_agent(partner)
                 # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
                 from .agent import AgentMode
+                _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired for trade")
                 a.mode = AgentMode.MOVE_TO_PARTNER
                 a.target = a.meeting_point
+                _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired for trade")
                 partner.mode = AgentMode.MOVE_TO_PARTNER
                 partner.target = partner.meeting_point
                 # Initial convergence step

@@ -67,7 +67,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         # Internal buffers
         self._last_step = -1
         self._log_entries: list[str] = ["Event log initialized - watching for trades and agent decisions..."]
-        self._debug_entries: list[str] = ["Debug log active (toggle 'show' to hide updates)"]
+        self._debug_entries: list[str] = []  # No longer used - debug content comes from log files
         self._max_entries = 100
 
         # Timer
@@ -203,26 +203,47 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         self._log_display.ensureCursorVisible()
 
     def _refresh_debug_display(self) -> None:
-        # Append lightweight debug info (only when enabled)
+        # Display content from centralized debug log files
         if self._debug_enabled:
             try:
-                # Example debug signals: step, #intents, #agents
-                step = self._controller.get_current_step()
-                intents = getattr(self._controller.simulation, 'trade_intents', None)
-                intent_count = len(intents) if intents else 0
-                line = f"Step {step}: intents={intent_count}"
-                if not self._debug_entries or self._debug_entries[-1] != line:
-                    self._debug_entries.append(line)
-                if len(self._debug_entries) > self._max_entries:
-                    self._debug_entries = self._debug_entries[-self._max_entries:]
-            except Exception:
-                pass
-        dbg_text = "\n".join(self._debug_entries)
-        self._debug_display.setPlainText(dbg_text)
-        cur = self._debug_display.textCursor()
-        cur.movePosition(cur.MoveOperation.End)
-        self._debug_display.setTextCursor(cur)
-        self._debug_display.ensureCursorVisible()
+                from ..debug_logger import get_gui_logger
+                
+                # Get the current log file path
+                logger = get_gui_logger()
+                log_path = logger.get_current_log_path()
+                
+                if log_path.exists():
+                    # Read the latest log content
+                    with open(log_path, 'r', encoding='utf-8') as f:
+                        log_content = f.read()
+                    
+                    # Split into lines and take the last N entries (skip header)
+                    lines = log_content.split('\n')
+                    # Skip the header lines (first 4 lines: title, timestamp, separator, blank line)
+                    content_lines = [line for line in lines[4:] if line.strip()]
+                    
+                    # Keep only the most recent entries
+                    if len(content_lines) > self._max_entries:
+                        content_lines = content_lines[-self._max_entries:]
+                    
+                    # Update the debug display with the log file content
+                    dbg_text = '\n'.join(content_lines)
+                    self._debug_display.setPlainText(dbg_text)
+                    
+                    # Auto-scroll to bottom to show latest entries
+                    cur = self._debug_display.textCursor()
+                    cur.movePosition(cur.MoveOperation.End)
+                    self._debug_display.setTextCursor(cur)
+                    self._debug_display.ensureCursorVisible()
+                    
+            except Exception as e:
+                # Fallback to show error if log reading fails
+                error_text = f"Debug log error: {str(e)}\nFallback: Reading from centralized log files..."
+                self._debug_display.setPlainText(error_text)
+        else:
+            # Clear display when debug is disabled
+            self._debug_display.setPlainText("Debug logging disabled (check 'show' to enable)")
+            
 
 
 __all__ = ["EventLogPanel"]

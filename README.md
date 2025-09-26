@@ -99,6 +99,7 @@ Feature Flags (auto-managed by GUI when toggled):
 * `ECONSIM_TRADE_EXEC=1` – execute at most one intent per step (implies draft enumeration).
 * `ECONSIM_TRADE_GUI_INFO=1` – show executed trade summary overlay line.
 * `ECONSIM_TRADE_DEBUG_OVERLAY=1` – (internal helper; currently tied to Debug Overlay toggle).
+* `ECONSIM_DEBUG_AGENT_MODES=1` – log agent mode transitions (idle↔forage↔return_home↔move_to_partner) to console and timestamped log files.
 
 Current Mechanics:
 * Rule: one marginally utility‑improving reciprocal unit swap (good1 ↔ good2) per executed step (unified intent execution pipeline; movement pairing no longer performs swaps directly).
@@ -274,6 +275,7 @@ Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist
 | Priority Tuple | Ordering key (flagged): `(-delta_utility, seller_id, buyer_id, give_type, take_type)`; reorders only (multiset invariant). |
 | fairness_round | Advisory counter incremented each executed trade (hash-excluded) indicating progression of exchanges. |
 | Hash Neutral Mode | Debug flag `ECONSIM_TRADE_HASH_NEUTRAL=1` restoring carrying inventories post-hash to explore parity; not enabled in normal runs. |
+| Agent Mode Debug | Debug flag `ECONSIM_DEBUG_AGENT_MODES=1` logging agent mode transitions (idle↔forage↔return_home↔move_to_partner) to console for behavioral debugging. |
 | Carrying Inventory | Goods presently held (mutable during execution). Included in current determinism hash (pending redesign). |
 | Home Inventory | Goods deposited at agent home; immutable during trading; part of lifetime wealth/utility. |
 | Perception Radius | Maximum Manhattan (or configured) distance scanned for resources or nearby agents (decision & pairing scopes); constant default preserved for determinism. |
@@ -744,6 +746,25 @@ Environment flags:
 - `ECONSIM_UNIFIED_SELECTION_DISABLE=1` – force disable unified selection (override auto-enable)
 - `ECONSIM_TRADE_HASH_NEUTRAL=1` – debug mode: restore carrying inventories after hash computation
 - `ECONSIM_TRADE_PRIORITY_DELTA=1` – enable priority reordering by delta utility (maintains multiset invariance)
+- `ECONSIM_DEBUG_AGENT_MODES=1` – debug logging: agent mode transitions to console (idle↔forage↔return_home↔move_to_partner)
+
+### Debug Logging System
+The GUI includes a centralized debug logging system that writes timestamped logs to `gui_logs/` directory:
+
+- **Log Files**: Named with format `YYYY-MM-DD HH-MM-SS GUI.log` for each session
+- **Unified Output**: All debug messages (trade detection, agent modes, simulation events) in one organized log
+- **Console Mirror**: Debug output appears both in console and log files for immediate visibility
+- **GUI Integration**: The Debug Log panel in the left sidebar displays live content from the current log file
+- **Categories**: Messages tagged by type (TRADE, AGENT_MODE, SIMULATION) with timestamps and optional step numbers
+- **Usage**: Enable specific debug categories with environment variables (e.g., `ECONSIM_DEBUG_AGENT_MODES=1`)
+
+Example log output:
+```
+[15:56:32.527] [Step 0] TRADE: current_step=0, last_checked_step=-1
+[15:56:33.666] AGENT_MODE: Agent 3 mode: return_home -> forage (deposited, both forage+trade enabled)
+```
+
+The GUI's Debug Log panel automatically updates every 250ms to show the latest entries from the current session's log file.
 
 ### Determinism & Performance Safeguards
 - Pause aware stepping (controller gate) – no hidden loops introduced

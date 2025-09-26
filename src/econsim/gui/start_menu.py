@@ -115,6 +115,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         pref_row.addWidget(QLabel("  Pref Mix:"))
         self.pref_box = QComboBox()
         self.pref_box.addItems(["Cobb-Douglas", "Perfect Substitutes", "Leontief", "Random"])  # type: ignore[arg-type]
+        self.pref_box.setCurrentText("Random")  # Default to mixed preferences like test_1_baseline_simple
         pref_row.addWidget(self.pref_box)
         pref_row.addStretch()
         layout.addLayout(pref_row)
@@ -202,7 +203,7 @@ class StartMenuPage(QWidget):  # pragma: no cover (GUI)
         # Seed controls with Start Paused
         seed_row = QHBoxLayout()
         seed_row.addWidget(QLabel("Seed:"))
-        self.seed_edit = QLineEdit(str(1234))
+        self.seed_edit = QLineEdit(str(12345))  # Default to same seed as test_1_baseline_simple
         seed_row.addWidget(self.seed_edit)
         rand_btn = QPushButton("Randomize")
         rand_btn.clicked.connect(self._randomize_seed)  # type: ignore[arg-type]
