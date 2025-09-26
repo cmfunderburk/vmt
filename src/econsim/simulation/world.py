@@ -644,27 +644,49 @@ class Simulation:
                 distance_scaling_factor=k,
             )
             if choice is None:
-                # Leontief prospecting fallback (mirrors select_target path) before deposit/idle
-                if forage_enabled:
+                # No unified target found - try Leontief prospecting 
+                if forage_enabled and getattr(a.preference, 'TYPE_NAME', '') == 'leontief':
                     try:
-                        # Access raw bundle (carrying good1,good2) for prospect scoring
                         raw_bundle = (float(a.carrying.get('good1',0)), float(a.carrying.get('good2',0)))
                         prospect = a._try_leontief_prospecting(self.grid, raw_bundle)  # type: ignore[attr-defined]
+                        
+                        # Check if prospect is available (not claimed)
+                        if prospect is not None and prospect not in claimed_resources:
+                            claimed_resources.add(prospect)
+                            a.target = prospect
+                            a.mode = AgentMode.FORAGE
+                            # Move one step toward prospect immediately
+                            if (a.x, a.y) != prospect:
+                                tx, ty = prospect
+                                dx = tx - a.x; dy = ty - a.y
+                                if abs(dx) > abs(dy):
+                                    a.x += 1 if dx > 0 else -1
+                                elif dy != 0:
+                                    a.y += 1 if dy > 0 else -1
+                            continue
+                        elif prospect is not None:
+                            # Primary prospect is claimed - try any available resource as fallback
+                            fallback_target = None
+                            for rx, ry, _ in self.grid.iter_resources():
+                                if (rx, ry) not in claimed_resources:
+                                    fallback_target = (rx, ry)
+                                    break
+                            
+                            if fallback_target is not None:
+                                claimed_resources.add(fallback_target)
+                                a.target = fallback_target
+                                a.mode = AgentMode.FORAGE
+                                # Move one step toward fallback immediately
+                                tx, ty = fallback_target
+                                dx = tx - a.x; dy = ty - a.y
+                                if abs(dx) > abs(dy):
+                                    a.x += 1 if dx > 0 else -1
+                                elif dy != 0:
+                                    a.y += 1 if dy > 0 else -1
+                                continue
                     except Exception:
-                        prospect = None
-                    if prospect is not None:
-                        a.target = prospect
-                        a.mode = AgentMode.FORAGE
-                        # Move one step toward prospect immediately (consistent with resource path)
-                        if a.target is not None and (a.x, a.y) != a.target:
-                            tx, ty = a.target
-                            dx = tx - a.x; dy = ty - a.y
-                            if abs(dx) > abs(dy):
-                                a.x += 1 if dx > 0 else -1
-                            elif dy != 0:
-                                a.y += 1 if dy > 0 else -1
-                        continue
-                # Maintain legacy deposit/idle semantics if no prospect
+                        pass
+                # No target found - fall back to deposit/idle logic
                 if a.carrying_total() > 0:
                     a.mode = AgentMode.RETURN_HOME
                     a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
@@ -692,6 +714,10 @@ class Simulation:
                 if collected:
                     foraged_ids.add(a.id)
                     a.target = None
+                    # After collecting, check if should return home
+                    if a.carrying_total() > 0:
+                        a.mode = AgentMode.RETURN_HOME
+                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                 else:
                     # Move one step toward
                     if a.target is not None and (a.x, a.y) != a.target:
@@ -706,6 +732,10 @@ class Simulation:
                             if a.collect(self.grid):
                                 foraged_ids.add(a.id)
                                 a.target = None
+                                # After collecting, check if should return home
+                                if a.carrying_total() > 0:
+                                    a.mode = AgentMode.RETURN_HOME
+                                    a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                 a.maybe_deposit()
             elif kind == "partner":
                 pid = payload["partner_id"]  # type: ignore[index]
@@ -723,6 +753,12 @@ class Simulation:
                     continue
                 claimed_partners.add(pid)
                 a.pair_with_agent(partner)
+                # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
+                from .agent import AgentMode
+                a.mode = AgentMode.MOVE_TO_PARTNER
+                a.target = a.meeting_point
+                partner.mode = AgentMode.MOVE_TO_PARTNER
+                partner.target = partner.meeting_point
                 # Initial convergence step
                 a.move_toward_meeting_point(self.grid)
                 partner.move_toward_meeting_point(self.grid)
@@ -739,7 +775,13 @@ class Simulation:
             from .agent import AgentMode as _AM
             for a in self.agents:
                 if a.mode == _AM.FORAGE and a.target is None:
-                    a.mode = _AM.IDLE
+                    # Safety check: agents with cargo should return home first
+                    if a.carrying_total() > 0 and not a.at_home():
+                        a.mode = _AM.RETURN_HOME
+                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                    elif a.at_home():
+                        a.mode = _AM.IDLE  # Only idle at home
+                    # If no cargo and not at home, let them continue seeking or return home
         # Post-pass movement for existing pairings (finish convergence)
         for a in self.agents:
             if getattr(a, 'trade_partner_id', None) is not None:

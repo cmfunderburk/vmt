@@ -38,6 +38,7 @@ class AgentMode(str, Enum):  # str for readable serialization/debug
     FORAGE = "forage"
     RETURN_HOME = "return_home"
     IDLE = "idle"
+    MOVE_TO_PARTNER = "move_to_partner"
 
 
 # Perception radius (Manhattan) for decision logic (Gate 4 constant)
@@ -164,32 +165,60 @@ class Agent:
         return moved
 
     def maybe_deposit(self) -> None:
-        """Deposit goods when returning home.
-
-        Legacy rule: when bilateral exchange is active we retain goods (no deposit) so
-        agents keep inventory to trade; they idle instead. We extend this with a one-time
-        forced deposit override (`force_deposit_once`) used when an agent returns home
-        after prolonged utility stagnation in bilateral exchange mode.
+        """Deposit goods when returning home with proper behavioral transitions.
+        
+        Behavioral transitions after deposit:
+        - Both forage + exchange enabled: withdraw goods and continue active behavior
+        - Only forage enabled: continue foraging (no withdrawal from home inventory)  
+        - Only exchange enabled: withdraw goods for trading
+        - Neither enabled: idle at home
+        - force_deposit_once override: always deposit and idle (stagnation recovery)
         """
         if self.mode == AgentMode.RETURN_HOME and self.at_home():
             import os
+            forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
             exchange_enabled = (
-                os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+                os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or 
+                os.environ.get("ECONSIM_TRADE_EXEC") == "1"
             )
-
-            if not exchange_enabled or self.force_deposit_once:
-                any_dep = self.deposit()
-                if any_dep:
-                    if self.force_deposit_once:
-                        # Clear override and go idle post-reset
-                        self.force_deposit_once = False
-                        self.mode = AgentMode.IDLE
-                    else:
-                        self.mode = AgentMode.FORAGE
+            
+            # Handle forced deposit override (from stagnation)
+            if self.force_deposit_once:
+                any_deposited = self.deposit()
+                if any_deposited:
+                    self.force_deposit_once = False
+                self.mode = AgentMode.IDLE  # Safety: only idle at home
                 self.target = None
+                return
+            
+            # Deposit logic based on enabled behaviors
+            any_deposited = self.deposit()
+            if any_deposited:
+                if forage_enabled and exchange_enabled:
+                    # Both enabled: withdraw goods and continue active behavior
+                    self.withdraw_all()
+                    self.mode = AgentMode.FORAGE  # Will seek resources/partners in unified selection
+                elif forage_enabled and not exchange_enabled:
+                    # Only forage: continue foraging without withdrawal
+                    self.mode = AgentMode.FORAGE
+                elif not forage_enabled and exchange_enabled:
+                    # Only exchange: withdraw for trading
+                    self.withdraw_all()
+                    self.mode = AgentMode.IDLE  # Will seek trade partners
+                else:
+                    # Neither enabled: idle at home
+                    self.mode = AgentMode.IDLE
             else:
-                self.mode = AgentMode.IDLE
-                self.target = None
+                # No goods to deposit - transition to appropriate mode
+                if forage_enabled:
+                    self.mode = AgentMode.FORAGE
+                elif exchange_enabled:
+                    self.withdraw_all()  # Get goods from home for trading
+                    self.mode = AgentMode.IDLE
+                else:
+                    self.mode = AgentMode.IDLE
+            
+            self.target = None
 
     def maybe_withdraw_for_trading(self) -> None:
         """Withdraw home inventory when at home for bilateral exchange mode.""" 
@@ -224,6 +253,12 @@ class Agent:
         
         if self.mode == AgentMode.RETURN_HOME:
             self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
+            return
+        
+        # If moving to partner, maintain target as meeting point
+        if self.mode == AgentMode.MOVE_TO_PARTNER:
+            if self.meeting_point is not None:
+                self.target = self.meeting_point
             return
         
         # If currently IDLE and foraging is disabled, stay idle and don't seek targets
@@ -470,7 +505,7 @@ class Agent:
         callers that do not capture it (backward compatible).
         """
         # Select/refresh target if none or mode requires it
-        if self.target is None or self.mode not in (AgentMode.FORAGE):
+        if self.target is None or self.mode not in (AgentMode.FORAGE, AgentMode.MOVE_TO_PARTNER):
             self.select_target(grid)
         # Movement toward target
         if self.target is not None and (self.x, self.y) != self.target:
