@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Manual Test 3: High Density Local Unified Target Selection Test
+Manual Test 5: Pure Cobb-Douglas Unified Target Selection Test
 
-This test validates unified target selection behavior in crowded environments
-with many agents in a small space and short perception radius.
+This test validates unified target selection behavior with agents that all
+have Cobb-Douglas preferences, focusing on balanced utility optimization.
 
 Configuration:
-- Grid: 15x15
-- Agents: 30 with random positions and mixed preferences
-- Resource density: 0.8
-- Perception radius: 3
+- Grid: 25x25
+- Agents: 25 with random positions and all Cobb-Douglas preferences
+- Resource density: 0.4 (moderate density)
+- Perception radius: 6 (moderate awareness)
 - Distance scaling: k=0.0 (default)
 
 Phase Schedule (900 turns total, configurable speed):
@@ -36,18 +36,18 @@ from econsim.simulation.world import Simulation
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
 from test_utils import create_speed_control, get_timer_interval, get_estimated_duration, format_duration
 
-class Test3Window(QWidget):
+class Test5Window(QWidget):
     """Test window with pygame viewport for observing the simulation."""
     
     def __init__(self):
         super().__init__()
         self.simulation = None
-        self.ext_rng = random.Random(789)
+        self.ext_rng = random.Random(1211)
         self.current_turn = 0
         self.phase = 1
         
         # Set up UI
-        self.setWindowTitle("Manual Test 3: High Density Local - Unified Target Selection")
+        self.setWindowTitle("Manual Test 5: Pure Cobb-Douglas - Unified Target Selection")
         self.setGeometry(100, 100, 1000, 700)
         
         # Main layout
@@ -63,7 +63,7 @@ class Test3Window(QWidget):
         control_layout = QVBoxLayout()
         
         # Status labels
-        control_layout.addWidget(QLabel("Manual Test 3: High Density Local"))
+        control_layout.addWidget(QLabel("Manual Test 5: Pure Cobb-Douglas"))
         self.turn_label = QLabel("Turn: 0")
         self.phase_label = QLabel("Phase: 1 (Both enabled)")
         self.agents_label = QLabel("Agents: 0")
@@ -101,31 +101,23 @@ class Test3Window(QWidget):
         self.step_timer = QTimer()
         self.step_timer.timeout.connect(self.simulation_step)
         
-        print("Test 3 Window created. Configuration:")
-        print("- Grid: 15x15")
-        print("- Agents: 30 with mixed preferences") 
-        print("- Resource density: 0.8")
-        print("- Perception radius: 3")
+        print("Test 5 Window created. Configuration:")
+        print("- Grid: 25x25")
+        print("- Agents: 25 with ALL Cobb-Douglas preferences") 
+        print("- Resource density: 0.4 (moderate)")
+        print("- Perception radius: 6 (moderate)")
         print("- Total turns: 900")
         print("- Phase transitions at: 201, 401, 601, 651, 851")
     
     def create_preference_factory(self):
-        """Create preference factory for mixed preferences."""
-        preferences = ['cobb_douglas', 'leontief', 'perfect_substitutes']
-        pref_rng = random.Random(9999)
+        """Create preference factory for pure Cobb-Douglas preferences."""
+        pref_rng = random.Random(13333)
         
         def preference_factory(idx: int):
-            chosen_type = pref_rng.choice(preferences)
-            if chosen_type == 'cobb_douglas':
-                from econsim.preferences.cobb_douglas import CobbDouglasPreference
-                alpha = pref_rng.uniform(0.2, 0.8)
-                return CobbDouglasPreference(alpha=alpha)
-            elif chosen_type == 'perfect_substitutes':
-                from econsim.preferences.perfect_substitutes import PerfectSubstitutesPreference
-                return PerfectSubstitutesPreference(a=1.0, b=1.0)
-            elif chosen_type == 'leontief':
-                from econsim.preferences.leontief import LeontiefPreference
-                return LeontiefPreference(a=1.0, b=1.0)
+            # All agents have Cobb-Douglas preferences with varied alpha values
+            from econsim.preferences.cobb_douglas import CobbDouglasPreference
+            alpha = pref_rng.uniform(0.2, 0.8)  # Vary alpha for diversity
+            return CobbDouglasPreference(alpha=alpha)
         
         return preference_factory
     
@@ -151,12 +143,12 @@ class Test3Window(QWidget):
             os.environ['ECONSIM_TRADE_EXEC'] = '1'
             os.environ['ECONSIM_UNIFIED_SELECTION_ENABLE'] = '1'
             
-            # Create simulation config - high density, small grid
-            grid_w, grid_h = 15, 15
-            resource_count = int(grid_w * grid_h * 0.8)  # 0.8 density = very high
+            # Create simulation config - moderate grid with Cobb-Douglas agents
+            grid_w, grid_h = 25, 25
+            resource_count = int(grid_w * grid_h * 0.4)  # 0.4 density = moderate
             
             # Generate resources
-            resource_rng = random.Random(12345)
+            resource_rng = random.Random(44444)
             resources = []
             for _ in range(resource_count):
                 x = resource_rng.randint(0, grid_w - 1)
@@ -167,21 +159,21 @@ class Test3Window(QWidget):
             config = SimConfig(
                 grid_size=(grid_w, grid_h),
                 initial_resources=resources,
-                seed=12345,
+                seed=44444,
                 enable_respawn=True,
                 enable_metrics=True,
-                perception_radius=3,  # Very short perception
-                respawn_target_density=0.8,
-                respawn_rate=0.25,
+                perception_radius=6,  # Moderate perception
+                respawn_target_density=0.4,
+                respawn_rate=0.2,
                 distance_scaling_factor=0.0,
                 viewport_size=600
             )
             
-            # Create agent positions (crowded distribution)
+            # Create agent positions (moderate distribution)
             agent_positions = []
-            pos_rng = random.Random(54321)
+            pos_rng = random.Random(55555)
             positions = set()
-            while len(positions) < 30:  # 30 agents in 15x15 grid is very crowded
+            while len(positions) < 25:  # 25 agents in 25x25 grid = moderate density
                 x = pos_rng.randint(0, grid_w - 1)
                 y = pos_rng.randint(0, grid_h - 1)
                 positions.add((x, y))
@@ -216,14 +208,13 @@ class Test3Window(QWidget):
             
             print(f"✅ Test started! Simulation created with {len(self.simulation.agents)} agents")
             print("Phase 1: Both foraging and exchange enabled (turns 1-200)")
-            print("🎮 Watch the pygame viewport to observe crowded agent behavior!")
-            print("💡 High density + short perception = local competition for resources")
+            print("🎮 Watch the pygame viewport to observe Cobb-Douglas behavior!")
+            print("💡 Pure Cobb-Douglas = balanced utility optimization, smooth tradeoffs")
             
         except Exception as e:
             print(f"❌ Error starting test: {e}")
             import traceback
             traceback.print_exc()
-
     
     def simulation_step(self):
         """Execute one simulation step and handle phase transitions."""
@@ -242,11 +233,11 @@ class Test3Window(QWidget):
         # Update display
         self.update_display()
         
-        # Print progress every 50 turns (crowded grid, frequent updates)
-        if self.current_turn % 50 == 0:
+        # Print progress every 75 turns (moderate frequency)
+        if self.current_turn % 75 == 0:
             agent_count = len(self.simulation.agents)
             resource_count = len(list(self.simulation.grid.iter_resources()))
-            print(f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} agents, {resource_count} resources")
+            print(f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} Cobb-Douglas agents, {resource_count} resources")
         
         # Stop at turn 900
         if self.current_turn >= 900:
@@ -254,8 +245,8 @@ class Test3Window(QWidget):
             self.start_button.setText("Test Completed!")
             self.status_text.setText("🎉 Test completed! All 900 turns executed with phase transitions.")
             print("=" * 60)
-            print("🎉 TEST 3 COMPLETED SUCCESSFULLY!")
-            print("High density local behavior validated. Check observations above.")
+            print("🎉 TEST 5 COMPLETED SUCCESSFULLY!")
+            print("Pure Cobb-Douglas behavior validated. Check observations above.")
             print("=" * 60)
     
     def check_phase_transition(self):
@@ -269,7 +260,7 @@ class Test3Window(QWidget):
             os.environ['ECONSIM_TRADE_EXEC'] = '0'
             new_phase = 2
             print("\n📋 Phase 2: Only foraging enabled (turns 201-400)")
-            print("   Expected: High competition for local resources")
+            print("   Expected: Balanced A/B resource seeking with Cobb-Douglas optimization")
             
         elif self.current_turn == 401 and self.phase == 2:
             # Phase 3: Only exchange
@@ -278,7 +269,7 @@ class Test3Window(QWidget):
             os.environ['ECONSIM_TRADE_EXEC'] = '1'
             new_phase = 3
             print("\n🔄 Phase 3: Only exchange enabled (turns 401-600)")
-            print("   Expected: Local partner finding, short-distance trades")
+            print("   Expected: Smooth utility-based trade decisions, balanced exchanges")
             
         elif self.current_turn == 601 and self.phase == 3:
             # Phase 4: Both disabled (shortened to 50 turns)
@@ -287,7 +278,7 @@ class Test3Window(QWidget):
             os.environ['ECONSIM_TRADE_EXEC'] = '0'
             new_phase = 4
             print("\n⏸️  Phase 4: Both disabled - agents should idle (turns 601-650)")
-            print("   Expected: Crowded agents all return home and idle")
+            print("   Expected: Orderly return to homes with Cobb-Douglas agents")
             
         elif self.current_turn == 651 and self.phase == 4:
             # Phase 5: Both enabled again
@@ -296,7 +287,7 @@ class Test3Window(QWidget):
             os.environ['ECONSIM_TRADE_EXEC'] = '1'
             new_phase = 5
             print("\n🔄 Phase 5: Both enabled again (turns 651-850)")
-            print("   Expected: Resume local competition and trading")
+            print("   Expected: Resume balanced unified selection with consistent behavior")
             
         elif self.current_turn == 851 and self.phase == 5:
             # Phase 6: Final disabled
@@ -347,19 +338,19 @@ class Test3Window(QWidget):
         self.status_text.setText(status)
 
 def main():
-    """Run the high density local test."""
+    """Run the pure Cobb-Douglas test."""
     app = QApplication(sys.argv)
     
-    test_window = Test3Window()
+    test_window = Test5Window()
     test_window.show()
     
     print("=" * 60)
-    print("MANUAL TEST 3: HIGH DENSITY LOCAL UNIFIED TARGET SELECTION")
+    print("MANUAL TEST 5: PURE COBB-DOUGLAS UNIFIED TARGET SELECTION")
     print("=" * 60)
     print("This test will run 900 simulation turns with phase transitions.")
     print("Speed is configurable via dropdown (default: 1 turn/second).")
-    print("Watch the pygame viewport AND console output for crowding behavior.")
-    print("Focus: Local competition, resource contention, short-range decisions")
+    print("Watch the pygame viewport AND console output for Cobb-Douglas behavior.")
+    print("Focus: Balanced optimization, smooth tradeoffs, consistent utility curves")
     print("=" * 60)
     
     sys.exit(app.exec())

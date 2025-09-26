@@ -37,7 +37,7 @@ Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) o
 
 Perf Expectations: ~62 FPS typical (floor ≥30). Validate with `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` (overlays <~2% overhead). Watch for regressions: surface realloc, object churn, logging in hot loop, accidental N^2 partner scans.
 
-Testing & PR Flow: Run `make test lint type perf`. Any state or perf‑sensitive change: add/adjust unit test (determinism, perf guard, hash). PR summary: Goal | Changes | Tests/Perf | Result | Next. Keep diffs minimal.
+Testing & PR Flow: Run `make test-unit lint type perf`. Any state or perf‑sensitive change: add/adjust unit test (determinism, perf guard, hash). PR summary: Goal | Changes | Tests/Perf | Result | Next. Keep diffs minimal.
 
 Key Files Map: GUI embed `src/econsim/gui/embedded_pygame.py`; controller `src/econsim/gui/simulation_controller.py`; core sim `src/econsim/simulation/world.py`; agents `src/econsim/simulation/agent.py`; grid `src/econsim/simulation/grid.py`; spatial index `src/econsim/simulation/spatial.py`; trade `src/econsim/simulation/trade.py`; respawn `src/econsim/simulation/respawn.py`; metrics `src/econsim/simulation/metrics.py`; snapshot `src/econsim/simulation/snapshot.py`; preferences `src/econsim/preferences/*.py`; config `src/econsim/simulation/config.py`; perf harness `scripts/perf_stub.py`; tests `tests/unit/*`.
 

@@ -46,8 +46,45 @@ Each test runs for **900 turns** with the following phase structure:
 - **Trade lines**: Should appear during bilateral exchange phases
 - **Resource depletion/respawn**: Should affect agent behavior appropriately
 
+## Test Start Menu
+
+The **Unified Test Start Menu** (`test_start_menu.py`) provides a central interface for launching all manual tests:
+
+### Features:
+- **Visual test cards** with descriptions and configuration details
+- **One-click launch** for any available test
+- **Duration estimates** for each speed setting
+- **Test status tracking** (available vs. coming soon)
+- **Integrated instructions** and phase schedule information
+
+### Available Tests:
+- ✅ **Test 1: Baseline** - Standard mixed preference validation
+- ✅ **Test 2: Sparse Long-Range** - Distance-based decision making
+- ✅ **Test 3: High Density Local** - Crowding behavior validation
+- ✅ **Test 4: Large World Global** - Long-distance decision making
+- ✅ **Test 5: Pure Cobb-Douglas** - Balanced utility optimization
+- ✅ **Test 6: Pure Leontief** - Complementary resource requirements
+- ✅ **Test 7: Pure Perfect Substitutes** - Resource interchangeability
+
+## Command Reference
+
+### Development Testing vs Manual Testing
+- **`make test-unit`**: Runs automated unit/integration tests (210+ tests, ~seconds)
+  - Used for development validation, determinism checks, CI/CD
+  - Catches regressions and ensures correctness
+- **`make manual-tests`**: Launches educational GUI tests (7 scenarios, ~15 min each)
+  - Used for visual validation and educational demonstration
+  - Observes agent behavior through phase transitions
+
 ## Running the Tests
 
+### Option 1: Unified Start Menu (Recommended)
+1. **Launch the start menu**: `make manual-tests` from project root, or `python test_start_menu.py` from this directory
+2. **Select a test**: Click on any available test card to launch it
+3. **Configure test speed**: Each test opens with a speed dropdown (default: 1 turn/second)
+4. **Observe and validate**: Watch the pygame viewport and console output
+
+### Option 2: Individual Test Scripts
 1. **Start each test script**: `python test_X.py` (where X is 1-7)
 2. **Configure test speed**: Use the dropdown to select speed (default: 1 turn/second)
    - **1 turn/second** - 15 minutes total (good for detailed observation)
