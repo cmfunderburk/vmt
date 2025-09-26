@@ -1,10 +1,5 @@
 # Unified Target Selection Planning
 
-## User Prompt
-
-I'd like to switch focus and work on unifying the target selection decision when both bilateral exchange and foraging are enabled. Let's discuss options. My initial thought is to unify the target selection logic such that: when both foraging+bilateral exchange are enabled, the agent searches for both goods and agents to trade with; whichever is closest takes priority, tiebreaks based on marginal utility diff; once a target is selected, the agent should carry out that task and be unavailable for target selection by other agents until they have completed the task (i.e. finished trading with an agent or picked up a resource). Once completed, they restart the loop. What are your thoughts?
-
-## LLM Response:
 ## Overview
 
 Proposal to make unified target selection the default agent decision logic, replacing the current system of separated decision paths. Instead of branching between foraging-only, trading-only, and combined logic, agents always use unified target selection with individual behaviors gated by their respective flags. This eliminates artificial precedence rules and creates cleaner architecture.
@@ -150,7 +145,7 @@ This approach eliminates the current artificial branching and makes the unified 
 - **Scaling constant `k`**: GUI-configurable parameter in right panel (text input)
   - Higher `k` = stronger distance penalty, more local behavior
   - Lower `k` = weaker distance penalty, agents willing to travel farther
-  - Default value: `k = 1.0` (may tune later based on testing)
+  - Default value: `k = 0.0` (may tune later based on testing)
 - **Profitable targets only**: Filter candidates to `ΔU_base > 0` before distance discounting
 - **Tiebreaks**: When `ΔU_discounted` values are equal, use `(x, y)` for resources, `agent_id` for agents
 
@@ -158,7 +153,7 @@ This approach eliminates the current artificial branching and makes the unified 
 
 **Distance scaling**: Use `k` scaling constant in `ΔU_discounted = ΔU_base / (1 + k*distance²)`
 - **GUI integration**: Add text input control in right panel for `k` parameter
-- **Default value**: Start with `k = 1.0`
+- **Default value**: Start with `k = 0.0`
 - **Range**: 0.0 to 10.0 (0 = no distance penalty, 10 = strong local behavior)
 - **Real-time updates**: Changes apply immediately without simulation restart
 

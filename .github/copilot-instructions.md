@@ -1,47 +1,45 @@
-## VMT Copilot Instructions (High‑Signal, ~50 lines)
-Context: Educational micro‑econ spatial sim. PyQt6 hosts ONE embedded Pygame Surface (320–800 squared). Prime directives: determinism, single QTimer frame loop, O(agents+resources) step, minimal per‑tick allocations.
+## VMT Copilot Instructions (Concise High‑Signal Guide)
+Purpose: Educational micro‑econ spatial sim (PyQt6 shell + ONE embedded Pygame Surface 320–800px). Non‑negotiables: deterministic replay, single `QTimer` frame loop, per‑step O(agents+resources), minimal allocations.
 
-Architecture: Dual GUI (Start Menu vs legacy) via `ECONSIM_NEW_GUI=1` (default); shared core: `EmbeddedPygameWidget` + `Simulation` (`simulation/world.py`). Post-Gate 6 with bilateral exchange Phase 3 completed.
-
-Frame Pipeline (DO NOT ALTER): single `QTimer` (≈16ms) → `Simulation.step(ext_rng, use_decision)` (optional) → `_update_scene` → `update()` → `paintEvent` (Surface→bytes→`QImage`→`QPainter`). Forbidden: extra timers, threads, sleeps, blocking loops, surface reallocation, per‑pixel Python loops, resizing logic changes.
+Frame Pipeline (DO NOT CHANGE): single QTimer (~16ms) → `Simulation.step(ext_rng, use_decision)` → `_update_scene` → `update()` → `paintEvent` (Surface→bytes→QImage→QPainter). Forbidden: extra timers/threads, sleeps, blocking loops, surface realloc/recreate, per‑pixel Python loops, layout/resize math changes.
 
 Determinism Invariants:
-- Target tie-break key EXACT: (-ΔU, distance, x, y)
-- Stable resource iteration (`iter_resources_sorted`); original agent list order resolves contests
-- Frozen constants: `EPSILON_UTILITY`, `default_PERCEPTION_RADIUS`
-- Metrics hash contract in `simulation/metrics.py` (trade + debug overlay metrics excluded)
-- RNG separation: external RNG (legacy/random walk) vs internal `Simulation._rng` (respawn, homes, trade drafts). No hidden randomness.
+1. Target tie-break key EXACT: (-ΔU, distance, x, y)
+2. Stable resource iteration (`iter_resources_sorted`); original agent list order breaks contests
+3. Constants frozen: `EPSILON_UTILITY`, `default_PERCEPTION_RADIUS`
+4. Metrics hash contract (`simulation/metrics.py`) excludes trade + debug overlay metrics
+5. RNG separation: external (legacy/random movement) vs internal `Simulation._rng` (respawn, homes, trade drafts)
 
-Construction: Prefer `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)`. Attaches deterministic `RespawnScheduler`, `MetricsCollector`; homes seeded via secondary RNG offset (`seed+9973`). Preferences are pure/stateless; register new ones in `preferences/factory.py` with tests (validation, utility math, serialize round‑trip).
+Core Architecture: Dual GUI (Start Menu new path default `ECONSIM_NEW_GUI=1`; legacy when 0) sharing `EmbeddedPygameWidget` + `Simulation` (`simulation/world.py`). Factory: `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)` seeds internal RNG, optional `RespawnScheduler`, `MetricsCollector`; homes via deterministic secondary seed (`seed+9973`). Preferences must be pure/stateless; register in `preferences/factory.py` + tests (validation, utility math, serialize round‑trip).
 
-Respawn: Alternating A↔B assignment; placement = uniform seeded shuffle of empty cells. Interval gating: `(step % interval)==0`; Off leaves scheduler inert. GUI dropdowns: Interval (Off,1,5,10,20) + Rate (10–100%).
+Feature Flags (environment):
+* Foraging: `ECONSIM_FORAGE_ENABLED` (default 1). Off + no trade ⇒ agents idle, carrying preserved.
+* Trading: `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC` (implies draft), `ECONSIM_TRADE_PRIORITY_DELTA` (reorder only; multiset invariant), `ECONSIM_TRADE_GUI_INFO`, `ECONSIM_TRADE_DEBUG_OVERLAY`, `ECONSIM_TRADE_HASH_NEUTRAL` (debug: restore carrying after hash).
+* Unified selection (experimental combined resource/partner pass): auto‑enabled when decision+forage+trade exec unless `ECONSIM_UNIFIED_SELECTION_DISABLE=1`; can force with `ECONSIM_UNIFIED_SELECTION_ENABLE=1`.
 
-Foraging Flag: `ECONSIM_FORAGE_ENABLED=0` disables resource collection. If trading also off → agents idle in place preserving carrying inventory (no implicit deposit). If trading on → agents may trade without new gathering (see bilateral system below).
+Active Refactor (see `tmp_plans/CURRENT/target_selection_planning.md`): migrate to unified target selection as default decision path.
+* Implement `Agent.select_unified_target` with distance‑discounted utility (`ΔU_base / (1 + k*distance²)`), deterministic tiebreaks ((x,y) for resources, agent id for partners), and profitability filter (`ΔU_base > 0`).
+* Spatial indexing (`AgentSpatialGrid`) rebuilt each step keeps partner lookup O(agents); maintain append‑only determinism and avoid quadratic scans.
+* Commitment model: agents hold `current_task` until resource collected/trade resolved or target invalidated; ensure bilateral movement hooks cooperate (stagnation/force deposit still honored).
+* Config + GUI: add distance scaling constant `k` (0–10, default 0.0) with live updates; propagate through `SimConfig` + right panel control.
+* Testing: update determinism hashes + behavior assertions for new selection ordering; cover single-mode (forage‑only/trade‑only) parity, unified path, and spatial index queries. Expect breaking changes to existing selection tests—refresh fixtures intentionally.
 
-Trading (Default ON in GUI): `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC`, `ECONSIM_TRADE_PRIORITY_DELTA`, `ECONSIM_TRADE_GUI_INFO`, `ECONSIM_TRADE_DEBUG_OVERLAY`. Bilateral exchange system with 6-tier decision logic: perception → pairing → pathfinding → co-location → trading → cooldowns. Only currently carried units exchange; home inventory immutable. At most one executed intent/step. Priority flag must ONLY reorder identical multiset of intents. Hash parity redesign pending; trade metrics excluded. Optional `ECONSIM_TRADE_HASH_NEUTRAL=1` restores carrying inventories post-hash (debug mode, not default). SimulationController toggles: `set_bilateral_enabled(bool)` manages flag cluster.
+Bilateral Exchange (Phase 3): O(agents) partner search (`_handle_bilateral_exchange_movement`) → pairing → meeting point path → co‑location → (intent enumeration + at most one execution per step) → cooldowns (general + partner‑specific). Stagnation: 100 no‑improvement steps triggers one‑time forced deposit (`force_deposit_once`). Priority key when flag on: `(-delta_utility, seller_id, buyer_id, give_type, take_type)`. Trade metrics & fairness_round are hash‑excluded.
 
-Bilateral Exchange Movement (forage disabled & trade enabled path): Sophisticated partner search in `Simulation._handle_bilateral_exchange_movement`: perception radius scan → availability filters (cooldowns, pairing) → meeting-point pathfinding → co-location trading → dual cooldown system. Utility-maximizing 1-for-1 goods swapping using marginal utility calculations. Stagnation tracking prevents infinite loops. Keep it O(agents); no global all-pairs beyond localized scan already implemented.
+Complexity Discipline: NO global all‑pairs expansions beyond localized perception scans; any new algorithm must document O(n) behavior or be flag‑gated + perf tested. Avoid unordered containers for determinism paths.
 
-Rendering Rules:
-- Preserve pipeline; no per-agent font objects (cache `_overlay_font`, `_paused_font`).
-- Cell size = `min(surface_w//gw, surface_h//gh)`; no centering math for leftover margin.
-- Sprites loaded from `vmt_sprites_pack_1/`; scaled each frame (acceptable); fallback to colored rects.
-- Overlays (grid, IDs, homes, trade debug, executed-trade highlight) are read-only views.
+Rendering Rules: Single surface; cell size = `min(surface_w//gw, surface_h//gh)` (no centering for remainder). Cache shared fonts only. Sprites from `vmt_sprites_pack_1/`; fallback rects acceptable. Overlays strictly read‑only (grid, IDs, homes, trade lines, executed‑trade highlight, selection).
 
-Performance: Expect ~62 FPS; floor ≥30. Regressions usually = surface reallocations, object churn, logging, unordered scans. Validate: `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` (overlays <~2% overhead). Throughput + overlay regression tests enforce guardrails.
+Serialization / Snapshot: Append‑only field additions in `snapshot.py`, `world.py`, `agent.py`, `grid.py` — NEVER reorder or remove; update determinism tests & reference hashes explicitly.
 
-Serialization / Snapshot: When appending fields to `snapshot.py`, `world.py`, `agent.py`, `grid.py` APPEND ONLY; preserve ordering (hash & replay parity). Adjust determinism tests + reference hash deliberately.
+Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) overlay; additional metrics (update hash contract + tests); respawn parameter plumbing; doc sync. Forbidden: tie‑break alteration, constant edits, adding randomness, extra timers/threads, unordered iteration where order matters, mutable preference state, silent hash schema change, per‑step quadratic scans.
 
-Complexity Discipline: Per-step O(agents+resources). Prohibit pathfinding / all-pairs heuristics unless behind feature flag + perf test + documented rationale.
+Perf Expectations: ~62 FPS typical (floor ≥30). Validate with `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` (overlays <~2% overhead). Watch for regressions: surface realloc, object churn, logging in hot loop, accidental N^2 partner scans.
 
-Allowed Quick Wins: New preference type; deterministic O(n) overlay; append metrics (hash-adjusted tests); respawn parameter plumbing; doc sync. Forbidden: tie-break changes, constant edits, extra timers/threads, hidden randomness, unordered iterations, mutable preference state, silent hash contract shifts.
+Testing & PR Flow: Run `make test lint type perf`. Any state or perf‑sensitive change: add/adjust unit test (determinism, perf guard, hash). PR summary: Goal | Changes | Tests/Perf | Result | Next. Keep diffs minimal.
 
-Teardown: `closeEvent` → stop timer → `pygame.quit()` → `super().closeEvent(event)`; mirror for any new subsystems (no lingering timers).
+Key Files Map: GUI embed `src/econsim/gui/embedded_pygame.py`; controller `gui/simulation_controller.py`; core sim `simulation/world.py`; agents `simulation/agent.py`; grid `simulation/grid.py`; trade `simulation/trade.py`; respawn `simulation/respawn.py`; metrics `simulation/metrics.py`; snapshot `simulation/snapshot.py`; preferences `preferences/*.py`; config `simulation/config.py`; perf harness `scripts/perf_stub.py`; tests `tests/unit/*`.
 
-Workflow Commands: install `pip install -e .[dev]`; run GUI `make dev`; legacy GUI `ECONSIM_NEW_GUI=0 make dev`; tests `make test`; lint `make lint`; types `make type`; perf `make perf`; legacy random walk `ECONSIM_LEGACY_RANDOM=1 make dev`; FPS debug `ECONSIM_DEBUG_FPS=1 make dev`.
+Teardown Integrity: `closeEvent` stops timer → `pygame.quit()` → `super().closeEvent(event)`; mirror for new subsystems (no lingering timers/threads/resources).
 
-Gate / PR Flow: Gate docs (`Gate_N_todos.md`, `GATE_N_CHECKLIST.md`, `GATE_N_EVAL.md`) → implement → PR: state intent + gate ref, minimal diff, add/adjust tests (determinism/perf if touched), run perf + hash, sync docs, concise summary (Goal | Actions | Result | Next). Avoid scope creep.
-
-Key Files: GUI `gui/embedded_pygame.py`; controller `gui/simulation_controller.py`; core `simulation/world.py`, `agent.py`, `grid.py`; respawn `simulation/respawn.py`; trade `simulation/trade.py`; metrics `simulation/metrics.py`; snapshot `simulation/snapshot.py`; preferences `preferences/*.py`; config `simulation/config.py`; perf harness `scripts/perf_stub.py`; tests `tests/unit/*`.
-
-When Unsure: Read the tests first. Any state-changing or perf-sensitive edit needs a test. If an invariant is ambiguous, propose/author a clarifying test before refactor.
+When Unsure: Read the relevant unit tests FIRST. If an invariant feels ambiguous, write/strengthen a test before refactor.
