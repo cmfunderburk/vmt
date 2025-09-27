@@ -281,13 +281,15 @@ class Test1Window(QWidget):
         # Update display
         self.update_display()
         
-        # Log periodic status and progress every 50 turns
-        if self.current_turn % 50 == 0:
+        # Enhanced periodic logging with phase information every 25 steps
+        # Uses unified format combining performance and educational context
+        if self.current_turn % 25 == 0:
             agent_count = len(self.simulation.agents)
             resource_count = len(list(self.simulation.grid.iter_resources()))
-            status_msg = f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} agents, {resource_count} resources"
-            from econsim.gui.debug_logger import log_comprehensive
-            log_comprehensive(f"PERIODIC STATUS: {status_msg}", self.current_turn)
+            from econsim.gui.debug_logger import log_periodic_summary
+            # Use unified periodic logging with realistic performance estimates
+            # This will be formatted as: S{step} P: {steps}s/s {frame}ms A{agents} R{resources} Ph{phase}
+            log_periodic_summary(60.0, 16.7, agent_count, resource_count, self.phase, self.current_turn)
         
         # Stop at turn 900
         if self.current_turn >= 900:

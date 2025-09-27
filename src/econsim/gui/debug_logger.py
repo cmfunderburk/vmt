@@ -173,7 +173,7 @@ class GUILogger:
         elif self.log_level == LogLevel.PERIODIC:
             return category in ["CRITICAL", "ERROR", "WARNING", "PHASE", "TRADE", "UTILITY", "MODE", "PERIODIC_PERF", "PERIODIC_SIM", "PERF", "SIMULATION"]
         elif self.log_level == LogLevel.EVENTS:
-            return category in ["CRITICAL", "ERROR", "WARNING", "PHASE", "TRADE", "UTILITY", "MODE"]
+            return category in ["CRITICAL", "ERROR", "WARNING", "PHASE", "TRADE", "UTILITY", "MODE", "SIMULATION"]
         elif self.log_level == LogLevel.CRITICAL:
             return category in ["CRITICAL", "ERROR", "WARNING", "PHASE"]
         return False
@@ -349,9 +349,20 @@ class GUILogger:
                     reason_match = re.search(r'\(([^)]+)\)$', message)
                     reason_str = f" ({reason_match.group(1)})" if reason_match else ""
                     return f"{timestamp_prefix} {step_info} {format_agent_id(int(agent_id))}: {old_mode}→{new_mode}{reason_str}\n"
-            elif category == "PERF":
-                # Compact format: +12.3s P: 124.7s/s 5.1ms R122
+            elif category == "PERF" or category == "PERIODIC_PERF" or category == "SIMULATION":
+                # Compact format: +12.3s P: 124.7s/s 5.1ms A20 R122 Ph1 (with phase) or A20 R122 (without phase)  
                 import re
+                # Try unified format with phase first
+                match = re.search(r'([0-9.]+) steps/sec.*?([0-9.]+)ms.*?Agents: (\d+).*?Resources: (\d+).*?Phase: (\d+)', message)
+                if match:
+                    steps_sec, frame_ms, agents, resources, phase = match.groups()
+                    return f"{timestamp_prefix} {step_info} P: {steps_sec}s/s {frame_ms}ms A{agents} R{resources} Ph{phase}\n"
+                # Try unified format without phase
+                match = re.search(r'([0-9.]+) steps/sec.*?([0-9.]+)ms.*?Agents: (\d+).*?Resources: (\d+)', message)
+                if match:
+                    steps_sec, frame_ms, agents, resources = match.groups()
+                    return f"{timestamp_prefix} {step_info} P: {steps_sec}s/s {frame_ms}ms A{agents} R{resources}\n"
+                # Fallback for old format (just performance data)
                 match = re.search(r'([0-9.]+) steps/sec.*?([0-9.]+)ms.*?Resources: (\d+)', message)
                 if match:
                     steps_sec, frame_ms, resources = match.groups()
@@ -559,6 +570,17 @@ def log_trade_detail(agent1_id: int, resource1: str, agent2_id: int, resource2: 
         utility_str = f" (utility: {format_delta(utility_change)})" if utility_change is not None else ""
         message = f"Agent_{agent1_id:03d} gives {resource1} to Agent_{agent2_id:03d}; receives {resource2} in exchange{utility_str}"
         get_gui_logger().log("TRADE", message, step)
+
+
+def log_periodic_summary(steps_per_sec: float, frame_ms: float, agent_count: int, resource_count: int, phase: Optional[int], step: int) -> None:
+    """Log unified periodic summary combining performance and status information."""
+    logger = get_gui_logger()
+    if step % 25 == 0 or logger.should_log_performance(step, steps_per_sec):
+        # Use unified format: steps/sec | frame_ms | agent_count | resource_count | phase (if available)
+        phase_str = f" | Phase: {phase}" if phase is not None else ""
+        message = f"{steps_per_sec:.1f} steps/sec | Frame: {frame_ms:.1f}ms | Agents: {agent_count} | Resources: {resource_count}{phase_str}"
+        # Use SIMULATION category to ensure visibility at EVENTS log level and above
+        logger.log("SIMULATION", message, step)
 
 
 def log_mode_switch(agent_id: int, old_mode: str, new_mode: str, context: str = "", step: Optional[int] = None) -> None:

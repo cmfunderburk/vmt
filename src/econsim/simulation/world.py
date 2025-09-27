@@ -353,6 +353,7 @@ class Simulation:
             time_window = self._step_times[-1] - self._step_times[0]
             if time_window > 0:
                 steps_per_sec = (len(self._step_times) - 1) / time_window
+                # Use legacy performance logging - unified periodic logging is handled by higher-level code
                 log_performance(f"{steps_per_sec:.1f} steps/sec | Frame: {step_duration:.1f}ms | Agents: {len(self.agents)} | Resources: {self.grid.resource_count()}", step_num)
         
         self._steps += 1
