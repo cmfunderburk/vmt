@@ -27,7 +27,7 @@ sys.path.insert(0, str(project_root))
 try:
     from PyQt6.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-        QGridLayout, QScrollArea, QLabel, QPushButton, 
+        QGridLayout, QScrollArea, QLabel, QPushButton,
         QFrame, QMessageBox, QCheckBox, QTextEdit, QTabWidget
     )
     from PyQt6.QtCore import Qt, pyqtSignal
@@ -941,183 +941,6 @@ class EnhancedTestLauncher(QMainWindow):
             cursor.deletePreviousChar()  # Remove the newline
 
 
-def _apply_platform_styling(app: QApplication) -> None:
-    """Apply platform-specific styling to fix dark mode and cross-platform issues."""
-    import os
-    import sys
-    
-    # macOS dark mode compatibility fixes
-    if sys.platform == "darwin":
-        # Better macOS rendering
-        os.environ['QT_MAC_WANTS_LAYER'] = '1'
-        
-        # Force consistent cross-platform style instead of native macOS
-        app.setStyle('Fusion')
-        
-        # Comprehensive light theme stylesheet for dark mode compatibility
-        app.setStyleSheet("""
-            /* Main containers */
-            QMainWindow, QWidget, QDialog {
-                background-color: #f8f9fa;
-                color: #1a1a1a;
-            }
-            
-            /* Text areas and logs */
-            QTextEdit, QPlainTextEdit {
-                background-color: #ffffff;
-                color: #000000;
-                font-family: 'Monaco', 'Courier New', 'DejaVu Sans Mono', monospace;
-                font-size: 11pt;
-                border: 1px solid #cccccc;
-                selection-background-color: #316AC5;
-                selection-color: #ffffff;
-            }
-            
-            /* Labels */
-            QLabel {
-                color: #1a1a1a;
-                font-size: 11pt;
-            }
-            
-            /* Buttons */
-            QPushButton {
-                background-color: #e8e8e8;
-                color: #1a1a1a;
-                border: 1px solid #999999;
-                padding: 8px 16px;
-                font-size: 11pt;
-                font-weight: bold;
-                border-radius: 4px;
-            }
-            
-            QPushButton:hover {
-                background-color: #d0d0d0;
-                border-color: #007bff;
-            }
-            
-            QPushButton:pressed {
-                background-color: #c0c0c0;
-            }
-            
-            QPushButton:disabled {
-                background-color: #f0f0f0;
-                color: #999999;
-                border-color: #cccccc;
-            }
-            
-            /* Test card frames */
-            QFrame {
-                background-color: #ffffff;
-                border: 1px solid #dddddd;
-                border-radius: 6px;
-            }
-            
-            /* Checkboxes */
-            QCheckBox {
-                color: #1a1a1a;
-                font-size: 11pt;
-                font-weight: bold;
-                spacing: 8px;
-            }
-            
-            QCheckBox::indicator {
-                width: 16px;
-                height: 16px;
-                background-color: #ffffff;
-                border: 1px solid #999999;
-            }
-            
-            QCheckBox::indicator:checked {
-                background-color: #316AC5;
-                border-color: #316AC5;
-            }
-            
-            /* Scroll areas */
-            QScrollArea {
-                background-color: #f8f9fa;
-                border: none;
-            }
-            
-            /* Tab widgets */
-            QTabWidget::pane {
-                border: 1px solid #cccccc;
-                background-color: #ffffff;
-            }
-            
-            QTabBar::tab {
-                background-color: #e8e8e8;
-                color: #1a1a1a;
-                padding: 8px 16px;
-                margin-right: 2px;
-                border-top-left-radius: 3px;
-                border-top-right-radius: 3px;
-            }
-            
-            QTabBar::tab:selected {
-                background-color: #ffffff;
-                border-bottom: none;
-            }
-            
-            QTabBar::tab:hover {
-                background-color: #d0d0d0;
-            }
-        """)
-    
-    elif sys.platform == "win32":
-        # Windows-specific fixes
-        # Enable high-DPI support
-        from PyQt6.QtCore import Qt
-        app.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-        app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
-        
-        # Use Fusion style for consistency
-        app.setStyle('Fusion')
-        
-        # Lighter styling for Windows
-        app.setStyleSheet("""
-            QMainWindow {
-                background-color: #f8f9fa;
-            }
-            QPushButton {
-                font-weight: bold;
-                padding: 8px 16px;
-                border-radius: 4px;
-                border: 1px solid #ddd;
-            }
-            QPushButton:hover {
-                border-color: #007bff;
-            }
-            QCheckBox {
-                font-weight: bold;
-                spacing: 8px;
-            }
-            QTextEdit, QPlainTextEdit {
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 10pt;
-            }
-        """)
-    
-    else:
-        # Linux and other platforms - use Fusion style
-        app.setStyle('Fusion')
-        app.setStyleSheet("""
-            QMainWindow {
-                background-color: #f8f9fa;
-            }
-            QPushButton {
-                font-weight: bold;
-                padding: 8px 16px;
-                border-radius: 4px;
-                border: 1px solid #ddd;
-            }
-            QPushButton:hover {
-                border-color: #007bff;
-            }
-            QCheckBox {
-                font-weight: bold;
-                spacing: 8px;
-            }
-        """)
 
 
 def main():
@@ -1138,8 +961,12 @@ def main():
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("VMT Project")
     
-    # Apply platform-specific styling fixes
-    _apply_platform_styling(app)
+    # Apply platform-specific styling fixes (extracted module)
+    try:
+        from econsim.tools.launcher.style import PlatformStyler  # type: ignore
+        PlatformStyler.configure_application(app)
+    except Exception as exc:  # pragma: no cover - styling fallback
+        print(f"[Launcher Styling Warning] {exc}")
     
     # Create and show main window
     launcher = EnhancedTestLauncher()
