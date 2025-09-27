@@ -184,6 +184,19 @@ class ConfigurationValidator(QWidget):
         if config.agent_count > total_cells:
             issues["errors"].append("More agents than grid cells")
             
+        # Phase validation
+        custom_phases = getattr(config, 'custom_phases', None)
+        if custom_phases is not None:
+            if len(custom_phases) == 0:
+                issues["errors"].append("Custom phases configured but empty - add at least one phase")
+            else:
+                # Validate phase configuration
+                try:
+                    from framework.phase_manager import PhaseManager
+                    PhaseManager(custom_phases)  # This will validate the phases
+                except Exception as e:
+                    issues["errors"].append(f"Invalid phase configuration: {str(e)}")
+            
         # Warnings (may cause issues)
         if config.agent_count > 100:
             issues["warnings"].append("Very high agent count may cause performance issues")
@@ -684,6 +697,7 @@ class LiveConfigEditor(QWidget):
             initial_config = next(iter(ALL_TEST_CONFIGS.values()))
             
         self.current_config = initial_config
+        self.custom_phases = None  # Will store List[PhaseDefinition] when configured
         self.setup_ui()
         self.connect_signals()
         self.load_config(initial_config)
@@ -799,6 +813,21 @@ class LiveConfigEditor(QWidget):
         self.test_desc_edit = QLineEdit("Custom configuration test")
         advanced_layout.addRow("Description:", self.test_desc_edit)
         
+        # Phase configuration
+        phase_config_layout = QHBoxLayout()
+        self.phase_config_btn = QPushButton("Configure Phases...")
+        self.phase_config_btn.clicked.connect(self.configure_phases)
+        phase_config_layout.addWidget(self.phase_config_btn)
+        
+        self.phase_summary_label = QLabel("Standard 6-phase schedule")
+        self.phase_summary_label.setStyleSheet("color: #666; font-size: 9px; font-style: italic;")
+        phase_config_layout.addWidget(self.phase_summary_label)
+        phase_config_layout.addStretch()
+        
+        phase_config_widget = QWidget()
+        phase_config_widget.setLayout(phase_config_layout)
+        advanced_layout.addRow("Test Phases:", phase_config_widget)
+        
         controls_layout.addWidget(advanced_group)
         
         # Action buttons
@@ -904,7 +933,8 @@ class LiveConfigEditor(QWidget):
             perception_radius=int(self.perception_slider.get_value()),
             distance_scaling_factor=self.distance_scaling_slider.get_value(),
             preference_mix=self.preference_combo.currentText(),
-            seed=self.seed_spin.value()
+            seed=self.seed_spin.value(),
+            custom_phases=self.custom_phases  # Include custom phases
         )
         
         # Update preview and validation
@@ -916,6 +946,48 @@ class LiveConfigEditor(QWidget):
         
         # Emit signal
         self.configChanged.emit(self.current_config)
+    
+    def configure_phases(self):
+        """Open phase configuration dialog."""
+        try:
+            from phase_config_editor import PhaseConfigDialog
+            
+            # Use current custom phases if available, otherwise start empty
+            initial_phases = self.custom_phases
+            # Don't load default phases - force user to manually configure
+            
+            dialog = PhaseConfigDialog(initial_phases, self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.custom_phases = dialog.get_phases()
+                self.update_phase_summary()
+                self.on_parameter_changed()  # Trigger config update
+                
+        except ImportError as e:
+            QMessageBox.warning(self, "Phase Configuration", 
+                              f"Phase configuration editor not available: {e}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", 
+                               f"Error opening phase configuration: {e}")
+    
+    def update_phase_summary(self):
+        """Update the phase summary label."""
+        try:
+            if self.custom_phases:
+                from framework.phase_manager import PhaseManager
+                manager = PhaseManager(self.custom_phases)
+                total_turns = manager.get_total_turns()
+                phase_count = manager.get_phase_count()
+                self.phase_summary_label.setText(f"✅ {phase_count} custom phases ({total_turns} turns)")
+            else:
+                self.phase_summary_label.setText("📋 Standard 6-phase schedule (900 turns)")
+        except Exception as e:
+            self.phase_summary_label.setText(f"❌ Invalid phases: {str(e)[:30]}...")
+    
+    def reset_phases_to_standard(self):
+        """Reset to standard phase configuration."""
+        self.custom_phases = None
+        self.update_phase_summary()
+        self.on_parameter_changed()
         
     def load_config(self, config: TestConfiguration):
         """Load a configuration into the editor."""
@@ -944,6 +1016,10 @@ class LiveConfigEditor(QWidget):
         self.seed_spin.setValue(config.seed)
         self.test_name_edit.setText(config.name)
         self.test_desc_edit.setText(config.description)
+        
+        # Load custom phases if available
+        self.custom_phases = getattr(config, 'custom_phases', None)
+        self.update_phase_summary()
         
         # Re-enable signals
         self.grid_width_slider.blockSignals(False)

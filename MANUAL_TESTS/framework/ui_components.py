@@ -138,30 +138,48 @@ class ControlPanel(QWidget):
         self.setLayout(layout)
         self.setFixedWidth(350)
         
-    def update_display(self, turn: int, phase: int, agent_count: int, resource_count: int):
+    def update_display(self, turn: int, phase: int, agent_count: int, resource_count: int, phase_manager=None):
         """Update all status displays."""
         self.turn_label.setText(f"Turn: {turn}")
         
-        phase_names = {
-            1: "Phase 1: Both enabled",
-            2: "Phase 2: Foraging only", 
-            3: "Phase 3: Exchange only",
-            4: "Phase 4: Both disabled",
-            5: "Phase 5: Both enabled",
-            6: "Phase 6: Final disabled"
-        }
-        self.phase_label.setText(phase_names.get(phase, f"Phase {phase}"))
+        # Get phase description from phase manager if available
+        if phase_manager and hasattr(phase_manager, 'get_phase_description'):
+            phase_desc = phase_manager.get_phase_description(phase)
+            phase_info = phase_manager.get_current_phase_info(turn)
+            if phase_info:
+                phase_desc = f"Phase {phase}: {phase_info.description}"
+            else:
+                phase_desc = f"Phase {phase}: Complete"
+        else:
+            # Fallback to hardcoded names for backward compatibility
+            phase_names = {
+                1: "Phase 1: Both enabled",
+                2: "Phase 2: Foraging only", 
+                3: "Phase 3: Exchange only",
+                4: "Phase 4: Both disabled",
+                5: "Phase 5: Both enabled",
+                6: "Phase 6: Final disabled"
+            }
+            phase_desc = phase_names.get(phase, f"Phase {phase}")
         
+        self.phase_label.setText(phase_desc)
         self.agents_label.setText(f"Agents: {agent_count}")
         self.resources_label.setText(f"Resources: {resource_count}")
         
-        # Update status
+        # Update status - get total turns from phase manager if available
         from test_utils import get_estimated_duration, format_duration, get_timer_interval
+        total_turns = 900  # Default fallback
+        if phase_manager and hasattr(phase_manager, 'get_total_turns'):
+            try:
+                total_turns = phase_manager.get_total_turns()
+            except:
+                pass  # Use fallback
+        
         if turn == 0:
-            duration = get_estimated_duration(self.speed_combo.currentIndex())
-            status = f"Ready to start test (~{format_duration(duration)})..."
-        elif turn < 900:
-            remaining = 900 - turn
+            duration = get_estimated_duration(self.speed_combo.currentIndex(), total_turns)
+            status = f"Ready to start {total_turns}-turn test (~{format_duration(duration)})..."
+        elif turn < total_turns:
+            remaining = total_turns - turn
             interval_s = get_timer_interval(self.speed_combo.currentIndex()) / 1000
             est_seconds = remaining * interval_s
             status = f"Running... {remaining} turns remaining (~{format_duration(est_seconds)})"

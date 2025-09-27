@@ -303,7 +303,8 @@ class BaseManualTest(QWidget):
             turn=self.current_turn,
             phase=self.phase,
             agent_count=agent_count,
-            resource_count=resource_count
+            resource_count=resource_count,
+            phase_manager=getattr(self, 'phase_manager', None)
         )
         
     def on_speed_changed(self, index):
@@ -322,10 +323,14 @@ class StandardPhaseTest(BaseManualTest):
     
     def __init__(self, config: TestConfiguration):
         super().__init__(config)
-        self.phase_manager = PhaseManager.create_standard_phases()
+        # Use custom phases if provided, otherwise use standard phases
+        if config.custom_phases:
+            self.phase_manager = PhaseManager(config.custom_phases)
+        else:
+            self.phase_manager = PhaseManager.create_standard_phases()
         
     def check_phase_transition(self):
-        """Check for standard 6-phase transitions."""
+        """Check for phase transitions."""
         transition = self.phase_manager.check_transition(self.current_turn, self.phase)
         if transition:
             self.phase = transition.new_phase
@@ -334,9 +339,12 @@ class StandardPhaseTest(BaseManualTest):
 class CustomPhaseTest(BaseManualTest): 
     """For tests with custom phase schedules."""
     
-    def __init__(self, config: TestConfiguration, phases):
+    def __init__(self, config: TestConfiguration):
         super().__init__(config)
-        self.phase_manager = PhaseManager(phases)
+        # Custom phases are required for this test type
+        if not config.custom_phases:
+            raise ValueError("CustomPhaseTest requires custom_phases in TestConfiguration")
+        self.phase_manager = PhaseManager(config.custom_phases)
         
     def check_phase_transition(self):
         """Check for custom phase transitions."""
