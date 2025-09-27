@@ -71,12 +71,14 @@ Based on the comprehensive analysis in `formatting_plan.md` and current logging 
 **Risk Level**: Medium - New features, potential performance impact  
 **Estimated Time**: 4-6 hours  
 
-#### 3.1 Trade+Utility Bundling (Optional Feature Flag)
-- [ ] Design bundled format: `S{step} T: A{s}↔A{b} {give}→{recv} Δ{du} | U {s}:{old}→{new} Δ{delta}; {b}:{old}→{new} Δ{delta}`
-- [ ] Implement behind `ECONSIM_LOG_BUNDLE_TRADES=1` flag
-- [ ] Ensure utility values are already computed (no recomputation)
-- [ ] Add test coverage for bundled vs unbundled formats
-- [ ] **Files to modify**: Trade execution logging, debug_logger.py
+#### 3.1 Trade+Utility Bundling (Optional Feature Flag) ✅ COMPLETE
+- [x] Design bundled format: `S{step} T: A{s}↔A{b} {give}→{recv} Δ{du} | U {s}:{old}→{new} Δ{delta}; {b}:{old}→{new} Δ{delta}`
+- [x] Implement behind `ECONSIM_LOG_BUNDLE_TRADES=1` flag
+- [x] Ensure utility values are already computed (no recomputation)
+- [x] Add test coverage for bundled vs unbundled formats
+- [x] **Implementation**: Bundled format shows trade info + individual utility changes in single line
+- [x] **Testing**: Verified both bundled and separate logging modes work correctly
+- [x] **Files modified**: `src/econsim/gui/debug_logger.py`
 
 #### 3.2 Trade Burst Sequence Tokens
 - [ ] Add sequence tokens for multi-trade steps: `S825.1`, `S825.2`, etc.

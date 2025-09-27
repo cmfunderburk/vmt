@@ -52,16 +52,20 @@ manual-tests:
 	fi
 
 enhanced-tests:
-	# Launch enhanced test launcher with optimized compact logging by default
-	# Modern UI with 92% size reduction while preserving educational value
-	# Override with: ECONSIM_LOG_LEVEL=VERBOSE make enhanced-tests (for detailed logs)
+	# Launch enhanced test launcher with comprehensive educational logging enabled
+	# Includes agent modes, trades, utilities, economics, and trade+utility bundling
+	# Override flags individually or use ECONSIM_LOG_LEVEL=VERBOSE for maximum detail
 	@if [ -d "vmt-dev" ]; then \
-		echo "Using virtual environment..."; \
+		echo "Using virtual environment with full educational debug logging..."; \
 		. vmt-dev/bin/activate && cd MANUAL_TESTS && \
-		ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT $(PYTHON) enhanced_test_launcher_v2.py; \
+		ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT \
+		ECONSIM_DEBUG_AGENT_MODES=1 ECONSIM_DEBUG_TRADES=1 ECONSIM_DEBUG_ECONOMICS=1 \
+		ECONSIM_LOG_BUNDLE_TRADES=1 $(PYTHON) enhanced_test_launcher_v2.py; \
 	else \
 		cd MANUAL_TESTS && \
-		ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT $(PYTHON) enhanced_test_launcher_v2.py; \
+		ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT \
+		ECONSIM_DEBUG_AGENT_MODES=1 ECONSIM_DEBUG_TRADES=1 ECONSIM_DEBUG_ECONOMICS=1 \
+		ECONSIM_LOG_BUNDLE_TRADES=1 $(PYTHON) enhanced_test_launcher_v2.py; \
 	fi
 
 batch-tests:

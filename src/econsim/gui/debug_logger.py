@@ -7,6 +7,7 @@ instead of direct print statements for better organization and GUI integration.
 Environment Variables:
     ECONSIM_LOG_LEVEL: Controls verbosity (CRITICAL|EVENTS|PERIODIC|VERBOSE) [default: EVENTS]
     ECONSIM_LOG_FORMAT: Output format (COMPACT|STRUCTURED|LEGACY) [default: LEGACY]
+    ECONSIM_LOG_BUNDLE_TRADES: Bundle trade+utility logs into single line [default: 0]
 
 Logging Levels:
     CRITICAL: Only errors, warnings, phase transitions
@@ -133,6 +134,10 @@ class GUILogger:
         self._last_transition_step = -1
         self._transition_dedupe: dict[tuple[str, str, str], int] = {}  # (agent_id, old, new) -> count
         self._last_transition_flush_time = datetime.now()
+        
+        # Trade+Utility bundling buffers (Phase 3.1)
+        self._trade_bundle_buffer: dict[int, dict] = {}  # step -> {trades: [], utilities: []}
+        self._last_bundle_step = -1
         
         # Create logs directory if it doesn't exist (at project root)
         self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
@@ -312,6 +317,82 @@ class GUILogger:
         self._agent_transition_buffer.clear()
         self._transition_dedupe.clear()
     
+    def _buffer_trade_bundle(self, category: str, message: str, step: Optional[int]) -> None:
+        """Buffer trade and utility messages for bundling when ECONSIM_LOG_BUNDLE_TRADES=1."""
+        if step is None:
+            step = -1  # Use sentinel for unknown step
+            
+        # Flush previous step's bundles if we've moved to a new step
+        if step != self._last_bundle_step and self._last_bundle_step >= 0:
+            self._flush_bundle_buffer()
+        
+        # Initialize step buffer if needed
+        if step not in self._trade_bundle_buffer:
+            self._trade_bundle_buffer[step] = {"trades": [], "utilities": []}
+        
+        # Add to appropriate buffer
+        if category == "TRADE":
+            self._trade_bundle_buffer[step]["trades"].append(message)
+        elif category == "UTILITY":
+            self._trade_bundle_buffer[step]["utilities"].append(message)
+        
+        self._last_bundle_step = step
+        
+        # Flush if buffer gets too large
+        total_entries = sum(len(data["trades"]) + len(data["utilities"]) for data in self._trade_bundle_buffer.values())
+        if total_entries > 100:  # Flush after 100+ entries
+            self._flush_bundle_buffer()
+    
+    def _flush_bundle_buffer(self) -> None:
+        """Flush bundled trade+utility messages."""
+        if not self._trade_bundle_buffer:
+            return
+            
+        for step, data in self._trade_bundle_buffer.items():
+            trades = data["trades"]
+            utilities = data["utilities"]
+            
+            # Create a mapping of agent utilities for this step
+            agent_utilities = {}  # agent_id -> (old_util, new_util, delta)
+            for utility_msg in utilities:
+                import re
+                match = re.search(r'Agent_(\d+) utility: ([0-9.]+) → ([0-9.]+) \(Δ([+-][0-9.]+)\)', utility_msg)
+                if match:
+                    agent_id, old_util, new_util, delta = match.groups()
+                    agent_utilities[int(agent_id)] = (old_util, new_util, delta)
+            
+            # Process each trade and bundle with utility info
+            for trade_msg in trades:
+                import re
+                match = re.search(r'Agent_(\d+) gives (\w+) to Agent_(\d+); receives (\w+).*?utility: ([+-]?[0-9.-]+)', trade_msg)
+                if match:
+                    seller_id, give_type, buyer_id, recv_type, combined_delta = match.groups()
+                    seller_id, buyer_id = int(seller_id), int(buyer_id)
+                    
+                    # Build bundled message
+                    timestamp_prefix = self._format_simulation_time(step)
+                    step_info = f"S{step}" if step is not None and step >= 0 else ""
+                    
+                    # Base trade info
+                    bundled = f"{timestamp_prefix} {step_info} T: {format_agent_id(seller_id)}↔{format_agent_id(buyer_id)} {give_type}→{recv_type} {format_delta(float(combined_delta))}"
+                    
+                    # Add utility details if available
+                    utility_parts = []
+                    if seller_id in agent_utilities:
+                        old, new, delta = agent_utilities[seller_id]
+                        utility_parts.append(f"{format_agent_id(seller_id)}:{old}→{new} Δ{delta}")
+                    if buyer_id in agent_utilities:
+                        old, new, delta = agent_utilities[buyer_id]
+                        utility_parts.append(f"{format_agent_id(buyer_id)}:{old}→{new} Δ{delta}")
+                    
+                    if utility_parts:
+                        bundled += f" | U {'; '.join(utility_parts)}"
+                    
+                    bundled += "\n"
+                    self._write_to_file(bundled)
+        
+        self._trade_bundle_buffer.clear()
+    
     def _write_to_file(self, formatted_message: str) -> None:
         """Write formatted message to log file."""
         with self._lock:
@@ -439,6 +520,11 @@ class GUILogger:
         if self.is_finalized() or not self._should_log_category(category):
             return
         
+        # Special handling for trade+utility bundling (Phase 3.1)
+        if os.environ.get("ECONSIM_LOG_BUNDLE_TRADES") == "1" and category in ("TRADE", "UTILITY"):
+            self._buffer_trade_bundle(category, message, step)
+            return
+            
         # Special handling for trade aggregation
         if category == "TRADE" and self.log_format == LogFormat.COMPACT:
             self._buffer_trade(message, step)
@@ -475,6 +561,7 @@ class GUILogger:
         # Flush any remaining buffered trades and transitions
         self._flush_trade_buffer()
         self._flush_transition_buffer()
+        self._flush_bundle_buffer()
         
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         end_message = f"[{timestamp}] SESSION: === LOG SESSION ENDED ===\n"
