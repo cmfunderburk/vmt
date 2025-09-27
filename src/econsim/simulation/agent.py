@@ -98,8 +98,18 @@ class Agent:
 
     def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
         """Log agent mode transitions for debugging."""
-        from ..gui.debug_logger import log_agent_mode
-        log_agent_mode(self.id, old_mode.value, new_mode.value, reason)
+        from ..gui.debug_logger import log_mode_switch
+        # Add context about agent state
+        carrying_count = sum(self.carrying.values()) 
+        capacity_info = f"carrying: {carrying_count}"  # VMT agents have unlimited carrying capacity
+        if self.target:
+            target_info = f", target: {self.target}"
+        else:
+            target_info = ""
+        context = f"{capacity_info}{target_info}"
+        if reason:
+            context = f"{reason}, {context}"
+        log_mode_switch(self.id, old_mode.value, new_mode.value, context)
 
     def _set_mode(self, new_mode: AgentMode, reason: str = "") -> None:
         """Set agent mode with debug logging."""
@@ -154,6 +164,17 @@ class Agent:
 
     def carrying_total(self) -> int:
         return sum(self.carrying.values())
+    
+    def current_utility(self) -> float:
+        """Calculate current utility from carrying + home inventory."""
+        from .constants import EPSILON_UTILITY
+        raw_bundle = self._current_bundle()
+        # Apply epsilon augmentation for consistent evaluation
+        if raw_bundle[0] == 0.0 or raw_bundle[1] == 0.0:
+            bundle = (raw_bundle[0] + EPSILON_UTILITY, raw_bundle[1] + EPSILON_UTILITY)
+        else:
+            bundle = raw_bundle
+        return self.preference.utility(bundle)
 
     def deposit(self) -> bool:
         """Move all carried goods into home inventory. Returns True if any deposited."""

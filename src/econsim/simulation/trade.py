@@ -206,12 +206,34 @@ def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Ag
             continue
         if buyer.carrying.get(intent.take_type, 0) <= 0:
             continue
+        # Calculate utility before trade for logging
+        from ..gui.debug_logger import log_trade_detail, log_utility_change
+        seller_utility_before = seller.current_utility()
+        buyer_utility_before = buyer.current_utility()
+        
         # Perform swap (normal execution). Hash neutrality (if desired) is handled by restoration
         # logic in Simulation.step when ECONSIM_TRADE_HASH_NEUTRAL=1.
         seller.carrying[intent.give_type] -= 1
         buyer.carrying[intent.give_type] = buyer.carrying.get(intent.give_type, 0) + 1
         buyer.carrying[intent.take_type] -= 1
         seller.carrying[intent.take_type] = seller.carrying.get(intent.take_type, 0) + 1
+        
+        # Calculate utility after trade and log changes
+        seller_utility_after = seller.current_utility()
+        buyer_utility_after = buyer.current_utility()
+        
+        # Log individual utility changes
+        log_utility_change(intent.seller_id, seller_utility_before, seller_utility_after, "trade")
+        log_utility_change(intent.buyer_id, buyer_utility_before, buyer_utility_after, "trade")
+        
+        # Log the executed trade with combined utility gain
+        combined_utility_delta = (seller_utility_after - seller_utility_before) + (buyer_utility_after - buyer_utility_before)
+        log_trade_detail(
+            intent.seller_id, intent.give_type, 
+            intent.buyer_id, intent.take_type,
+            combined_utility_delta
+        )
+        
         return intent
     return None
 

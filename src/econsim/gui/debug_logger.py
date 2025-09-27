@@ -135,11 +135,56 @@ def log_resource_event(event_type: str, position: tuple[int, int], resource_type
         get_gui_logger().log_simulation(f"Resource {event_type}: {resource_type} at {position}{agent_info}", step)
 
 
+def log_performance(message: str, step: Optional[int] = None) -> None:
+    """Log performance metrics (steps/sec, frame timing)."""
+    if os.environ.get("ECONSIM_DEBUG_PERFORMANCE") == "1":
+        get_gui_logger().log("PERF", message, step)
+
+
+def log_trade_detail(agent1_id: int, resource1: str, agent2_id: int, resource2: str, utility_change: Optional[float] = None, step: Optional[int] = None) -> None:
+    """Log formatted trade details with agent IDs and resources."""
+    if os.environ.get("ECONSIM_DEBUG_TRADES") == "1":
+        utility_str = f" (utility: +{utility_change:.1f})" if utility_change is not None else ""
+        message = f"Agent_{agent1_id:03d} gives {resource1} to Agent_{agent2_id:03d}; receives {resource2} in exchange{utility_str}"
+        get_gui_logger().log("TRADE", message, step)
+
+
+def log_mode_switch(agent_id: int, old_mode: str, new_mode: str, context: str = "", step: Optional[int] = None) -> None:
+    """Log agent mode transitions with context.""" 
+    if os.environ.get("ECONSIM_DEBUG_AGENT_MODES") == "1":
+        context_str = f" ({context})" if context else ""
+        message = f"Agent_{agent_id:03d} switched from {old_mode} to {new_mode}{context_str}"
+        get_gui_logger().log("MODE", message, step)
+
+
+def log_economics(message: str, step: Optional[int] = None) -> None:
+    """Log economic metrics (utility changes, trade volume, market efficiency)."""
+    if os.environ.get("ECONSIM_DEBUG_ECONOMICS") == "1":
+        get_gui_logger().log("ECON", message, step)
+
+
+def log_spatial(message: str, step: Optional[int] = None) -> None:
+    """Log spatial analytics (clustering, movement patterns, density)."""
+    if os.environ.get("ECONSIM_DEBUG_SPATIAL") == "1":
+        get_gui_logger().log("SPATIAL", message, step)
+
+
+def log_utility_change(agent_id: int, old_utility: float, new_utility: float, reason: str = "", step: Optional[int] = None) -> None:
+    """Log agent utility changes from trades or other economic events."""
+    if os.environ.get("ECONSIM_DEBUG_ECONOMICS") == "1":
+        delta = new_utility - old_utility
+        sign = "+" if delta >= 0 else ""
+        reason_str = f" ({reason})" if reason else ""
+        message = f"Agent_{agent_id:03d} utility: {old_utility:.2f} → {new_utility:.2f} (Δ{sign}{delta:.2f}){reason_str}"
+        get_gui_logger().log("UTILITY", message, step)
+
+
 def log_comprehensive(message: str, step: Optional[int] = None) -> None:
     """Log general debug information (always enabled when any debug flag is set)."""
     debug_flags = [
         "ECONSIM_DEBUG_AGENT_MODES", "ECONSIM_DEBUG_TRADES", "ECONSIM_DEBUG_SIMULATION",
-        "ECONSIM_DEBUG_PHASES", "ECONSIM_DEBUG_DECISIONS", "ECONSIM_DEBUG_RESOURCES"
+        "ECONSIM_DEBUG_PHASES", "ECONSIM_DEBUG_DECISIONS", "ECONSIM_DEBUG_RESOURCES",
+        "ECONSIM_DEBUG_PERFORMANCE", "ECONSIM_DEBUG_ECONOMICS", "ECONSIM_DEBUG_SPATIAL"
     ]
     if any(os.environ.get(flag) == "1" for flag in debug_flags):
         get_gui_logger().log_simulation(message, step)

@@ -22,7 +22,7 @@ Deferred:
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional, List, Tuple, Dict
 import random as _random
 
@@ -61,6 +61,8 @@ class Simulation:
     trade_intents: list[TradeIntent] | None = None
     # Last executed trade cell highlight bookkeeping (GUI render hint; purely observational)
     _last_trade_highlight: tuple[int,int,int] | None = None  # (x,y,expire_step)
+    # Performance tracking for debug logging
+    _step_times: list[float] = field(default_factory=list)
 
     def __post_init__(self) -> None:  # pragma: no cover (simple init)
         if self.config is not None and self._rng is None:
@@ -77,9 +79,14 @@ class Simulation:
         Internal `_rng` powers respawn / metrics hooks (if present) and remains distinct to keep
         external API stable for existing test scaffolds.
         """
-        # Comprehensive debug logging for simulation steps
-        from ..gui.debug_logger import log_comprehensive, log_simulation
+        # Performance tracking
+        import time
+        from ..gui.debug_logger import log_comprehensive, log_simulation, log_performance
+        
+        step_start = time.perf_counter()
         step_num = self._steps + 1
+        
+        # Comprehensive debug logging for simulation steps
         log_comprehensive(f"=== SIMULATION STEP {step_num} START ===", step_num)
         log_comprehensive(f"Agents: {len(self.agents)}, Resources: {self.grid.resource_count()}, Decision Mode: {use_decision}", step_num)
         
@@ -322,9 +329,29 @@ class Simulation:
                     a.carrying.clear()
                     a.carrying.update(carry)
         
-        # End-of-step logging
+        # End-of-step logging and performance metrics
         step_num = self._steps + 1
         log_comprehensive(f"=== SIMULATION STEP {step_num} END ===", step_num)
+        
+        # Performance metrics
+        step_end = time.perf_counter()
+        step_duration = (step_end - step_start) * 1000  # Convert to milliseconds
+        
+        # Track steps per second over recent window
+        if not hasattr(self, '_step_times'):
+            self._step_times = []
+        self._step_times.append(step_end)
+        
+        # Keep only last 30 steps for rolling average
+        if len(self._step_times) > 30:
+            self._step_times.pop(0)
+        
+        # Calculate steps per second if we have enough data
+        if len(self._step_times) >= 2:
+            time_window = self._step_times[-1] - self._step_times[0]
+            if time_window > 0:
+                steps_per_sec = (len(self._step_times) - 1) / time_window
+                log_performance(f"{steps_per_sec:.1f} steps/sec | Frame: {step_duration:.1f}ms | Agents: {len(self.agents)} | Resources: {self.grid.resource_count()}", step_num)
         
         self._steps += 1
         # Expire highlight if past its lifetime
