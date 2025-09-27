@@ -58,28 +58,29 @@ def format_delta(value: float) -> str:
         
     Behavior:
         - Eliminates `+-` artifacts by normalizing the value first
-        - Rounds small positive values (< 1e-6) to exactly 0.0
-        - Preserves negative values for debugging purposes (even small ones)
-        - Uses consistent `+X.X` / `-X.X` formatting
+        - Rounds very small values (< 1e-6) to exactly 0.0 to avoid noise
+        - Preserves small but meaningful changes (≥ 0.001) for educational clarity
+        - Uses 3 decimal places to capture micro-utility changes in trading
+        - Uses consistent `+X.XXX` / `-X.XXX` formatting
         
     Examples:
-        >>> format_delta(1.23)
-        '+1.2'
-        >>> format_delta(-0.45)
-        '-0.5'
-        >>> format_delta(0.0000001)  # Small positive rounds to zero
-        '+0.0'
-        >>> format_delta(-0.0000001)  # Small negative preserved for debugging
-        '-0.0'
+        >>> format_delta(1.234)
+        '+1.234'
+        >>> format_delta(-0.456)
+        '-0.456'
+        >>> format_delta(0.0000001)  # Very small rounds to zero
+        '+0.000'
+        >>> format_delta(0.001)  # Small but meaningful preserved
+        '+0.001'
         >>> format_delta(0.0)
-        '+0.0'
+        '+0.000'
     """
-    # Handle small positive values by rounding to zero, but preserve negative values
-    if 0 < value < 1e-6:
+    # Handle very small values by rounding to zero (avoid floating point noise)
+    if abs(value) < 1e-6:
         value = 0.0
     
-    # Format with consistent sign notation (1 decimal place)
-    return f"{value:+.1f}"
+    # Format with consistent sign notation (3 decimal places for utility precision)
+    return f"{value:+.3f}"
 
 
 class LogLevel(Enum):

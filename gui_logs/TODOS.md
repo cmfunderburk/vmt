@@ -44,12 +44,13 @@ Based on the comprehensive analysis in `formatting_plan.md` and current logging 
 **Risk Level**: Low-Medium - Logic changes but no state impact  
 **Implementation Time**: 4 hours (completed 2025-09-27)  
 
-#### 2.1 Periodic Summary Consolidation
-- [ ] Audit all periodic logging sources
-- [ ] Standardize on `S{step} P: {steps_per_sec}s/s {frame_ms}ms R{resources}` format
-- [ ] Move periodic emission inside main step pipeline (no retroactive logging)
-- [ ] Add chronological order test: periodic lines appear in step order
-- [ ] **Files to modify**: Performance logging in world.py, debug_logger.py
+#### 2.1 Periodic Summary Consolidation ✅ COMPLETE
+- [x] Audit all periodic logging sources
+- [x] Standardize on `S{step} P: {steps_per_sec}s/s {frame_ms}ms A{agents} R{resources} Ph{phase}` format
+- [x] Move periodic emission inside main step pipeline (no retroactive logging)
+- [x] Add chronological order test: periodic lines appear in step order
+- [x] **Files modified**: `src/econsim/gui/debug_logger.py`, `MANUAL_TESTS/framework/base_test.py`
+- [x] **Implementation**: Added `log_periodic_summary()` function with unified format, integrated into manual test framework, emits every 25 steps with consistent `S{step} P:` prefix
 
 #### 2.2 Batch Mode Switch Grammar ✅ COMPLETE
 - [x] Replace `SPAM_BATCH` with structured `BATCH M:` format

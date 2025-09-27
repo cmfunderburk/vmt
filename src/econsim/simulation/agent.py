@@ -295,8 +295,11 @@ class Agent:
         return abs(x1 - x2) + abs(y1 - y2)
 
     def _current_bundle(self) -> tuple[float, float]:
-        # Use carrying goods to reflect marginal decision while foraging
-        return float(self.carrying["good1"]), float(self.carrying["good2"])
+        # Use total wealth (carrying + home) for consistent utility calculations
+        # This ensures trade predictions match actual execution utility calculations
+        total_good1 = float(self.carrying["good1"] + self.home_inventory["good1"])
+        total_good2 = float(self.carrying["good2"] + self.home_inventory["good2"])
+        return total_good1, total_good2
 
     def select_target(self, grid: Grid) -> None:
         """Select a resource target or update mode per decision rules.
