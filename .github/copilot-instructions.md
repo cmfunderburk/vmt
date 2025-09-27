@@ -15,15 +15,18 @@ Core Architecture: Dual GUI (Start Menu new path default `ECONSIM_NEW_GUI=1`; le
 Feature Flags (environment):
 * Foraging: `ECONSIM_FORAGE_ENABLED` (default 1). Off + no trade ⇒ agents idle, carrying preserved.
 * Trading: `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC` (implies draft), `ECONSIM_TRADE_PRIORITY_DELTA` (reorder only; multiset invariant), `ECONSIM_TRADE_GUI_INFO`, `ECONSIM_TRADE_DEBUG_OVERLAY`, `ECONSIM_TRADE_HASH_NEUTRAL` (debug: restore carrying after hash).
-* Unified selection (experimental combined resource/partner pass): auto‑enabled when decision+forage+trade exec unless `ECONSIM_UNIFIED_SELECTION_DISABLE=1`; can force with `ECONSIM_UNIFIED_SELECTION_ENABLE=1`.
+* Unified selection (production default): auto‑enabled when decision+forage+trade exec unless `ECONSIM_UNIFIED_SELECTION_DISABLE=1`; can force with `ECONSIM_UNIFIED_SELECTION_ENABLE=1`.
+* Debug/Development: `ECONSIM_DEBUG_FPS`, `ECONSIM_HEADLESS_RENDER`, `ECONSIM_LEGACY_ANIM_BG`, `ECONSIM_METRICS_AUTO`, `ECONSIM_LEGACY_RANDOM`, `ECONSIM_LOG_LEVEL`, `ECONSIM_LOG_FORMAT`.
+* Debug categories: `ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_DEBUG_TRADES`, `ECONSIM_DEBUG_SIMULATION`, `ECONSIM_DEBUG_PHASES`, `ECONSIM_DEBUG_DECISIONS`, `ECONSIM_DEBUG_RESOURCES`, `ECONSIM_DEBUG_PERFORMANCE`, `ECONSIM_DEBUG_ECONOMICS`, `ECONSIM_DEBUG_SPATIAL`.
 
-Unified Selection (Complete): Successfully migrated to unified target selection as default decision path. All 210+ tests passing.
+Unified Selection (Production Default): Successfully migrated to unified target selection as default decision path. All 210+ tests passing.
 * `Agent.select_unified_target` with distance‑discounted utility (`ΔU_base / (1 + k*distance²)`), deterministic tiebreaks ((x,y) for resources, agent id for partners), profitability filter (`ΔU_base > 0`).
 * `AgentSpatialGrid` O(n) rebuilt each step for partner lookup; append‑only determinism maintained.
-* Distance scaling factor `k` (0–10, default 0.0) configurable via Start Menu + live Controls panel updates.
+* Distance scaling factor `k` (0–10, default 0.0) configurable via Start Menu Advanced panel + live Controls panel Decision Params updates.
 * Leontief prospecting fallback integrated within unified path to preserve behavioral parity.
 * Conservative bilateral trade delta heuristic (min directional marginal gains) prevents oscillatory trades.
 * Mixed type tiebreaks: higher raw ΔU wins; if equal then lexical kind ordering (foraging < partner).
+* Educational impact: Higher k emphasizes local behavior; k=0.0 allows global optimization; k=5.0+ strongly favors nearby targets.
 
 Bilateral Exchange (Phase 3): O(agents) partner search (`_handle_bilateral_exchange_movement`) → pairing → meeting point path → co‑location → (intent enumeration + at most one execution per step) → cooldowns (general + partner‑specific). Stagnation: 100 no‑improvement steps triggers one‑time forced deposit (`force_deposit_once`). Priority key when flag on: `(-delta_utility, seller_id, buyer_id, give_type, take_type)`. Trade metrics & fairness_round are hash‑excluded.
 

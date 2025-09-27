@@ -70,6 +70,12 @@ class GUILogger:
         self._trade_buffer: dict[int, list[str]] = {}
         self._last_trade_step = -1
         
+        # Agent mode transition batching to prevent spam
+        self._agent_transition_buffer: dict[int, list[tuple[str, str, str, str]]] = {}  # step -> [(agent_id, old, new, context)]
+        self._last_transition_step = -1
+        self._transition_dedupe: dict[tuple[str, str, str], int] = {}  # (agent_id, old, new) -> count
+        self._last_transition_flush_time = datetime.now()
+        
         # Create logs directory if it doesn't exist (at project root)
         self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
         self.logs_dir.mkdir(exist_ok=True)
@@ -128,6 +134,38 @@ class GUILogger:
             self._trade_buffer[step] = []
         self._trade_buffer[step].append(message)
         self._last_trade_step = step
+
+    def _buffer_agent_transition(self, agent_id: str, old_mode: str, new_mode: str, context: str, step: Optional[int]) -> None:
+        """Buffer agent transitions for potential batching and deduplication."""
+        if step is None:
+            return
+            
+        # Flush previous step's transitions if we've moved to a new step
+        if step != self._last_transition_step and self._last_transition_step >= 0:
+            self._flush_transition_buffer()
+        
+        # Check for immediate repetition (same transition from same agent)
+        transition_key = (agent_id, old_mode, new_mode)
+        if transition_key in self._transition_dedupe:
+            self._transition_dedupe[transition_key] += 1
+            return  # Skip logging repeated identical transitions
+        
+        # Add to current step's buffer
+        if step not in self._agent_transition_buffer:
+            self._agent_transition_buffer[step] = []
+        self._agent_transition_buffer[step].append((agent_id, old_mode, new_mode, context))
+        self._last_transition_step = step
+        
+        # Track for deduplication (reset after a short window)
+        self._transition_dedupe[transition_key] = 1
+        
+        # Flush if buffer gets too large or too much time has passed
+        total_transitions = sum(len(trans_list) for trans_list in self._agent_transition_buffer.values())
+        time_since_flush = (datetime.now() - self._last_transition_flush_time).total_seconds()
+        
+        if total_transitions > 50 or time_since_flush > 2.0:  # Flush after 50+ transitions OR 2+ seconds
+            self._flush_transition_buffer()
+            self._last_transition_flush_time = datetime.now()
     
     def _flush_trade_buffer(self) -> None:
         """Flush buffered trades, potentially aggregating them."""
@@ -159,6 +197,51 @@ class GUILogger:
                         self._write_to_file(formatted)
         
         self._trade_buffer.clear()
+
+    def _flush_transition_buffer(self) -> None:
+        """Flush buffered agent transitions, batching similar ones."""
+        if not self._agent_transition_buffer:
+            return
+            
+        for step, transitions in self._agent_transition_buffer.items():
+            # Group transitions by (old_mode -> new_mode) pattern
+            transition_groups: dict[tuple[str, str], list[str]] = {}
+            for agent_id, old_mode, new_mode, context in transitions:
+                key = (old_mode, new_mode)
+                if key not in transition_groups:
+                    transition_groups[key] = []
+                transition_groups[key].append(agent_id)
+            
+            # Log each group
+            relative_seconds = (datetime.now() - self._session_start).total_seconds()
+            timestamp_prefix = f"+{relative_seconds:.1f}s"
+            
+            for (old_mode, new_mode), agent_ids in transition_groups.items():
+                if len(agent_ids) == 1:
+                    # Single transition - log normally but with step context
+                    agent_id = agent_ids[0]
+                    if self.log_format == LogFormat.COMPACT:
+                        formatted = f"{timestamp_prefix} {agent_id}: {old_mode}→{new_mode}\n"
+                    else:
+                        formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE: Agent {agent_id} mode: {old_mode} -> {new_mode}\n"
+                    self._write_to_file(formatted)
+                else:
+                    # Multiple similar transitions - batch them
+                    if self.log_format == LogFormat.COMPACT:
+                        if len(agent_ids) <= 5:
+                            # Show individual agents if small group
+                            agents_str = ",".join(agent_ids)
+                            formatted = f"{timestamp_prefix} BATCH: {agents_str} {old_mode}→{new_mode}\n"
+                        else:
+                            # Just show count if large group
+                            formatted = f"{timestamp_prefix} BATCH: {len(agent_ids)} agents {old_mode}→{new_mode}\n"
+                    else:
+                        formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE_BATCH: {len(agent_ids)} agents {old_mode} -> {new_mode}\n"
+                    self._write_to_file(formatted)
+        
+        # Clear buffers and reset deduplication (allow new cycles)
+        self._agent_transition_buffer.clear()
+        self._transition_dedupe.clear()
     
     def _write_to_file(self, formatted_message: str) -> None:
         """Write formatted message to log file."""
@@ -265,6 +348,21 @@ class GUILogger:
         if category == "TRADE" and self.log_format == LogFormat.COMPACT:
             self._buffer_trade(message, step)
             return
+        
+        # Special handling for agent mode transition batching to prevent spam
+        if category in ("AGENT_MODE", "MODE") and self.log_format == LogFormat.COMPACT:
+            # Extract agent info for batching
+            import re
+            match1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)', message)
+            match2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)', message)
+            if match1:
+                agent_id, old_mode, new_mode = match1.groups()
+                self._buffer_agent_transition(f"A{agent_id:0>3}", old_mode, new_mode, "", step)
+                return
+            elif match2:
+                agent_id, old_mode, new_mode = match2.groups()
+                self._buffer_agent_transition(f"A{agent_id:0>3}", old_mode, new_mode, "", step)
+                return
             
         formatted_message = self._format_message(category, message, step)
         self._write_to_file(formatted_message)
@@ -277,8 +375,9 @@ class GUILogger:
     
     def finalize_session(self) -> None:
         """Write session end marker and prevent further logging."""
-        # Flush any remaining buffered trades
+        # Flush any remaining buffered trades and transitions
         self._flush_trade_buffer()
+        self._flush_transition_buffer()
         
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         end_message = f"[{timestamp}] SESSION: === LOG SESSION ENDED ===\n"
