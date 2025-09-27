@@ -108,7 +108,7 @@ class Agent:
             target_info = ""
         context = f"{capacity_info}{target_info}"
         if reason:
-            context = f"{reason}, {context}"
+            context = f"({reason}), {context}"
         log_mode_switch(self.id, old_mode.value, new_mode.value, context)
 
     def _set_mode(self, new_mode: AgentMode, reason: str = "") -> None:
@@ -219,7 +219,36 @@ class Agent:
                 any_deposited = self.deposit()
                 if any_deposited:
                     self.force_deposit_once = False
-                self._set_mode(AgentMode.IDLE, "forced deposit complete")
+                self._set_mode(AgentMode.IDLE, "force_deposit")
+            else:
+                # Normal deposit logic based on enabled behaviors
+                any_deposited = self.deposit()
+                if any_deposited:
+                    if forage_enabled and exchange_enabled:
+                        # Both enabled: withdraw goods and continue active behavior
+                        self.withdraw_all()
+                        self._set_mode(AgentMode.FORAGE, "deposited_goods")
+                    elif forage_enabled and not exchange_enabled:
+                        # Only forage: continue foraging without withdrawal
+                        self._set_mode(AgentMode.FORAGE, "deposited_goods")
+                    elif not forage_enabled and exchange_enabled:
+                        # Only exchange: withdraw for trading
+                        self.withdraw_all()
+                        self._set_mode(AgentMode.IDLE, "deposited_goods")
+                    else:
+                        # Neither enabled: idle at home
+                        self._set_mode(AgentMode.IDLE, "deposited_goods")
+                else:
+                    # No goods to deposit - transition to appropriate mode
+                    if forage_enabled:
+                        self._set_mode(AgentMode.FORAGE, "phase_change")
+                    elif exchange_enabled:
+                        self.withdraw_all()  # Get goods from home for trading
+                        self._set_mode(AgentMode.IDLE, "phase_change")
+                    else:
+                        self._set_mode(AgentMode.IDLE, "phase_change")
+                
+                self.target = None
                 self.target = None
                 return
             
@@ -258,7 +287,7 @@ class Agent:
             any_withdrawn = self.withdraw_all()
             if any_withdrawn:
                 # Transition to IDLE mode - will move randomly to find trading partners
-                self.mode = AgentMode.IDLE
+                self._set_mode(AgentMode.IDLE, "trade_ready")
                 self.target = None
 
     # --- Decision Logic (Phase P3) -------------------------------
@@ -311,16 +340,16 @@ class Agent:
             prospect_target = self._try_leontief_prospecting(grid, raw_bundle)
             if prospect_target is not None:
                 self.target = prospect_target
-                self._set_mode(AgentMode.FORAGE, "prospecting target found")
+                self._set_mode(AgentMode.FORAGE, "prospecting")
             elif self.carrying_total() > 0:
-                self._set_mode(AgentMode.RETURN_HOME, "no targets, carrying goods")
+                self._set_mode(AgentMode.RETURN_HOME, "no_targets")
                 self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
             else:
-                self._set_mode(AgentMode.IDLE, "no targets, no goods")
+                self._set_mode(AgentMode.IDLE, "no_targets")
                 self.target = None
         else:
             self.target = best_meta
-            self._set_mode(AgentMode.FORAGE, "resource target found")
+            self._set_mode(AgentMode.FORAGE, "resource_found")
 
     # --- Unified / Shared Candidate Computation -----------------
     def compute_best_resource_candidate(self, grid: Grid) -> tuple[Position | None, float, tuple[float,int,int,int] | None]:

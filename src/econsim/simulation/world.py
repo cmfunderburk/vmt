@@ -529,7 +529,7 @@ class Simulation:
                 else:
                     agent.clear_trade_partner()
             agent.force_deposit_once = True
-            _debug_log_mode_change(agent, agent.mode, AgentMode.RETURN_HOME, "stagnation recovery")
+            _debug_log_mode_change(agent, agent.mode, AgentMode.RETURN_HOME, "stagnation")
             agent.mode = AgentMode.RETURN_HOME
             agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
             # Reset counters so we don't repeatedly trigger before deposit occurs
@@ -803,10 +803,10 @@ class Simulation:
                 a.pair_with_agent(partner)
                 # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
                 from .agent import AgentMode
-                _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired for trade")
+                _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
                 a.mode = AgentMode.MOVE_TO_PARTNER
                 a.target = a.meeting_point
-                _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired for trade")
+                _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
                 partner.mode = AgentMode.MOVE_TO_PARTNER
                 partner.target = partner.meeting_point
                 # Initial convergence step

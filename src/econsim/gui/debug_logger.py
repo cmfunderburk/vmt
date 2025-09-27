@@ -195,8 +195,9 @@ class GUILogger:
 
     def _buffer_agent_transition(self, agent_id: str, old_mode: str, new_mode: str, context: str, step: Optional[int]) -> None:
         """Buffer agent transitions for potential batching and deduplication."""
+        # Use a default step value when None to allow batching to work
         if step is None:
-            return
+            step = -1  # Use -1 as sentinel for "unknown step"
             
         # Flush previous step's transitions if we've moved to a new step
         if step != self._last_transition_step and self._last_transition_step >= 0:
@@ -262,29 +263,38 @@ class GUILogger:
             return
             
         for step, transitions in self._agent_transition_buffer.items():
-            # Group transitions by (old_mode -> new_mode) pattern
-            transition_groups: dict[tuple[str, str], list[str]] = {}
+            # Group transitions by (old_mode -> new_mode) pattern, but keep context for individuals
+            transition_groups: dict[tuple[str, str], list[tuple[str, str]]] = {}  # (old, new) -> [(agent_id, context)]
             for agent_id, old_mode, new_mode, context in transitions:
                 key = (old_mode, new_mode)
                 if key not in transition_groups:
                     transition_groups[key] = []
-                transition_groups[key].append(agent_id)
+                transition_groups[key].append((agent_id, context))
             
             # Log each group
             timestamp_prefix = self._format_simulation_time(step)
             step_info = f"S{step}" if step is not None else ""
             
-            for (old_mode, new_mode), agent_ids in transition_groups.items():
-                if len(agent_ids) == 1:
-                    # Single transition - log normally but with step context
-                    agent_id = agent_ids[0]
+            for (old_mode, new_mode), agent_context_pairs in transition_groups.items():
+                if len(agent_context_pairs) == 1:
+                    # Single transition - log with full context including reason
+                    agent_id, context = agent_context_pairs[0]
                     if self.log_format == LogFormat.COMPACT:
-                        formatted = f"{timestamp_prefix} {agent_id}: {old_mode}→{new_mode}\n"
+                        # Parse context to extract reason, carrying, and target info
+                        import re
+                        reason_match = re.search(r'^\s*(\([^)]+\))', context) if context else None
+                        reason_str = f" {reason_match.group(1)}" if reason_match else ""
+                        carry_match = re.search(r'carrying: (\d+)', context) if context else None
+                        target_match = re.search(r'target: \((\d+), (\d+)\)', context) if context else None
+                        carry_str = f" c{carry_match.group(1)}" if carry_match else ""
+                        target_str = f" @({target_match.group(1)},{target_match.group(2)})" if target_match else ""
+                        formatted = f"{timestamp_prefix} {agent_id}: {old_mode}→{new_mode}{reason_str}{carry_str}{target_str}\n"
                     else:
-                        formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE: Agent {agent_id} mode: {old_mode} -> {new_mode}\n"
+                        formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE: Agent {agent_id} mode: {old_mode} -> {new_mode} {context}\n"
                     self._write_to_file(formatted)
                 else:
                     # Multiple similar transitions - batch them with structured format
+                    agent_ids = [agent_id for agent_id, _ in agent_context_pairs]
                     if self.log_format == LogFormat.COMPACT:
                         if len(agent_ids) <= 5:
                             # Small groups: include agent IDs in structured format
@@ -335,16 +345,19 @@ class GUILogger:
                 # Compact format: +12.3s A002: home→forage c1 @(9,14)  
                 import re
                 # Handle both "Agent_X switched from Y to Z" and "Agent X mode: Y -> Z" formats
-                match1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)', message)
+                match1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)(.*)$', message)
                 match2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)', message)
                 if match1:
-                    agent_id, old_mode, new_mode = match1.groups()
+                    agent_id, old_mode, new_mode, context = match1.groups()
+                    # Extract reason if present (in parentheses at beginning of context)
+                    reason_match = re.search(r'^\s*(\([^)]+\))', context) if context else None
+                    reason_str = f" {reason_match.group(1)}" if reason_match else ""
                     # Extract carrying and target info if present
-                    carry_match = re.search(r'carrying: (\d+)', message)
-                    target_match = re.search(r'target: \((\d+), (\d+)\)', message)
+                    carry_match = re.search(r'carrying: (\d+)', context) if context else None
+                    target_match = re.search(r'target: \((\d+), (\d+)\)', context) if context else None
                     carry_str = f" c{carry_match.group(1)}" if carry_match else ""
                     target_str = f" @({target_match.group(1)},{target_match.group(2)})" if target_match else ""
-                    return f"{timestamp_prefix} {step_info} {format_agent_id(int(agent_id))}: {old_mode}→{new_mode}{carry_str}{target_str}\n"
+                    return f"{timestamp_prefix} {step_info} {format_agent_id(int(agent_id))}: {old_mode}→{new_mode}{reason_str}{carry_str}{target_str}\n"
                 elif match2:
                     agent_id, old_mode, new_mode = match2.groups()
                     # Extract reason if present (in parentheses at end)
@@ -435,15 +448,17 @@ class GUILogger:
         if category in ("AGENT_MODE", "MODE") and self.log_format == LogFormat.COMPACT:
             # Extract agent info for batching
             import re
-            match1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)', message)
-            match2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)', message)
+            match1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)(.*)$', message)
+            match2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)(.*)$', message)
             if match1:
-                agent_id, old_mode, new_mode = match1.groups()
-                self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, "", step)
+                agent_id, old_mode, new_mode, context = match1.groups()
+                context = context.strip() if context else ""
+                self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, context, step)
                 return
             elif match2:
-                agent_id, old_mode, new_mode = match2.groups()
-                self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, "", step)
+                agent_id, old_mode, new_mode, context = match2.groups()
+                context = context.strip() if context else ""
+                self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, context, step)
                 return
             
         formatted_message = self._format_message(category, message, step)
@@ -588,7 +603,7 @@ def log_periodic_summary(steps_per_sec: float, frame_ms: float, agent_count: int
 def log_mode_switch(agent_id: int, old_mode: str, new_mode: str, context: str = "", step: Optional[int] = None) -> None:
     """Log agent mode transitions with context.""" 
     if os.environ.get("ECONSIM_DEBUG_AGENT_MODES") == "1":
-        context_str = f" ({context})" if context else ""
+        context_str = f" {context}" if context else ""
         message = f"Agent_{agent_id:03d} switched from {old_mode} to {new_mode}{context_str}"
         get_gui_logger().log("MODE", message, step)
 

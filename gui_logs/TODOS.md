@@ -24,8 +24,7 @@ Based on the comprehensive analysis in `formatting_plan.md` and current logging 
 - [x] Eliminate `+-0.0` artifacts in utility logging
 - [x] **Files modified**: `src/econsim/gui/debug_logger.py`, panels, overlays
 - [x] **Test cases**: Verified +-0.0 artifacts eliminated, negative values preserved for debugging
-- [x] **Implementation**: Added `format_delta(value: float) -> str` helper with special handling for small positives (rounds to 0.0) vs small negatives (preserved for debugging)
-- [x] **Follow-up fix**: Fixed remaining `+-0.x` artifacts in trade logging by updating `log_trade_detail()` and compact format parsing
+- [x] **Implementation**: Added `format_delta(value: float) -> str` helper with special handling for small positives (rounds to 0.0) vs small negatives (preserved for debugging)m TODOs (2025-09-26)
 
 #### 1.3 Timestamp Precision Standardization ✅ COMPLETE
 - [x] Fix all timestamps to 1 decimal place: `f"+{seconds:.1f}s"`
@@ -40,10 +39,10 @@ Based on the comprehensive analysis in `formatting_plan.md` and current logging 
 - [x] **Files modified**: `MANUAL_TESTS/test_1_baseline_simple.py`, `MANUAL_TESTS/framework/phase_manager.py`
 - [x] **Implementation**: Removed duplicate `log_comprehensive()` calls that created `PHASE TRANSITION:` entries alongside structured `PHASE{n}@{turn}:` format
 
-### Phase 2: Grammar & Structure Consistency (Medium Risk)
-**Status**: Ready after Phase 1  
+### Phase 2: Grammar & Structure Consistency ✅ COMPLETE
+**Status**: ✅ Complete  
 **Risk Level**: Low-Medium - Logic changes but no state impact  
-**Estimated Time**: 3-4 hours  
+**Implementation Time**: 4 hours (completed 2025-09-27)  
 
 #### 2.1 Periodic Summary Consolidation
 - [ ] Audit all periodic logging sources
@@ -52,18 +51,20 @@ Based on the comprehensive analysis in `formatting_plan.md` and current logging 
 - [ ] Add chronological order test: periodic lines appear in step order
 - [ ] **Files to modify**: Performance logging in world.py, debug_logger.py
 
-#### 2.2 Batch Mode Switch Grammar
-- [ ] Replace `SPAM_BATCH` with structured `BATCH M:` format
-- [ ] Implement consistent aggregation: `{count} agents {old}→{new}`
-- [ ] For small groups (≤5): include agent IDs `ids=[A001,A007,...]`
-- [ ] For large groups (>5): show count only
-- [ ] **Files to modify**: `src/econsim/gui/debug_logger.py`
+#### 2.2 Batch Mode Switch Grammar ✅ COMPLETE
+- [x] Replace `SPAM_BATCH` with structured `BATCH M:` format
+- [x] Implement consistent aggregation: `{count} agents {old}→{new}`
+- [x] For small groups (≤5): include agent IDs `ids=[A001,A007,...]`
+- [x] For large groups (>5): show count only
+- [x] **BUG FIX**: Fixed buffering bug where `step=None` caused transitions to be discarded
+- [x] **Files modified**: `src/econsim/gui/debug_logger.py`
 
-#### 2.3 Reason Annotation Standardization
-- [ ] Standardize suffix patterns: `(stagnation)`, `(paired for trade)`, `(force_deposit)`
-- [ ] Ensure consistent application across all mode transitions
-- [ ] Document reason codes in logging README
-- [ ] **Files to modify**: Agent transition logging, debug_logger.py
+#### 2.3 Reason Annotation Standardization ✅ COMPLETE
+- [x] Standardize suffix patterns: `(deposited_goods)`, `(stagnation)`, `(paired_for_trade)`, `(force_deposit)`
+- [x] Fix double parentheses bug in `log_mode_switch()` function
+- [x] Ensure consistent application across all mode transitions (individual and batched)
+- [x] **BUG FIX**: Removed extra parentheses wrapping in `log_mode_switch()` that caused `((reason))` instead of `(reason)`
+- [x] **Files modified**: `src/econsim/gui/debug_logger.py`, `src/econsim/simulation/agent.py`, `src/econsim/simulation/world.py`
 
 ### Phase 3: Semantic Enhancements (Medium-High Risk)
 **Status**: Requires Phase 1-2 completion  
