@@ -42,7 +42,9 @@ class PerfectSubstitutesPreference(Preference):
         self._ensure_non_negative(bundle)
         x, y = bundle
         # U = a*x + b*y
-        return (self._params.a * x) + (self._params.b * y)
+        from ..simulation.constants import UTILITY_SCALE_FACTOR
+        base_utility = (self._params.a * x) + (self._params.b * y)
+        return base_utility * UTILITY_SCALE_FACTOR
 
     def describe_parameters(self):  # type: ignore[override]
         return {"a": ">0 weight for good x", "b": ">0 weight for good y"}

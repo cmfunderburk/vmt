@@ -47,7 +47,9 @@ class CobbDouglasPreference(Preference):
         if x <= 0.0 or y <= 0.0:
             return 0.0
         a = self._params.alpha
-        return (x**a) * (y ** (1.0 - a))
+        from ..simulation.constants import UTILITY_SCALE_FACTOR
+        base_utility = (x**a) * (y ** (1.0 - a))
+        return base_utility * UTILITY_SCALE_FACTOR
 
     def describe_parameters(self):  # type: ignore[override]
         return {"alpha": "share parameter in (0,1) controlling x vs y weight"}

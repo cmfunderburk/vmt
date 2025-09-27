@@ -713,7 +713,7 @@ def log_utility_change(agent_id: int, old_utility: float, new_utility: float, re
     if os.environ.get("ECONSIM_DEBUG_ECONOMICS") == "1":
         delta = new_utility - old_utility
         reason_str = f" ({reason})" if reason else ""
-        message = f"Agent_{agent_id:03d} utility: {old_utility:.2f} → {new_utility:.2f} (Δ{format_delta(delta)}){reason_str}"
+        message = f"Agent_{agent_id:03d} utility: {old_utility:.1f} → {new_utility:.1f} (Δ{format_delta(delta)}){reason_str}"
         get_gui_logger().log("UTILITY", message, step)
 
 

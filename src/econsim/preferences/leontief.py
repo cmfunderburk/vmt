@@ -41,7 +41,9 @@ class LeontiefPreference(Preference):
         self._ensure_non_negative(bundle)
         x, y = bundle
         # U = min(x/a, y/b)
-        return min(x / self._params.a, y / self._params.b)
+        from ..simulation.constants import UTILITY_SCALE_FACTOR
+        base_utility = min(x / self._params.a, y / self._params.b)
+        return base_utility * UTILITY_SCALE_FACTOR
 
     def describe_parameters(self):  # type: ignore[override]
         return {"a": ">0 proportion for good x", "b": ">0 proportion for good y"}

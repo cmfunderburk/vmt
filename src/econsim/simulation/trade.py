@@ -24,7 +24,7 @@ MIN_TRADE_DELTA = 1e-5
 
 def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent, 
                                 give_type: str, take_type: str) -> float:
-    """Compute exact combined utility change from a trade.
+    """Compute exact combined utility change from a trade, but only if both agents individually benefit.
     
     Args:
         agent_i: The agent giving 'give_type' and receiving 'take_type'
@@ -33,7 +33,8 @@ def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent,
         take_type: Good type that agent_j gives to agent_i
         
     Returns:
-        Combined utility delta (agent_i_after + agent_j_after - agent_i_before - agent_j_before)
+        Combined utility delta if both agents individually benefit, 0.0 otherwise.
+        This enforces individual rationality - no agent will sacrifice utility for others.
     """
     # Current utility for both agents (based on total wealth: carrying + home)
     # Add small epsilon to avoid corner bundle issues with Cobb-Douglas
@@ -69,7 +70,16 @@ def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent,
     utility_i_after = agent_i.preference.utility(bundle_i_after)
     utility_j_after = agent_j.preference.utility(bundle_j_after)
     
-    return (utility_i_after + utility_j_after) - (utility_i_before + utility_j_before)
+    # Calculate individual utility changes
+    delta_i = utility_i_after - utility_i_before
+    delta_j = utility_j_after - utility_j_before
+    
+    # Individual rationality check: both agents must individually benefit
+    if delta_i <= 0.0 or delta_j <= 0.0:
+        return 0.0  # Reject trades where either agent loses utility
+    
+    # Return combined utility delta only if both agents individually benefit
+    return delta_i + delta_j
 
 
 @dataclass(slots=True)
