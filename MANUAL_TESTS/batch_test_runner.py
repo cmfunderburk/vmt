@@ -9,6 +9,7 @@ and systematic testing scenarios.
 
 Features:
 - Sequential test execution with live progress tracking
+- Automatic unlimited speed for maximum batch processing efficiency
 - Estimated time calculations based on test configurations
 - Pause/Resume capabilities for interrupted sessions
 - Detailed execution logs and reports
@@ -23,6 +24,7 @@ Usage:
 import sys
 import subprocess
 import time
+import os
 from pathlib import Path
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Callable
@@ -139,8 +141,8 @@ class BatchTestExecutor(QObject):
                     break
                 
                 # Start test
-                self.testStarted.emit(test_name, i + 1, len(test_configs))
-                result = self._execute_single_test(test_name, config)
+                self.testStarted.emit(str(test_name), i + 1, len(test_configs))
+                result = self._execute_single_test(str(test_name), config)
                 session.results.append(result)
                 
                 # Update counters
@@ -149,7 +151,7 @@ class BatchTestExecutor(QObject):
                 else:
                     session.failed_tests += 1
                 
-                self.testCompleted.emit(test_name, result.success, result.error_message)
+                self.testCompleted.emit(str(test_name), result.success, result.error_message)
                 self.progressUpdated.emit(i + 1, len(test_configs))
         
         finally:
@@ -168,7 +170,7 @@ class BatchTestExecutor(QObject):
         
         try:
             # Construct test command
-            test_file = f"test_{config.test_id}_framework_version.py"
+            test_file = f"test_{config.id}_framework_version.py"
             test_path = Path(__file__).parent / test_file
             
             if not test_path.exists():
@@ -177,8 +179,12 @@ class BatchTestExecutor(QObject):
                 result.end_time = datetime.now()
                 return result
             
-            # Execute test with timeout
+            # Execute test with unlimited speed for batch processing
             cmd = [sys.executable, str(test_path)]
+            
+            # Set environment variable to force unlimited speed in batch mode
+            test_env = os.environ.copy()
+            test_env['ECONSIM_BATCH_UNLIMITED_SPEED'] = '1'
             
             self.current_process = subprocess.Popen(
                 cmd,
@@ -186,7 +192,8 @@ class BatchTestExecutor(QObject):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
+                env=test_env
             )
             
             # Read output line by line
@@ -202,7 +209,7 @@ class BatchTestExecutor(QObject):
                     break
                 
                 output_lines.append(line.strip())
-                self.logOutput.emit(test_name, line.strip())
+                self.logOutput.emit(str(test_name), line.strip())
             
             # Wait for completion
             exit_code = self.current_process.wait()

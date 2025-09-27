@@ -72,6 +72,7 @@ We have successfully completed the **complete VMT Framework Extensions suite**, 
 **Features Delivered:**
 - Visual test selection interface with select all/none options
 - Sequential execution with background threading
+- **Automatic unlimited speed** for maximum batch processing efficiency
 - Real-time progress tracking with multiple progress indicators
 - Time estimation (elapsed, remaining, total) with accuracy improvements
 - Execution controls (Start, Pause, Resume, Stop) with proper state management

@@ -37,6 +37,12 @@ class BaseManualTest(QWidget):
         self.setup_debug_orchestrator() 
         self.setup_timers()
         
+        # Store batch mode flag for use in showEvent
+        import os
+        self.batch_mode = os.environ.get('ECONSIM_BATCH_UNLIMITED_SPEED') == '1'
+        if self.batch_mode:
+            print("🚀 Batch mode detected - Will auto-start after GUI is shown")
+        
     def setup_ui(self):
         """Create standardized three-panel layout."""
         self.setWindowTitle(f"Manual Test {self.config.id}: {self.config.name}")
@@ -62,6 +68,46 @@ class BaseManualTest(QWidget):
         
         # Debug timer is handled by the debug panel
         
+    def showEvent(self, event):
+        """Override showEvent to auto-start in batch mode after GUI is visible."""
+        super().showEvent(event)
+        
+        # Auto-start if in batch mode and not already started
+        if self.batch_mode and not hasattr(self, '_auto_start_attempted'):
+            self._auto_start_attempted = True
+            print("🚀 GUI is now visible - Auto-starting test in batch mode...")
+            # Use QTimer to allow the GUI to fully render
+            from PyQt6.QtCore import QTimer
+            self.auto_start_timer = QTimer(self)  # Store as instance variable with parent
+            self.auto_start_timer.setSingleShot(True)
+            self.auto_start_timer.timeout.connect(self.auto_start_test)
+            self.auto_start_timer.start(1000)  # Start after 1 second
+            print("🔧 Auto-start timer created and started")
+    
+    def auto_start_test(self):
+        """Auto-start the test in batch mode by calling start_test directly."""
+        print("🚀 Auto-starting test in batch mode...")
+        try:
+            # Check if the UI is properly set up
+            if hasattr(self, 'test_layout') and hasattr(self.test_layout, 'control_panel'):
+                button = self.test_layout.control_panel.start_button
+                print(f"🔧 Button state: enabled={button.isEnabled()}, text='{button.text()}'")
+                
+                # Ensure button is enabled before starting
+                if not button.isEnabled():
+                    button.setEnabled(True)
+                    print("🔧 Enabled start button for auto-start")
+                
+                # Call start_test method directly
+                self.start_test()
+                print("✅ Auto-start test initiated successfully")
+            else:
+                print("❌ Auto-start failed - UI components not ready")
+        except Exception as e:
+            print(f"❌ Auto-start failed with error: {e}")
+            import traceback
+            traceback.print_exc()
+        
     def start_test(self):
         """Initialize and start the test simulation."""
         try:
@@ -85,9 +131,19 @@ class BaseManualTest(QWidget):
             self.test_layout.control_panel.start_button.setEnabled(False)
             self.update_display()
             
-            # Start timer with selected speed
+            # Start timer with selected speed (or unlimited if in batch mode)
             from test_utils import get_timer_interval
-            speed_index = self.test_layout.control_panel.speed_combo.currentIndex()
+            import os
+            
+            # Check if running in batch mode with unlimited speed
+            if os.environ.get('ECONSIM_BATCH_UNLIMITED_SPEED') == '1':
+                # Force unlimited speed for batch processing
+                speed_index = 4  # Unlimited speed index
+                self.test_layout.control_panel.speed_combo.setCurrentIndex(4)
+                print("🚀 Batch mode detected - running at unlimited speed for efficiency")
+            else:
+                speed_index = self.test_layout.control_panel.speed_combo.currentIndex()
+            
             self.step_timer.start(get_timer_interval(speed_index))
             
             print(f"✅ Test {self.config.id} started! Simulation created with {len(self.simulation.agents)} agents")
@@ -116,13 +172,55 @@ class BaseManualTest(QWidget):
         # Update display
         self.update_display()
         
-        # Log periodic status
+        # Log periodic status and economic metrics
         if self.current_turn % 50 == 0:
             agent_count = len(self.simulation.agents)
             resource_count = len(list(self.simulation.grid.iter_resources()))
             status_msg = f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} agents, {resource_count} resources"
-            from econsim.gui.debug_logger import log_comprehensive
+            from econsim.gui.debug_logger import log_comprehensive, log_economics
             log_comprehensive(f"PERIODIC STATUS: {status_msg}", self.current_turn)
+            
+            # Resource flow analysis
+            resource_by_type = {"good1": 0, "good2": 0}
+            for resource in self.simulation.grid.iter_resources():
+                _, _, res_type = resource
+                resource_by_type[str(res_type)] = resource_by_type.get(str(res_type), 0) + 1
+            
+            # Agent inventory analysis
+            total_carrying = {"good1": 0, "good2": 0}
+            total_home_inventory = {"good1": 0, "good2": 0}
+            for agent in self.simulation.agents:
+                for res_type, count in agent.carrying.items():
+                    total_carrying[res_type] = total_carrying.get(res_type, 0) + count
+                for res_type, count in agent.home_inventory.items():
+                    total_home_inventory[res_type] = total_home_inventory.get(res_type, 0) + count
+            
+            log_economics(f"Resource distribution - Grid: good1={resource_by_type['good1']}, good2={resource_by_type['good2']} | Carrying: good1={total_carrying['good1']}, good2={total_carrying['good2']} | Home: good1={total_home_inventory['good1']}, good2={total_home_inventory['good2']}", self.current_turn)
+            
+            # Spatial analytics
+            from econsim.gui.debug_logger import log_spatial
+            agent_positions = [(agent.x, agent.y) for agent in self.simulation.agents]
+            
+            # Calculate center of mass
+            if agent_positions:
+                center_x = sum(pos[0] for pos in agent_positions) / len(agent_positions)
+                center_y = sum(pos[1] for pos in agent_positions) / len(agent_positions)
+                
+                # Calculate average distance from center (clustering metric)
+                total_distance = sum(((pos[0] - center_x)**2 + (pos[1] - center_y)**2)**0.5 for pos in agent_positions)
+                avg_distance_from_center = total_distance / len(agent_positions)
+                
+                # Calculate average inter-agent distance (sample first 5 agents for performance)
+                sample_agents = self.simulation.agents[:min(5, len(self.simulation.agents))]
+                inter_distances = []
+                for i, agent1 in enumerate(sample_agents):
+                    for agent2 in sample_agents[i+1:]:
+                        dist = ((agent1.x - agent2.x)**2 + (agent1.y - agent2.y)**2)**0.5
+                        inter_distances.append(dist)
+                
+                avg_inter_distance = sum(inter_distances) / len(inter_distances) if inter_distances else 0
+                
+                log_spatial(f"Agent clustering - Center: ({center_x:.1f}, {center_y:.1f}) | Avg distance from center: {avg_distance_from_center:.1f} | Avg inter-agent distance: {avg_inter_distance:.1f}", self.current_turn)
         
         # Stop at turn 900
         if self.current_turn >= 900:
@@ -133,7 +231,38 @@ class BaseManualTest(QWidget):
             print("🎉 TEST COMPLETED SUCCESSFULLY!")
             print("All phases executed. Check the behavior observations above.")
             print("=" * 60)
+            
+            # Auto-exit if running in batch mode
+            import os
+            if os.environ.get('ECONSIM_BATCH_UNLIMITED_SPEED') == '1':
+                print("🚀 Batch mode - Auto-exiting after completion")
+                # Use QTimer to allow GUI to finish processing before exit
+                from PyQt6.QtCore import QTimer
+                self.exit_timer = QTimer(self)  # Store as instance variable with parent
+                self.exit_timer.setSingleShot(True)
+                self.exit_timer.timeout.connect(self.batch_mode_exit)
+                self.exit_timer.start(3000)  # Exit after 3 second delay
+                print("🔧 Auto-exit timer created and started")
     
+    def batch_mode_exit(self):
+        """Exit the application when in batch mode."""
+        print("🚀 Batch mode - Exiting application NOW")
+        print("🔧 Closing window...")
+        self.close()
+        
+        print("🔧 Quitting QApplication...")
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            app.quit()
+            print("🔧 QApplication quit() called")
+        else:
+            print("⚠️  No QApplication instance found")
+        
+        print("🔧 Calling sys.exit(0)...")
+        import sys
+        sys.exit(0)
+        
     def check_phase_transition(self):
         """Check if we need to transition to a new phase. Override in subclasses."""
         pass

@@ -44,6 +44,9 @@ cd MANUAL_TESTS && python enhanced_test_launcher_v2.py
 **Sequential test execution with comprehensive progress tracking**
 
 - **Test Selection**: Choose any combination of the 7 framework tests
+- **Sequential Execution**: Tests run one at a time, each completing fully before the next starts
+- **Auto-Exit**: Tests automatically exit upon completion in batch mode for true sequential processing
+- **Unlimited Speed**: All batch tests automatically run at maximum speed for efficiency
 - **Progress Tracking**: Real-time progress bars with completion estimates
 - **Time Management**: Elapsed time, estimated remaining, and total duration
 - **Execution Controls**: Start, Pause, Resume, Stop capabilities
