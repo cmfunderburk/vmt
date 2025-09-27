@@ -789,3 +789,22 @@ When paused a centered translucent "PAUSED" watermark overlays the viewport, pro
 ```bash
 ECONSIM_NEW_GUI=1 ECONSIM_METRICS_AUTO=1 ECONSIM_METRICS_AUTO_INTERVAL_MS=750 make dev
 ```
+
+## 12. License
+
+This project is licensed under the Apache License, Version 2.0. See the `LICENSE` file for the full
+text of the license. A `NOTICE` file is included with attribution and third‑party dependency notices.
+
+Copyright (c) 2024-2025 Chris Funderburk
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this project except
+in compliance with the License. You may obtain a copy of the License at:
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the specific language governing permissions and limitations under the
+License.
+
+For contributions, see `CONTRIBUTING.md` (all contributions are accepted under Apache-2.0 terms).
