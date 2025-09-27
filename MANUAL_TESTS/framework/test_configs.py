@@ -24,6 +24,7 @@ class TestConfiguration:
     preference_mix: str  # "mixed", "cobb_douglas", "leontief", "perfect_substitutes"
     seed: int
     viewport_size: int = 600
+    distance_scaling_factor: float = 0.0  # k value for unified target selection distance penalty
     custom_phases: Optional[List['PhaseDefinition']] = None
     debug_categories: Optional[List[str]] = None
 

@@ -14,7 +14,7 @@ EPSILON_UTILITY: float = 1e-6
 # Utility scaling factor to reduce floating-point precision sensitivity
 # All utility functions multiply their result by this factor for educational clarity
 # and computational robustness. Does not affect economic ordinality.
-UTILITY_SCALE_FACTOR: float = 100.0
+UTILITY_SCALE_FACTOR: float = 10.0
 
 # Unified target selection distance discount scaling factor (k) default.
 # Governs inverse-square distance penalty: discounted = base / (1 + k * d^2)

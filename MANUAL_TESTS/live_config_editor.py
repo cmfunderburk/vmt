@@ -168,6 +168,7 @@ class ConfigurationValidator(QWidget):
         
         # Basic validation
         total_cells = config.grid_size[0] * config.grid_size[1]
+        distance_k = getattr(config, 'distance_scaling_factor', 0.0)
         
         # Errors (prevent execution)
         if config.agent_count <= 0:
@@ -178,6 +179,8 @@ class ConfigurationValidator(QWidget):
             issues["errors"].append("Resource density must be between 0 and 1")
         if config.perception_radius <= 0:
             issues["errors"].append("Perception radius must be positive")
+        if distance_k < 0 or distance_k > 10:
+            issues["errors"].append("Distance scaling factor must be between 0 and 10")
         if config.agent_count > total_cells:
             issues["errors"].append("More agents than grid cells")
             
@@ -203,6 +206,16 @@ class ConfigurationValidator(QWidget):
         agent_perception_area = 3.14159 * (config.perception_radius ** 2)
         if agent_perception_area > (total_cells * 0.5):
             issues["info"].append("Perception covers large portion of grid")
+            
+        # Distance scaling factor insights
+        if distance_k == 0.0:
+            issues["info"].append("k=0.0: Agents ignore distance, optimize utility globally")
+        elif distance_k >= 5.0:
+            issues["info"].append(f"k={distance_k:.1f}: Strong local preference - agents heavily favor nearby targets")
+        elif distance_k >= 1.0:
+            issues["info"].append(f"k={distance_k:.1f}: Moderate distance penalty - balanced targeting behavior")
+        else:
+            issues["info"].append(f"k={distance_k:.1f}: Light distance penalty - slight preference for nearby targets")
             
         return issues
         
@@ -291,6 +304,9 @@ class ConfigurationPreview(QWidget):
         perception_area = 3.14159 * (config.perception_radius ** 2)
         perception_coverage = min(100, (perception_area / total_cells) * 100)
         
+        # Get distance scaling factor with fallback
+        distance_k = getattr(config, 'distance_scaling_factor', 0.0)
+        
         # Generate preview text
         preview_html = f"""
         <table style='width: 100%; font-size: 10px;'>
@@ -298,6 +314,7 @@ class ConfigurationPreview(QWidget):
         <tr><td><b>Agents:</b></td><td>{config.agent_count} ({agent_density:.1f}% density)</td></tr>
         <tr><td><b>Resources:</b></td><td>~{expected_resources} ({resource_ratio:.1f} per agent)</td></tr>
         <tr><td><b>Perception:</b></td><td>{config.perception_radius} radius ({perception_coverage:.1f}% coverage)</td></tr>
+        <tr><td><b>Distance Factor (k):</b></td><td>{distance_k:.1f} ({'Global optimization' if distance_k == 0.0 else 'Local preference' if distance_k >= 5.0 else 'Balanced targeting'})</td></tr>
         <tr><td><b>Preferences:</b></td><td>{config.preference_mix.replace('_', ' ').title()}</td></tr>
         </table>
         
@@ -305,7 +322,8 @@ class ConfigurationPreview(QWidget):
         <b>Expected Behavior:</b><br>
         {'High competition for resources' if resource_ratio < 2 else 'Moderate resource availability' if resource_ratio < 4 else 'Abundant resources'}<br>
         {'Agents can see most of the grid' if perception_coverage > 50 else 'Limited visibility encourages exploration' if perception_coverage < 20 else 'Moderate perception range'}<br>
-        {'Dense population may limit movement' if agent_density > 20 else 'Sparse population with room to move' if agent_density < 10 else 'Balanced population density'}
+        {'Dense population may limit movement' if agent_density > 20 else 'Sparse population with room to move' if agent_density < 10 else 'Balanced population density'}<br>
+        {'Agents prioritize nearby targets strongly' if distance_k >= 5.0 else 'Agents ignore distance in decisions' if distance_k == 0.0 else 'Agents balance utility vs distance'}
         </p>
         """
         
@@ -658,7 +676,7 @@ class LiveConfigEditor(QWidget):
     
     configChanged = pyqtSignal(TestConfiguration)
     
-    def __init__(self, initial_config: TestConfiguration = None, parent=None):
+    def __init__(self, initial_config: Optional[TestConfiguration] = None, parent=None):
         super().__init__(parent)
         
         # Use first test config as default if none provided
@@ -731,6 +749,11 @@ class LiveConfigEditor(QWidget):
             "Perception Radius", 1, 20, 8, 0.5, "",
             "How far agents can see (1-20 cells)")
         agent_layout.addWidget(self.perception_slider)
+        
+        self.distance_scaling_slider = ParameterSlider(
+            "Distance Scaling (k)", 0.0, 10.0, 0.0, 0.1, "",
+            "Distance penalty factor for target selection (0=no penalty, higher=prefer nearby targets)")
+        agent_layout.addWidget(self.distance_scaling_slider)
         
         controls_layout.addWidget(agent_group)
         
@@ -855,6 +878,7 @@ class LiveConfigEditor(QWidget):
         self.grid_height_slider.valueChanged.connect(self.on_parameter_changed)
         self.agent_count_slider.valueChanged.connect(self.on_parameter_changed)
         self.perception_slider.valueChanged.connect(self.on_parameter_changed)
+        self.distance_scaling_slider.valueChanged.connect(self.on_parameter_changed)
         self.density_slider.valueChanged.connect(self.on_parameter_changed)
         
         # Other controls
@@ -878,6 +902,7 @@ class LiveConfigEditor(QWidget):
             agent_count=int(self.agent_count_slider.get_value()),
             resource_density=self.density_slider.get_value(),
             perception_radius=int(self.perception_slider.get_value()),
+            distance_scaling_factor=self.distance_scaling_slider.get_value(),
             preference_mix=self.preference_combo.currentText(),
             seed=self.seed_spin.value()
         )
@@ -901,6 +926,7 @@ class LiveConfigEditor(QWidget):
         self.grid_height_slider.blockSignals(True)
         self.agent_count_slider.blockSignals(True)
         self.perception_slider.blockSignals(True)
+        self.distance_scaling_slider.blockSignals(True)
         self.density_slider.blockSignals(True)
         self.preference_combo.blockSignals(True)
         self.seed_spin.blockSignals(True)
@@ -912,6 +938,7 @@ class LiveConfigEditor(QWidget):
         self.grid_height_slider.set_value(config.grid_size[1])
         self.agent_count_slider.set_value(config.agent_count)
         self.perception_slider.set_value(config.perception_radius)
+        self.distance_scaling_slider.set_value(getattr(config, 'distance_scaling_factor', 0.0))
         self.density_slider.set_value(config.resource_density)
         self.preference_combo.setCurrentText(config.preference_mix)
         self.seed_spin.setValue(config.seed)
@@ -923,6 +950,7 @@ class LiveConfigEditor(QWidget):
         self.grid_height_slider.blockSignals(False)
         self.agent_count_slider.blockSignals(False)
         self.perception_slider.blockSignals(False)
+        self.distance_scaling_slider.blockSignals(False)
         self.density_slider.blockSignals(False)
         self.preference_combo.blockSignals(False)
         self.seed_spin.blockSignals(False)
@@ -949,16 +977,44 @@ class LiveConfigEditor(QWidget):
             with open(temp_file, 'w') as f:
                 f.write(temp_test_content)
                 
-            # Launch the test
-            subprocess.Popen([sys.executable, str(temp_file)], cwd=str(temp_file.parent))
+            # Make the file executable
+            import stat
+            temp_file.chmod(temp_file.stat().st_mode | stat.S_IEXEC)
             
+            # Launch the test with better error handling
+            process = subprocess.Popen(
+                [sys.executable, str(temp_file)], 
+                cwd=str(temp_file.parent),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # Show success message and optionally clean up old temp files
             QMessageBox.information(self, "Test Launched",
                 f"Custom test '{self.current_config.name}' has been launched!\n\n"
+                f"Config: {self.current_config.grid_size[0]}×{self.current_config.grid_size[1]} grid, "
+                f"{self.current_config.agent_count} agents, k={getattr(self.current_config, 'distance_scaling_factor', 0.0)}\n"
                 f"Temporary file: {temp_file.name}")
+            
+            # Clean up old temporary test files (keep only last 5)
+            self._cleanup_old_temp_files()
                 
         except Exception as e:
             QMessageBox.critical(self, "Launch Error",
                 f"Failed to launch custom test: {e}")
+                
+    def _cleanup_old_temp_files(self):
+        """Clean up old temporary test files, keeping only the most recent 5."""
+        try:
+            temp_files = list(Path(__file__).parent.glob("temp_custom_test_*.py"))
+            if len(temp_files) > 5:
+                # Sort by creation time and remove oldest
+                temp_files.sort(key=lambda f: f.stat().st_mtime)
+                for old_file in temp_files[:-5]:
+                    old_file.unlink()
+        except Exception:
+            pass  # Ignore cleanup errors
                 
     def generate_test_code(self, config: TestConfiguration) -> str:
         """Generate executable test code for the configuration."""
@@ -978,6 +1034,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from PyQt6.QtWidgets import QApplication
 from framework.base_test import StandardPhaseTest
 from framework.test_configs import TestConfiguration
 
@@ -990,6 +1047,7 @@ CUSTOM_CONFIG = TestConfiguration(
     agent_count={config.agent_count},
     resource_density={config.resource_density},
     perception_radius={config.perception_radius},
+    distance_scaling_factor={getattr(config, 'distance_scaling_factor', 0.0)},
     preference_mix="{config.preference_mix}",
     seed={config.seed}
 )
@@ -998,15 +1056,14 @@ class CustomTest(StandardPhaseTest):
     """Custom test implementation."""
     
     def __init__(self):
-        super().__init__(
-            config=CUSTOM_CONFIG,
-            test_name="{config.name}"
-        )
+        super().__init__(CUSTOM_CONFIG)
 
 def main():
     """Run the custom test."""
+    app = QApplication(sys.argv)
     test = CustomTest()
-    test.run()
+    test.show()
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()

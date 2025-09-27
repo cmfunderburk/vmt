@@ -43,7 +43,7 @@ class SimulationFactory:
             perception_radius=test_config.perception_radius,
             respawn_target_density=test_config.resource_density,
             respawn_rate=0.25,  # Standard rate from existing tests
-            distance_scaling_factor=0.0,  # Default k=0.0
+            distance_scaling_factor=getattr(test_config, 'distance_scaling_factor', 0.0),
             viewport_size=test_config.viewport_size
         )
         
