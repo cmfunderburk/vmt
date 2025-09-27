@@ -12,6 +12,7 @@ from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont
 
 from ..simulation_controller import SimulationController
+from ..debug_logger import format_agent_id, format_delta
 
 
 class TradeInspectorPanel(QWidget):  # pragma: no cover (GUI)
@@ -189,12 +190,12 @@ class TradeInspectorPanel(QWidget):  # pragma: no cover (GUI)
                 take_type = getattr(intent, 'take_type', '?')
                 delta_u = getattr(intent, 'delta_utility', 0.0)
                 
-                summary = f"A{seller_id} → A{buyer_id}: {give_type} → {take_type}"
+                summary = f"{format_agent_id(int(seller_id)) if str(seller_id).isdigit() else f'A{seller_id}'} → {format_agent_id(int(buyer_id)) if str(buyer_id).isdigit() else f'A{buyer_id}'}: {give_type} → {take_type}"
                 summary_label = QLabel(summary)
                 summary_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
                 
                 # Economic details
-                details = f"Utility Gain: {delta_u:.3f}"
+                details = f"Utility Gain: {format_delta(delta_u)}"
                 details_label = QLabel(details)
                 details_label.setFont(QFont("Arial", 8))
                 details_label.setStyleSheet("color: #006400;")  # Dark green

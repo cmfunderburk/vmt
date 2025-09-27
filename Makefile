@@ -1,7 +1,18 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test-unit perf manual-tests enhanced-tests batch-tests bookmarks test tests clean
+.PHONY: install dev lint format type test-unit perf manual-tests enhanced-tests batch-tests bookmarks test tests clean venv
+
+# Create canonical development virtual environment (vmt-dev) and install deps
+.PHONY: venv
+venv:
+	@if [ -d "vmt-dev" ]; then \
+		echo "[venv] Existing vmt-dev directory detected; skipping creation."; \
+	else \
+		python3 -m venv vmt-dev && echo "[venv] Created vmt-dev virtual environment."; \
+	fi
+	@. vmt-dev/bin/activate && pip install --upgrade pip >/dev/null 2>&1 && echo "[venv] Upgraded pip." && pip install -e .[dev]
+	@echo "[venv] Environment ready. Activate with: source vmt-dev/bin/activate"
 
 install:
 	$(PYTHON) -m pip install -e .[dev]

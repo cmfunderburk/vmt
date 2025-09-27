@@ -13,6 +13,7 @@ from collections import deque
 from time import perf_counter
 
 from econsim.simulation.world import Simulation
+from .debug_logger import format_delta
 
 
 class SimulationController:
@@ -110,9 +111,10 @@ class SimulationController:
         if not lt:
             return None
         try:
+            delta_value = float(lt.get('delta_utility', 0)) if lt.get('delta_utility') is not None else 0.0
             return (
                 f"step {lt.get('step')} seller {lt.get('seller')} → buyer {lt.get('buyer')} "
-                f"give {lt.get('give_type')} / take {lt.get('take_type')} ΔU={lt.get('delta_utility'):.3f}"
+                f"give {lt.get('give_type')} / take {lt.get('take_type')} ΔU={format_delta(delta_value)}"
             )
         except Exception:
             return None

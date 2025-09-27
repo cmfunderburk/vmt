@@ -68,9 +68,8 @@ class PhaseManager:
                     if src_path not in sys.path:
                         sys.path.insert(0, src_path)
                     
-                    from econsim.gui.debug_logger import log_phase_transition, log_comprehensive
+                    from econsim.gui.debug_logger import log_phase_transition
                     log_phase_transition(phase_num, current_turn, phase_def.description)
-                    log_comprehensive(f"PHASE TRANSITION: {current_phase} -> {phase_num} at turn {current_turn}", current_turn)
                 except ImportError:
                     # Fallback if debug logger not available
                     print(f"PHASE TRANSITION: {current_phase} -> {phase_num} at turn {current_turn}")

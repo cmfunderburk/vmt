@@ -290,7 +290,7 @@ class Test1Window(QWidget):
     
     def check_phase_transition(self):
         """Check if we need to transition to a new phase."""
-        from econsim.gui.debug_logger import log_phase_transition, log_comprehensive
+        from econsim.gui.debug_logger import log_phase_transition
         new_phase = None
         
         if self.current_turn == 201 and self.phase == 1:
@@ -301,7 +301,6 @@ class Test1Window(QWidget):
             new_phase = 2
             phase_desc = "Only foraging enabled (turns 201-400)"
             log_phase_transition(2, self.current_turn, phase_desc)
-            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 2 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 401 and self.phase == 2:
             # Phase 3: Only exchange
@@ -311,7 +310,6 @@ class Test1Window(QWidget):
             new_phase = 3
             phase_desc = "Only exchange enabled (turns 401-600)"
             log_phase_transition(3, self.current_turn, phase_desc)
-            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 3 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 601 and self.phase == 3:
             # Phase 4: Both disabled (shortened to 50 turns)
@@ -321,7 +319,6 @@ class Test1Window(QWidget):
             new_phase = 4
             phase_desc = "Both disabled - agents should idle (turns 601-650)"
             log_phase_transition(4, self.current_turn, phase_desc)
-            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 4 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 651 and self.phase == 4:
             # Phase 5: Both enabled again
@@ -331,7 +328,6 @@ class Test1Window(QWidget):
             new_phase = 5
             phase_desc = "Both enabled again (turns 651-850)"
             log_phase_transition(5, self.current_turn, phase_desc)
-            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 5 at turn {self.current_turn}", self.current_turn)
             
         elif self.current_turn == 851 and self.phase == 5:
             # Phase 6: Final disabled
@@ -341,7 +337,6 @@ class Test1Window(QWidget):
             new_phase = 6
             phase_desc = "Final disabled phase (turns 851-900)"
             log_phase_transition(6, self.current_turn, phase_desc)
-            log_comprehensive(f"PHASE TRANSITION: {self.phase} -> 6 at turn {self.current_turn}", self.current_turn)
         
         if new_phase:
             self.phase = new_phase

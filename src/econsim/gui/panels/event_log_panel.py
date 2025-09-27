@@ -14,6 +14,7 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QFont
 
 from ..simulation_controller import SimulationController
+from ..debug_logger import format_agent_id, format_delta
 
 
 class EventLogPanel(QWidget):  # pragma: no cover (GUI)
@@ -159,7 +160,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                             trade_step = trade.get('step', check_step)
                             
                             # Format trade event for display (use actual trade step)
-                            event_text = f"Step {trade_step}: TRADE Agent {seller} ⟷ Agent {buyer} | {give_type} ⟷ {take_type} | ΔU={delta_u:.3f}"
+                            event_text = f"Step {trade_step}: TRADE Agent {seller} ⟷ Agent {buyer} | {give_type} ⟷ {take_type} | ΔU={format_delta(delta_u)}"
                             events.append(event_text)
                     
         except Exception:
@@ -183,9 +184,9 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                     partner_id = selection.get('partner_id', None)
                     
                     if partner_id is not None:
-                        event_text = f"Step {step}: A{agent_id} pairs with A{partner_id} → {target_pos}"
+                        event_text = f"Step {step}: {format_agent_id(int(agent_id)) if str(agent_id).isdigit() else agent_id} pairs with {format_agent_id(int(partner_id)) if str(partner_id).isdigit() else partner_id} → {target_pos}"
                     else:
-                        event_text = f"Step {step}: A{agent_id} targets {target_type} at {target_pos}"
+                        event_text = f"Step {step}: {format_agent_id(int(agent_id)) if str(agent_id).isdigit() else agent_id} targets {target_type} at {target_pos}"
                     
                     events.append(event_text)
                     

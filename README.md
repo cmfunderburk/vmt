@@ -23,30 +23,27 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 ## 2. Current Reality (Post Unified Selection Implementation)
 **Latest Status**: Unified target selection implemented and operational as default behavior. Distance-discounted utility with configurable scaling factor (k), spatial indexing, and conservative bilateral trade heuristics.
 
+**Canonical Development Build**: `make enhanced-tests` is now the primary development interface with optimized logging and educational GUI tests. Features not incorporated there are deprecated or scheduled for removal.
+
 Gate 6 delivered: factory construction, GUI default decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param), overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard. Subsequent increment: uniform seeded respawn distribution (removed top-left bias) + GUI respawn interval dropdown.
 
 ## 3. Quick Start (Current Behavior)
 ```bash
-python3 -m venv vmt-dev
+# Create and activate development environment
+make venv
 source vmt-dev/bin/activate
-pip install -e .[dev]
 
-# Launch new GUI (Start Menu → choose scenario, configure viewport size & distance scaling factor k). 
-# Decision mode ON by default; press 'O' in simulation to toggle overlay.
-# Configure k in Start Menu Advanced panel or live-adjust via Controls panel Decision Params
-make dev
+# Primary development interface (canonical build with optimized logging)
+make enhanced-tests
 
-# (Optional) Run legacy minimal bootstrap window (no Start Menu) instead of new GUI
-ECONSIM_NEW_GUI=0 make dev
+# Alternative interfaces
+make dev                               # Basic GUI (Start Menu → choose scenario)
+pytest -q                            # Run full test suite (210+ tests)
+python scripts/perf_stub.py          # Performance sample
 
-# Run full test suite (decision, determinism, respawn, metrics, snapshot, perf)
-pytest -q
-
-# Performance sample (widget)
-python scripts/perf_stub.py --mode widget --duration 2 --json
-
-# Force legacy random walk (regression / comparison)
-ECONSIM_LEGACY_RANDOM=1 make dev
+# Legacy/debugging options (features may be deprecated soon)
+ECONSIM_NEW_GUI=0 make dev            # Legacy minimal bootstrap window
+ECONSIM_LEGACY_RANDOM=1 make dev      # Force legacy random walk
 ```
 
 ## 4. Factory Construction (Preferred)
@@ -537,10 +534,11 @@ python3 -m venv vmt-dev
 source vmt-dev/bin/activate
 pip install -e .[dev]
 
-# Run the application (62.5 FPS GUI)
-make dev
+# Primary development interface (canonical build)
+make enhanced-tests          # Enhanced launcher with optimized logging (recommended)
 
-# Run tests and quality checks
+# Alternative interfaces
+make dev                     # Basic GUI (Start Menu → choose scenario)
 make test-unit               # Automated unit/integration tests (210+ tests)
 make manual-tests            # Educational GUI tests for behavior validation
 make lint                    # Code quality
@@ -648,12 +646,15 @@ python3 scripts/perf_stub.py --mode synthetic --duration 2
 
 ### **Development Workflow**
 ```bash
-# Daily development commands
-make dev       # Launch application
-make test      # Run all tests  
-make lint      # Check code quality
-make format    # Auto-format code
-make clean     # Clean cache files
+# Primary development interface (canonical build)
+make enhanced-tests    # Enhanced launcher with optimized logging (recommended)
+
+# Alternative commands
+make dev              # Basic GUI (Start Menu → choose scenario)
+make test             # Run all tests  
+make lint             # Check code quality
+make format           # Auto-format code
+make clean            # Clean cache files
 ```
 
 ## Development Approach

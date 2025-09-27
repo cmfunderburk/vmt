@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 import os
 import pygame
+from .debug_logger import format_delta
 
 @runtime_checkable
 class _SurfaceLike(Protocol):  # minimal protocol for blit
@@ -63,7 +64,7 @@ def render_trade_debug(surface: _SurfaceLike, font: _FontLike, simulation: Any, 
                 continue
             line = f"T{idx}: A{seller_id}->{buyer_id} {give_type}->{take_type} q={quantity}"
             if delta_u is not None:
-                line += f" dU={delta_u:.3f}"
+                line += f" dU={format_delta(float(delta_u))}"
             is_executed = executed_signature == (seller_id, buyer_id, give_type, take_type)
             color = (140, 255, 140) if is_executed else (255, 255, 210)
             txt = font.render(line, True, color)
@@ -72,9 +73,10 @@ def render_trade_debug(surface: _SurfaceLike, font: _FontLike, simulation: Any, 
             surface.blit(txt, (x_offset, y_offset + idx * (txt.get_height() + 2)))
         # Optional summary line when GUI info flag active
         if os.environ.get('ECONSIM_TRADE_GUI_INFO') == '1' and last_exec is not None:
+            delta_value = float(last_exec.get('delta_utility', 0)) if last_exec.get('delta_utility') is not None else 0.0
             summary = (
                 f"Last Trade: A{last_exec.get('seller')}->{last_exec.get('buyer')} "
-                f"{last_exec.get('give_type')}->{last_exec.get('take_type')} dU={last_exec.get('delta_utility'):.3f}"
+                f"{last_exec.get('give_type')}->{last_exec.get('take_type')} dU={format_delta(delta_value)}"
             )
             txt2 = font.render(summary, True, (200, 255, 200))
             shadow2 = font.render(summary, True, (0, 0, 0))

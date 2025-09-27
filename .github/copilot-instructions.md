@@ -44,7 +44,7 @@ Perf Expectations: ~62 FPS typical (floor ≥30). Validate with `make perf` or `
 
 Testing & PR Flow: Run `make test-unit lint type perf`. Any state or perf‑sensitive change: add/adjust unit test (determinism, perf guard, hash). Manual GUI validation: `make manual-tests` (7 educational scenarios). PR summary: Goal | Changes | Tests/Perf | Result | Next. Keep diffs minimal.
 
-Development Workflow: Virtual env `vmt-dev/`; entry point `make dev` (new GUI) or `ECONSIM_NEW_GUI=0 make dev` (legacy). Environment flags control features (see above). Live config via Controls panel; settings persist across GUI sessions. Factory construction via `Simulation.from_config()` preferred over manual wiring.
+Development Workflow: **ALWAYS activate virtual environment first**: `source vmt-dev/bin/activate` (create with `make venv` if missing). Entry point `make enhanced-tests` (canonical development build) or `make dev` (basic GUI). Environment flags control features (see above). Live config via Controls panel; settings persist across GUI sessions. Factory construction via `Simulation.from_config()` preferred over manual wiring.
 
 Debug System: Centralized logging via `src/econsim/gui/debug_logger.py` with environment flags (`ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_DEBUG_TRADES`, etc). Manual tests include debug panels with 250ms update timers. Use `log_phase_transition()`, `log_comprehensive()` for educational scenarios.
 

@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt6.QtCore import QTimer
 
 from ..simulation_controller import SimulationController
+from ..debug_logger import format_delta
 
 
 class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
@@ -157,7 +158,8 @@ class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
                             received = trade.get('received', '?')
                             delta_u = trade.get('delta_utility', 0)
                             
-                            trade_text = f"Step {step}: gave {gave} → got {received} from A{partner} (ΔU={delta_u:.3f})"
+                            delta_value = float(delta_u) if isinstance(delta_u, (int, float)) else 0.0
+                            trade_text = f"Step {step}: gave {gave} → got {received} from A{partner} (ΔU={format_delta(delta_value)})"
                             self._trade_labels[i].setText(trade_text)
                         except Exception:
                             self._trade_labels[i].setText("Trade info unavailable")

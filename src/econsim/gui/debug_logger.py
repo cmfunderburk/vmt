@@ -23,6 +23,64 @@ import threading
 from enum import Enum
 
 
+def format_agent_id(agent_id: int) -> str:
+    """Format agent ID with consistent zero-padded format.
+    
+    Args:
+        agent_id: Integer agent identifier
+        
+    Returns:
+        Formatted agent string like "A000", "A001", "A002", etc.
+        
+    Examples:
+        >>> format_agent_id(1)
+        'A001'
+        >>> format_agent_id(42)
+        'A042'
+        >>> format_agent_id(123)
+        'A123'
+    """
+    return f"A{agent_id:03d}"
+
+
+
+
+
+def format_delta(value: float) -> str:
+    """Format delta values with consistent sign notation and near-zero handling.
+    
+    Args:
+        value: Numeric delta value (utility change, etc.)
+        
+    Returns:
+        Formatted delta string with consistent sign notation
+        
+    Behavior:
+        - Eliminates `+-` artifacts by normalizing the value first
+        - Rounds small positive values (< 1e-6) to exactly 0.0
+        - Preserves negative values for debugging purposes (even small ones)
+        - Uses consistent `+X.X` / `-X.X` formatting
+        
+    Examples:
+        >>> format_delta(1.23)
+        '+1.2'
+        >>> format_delta(-0.45)
+        '-0.5'
+        >>> format_delta(0.0000001)  # Small positive rounds to zero
+        '+0.0'
+        >>> format_delta(-0.0000001)  # Small negative preserved for debugging
+        '-0.0'
+        >>> format_delta(0.0)
+        '+0.0'
+    """
+    # Handle small positive values by rounding to zero, but preserve negative values
+    if 0 < value < 1e-6:
+        value = 0.0
+    
+    # Format with consistent sign notation (1 decimal place)
+    return f"{value:+.1f}"
+
+
 class LogLevel(Enum):
     """Logging verbosity levels."""
     CRITICAL = "CRITICAL"
@@ -80,9 +138,9 @@ class GUILogger:
         self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
         self.logs_dir.mkdir(exist_ok=True)
         
-        # Generate timestamped filename and track session start
+        # Generate timestamped filename and track simulation start time
         now = datetime.now()
-        self._session_start = now  # Track start time for relative timestamps
+        self._simulation_start_time = now  # Wall clock reference for elapsed time calculation
         timestamp = now.strftime("%Y-%m-%d %H-%M-%S")
         self.log_filename = f"{timestamp} GUI.log"
         self.log_path = self.logs_dir / self.log_filename
@@ -186,7 +244,7 @@ class GUILogger:
                         match = re.search(r'Agent_(\d+).*?Agent_(\d+)', trade)
                         if match:
                             agent1, agent2 = match.groups()
-                            trade_summaries.append(f"A{agent1}↔A{agent2}")
+                            trade_summaries.append(f"{format_agent_id(int(agent1))}↔{format_agent_id(int(agent2))}")
                     if trade_summaries:
                         aggregated = f"S{step} T: {', '.join(trade_summaries)}\n"
                         self._write_to_file(aggregated)
@@ -213,8 +271,7 @@ class GUILogger:
                 transition_groups[key].append(agent_id)
             
             # Log each group
-            relative_seconds = (datetime.now() - self._session_start).total_seconds()
-            timestamp_prefix = f"+{relative_seconds:.1f}s"
+            timestamp_prefix = self._format_simulation_time(step)
             
             for (old_mode, new_mode), agent_ids in transition_groups.items():
                 if len(agent_ids) == 1:
@@ -253,12 +310,24 @@ class GUILogger:
             except Exception:
                 pass
     
+    def _format_simulation_time(self, step: Optional[int] = None) -> str:
+        """Format elapsed wall clock time since simulation start.
+        
+        Args:
+            step: Optional simulation step number (unused, kept for compatibility)
+            
+        Returns:
+            Formatted time string with 1 decimal place (e.g., "+12.3s")
+        """
+        # Always use wall clock time elapsed since simulation start
+        elapsed_seconds = (datetime.now() - self._simulation_start_time).total_seconds()
+        return f"+{elapsed_seconds:.1f}s"
+    
     def _format_message(self, category: str, message: str, step: Optional[int] = None) -> str:
         """Format message according to current format setting."""
-        # Calculate relative timestamp for compact format
+        # Calculate simulation timestamp for compact format
         if self.log_format == LogFormat.COMPACT:
-            relative_seconds = (datetime.now() - self._session_start).total_seconds()
-            timestamp_prefix = f"+{relative_seconds:.1f}s"
+            timestamp_prefix = self._format_simulation_time(step)
             step_info = f"S{step}" if step is not None else ""
             if category == "MODE" or "AGENT_MODE" in category:
                 # Compact format: +12.3s A002: home→forage c1 @(9,14)  
@@ -273,13 +342,13 @@ class GUILogger:
                     target_match = re.search(r'target: \((\d+), (\d+)\)', message)
                     carry_str = f" c{carry_match.group(1)}" if carry_match else ""
                     target_str = f" @({target_match.group(1)},{target_match.group(2)})" if target_match else ""
-                    return f"{timestamp_prefix} {step_info} A{agent_id}: {old_mode}→{new_mode}{carry_str}{target_str}\n"
+                    return f"{timestamp_prefix} {step_info} {format_agent_id(int(agent_id))}: {old_mode}→{new_mode}{carry_str}{target_str}\n"
                 elif match2:
                     agent_id, old_mode, new_mode = match2.groups()
                     # Extract reason if present (in parentheses at end)
                     reason_match = re.search(r'\(([^)]+)\)$', message)
                     reason_str = f" ({reason_match.group(1)})" if reason_match else ""
-                    return f"{timestamp_prefix} {step_info} A{agent_id}: {old_mode}→{new_mode}{reason_str}\n"
+                    return f"{timestamp_prefix} {step_info} {format_agent_id(int(agent_id))}: {old_mode}→{new_mode}{reason_str}\n"
             elif category == "PERF":
                 # Compact format: +12.3s P: 124.7s/s 5.1ms R122
                 import re
@@ -302,7 +371,7 @@ class GUILogger:
                     agent_id, old_util, new_util, delta, reason = match.groups()
                     reason_str = reason.strip(' ()') if reason.strip() else ""
                     reason_str = f" ({reason_str})" if reason_str else ""
-                    return f"{timestamp_prefix} {step_info} U: A{agent_id} {old_util}→{new_util} Δ{delta}{reason_str}\n"
+                    return f"{timestamp_prefix} {step_info} U: {format_agent_id(int(agent_id))} {old_util}→{new_util} Δ{delta}{reason_str}\n"
             elif category == "PHASE":
                 # Compact format: +12.3s PHASE2@201: Forage only
                 import re
@@ -327,10 +396,10 @@ class GUILogger:
             step_info = f"|S{step}" if step is not None else ""
             return f"{category}{step_info}|{message}\n"
         
-        # LEGACY format (default) - need timestamp for this case
-        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        # LEGACY format (default) - use simulation time for consistency
+        sim_time = self._format_simulation_time(step)
         step_info = f" [Step {step}]" if step is not None else ""
-        return f"[{timestamp}]{step_info} {category}: {message}\n"
+        return f"[{sim_time}]{step_info} {category}: {message}\n"
 
     def log(self, category: str, message: str, step: Optional[int] = None) -> None:
         """Log a debug message with timestamp and category.
@@ -357,11 +426,11 @@ class GUILogger:
             match2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)', message)
             if match1:
                 agent_id, old_mode, new_mode = match1.groups()
-                self._buffer_agent_transition(f"A{agent_id:0>3}", old_mode, new_mode, "", step)
+                self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, "", step)
                 return
             elif match2:
                 agent_id, old_mode, new_mode = match2.groups()
-                self._buffer_agent_transition(f"A{agent_id:0>3}", old_mode, new_mode, "", step)
+                self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, "", step)
                 return
             
         formatted_message = self._format_message(category, message, step)
@@ -516,9 +585,8 @@ def log_utility_change(agent_id: int, old_utility: float, new_utility: float, re
     """Log agent utility changes from trades or other economic events."""
     if os.environ.get("ECONSIM_DEBUG_ECONOMICS") == "1":
         delta = new_utility - old_utility
-        sign = "+" if delta >= 0 else ""
         reason_str = f" ({reason})" if reason else ""
-        message = f"Agent_{agent_id:03d} utility: {old_utility:.2f} → {new_utility:.2f} (Δ{sign}{delta:.2f}){reason_str}"
+        message = f"Agent_{agent_id:03d} utility: {old_utility:.2f} → {new_utility:.2f} (Δ{format_delta(delta)}){reason_str}"
         get_gui_logger().log("UTILITY", message, step)
 
 

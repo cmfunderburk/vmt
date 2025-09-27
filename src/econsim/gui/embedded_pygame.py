@@ -20,6 +20,8 @@ from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtWidgets import QWidget
 import logging
 
+from .debug_logger import format_agent_id
+
 if TYPE_CHECKING:  # pragma: no cover
     from .simulation_controller import SimulationController
 
@@ -421,11 +423,11 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                     util_val = None
                                 if util_val is not None:
                                     lines.append(
-                                        f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h}) U={util_val:.2f}"
+                                        f"{format_agent_id(getattr(agent,'id',0))} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h}) U={util_val:.2f}"
                                     )
                                 else:
                                     lines.append(
-                                        f"A{getattr(agent,'id',0)} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h})"
+                                        f"{format_agent_id(getattr(agent,'id',0))} pos=({getattr(agent,'x',0)},{getattr(agent,'y',0)}) carry=({g1c},{g2c}) home=({g1h},{g2h})"
                                     )
                             # Render lines
                             y_off = 4
@@ -442,7 +444,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                                 ax = getattr(agent, "x", 0)
                                 ay = getattr(agent, "y", 0)
                                 if overlay_state.show_agent_ids:
-                                    label_surf = font.render(f"A{getattr(agent,'id',0)}", True, (255, 255, 255))
+                                    label_surf = font.render(format_agent_id(getattr(agent,'id',0)), True, (255, 255, 255))
                                     surf.blit(label_surf, (ax * cell_w + 2, ay * cell_h + 2))
                                 if overlay_state.show_target_arrow:
                                     tgt = getattr(agent, "_target", None) or getattr(agent, "target", None)
