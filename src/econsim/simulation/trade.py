@@ -185,7 +185,7 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
 __all__ = ["TradeIntent", "enumerate_intents_for_cell"]
 
 
-def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Agent]) -> Optional[TradeIntent]:
+def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Agent], step: Optional[int] = None) -> Optional[TradeIntent]:
     """Execute the first viable intent (already priority-sorted) if inventories allow.
 
     Viability rules (Phase 3 minimal):
@@ -223,15 +223,15 @@ def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Ag
         buyer_utility_after = buyer.current_utility()
         
         # Log individual utility changes
-        log_utility_change(intent.seller_id, seller_utility_before, seller_utility_after, "trade")
-        log_utility_change(intent.buyer_id, buyer_utility_before, buyer_utility_after, "trade")
+        log_utility_change(intent.seller_id, seller_utility_before, seller_utility_after, "trade", step)
+        log_utility_change(intent.buyer_id, buyer_utility_before, buyer_utility_after, "trade", step)
         
         # Log the executed trade with combined utility gain
         combined_utility_delta = (seller_utility_after - seller_utility_before) + (buyer_utility_after - buyer_utility_before)
         log_trade_detail(
             intent.seller_id, intent.give_type, 
             intent.buyer_id, intent.take_type,
-            combined_utility_delta
+            combined_utility_delta, step
         )
         
         return intent

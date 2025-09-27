@@ -88,6 +88,8 @@ class Simulation:
         
         # Comprehensive debug logging for simulation steps
         log_comprehensive(f"=== SIMULATION STEP {step_num} START ===", step_num)
+        
+        # Log step summary (filtered by log level in debug_logger)
         log_comprehensive(f"Agents: {len(self.agents)}, Resources: {self.grid.resource_count()}, Decision Mode: {use_decision}", step_num)
         
         forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
@@ -198,7 +200,7 @@ class Simulation:
                     parity_restore_snapshot = [(a.id, dict(a.carrying)) for a in self.agents]
                 # Build id map once
                 agents_by_id: Dict[int, Agent] = {a.id: a for a in self.agents}
-                executed = execute_single_intent(intents, agents_by_id)
+                executed = execute_single_intent(intents, agents_by_id, step_num)
                 # Capture highlight immediately if executed; metrics hook will not need agents_by_id
                 if executed is not None:
                     try:
