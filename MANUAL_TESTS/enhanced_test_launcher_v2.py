@@ -20,6 +20,15 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List
 
+# Transitional launcher module imports (Phase 2.4 integration)
+try:  # Soft dependency during refactor; if missing we fall back to legacy logic
+    from econsim.tools.launcher.adapters import load_registry_from_monolith
+    from econsim.tools.launcher.comparison import ComparisonController
+    from econsim.tools.launcher.executor import TestExecutor
+    _launcher_modules_available = True
+except Exception:  # pragma: no cover - fallback path
+    _launcher_modules_available = False
+
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -743,30 +752,34 @@ class EnhancedTestLauncher(QMainWindow):
             card.setParent(None)
         self.test_cards.clear()
         
-        # Clear comparison selection
-        self.comparison_selection.clear()
+        # Initialize / clear comparison selection (delegated when new modules present)
+        if _launcher_modules_available:
+            # Lazy initialize on first population to avoid import cost earlier
+            if not hasattr(self, "_comparison_controller"):
+                self._comparison_controller = ComparisonController(max_selections=4)
+            else:
+                self._comparison_controller.clear()
+            self.comparison_selection = self._comparison_controller.selected()  # backward compatibility view
+        else:
+            self.comparison_selection.clear()
         self._update_comparison_ui()
             
         # Create test cards
         row, col = 0, 0
         max_cols = 3
-        
-        for config in ALL_TEST_CONFIGS.values():
-            # Create card widget
+
+        for config in ALL_TEST_CONFIGS.values():  # Builtin list still authoritative for card ordering
             card_widget = TestCardWidget(config)
             card_widget.launchRequested.connect(self.launch_test)
             card_widget.compareRequested.connect(self.add_to_comparison)
-            
-            # Add to layout
             self.cards_layout.addWidget(card_widget, row, col)
             self.test_cards[config.name] = card_widget
-            
-            # Update grid position
+
             col += 1
             if col >= max_cols:
                 col = 0
                 row += 1
-                
+
         # Update status
         self.statusBar().showMessage(f"Loaded {len(ALL_TEST_CONFIGS)} tests")
         self.log_status("Enhanced test launcher initialized")
@@ -820,8 +833,17 @@ class EnhancedTestLauncher(QMainWindow):
             QMessageBox.warning(self, "Error", f"Test file not found: {original_file}")
             return
             
-        self.log_status(f"Launching original {test_name}...")
-        subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
+        if _launcher_modules_available:
+            # Use executor for command building (still spawn subprocess to maintain behavior)
+            if not hasattr(self, "_executor"):
+                self._init_executor()
+            # Record attempt (executor command currently points to launcher script; we ignore it for actual spawn)
+            _ = self._executor.launch_original(test_name)
+            self.log_status(f"Launching original {test_name}...")
+            subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
+        else:
+            self.log_status(f"Launching original {test_name}...")
+            subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
         
     def _launch_framework_test(self, test_name: str):
         """Launch framework test implementation."""
@@ -858,8 +880,16 @@ class EnhancedTestLauncher(QMainWindow):
             QMessageBox.warning(self, "Error", f"Test file not found: {framework_file}")
             return
             
-        self.log_status(f"Launching framework {test_name}...")
-        subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
+        if _launcher_modules_available:
+            if not hasattr(self, "_executor"):
+                self._init_executor()
+            # Record attempt; ignore executor's command path (still launcher) and run actual test file
+            _ = self._executor.launch_framework(test_name)
+            self.log_status(f"Launching framework {test_name}...")
+            subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
+        else:
+            self.log_status(f"Launching framework {test_name}...")
+            subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
         
     def add_to_comparison(self, test_name: str):
         """Add/remove test from comparison selection."""
@@ -867,19 +897,36 @@ class EnhancedTestLauncher(QMainWindow):
             # Auto-enable comparison mode
             self.comparison_toggle.setChecked(True)
             
-        if test_name in self.comparison_selection:
-            self.comparison_selection.remove(test_name)
-            self.test_cards[test_name].set_comparison_selected(False)
-            self.log_status(f"Removed {test_name} from comparison")
+        if _launcher_modules_available:
+            if not hasattr(self, "_comparison_controller"):
+                self._comparison_controller = ComparisonController(max_selections=4)
+            # Toggle semantic: if already present remove
+            if self._comparison_controller.contains(test_name):
+                self._comparison_controller.remove(test_name)
+                self.test_cards[test_name].set_comparison_selected(False)
+                self.log_status(f"Removed {test_name} from comparison")
+            else:
+                add_res = self._comparison_controller.add(test_name)
+                if not add_res.added:
+                    if add_res.reason == "capacity":
+                        QMessageBox.information(self, "Comparison Limit", "Maximum 4 tests can be compared simultaneously.")
+                    # Silently ignore duplicate/invalid as per legacy behavior (duplicate acted as toggle previously)
+                    return
+                self.test_cards[test_name].set_comparison_selected(True)
+                self.log_status(f"Added {test_name} to comparison")
+            self.comparison_selection = self._comparison_controller.selected()
         else:
-            if len(self.comparison_selection) >= 4:  # Limit to 4 comparisons
-                QMessageBox.information(self, "Comparison Limit", 
-                    "Maximum 4 tests can be compared simultaneously.")
-                return
-                
-            self.comparison_selection.append(test_name)
-            self.test_cards[test_name].set_comparison_selected(True)
-            self.log_status(f"Added {test_name} to comparison")
+            if test_name in self.comparison_selection:
+                self.comparison_selection.remove(test_name)
+                self.test_cards[test_name].set_comparison_selected(False)
+                self.log_status(f"Removed {test_name} from comparison")
+            else:
+                if len(self.comparison_selection) >= 4:
+                    QMessageBox.information(self, "Comparison Limit", "Maximum 4 tests can be compared simultaneously.")
+                    return
+                self.comparison_selection.append(test_name)
+                self.test_cards[test_name].set_comparison_selected(True)
+                self.log_status(f"Added {test_name} to comparison")
             
         self._update_comparison_ui()
         
@@ -895,9 +942,15 @@ class EnhancedTestLauncher(QMainWindow):
         
     def clear_comparison(self):
         """Clear all comparison selections."""
-        for test_name in self.comparison_selection.copy():
-            self.test_cards[test_name].set_comparison_selected(False)
-        self.comparison_selection.clear()
+        if _launcher_modules_available and hasattr(self, "_comparison_controller"):
+            for test_name in self._comparison_controller.selected():
+                self.test_cards[test_name].set_comparison_selected(False)
+            self._comparison_controller.clear()
+            self.comparison_selection = []
+        else:
+            for test_name in self.comparison_selection.copy():
+                self.test_cards[test_name].set_comparison_selected(False)
+            self.comparison_selection.clear()
         self.log_status("Cleared all comparison selections")
         self._update_comparison_ui()
         
@@ -908,25 +961,48 @@ class EnhancedTestLauncher(QMainWindow):
                 "Please select at least 2 tests to compare.")
             return
             
-        self.log_status(f"Launching {len(self.comparison_selection)} tests for comparison...")
-        
-        # Launch each test (framework version by default for comparison)
-        for test_name in self.comparison_selection:
-            self._launch_framework_test(test_name)
-            
-        self.statusBar().showMessage(f"Launched {len(self.comparison_selection)} tests for comparison")
+        if _launcher_modules_available:
+            if not hasattr(self, "_executor"):
+                self._init_executor()
+            labels = list(self.comparison_selection)
+            result = self._executor.launch_comparison(labels)
+            if result.success:
+                self.log_status(f"Launching {len(labels)} tests for comparison...")
+                # Launch each framework version (preserve legacy multi-window behavior)
+                for lab in labels:
+                    self._launch_framework_test(lab)
+                self.statusBar().showMessage(f"Launched {len(labels)} tests for comparison")
+            else:
+                QMessageBox.warning(self, "Comparison Error", ", ".join(result.errors))
+            return
+        else:
+            self.log_status(f"Launching {len(self.comparison_selection)} tests for comparison...")
+            for test_name in self.comparison_selection:
+                self._launch_framework_test(test_name)
+            self.statusBar().showMessage(f"Launched {len(self.comparison_selection)} tests for comparison")
         
     def _update_comparison_ui(self):
         """Update comparison mode UI elements."""
+        # When controller present keep mirror list in sync
+        if _launcher_modules_available and hasattr(self, "_comparison_controller"):
+            self.comparison_selection = self._comparison_controller.selected()
         count = len(self.comparison_selection)
-        
         self.clear_comparison_btn.setEnabled(count > 0)
         self.launch_comparison_btn.setEnabled(count >= 2)
-        
         if count > 0:
             self.statusBar().showMessage(f"Selected {count} tests for comparison: {', '.join(self.comparison_selection)}")
         else:
             self.statusBar().showMessage("Ready to launch tests")
+
+    # ------------------------------------------------------------------
+    # New helper initializers for transitional integration
+    # ------------------------------------------------------------------
+    def _init_executor(self):  # pragma: no cover - thin glue
+        if not hasattr(self, "_registry"):
+            self._registry = load_registry_from_monolith()
+        if not hasattr(self, "_executor"):
+            # For now we pass the path to this launcher file to keep command shape consistent.
+            self._executor = TestExecutor(self._registry, launcher_script=Path(__file__))
             
     def log_status(self, message: str):
         """Add message to status area."""

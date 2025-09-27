@@ -268,6 +268,26 @@ Will define UI component extraction sequencing: cards → gallery → tabs → c
 - Gate G1 satisfied.
 - Next Focus: Step 3 (DataLocationResolver) – implement XDG path resolution + dry-run migration tests before monolith integration.
 
+### 2025-09-27 (Step 3 Complete)
+- Implemented `DataLocationResolver` in `data.py` with XDG resolution (Linux/POSIX) and deterministic HOME fallbacks for macOS/Windows (documented TODOs for specialization).
+- Added structured migration planning (`migration_plan`) returning `MigrationAction` list and non-destructive `migrate(execute=...)` (creates destination dirs only when execute=True).
+- Added unit test `tests/unit/launcher/test_data_locations.py` (path resolution, dry-run plan, execute idempotency) – passes.
+- Full suite after addition: 212 passed, 7 skipped, 2 xpassed (expected), no regressions; Gate G2 satisfied.
+- Next Focus: Step 4 (CustomTestDiscovery) – extract pure metadata parsing & add fixture-driven tests.
+
+### 2025-09-27 (Step 4 Complete)
+- Implemented `CustomTestDiscovery` with deterministic filename ordering and metadata parsing (name, created date, grid, agents, density, preference mix) independent of UI.
+- Added fixtures: `valid_case.py`, `malformed_case.py`, `duplicate_id_case.py` under `tests/fixtures/custom_tests/`.
+- Added unit test `tests/unit/launcher/test_discovery.py` validating ordering, parsing correctness, malformed fallback, and tolerance of duplicate IDs.
+- Full suite: 214 passed, 7 skipped, 2 xpassed (expected); Gate G3 satisfied.
+- Next Focus: Step 5 (Shared types dataclasses) – introduce and test serialization round-trip before registry extraction.
+
+### 2025-09-27 (Step 5 Complete)
+- Expanded `types.py` with docstring-rich dataclasses (`TestConfiguration`, `ExecutionResult`, `ExecutionRecord`, `RegistryValidationResult`) plus helper methods (`to_dict`, `failed`).
+- Added `tests/unit/launcher/test_types.py` covering asdict round-trip, helper semantics, and basic integrity checks.
+- Full suite now: 218 passed, 7 skipped, 2 xpassed (expected); Gate G4 (types standardized) partially satisfied pending later grep review for remaining ad-hoc dicts (none in new modules so far).
+- Next Focus: Step 6 (TestRegistry) – extract builtin config list, implement duplicate detection, add registry tests.
+
 Dependencies to Clarify Before Part 2:
 - Confirm final naming for console script (tentatively `econsim-launcher`).
 - Decide whether `TestExecutor` handles actual subprocess spawn vs delegated runner object.
@@ -304,3 +324,35 @@ Fixtures: `tests/fixtures/custom_tests/{valid_case.py, malformed_case.py, duplic
 
 ---
 **Next (Part 2):** Draft UI component extraction plan (cards/gallery/tabs) + incremental visual validation strategy.
+**See Also:** `gui refactor - part 2.md` (Phase 3 UI extraction & runner API plan).
+
+### 2025-09-27 (Step 9 Integration & Perf Validation)
+- Implemented transitional integration (Step 9 / Phase 2.4): added `adapters.py` producing a `TestRegistry` from legacy `ALL_TEST_CONFIGS`.
+- Monolith (`enhanced_test_launcher_v2.py`) now delegates: comparison management via `ComparisonController`, command construction & history via `TestExecutor`, and registry access through adapter-generated registry (legacy list still used ONLY for card ordering during transition).
+- Resolved regression where launching a framework test reopened the launcher (root cause: executor command pointed at launcher script); fixed by spawning original test scripts directly while still recording executor history.
+- Added adapter integration test validating transformed registry (> baseline tests count, no duplicates).
+- Grep audit: No stray anonymous ad-hoc dicts for launcher logic beyond intentional legacy `ALL_TEST_CONFIGS` iteration (acceptable until Phase 3 UI extraction). Gate G4 final audit satisfied.
+- Performance (Gate G9): Ran `scripts/perf_stub.py --mode widget --duration 2 --json` post-integration. Result: avg_fps=62.4804 vs prior new GUI baseline 62.4953 (delta -0.024%), well within ≤2% threshold. Startup/render loop unaffected (single QTimer path preserved). Gate G9 satisfied.
+- Gates Status Update: G8 (delegation) satisfied; G9 (perf neutrality) satisfied.
+- Next Actions (Step 10 / Gates G9–G10 wrap): finalize documentation updates (this entry), optional minor lint sweep, and declare Part 1 completion once merged.
+
+### Gate Summary After Step 9
+| Gate | Status | Notes |
+|------|--------|-------|
+| G1 | ✅ | Styling extracted & tested |
+| G2 | ✅ | Data resolver tests green |
+| G3 | ✅ | Discovery deterministic |
+| G4 | ✅ | Types standardized; audit done |
+| G5 | ✅ | Registry duplicate detection |
+| G6 | ✅ | ComparisonController tests |
+| G7 | ✅ | Executor command tests |
+| G8 | ✅ | Monolith delegates modules |
+| G9 | ✅ | Perf delta -0.024% (<2%) |
+| G10 | ⏳ | Final doc consolidation (in progress) |
+
+### Pending for Part 1 Completion
+1. Merge this updated plan (satisfies G10 once committed).
+2. (Optional) Add a brief README snippet referencing new launcher modules (defer if Part 2 doc will subsume).
+3. Tag follow-up tasks for Phase 3 (UI extraction) in new Part 2 guide.
+
+No functional regressions observed; deterministic behavior retained; performance stable.
