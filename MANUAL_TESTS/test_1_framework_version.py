@@ -28,6 +28,17 @@ from PyQt6.QtWidgets import QApplication
 # Add current directory to path for framework imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Force fresh import of debug logger to avoid caching issues in subprocess
+import importlib
+import importlib.util
+# Clear import cache for econsim modules to ensure we get the latest code
+modules_to_clear = [name for name in list(sys.modules.keys()) if name.startswith('econsim')]
+for module_name in modules_to_clear:
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+# Also clear any cached bytecode
+importlib.invalidate_caches()
+
 from framework.base_test import StandardPhaseTest  
 from framework.test_configs import TEST_1_BASELINE
 

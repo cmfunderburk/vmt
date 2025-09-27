@@ -29,6 +29,17 @@ import time
 # Add src to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 
+# Force fresh import of debug logger to avoid caching issues in subprocess
+import importlib
+import importlib.util
+# Clear import cache for econsim modules to ensure we get the latest code
+modules_to_clear = [name for name in list(sys.modules.keys()) if name.startswith('econsim')]
+for module_name in modules_to_clear:
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+# Also clear any cached bytecode
+importlib.invalidate_caches()
+
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox
 from PyQt6.QtCore import QTimer, pyqtSignal
 from test_utils import create_speed_control, get_timer_interval, get_estimated_duration, format_duration

@@ -24,7 +24,8 @@ Based on the comprehensive analysis in `formatting_plan.md` and current logging 
 - [x] Eliminate `+-0.0` artifacts in utility logging
 - [x] **Files modified**: `src/econsim/gui/debug_logger.py`, panels, overlays
 - [x] **Test cases**: Verified +-0.0 artifacts eliminated, negative values preserved for debugging
-- [x] **Implementation**: Added `format_delta(value: float) -> str` helper with special handling for small positives (rounds to 0.0) vs small negatives (preserved for debugging)m TODOs (2025-09-26)
+- [x] **Implementation**: Added `format_delta(value: float) -> str` helper with special handling for small positives (rounds to 0.0) vs small negatives (preserved for debugging)
+- [x] **Follow-up fix**: Fixed remaining `+-0.x` artifacts in trade logging by updating `log_trade_detail()` and compact format parsing
 
 #### 1.3 Timestamp Precision Standardization ✅ COMPLETE
 - [x] Fix all timestamps to 1 decimal place: `f"+{seconds:.1f}s"`

@@ -359,10 +359,10 @@ class GUILogger:
             elif category == "TRADE" and "gives" in message and "receives" in message:
                 # Compact format: +12.3s T: A001↔A009 g2→g1 +0.1
                 import re
-                match = re.search(r'Agent_(\d+) gives (\w+) to Agent_(\d+); receives (\w+).*?utility: \+([0-9.-]+)', message)
+                match = re.search(r'Agent_(\d+) gives (\w+) to Agent_(\d+); receives (\w+).*?utility: ([+-]?[0-9.-]+)', message)
                 if match:
                     agent1, give, agent2, receive, utility = match.groups()
-                    return f"{timestamp_prefix} {step_info} T: A{agent1}↔A{agent2} {give}→{receive} +{utility}\n"
+                    return f"{timestamp_prefix} {step_info} T: A{agent1}↔A{agent2} {give}→{receive} {format_delta(float(utility))}\n"
             elif category == "UTILITY":
                 # Compact format: +12.3s U: A001 4.42→4.34 Δ-0.08 (trade)
                 import re
@@ -556,7 +556,7 @@ def log_performance(message: str, step: Optional[int] = None) -> None:
 def log_trade_detail(agent1_id: int, resource1: str, agent2_id: int, resource2: str, utility_change: Optional[float] = None, step: Optional[int] = None) -> None:
     """Log formatted trade details with agent IDs and resources."""
     if os.environ.get("ECONSIM_DEBUG_TRADES") == "1":
-        utility_str = f" (utility: +{utility_change:.1f})" if utility_change is not None else ""
+        utility_str = f" (utility: {format_delta(utility_change)})" if utility_change is not None else ""
         message = f"Agent_{agent1_id:03d} gives {resource1} to Agent_{agent2_id:03d}; receives {resource2} in exchange{utility_str}"
         get_gui_logger().log("TRADE", message, step)
 
