@@ -854,6 +854,26 @@ class LiveConfigEditor(QWidget):
         self.launch_btn.clicked.connect(self.launch_custom_test)
         action_layout.addWidget(self.launch_btn)
         
+        self.save_test_btn = QPushButton("💾 Save Custom Test")
+        self.save_test_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.save_test_btn.clicked.connect(self.save_custom_test)
+        action_layout.addWidget(self.save_test_btn)
+        
         self.save_preset_btn = QPushButton("💾 Save as Preset")
         self.save_preset_btn.clicked.connect(self.save_as_preset)
         action_layout.addWidget(self.save_preset_btn)
@@ -1079,6 +1099,75 @@ class LiveConfigEditor(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Launch Error",
                 f"Failed to launch custom test: {e}")
+                
+    def save_custom_test(self):
+        """Save current configuration as a permanent custom test."""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        
+        if not self.validator.update_validation(self.current_config):
+            QMessageBox.warning(self, "Invalid Configuration",
+                "Please fix the configuration errors before saving.")
+            return
+            
+        # Ask user for test filename
+        
+        # Suggest a filename based on the config name
+        suggested_name = self.current_config.name.lower().replace(' ', '_').replace('-', '_')
+        # Remove special characters and ensure it's a valid filename
+        import re
+        suggested_name = re.sub(r'[^a-zA-Z0-9_]', '', suggested_name)
+        if not suggested_name:
+            suggested_name = "custom_test"
+        suggested_name = f"{suggested_name}.py"
+        
+        filename, ok = QInputDialog.getText(
+            self, "Save Custom Test",
+            f"Enter filename for '{self.current_config.name}':",
+            text=suggested_name
+        )
+        
+        if not ok or not filename:
+            return
+            
+        # Ensure .py extension
+        if not filename.endswith('.py'):
+            filename += '.py'
+            
+        try:
+            # Create custom_tests directory if it doesn't exist
+            custom_tests_dir = Path(__file__).parent / "custom_tests"
+            custom_tests_dir.mkdir(exist_ok=True)
+            
+            test_file = custom_tests_dir / filename
+            
+            # Check if file already exists
+            if test_file.exists():
+                reply = QMessageBox.question(
+                    self, "File Exists",
+                    f"The file '{filename}' already exists. Do you want to overwrite it?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+            
+            # Generate and save the test code
+            test_content = self.generate_test_code(self.current_config)
+            with open(test_file, 'w') as f:
+                f.write(test_content)
+                
+            # Make the file executable
+            import stat
+            test_file.chmod(test_file.stat().st_mode | stat.S_IEXEC)
+            
+            QMessageBox.information(self, "Test Saved",
+                f"Custom test '{self.current_config.name}' has been saved!\n\n"
+                f"File: {test_file.name}\n"
+                f"Location: {test_file.parent}\n\n"
+                f"You can now find it in the Enhanced Test Launcher's 'Custom Tests' tab.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error",
+                f"Failed to save custom test: {e}")
                 
     def _cleanup_old_temp_files(self):
         """Clean up old temporary test files, keeping only the most recent 5."""

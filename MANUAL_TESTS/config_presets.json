@@ -16,6 +16,7 @@
       "preference_mix": "mixed",
       "seed": 12345,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -42,6 +43,7 @@
       "preference_mix": "mixed",
       "seed": 67890,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -68,6 +70,7 @@
       "preference_mix": "mixed",
       "seed": 11111,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -94,6 +97,7 @@
       "preference_mix": "mixed",
       "seed": 22222,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -120,6 +124,7 @@
       "preference_mix": "cobb_douglas",
       "seed": 44444,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -146,6 +151,7 @@
       "preference_mix": "leontief",
       "seed": 66666,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -172,6 +178,7 @@
       "preference_mix": "perfect_substitutes",
       "seed": 88888,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -198,6 +205,7 @@
       "preference_mix": "mixed",
       "seed": 12345,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -225,6 +233,7 @@
       "preference_mix": "mixed",
       "seed": 54321,
       "viewport_size": 600,
+      "distance_scaling_factor": 0.0,
       "custom_phases": null,
       "debug_categories": null
     },
@@ -233,6 +242,65 @@
       "educational",
       "competition",
       "analysis"
+    ]
+  },
+  {
+    "name": "New Test Generator 1",
+    "description": "k=1.5",
+    "config": {
+      "id": 999,
+      "name": "New Test Generator 1",
+      "description": "k=1.5",
+      "grid_size": [
+        30,
+        30
+      ],
+      "agent_count": 50,
+      "resource_density": 0.25,
+      "perception_radius": 8,
+      "preference_mix": "mixed",
+      "seed": 12345,
+      "viewport_size": 600,
+      "distance_scaling_factor": 1.5,
+      "custom_phases": [
+        {
+          "number": 1,
+          "turn_start": 1,
+          "turn_end": 200,
+          "description": "Only foraging enabled",
+          "forage_enabled": true,
+          "trade_enabled": false
+        },
+        {
+          "number": 2,
+          "turn_start": 201,
+          "turn_end": 210,
+          "description": "Both systems disabled - agents should idle",
+          "forage_enabled": false,
+          "trade_enabled": false
+        },
+        {
+          "number": 3,
+          "turn_start": 211,
+          "turn_end": 1010,
+          "description": "Only exchange enabled",
+          "forage_enabled": false,
+          "trade_enabled": true
+        },
+        {
+          "number": 4,
+          "turn_start": 1011,
+          "turn_end": 1020,
+          "description": "Both systems disabled - agents should idle",
+          "forage_enabled": false,
+          "trade_enabled": false
+        }
+      ],
+      "debug_categories": null
+    },
+    "created": "2025-09-27T13:03:59.424978",
+    "tags": [
+      "custom"
     ]
   }
 ]
