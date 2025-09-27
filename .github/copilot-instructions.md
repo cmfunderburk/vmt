@@ -10,7 +10,7 @@ Determinism Invariants:
 4. Metrics hash contract (`simulation/metrics.py`) excludes trade + debug overlay metrics
 5. RNG separation: external (legacy/random movement) vs internal `Simulation._rng` (respawn, homes, trade drafts)
 
-Project Structure: Python 3.11+ package with PyQt6/pygame deps, virtual env `vmt-dev/`. Entry points: `main.py` (dual GUI system), educational scenarios in `MANUAL_TESTS/`, unit tests in `tests/unit/` (210+ tests). Core modules: `simulation/world.py` (coordinator), `gui/embedded_pygame.py` (rendering), `preferences/*.py` (economic models), `simulation/agent.py` (behavior).
+Project Structure: Python 3.11+ package with PyQt6/pygame deps, virtual env `vmt-dev/`. Entry points: `main.py` (dual GUI system), enhanced test launcher in `MANUAL_TESTS/enhanced_test_launcher_v2.py` (canonical dev interface), unit tests in `tests/unit/` (210+ tests). Core modules: `simulation/world.py` (coordinator), `gui/embedded_pygame.py` (rendering), `preferences/*.py` (economic models), `simulation/agent.py` (behavior).
 
 Core Architecture: Dual GUI (Start Menu new path default `ECONSIM_NEW_GUI=1`; legacy when 0) sharing `EmbeddedPygameWidget` + `Simulation` (`simulation/world.py`). Factory: `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)` seeds internal RNG, optional `RespawnScheduler`, `MetricsCollector`; homes via deterministic secondary seed (`seed+9973`). Preferences must be pure/stateless; register in `preferences/factory.py` + tests (validation, utility math, serialize round‑trip).
 
@@ -40,28 +40,37 @@ Serialization / Snapshot: Append‑only field additions in `snapshot.py`, `world
 
 Manual Test Patterns (Current Technical Debt): All 7 tests in `MANUAL_TESTS/` share identical 3‑panel UI (debug log | pygame viewport | controls), phase transition logic, timer setup, and environment variable management — creating ~3000 lines of duplication. When adding manual tests: reuse existing patterns for consistency. For framework refactor (see `REFACTOR_PLAN.md`): extract `BaseManualTest`, `TestConfiguration` dataclass, `PhaseManager`, `DebugOrchestrator` — reduces new tests to ~30 lines vs 400 lines.
 
-Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) overlay; additional metrics (update hash contract + tests); respawn parameter plumbing; doc sync; manual test framework extraction (high‑impact, low‑risk). Forbidden: tie‑break alteration, constant edits, adding randomness, extra timers/threads, unordered iteration where order matters, mutable preference state, silent hash schema change, per‑step quadratic scans.
+Enhanced Test Framework (Current Reality): `MANUAL_TESTS/enhanced_test_launcher_v2.py` is the **primary development interface** (1153 lines) with visual test launcher, comparison mode, and tabbed interface. Framework components in `MANUAL_TESTS/framework/` (`test_configs.py`, `base_test.py`, `phase_manager.py`, `ui_components.py`, `simulation_factory.py`). **Major technical debt**: 7 educational tests (`test_*_baseline_simple.py`, `test_*_framework_version.py`) share ~3000 lines of duplicated code for identical 6‑phase UI structure. **ACTIVE REFACTOR IN PROGRESS**: Comprehensive restructuring planned per `tmp_plans/CURRENT/CRITICAL_REVIEW_AND_REORG_PLAN_ENHANCED_TESTS.md` to extract monolithic launcher into proper package structure under `src/econsim/tools/launcher/` (main VMT user environment) with console scripts, XDG data directories, and programmatic test runner APIs. Current implementation has brittle path hacks, subprocess coupling, and repo-polluting data locations that need resolution.
+
+Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) overlay; additional metrics (update hash contract + tests); respawn parameter plumbing; doc sync; manual test framework extraction (high‑impact, low‑risk). **REFACTOR CONTEXT**: Current session focuses on comprehensive launcher framework restructuring - prioritize work supporting the migration to `src/econsim/tools/launcher/` package structure (main VMT user environment). Forbidden: tie‑break alteration, constant edits, adding randomness, extra timers/threads, unordered iteration where order matters, mutable preference state, silent hash schema change, per‑step quadratic scans.
 
 Perf Expectations: ~62 FPS typical (floor ≥30). Validate with `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` (overlays <~2% overhead). Watch for regressions: surface realloc, object churn, logging in hot loop, accidental N^2 partner scans.
 
 Testing & PR Flow: Run `make test-unit lint type perf`. Any state or perf‑sensitive change: add/adjust unit test (determinism, perf guard, hash). Manual GUI validation: `make manual-tests` (7 educational scenarios). PR summary: Goal | Changes | Tests/Perf | Result | Next. Keep diffs minimal.
 
 Development Workflow: **ALWAYS activate virtual environment first**: `source vmt-dev/bin/activate` (create with `make venv` if missing). Primary workflows:
-* `make enhanced-tests` – canonical development build with optimized logging (compact format by default)
-* `make dev` – basic GUI (Start Menu → scenario selection)
+* `make enhanced-tests` – **canonical development interface** with visual test launcher, optimized logging (compact format), tabbed UI including test gallery, config editor, batch runner, bookmarks, and custom test management. **CRITICAL**: This is the authoritative development version; functionality not used here will be deprecated in future refactoring.
+* `make dev` – basic GUI (Start Menu → scenario selection) - **legacy interface, use sparingly**
 * `make test-unit lint type perf` – full validation pipeline
 * `pytest -q` – run 210+ automated tests
 * `python scripts/perf_stub.py` – performance benchmarking
 
-Debug System: Centralized logging via `src/econsim/gui/debug_logger.py` with environment flags (`ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_DEBUG_TRADES`, etc). Manual tests include debug panels with 250ms update timers. Use `log_phase_transition()`, `log_comprehensive()` for educational scenarios. Current branch `debug_improvements` focuses on performance debugging display tweaks.
+Debug System: Centralized logging via `src/econsim/gui/debug_logger.py` with environment flags (`ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_DEBUG_TRADES`, etc). Enhanced test launcher auto-configures educational logging. Manual tests include debug panels with 250ms update timers. Use `log_phase_transition()`, `log_comprehensive()` for educational scenarios.
 
-Manual Testing Framework: 7 educational scenarios in `MANUAL_TESTS/` (run via `make manual-tests` or individual `.py` files). Standard 6‑phase structure (900 turns): Both enabled (1‑200) → Forage only (201‑400) → Exchange only (401‑600) → Both disabled (601‑650) → Both enabled (651‑850) → Final disabled (851‑900). Phase transitions via environment variable management. Current tests have massive duplication (~400 lines each); refactor plan in `MANUAL_TESTS/REFACTOR_PLAN.md` proposes configuration‑driven approach with `TestConfiguration` dataclass + `BaseManualTest` framework.
+
 
 Key Files Map: GUI embed `src/econsim/gui/embedded_pygame.py`; controller `src/econsim/gui/simulation_controller.py`; core sim `src/econsim/simulation/world.py`; agents `src/econsim/simulation/agent.py`; grid `src/econsim/simulation/grid.py`; spatial index `src/econsim/simulation/spatial.py`; trade `src/econsim/simulation/trade.py`; respawn `src/econsim/simulation/respawn.py`; metrics `src/econsim/simulation/metrics.py`; snapshot `src/econsim/simulation/snapshot.py`; preferences `src/econsim/preferences/*.py`; config `src/econsim/simulation/config.py`; perf harness `scripts/perf_stub.py`; tests `tests/unit/*`; manual tests `MANUAL_TESTS/*.py`.
 
 Teardown Integrity: `closeEvent` stops timer → `pygame.quit()` → `super().closeEvent(event)`; mirror for new subsystems (no lingering timers/threads/resources).
 
 Educational Context: This is a microeconomic simulation for teaching spatial resource allocation, agent decision-making, and exchange dynamics. Behavioral changes must be educationally meaningful and deterministically reproducible across classroom sessions.
+
+**CRITICAL REFACTOR CONTEXT (September 2025)**: The project is undergoing comprehensive restructuring of the enhanced test framework. Current session goals:
+1. **Deprecation Path**: Features not accessible via `make enhanced-tests` are candidates for removal in future refactoring passes
+2. **Package Migration**: Moving from monolithic `MANUAL_TESTS/enhanced_test_launcher_v2.py` (1153 lines) to proper package structure under `src/econsim/tools/launcher/` (main VMT user environment)
+3. **Technical Debt Resolution**: Addressing ~3000 lines of duplicated test code, brittle path hacks, subprocess coupling, and repo-polluting data locations
+4. **Planned Phases**: Framework extraction → launcher factoring → programmatic runner → test registry centralization → XDG data migration → console scripts + packaging
+5. **Architecture Target**: Console script `econsim-launcher` (or `vmt-launcher`), proper imports (no `sys.path` hacks), appdata directories, programmatic test APIs
 
 Code Quality Standards: Python 3.11+, Black formatting (line-length 100), Ruff linting, MyPy type checking. Use `make format lint type` before commits. All state changes require corresponding unit tests in `tests/unit/`. Performance-sensitive changes must pass `make perf` regression tests.
 
