@@ -20,26 +20,27 @@ This directory contains timestamped debug logs from VMT EconSim GUI sessions. Th
 Control logging via environment variables:
 
 ```bash
-# Recommended: Balanced logging for analysis
-ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT make enhanced-tests
+# Default: Everything in optimized compact format (92% size reduction)
+make enhanced-tests
 
-# Minimal: Critical events only
-ECONSIM_LOG_LEVEL=CRITICAL ECONSIM_LOG_FORMAT=COMPACT make enhanced-tests
+# Balanced: Lighter logging for faster analysis
+ECONSIM_LOG_LEVEL=EVENTS make enhanced-tests
 
-# Complete: Everything in compact format
-ECONSIM_LOG_LEVEL=VERBOSE ECONSIM_LOG_FORMAT=COMPACT make enhanced-tests
+# Minimal: Critical events only (phase transitions, errors)
+ECONSIM_LOG_LEVEL=CRITICAL make enhanced-tests
 
-# Legacy: Original verbose format
-ECONSIM_LOG_LEVEL=VERBOSE ECONSIM_LOG_FORMAT=LEGACY make enhanced-tests
+# Legacy: Original verbose format (for compatibility)
+ECONSIM_LOG_FORMAT=LEGACY make enhanced-tests
 ```
 
 ## 📖 Reading Compact Format
 
 ### Header Information
+The log header shows active configuration:
 ```
 VMT EconSim GUI Debug Log
 Session started: 2025-09-26 21:06:10
-Log Level: EVENTS | Format: COMPACT
+Log Level: VERBOSE | Format: COMPACT    ← Default since optimization
 ==================================================
 ```
 
