@@ -94,6 +94,14 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self._fps_last_report = self._start
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._on_tick)  # type: ignore[arg-type]
+        
+        # Initialize GUI logger when simulation timer starts (not when logger singleton is created)
+        # This ensures the log timer starts when the actual simulation begins running
+        if simulation is not None:
+            from .debug_logger import get_gui_logger
+            logger = get_gui_logger()
+            logger._initialize_log_file()  # Force log file creation with proper timing
+        
         self._timer.start(self.FRAME_INTERVAL_MS)
         self._closed = False  # guard to stop ticks after close
         self.setMinimumSize(*self.SURFACE_SIZE)
@@ -376,7 +384,26 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     if overlay_state is not None and getattr(overlay_state, "show_home_labels", False):
                         if self._overlay_font is None:  # reuse existing font cache if previously created
                             pygame.font.init()
-                            self._overlay_font = pygame.font.Font(None, 14)
+                            # Better cross-platform font selection
+                            import sys
+                            if sys.platform == "darwin":
+                                # macOS: try Monaco first, then fallback
+                                try:
+                                    self._overlay_font = pygame.font.SysFont("Monaco", 14)
+                                except:
+                                    self._overlay_font = pygame.font.Font(None, 14)
+                            elif sys.platform == "win32":
+                                # Windows: try Consolas first, then fallback
+                                try:
+                                    self._overlay_font = pygame.font.SysFont("Consolas", 14)
+                                except:
+                                    self._overlay_font = pygame.font.Font(None, 14)
+                            else:
+                                # Linux/other: try DejaVu Sans Mono, then fallback
+                                try:
+                                    self._overlay_font = pygame.font.SysFont("DejaVu Sans Mono", 14)
+                                except:
+                                    self._overlay_font = pygame.font.Font(None, 14)
                         font = self._overlay_font
                         for agent in sorted_agents:
                             hx = int(getattr(agent, "home_x", getattr(agent, "x", 0)))
@@ -395,7 +422,23 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     try:
                         if self._overlay_font is None:
                             pygame.font.init()
-                            self._overlay_font = pygame.font.Font(None, 14)
+                            # Better cross-platform font selection (reuse logic from above)
+                            import sys
+                            if sys.platform == "darwin":
+                                try:
+                                    self._overlay_font = pygame.font.SysFont("Monaco", 14)
+                                except:
+                                    self._overlay_font = pygame.font.Font(None, 14)
+                            elif sys.platform == "win32":
+                                try:
+                                    self._overlay_font = pygame.font.SysFont("Consolas", 14)
+                                except:
+                                    self._overlay_font = pygame.font.Font(None, 14)
+                            else:
+                                try:
+                                    self._overlay_font = pygame.font.SysFont("DejaVu Sans Mono", 14)
+                                except:
+                                    self._overlay_font = pygame.font.Font(None, 14)
                         font = self._overlay_font
                         # HUD lines only if legacy show_overlay flag set
                         if getattr(self, "show_overlay", False):
@@ -617,7 +660,23 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 # Use a separate larger font cache to avoid mutating the small overlay font size.
                 if not hasattr(self, "_paused_font") or self._paused_font is None:  # type: ignore[attr-defined]
                     pygame.font.init()
-                    self._paused_font = pygame.font.Font(None, 48)  # type: ignore[attr-defined]
+                    # Better cross-platform font for PAUSED watermark
+                    import sys
+                    if sys.platform == "darwin":
+                        try:
+                            self._paused_font = pygame.font.SysFont("Monaco", 48)  # type: ignore[attr-defined]
+                        except:
+                            self._paused_font = pygame.font.Font(None, 48)  # type: ignore[attr-defined]
+                    elif sys.platform == "win32":
+                        try:
+                            self._paused_font = pygame.font.SysFont("Consolas", 48)  # type: ignore[attr-defined]
+                        except:
+                            self._paused_font = pygame.font.Font(None, 48)  # type: ignore[attr-defined]
+                    else:
+                        try:
+                            self._paused_font = pygame.font.SysFont("DejaVu Sans Mono", 48)  # type: ignore[attr-defined]
+                        except:
+                            self._paused_font = pygame.font.Font(None, 48)  # type: ignore[attr-defined]
                 font_big = self._paused_font  # type: ignore[attr-defined]
                 text = "PAUSED"
                 surf_txt = font_big.render(text, True, (255, 255, 255))

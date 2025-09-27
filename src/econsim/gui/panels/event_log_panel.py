@@ -42,8 +42,36 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         self._debug_display = QTextEdit()
         self._debug_display.setReadOnly(True)
         self._debug_display.setMinimumHeight(140)
-        self._debug_display.setStyleSheet("QTextEdit { background:#f2f2f2; border:1px solid #ccc; padding:2px; }")
-        self._debug_display.setFont(QFont("Courier", 8))
+        
+        # AGGRESSIVE dark mode fix: Force colors using QPalette AND stylesheet
+        from PyQt6.QtGui import QPalette, QColor
+        from PyQt6.QtCore import Qt
+        
+        # Force colors via palette (overrides system themes)
+        palette = self._debug_display.palette()
+        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))  # White background
+        palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))        # Black text
+        palette.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255)) # White window
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))   # Black window text
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))  # Slightly gray alternate
+        self._debug_display.setPalette(palette)
+        
+        # Also apply stylesheet for additional properties
+        self._debug_display.setStyleSheet("""
+            QTextEdit { 
+                background-color: rgb(255, 255, 255);
+                color: rgb(0, 0, 0);
+                border: 2px solid rgb(51, 51, 51);
+                padding: 4px;
+                font-family: 'Monaco', 'Courier New', monospace;
+                font-size: 10pt;
+            }
+        """)
+        
+        # Set font for fallback
+        font = QFont("Monaco", 10)
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        self._debug_display.setFont(font)
         root.addWidget(self._debug_display)
 
         # Separator line
@@ -61,8 +89,29 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         self._log_display = QTextEdit()
         self._log_display.setReadOnly(True)
         self._log_display.setMinimumHeight(140)
-        self._log_display.setStyleSheet("QTextEdit { background:#fafafa; border:1px solid #ddd; padding:2px; }")
-        self._log_display.setFont(QFont("Courier", 8))
+        
+        # AGGRESSIVE dark mode fix for log display too
+        palette2 = self._log_display.palette()
+        palette2.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))  # White background
+        palette2.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))        # Black text
+        palette2.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255)) # White window
+        palette2.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))   # Black window text
+        self._log_display.setPalette(palette2)
+        
+        self._log_display.setStyleSheet("""
+            QTextEdit { 
+                background-color: rgb(255, 255, 255);
+                color: rgb(0, 0, 0);
+                border: 2px solid rgb(51, 51, 51);
+                padding: 4px;
+                font-family: 'Monaco', 'Courier New', monospace;
+                font-size: 10pt;
+            }
+        """)
+        
+        font2 = QFont("Monaco", 10)
+        font2.setStyleHint(QFont.StyleHint.Monospace)
+        self._log_display.setFont(font2)
         root.addWidget(self._log_display, 1)
 
         # Internal buffers
@@ -79,12 +128,42 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         self._update_log()
 
     def _on_debug_toggled(self, state: int) -> None:
+        from PyQt6.QtGui import QPalette, QColor
+        
         self._debug_enabled = bool(state)
+        
+        # Force palette colors again when toggling
+        palette = self._debug_display.palette()
         if not self._debug_enabled:
-            # Keep contents but visually mute
-            self._debug_display.setStyleSheet("QTextEdit { background:#f2f2f2; border:1px solid #eee; color:#888; }")
+            # Muted but still readable
+            palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Text, QColor(136, 136, 136))
+            self._debug_display.setPalette(palette)
+            self._debug_display.setStyleSheet("""
+                QTextEdit { 
+                    background-color: rgb(255, 255, 255);
+                    color: rgb(136, 136, 136);
+                    border: 1px solid rgb(221, 221, 221);
+                    padding: 4px;
+                    font-family: 'Monaco', 'Courier New', monospace;
+                    font-size: 10pt;
+                }
+            """)
         else:
-            self._debug_display.setStyleSheet("QTextEdit { background:#f2f2f2; border:1px solid #ccc; padding:2px; }")
+            # Full contrast
+            palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+            self._debug_display.setPalette(palette)
+            self._debug_display.setStyleSheet("""
+                QTextEdit { 
+                    background-color: rgb(255, 255, 255);
+                    color: rgb(0, 0, 0);
+                    border: 2px solid rgb(51, 51, 51);
+                    padding: 4px;
+                    font-family: 'Monaco', 'Courier New', monospace;
+                    font-size: 10pt;
+                }
+            """)
     
     def _update_log(self) -> None:
         """Update the event log with new events."""
@@ -213,7 +292,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                 logger = get_gui_logger()
                 log_path = logger.get_current_log_path()
                 
-                if log_path.exists():
+                if log_path is not None and log_path.exists():
                     # Read the latest log content
                     with open(log_path, 'r', encoding='utf-8') as f:
                         log_content = f.read()

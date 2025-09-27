@@ -144,15 +144,11 @@ class GUILogger:
         self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
         self.logs_dir.mkdir(exist_ok=True)
         
-        # Generate timestamped filename and track simulation start time
-        now = datetime.now()
-        self._simulation_start_time = now  # Wall clock reference for elapsed time calculation
-        timestamp = now.strftime("%Y-%m-%d %H-%M-%S")
-        self.log_filename = f"{timestamp} GUI.log"
-        self.log_path = self.logs_dir / self.log_filename
-        
-        # Initialize log file
-        self._write_header()
+        # Defer log file creation until simulation actually starts
+        self._simulation_start_time: Optional[datetime] = None  # Set when first simulation step begins
+        self.log_filename: Optional[str] = None
+        self.log_path: Optional[Path] = None
+        self._log_initialized = False
     
     @classmethod
     def get_instance(cls) -> "GUILogger":
@@ -163,13 +159,32 @@ class GUILogger:
                     cls._instance = cls()
         return cls._instance
     
-    def _write_header(self) -> None:
-        """Write log file header with session information."""
+    def _initialize_log_file(self) -> None:
+        """Initialize log file when simulation first starts."""
+        if self._log_initialized:
+            return
+            
+        # Set simulation start time to now (when first simulation step begins)
+        now = datetime.now()
+        self._simulation_start_time = now
+        
+        # Generate timestamped filename
+        timestamp = now.strftime("%Y-%m-%d %H-%M-%S")
+        self.log_filename = f"{timestamp} GUI.log"
+        self.log_path = self.logs_dir / self.log_filename
+        
+        # Write log file header
         with open(self.log_path, 'w', encoding='utf-8') as f:
             f.write(f"VMT EconSim GUI Debug Log\n")
-            f.write(f"Session started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Session started: {now.strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Log Level: {self.log_level.value} | Format: {self.log_format.value}\n")
             f.write("=" * 50 + "\n\n")
+        
+        self._log_initialized = True
+    
+    def _write_header(self) -> None:
+        """Legacy method - now handled by _initialize_log_file."""
+        pass
     
     def _should_log_category(self, category: str) -> bool:
         """Check if a message category should be logged at current level."""
@@ -396,8 +411,13 @@ class GUILogger:
     
     def _write_to_file(self, formatted_message: str) -> None:
         """Write formatted message to log file."""
+        # Ensure log file is initialized before writing
+        if not self._log_initialized:
+            self._initialize_log_file()
+        
         with self._lock:
             try:
+                assert self.log_path is not None  # Should be set by _initialize_log_file
                 with open(self.log_path, 'a', encoding='utf-8') as f:
                     f.write(formatted_message)
                     f.flush()
@@ -413,6 +433,10 @@ class GUILogger:
         Returns:
             Formatted time string with 1 decimal place (e.g., "+12.3s")
         """
+        # If simulation hasn't started yet, return zero time
+        if self._simulation_start_time is None:
+            return "+0.0s"
+        
         # Always use wall clock time elapsed since simulation start
         elapsed_seconds = (datetime.now() - self._simulation_start_time).total_seconds()
         return f"+{elapsed_seconds:.1f}s"
@@ -564,16 +588,18 @@ class GUILogger:
         self._flush_transition_buffer()
         self._flush_bundle_buffer()
         
-        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        end_message = f"[{timestamp}] SESSION: === LOG SESSION ENDED ===\n"
-        
-        with self._lock:
-            try:
-                with open(self.log_path, 'a', encoding='utf-8') as f:
-                    f.write(end_message)
-                    f.flush()
-            except Exception:
-                pass
+        # Only write end marker if log was actually initialized
+        if self._log_initialized and self.log_path is not None:
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            end_message = f"[{timestamp}] SESSION: === LOG SESSION ENDED ===\n"
+            
+            with self._lock:
+                try:
+                    with open(self.log_path, 'a', encoding='utf-8') as f:
+                        f.write(end_message)
+                        f.flush()
+                except Exception:
+                    pass
         
         # Mark logger as finalized to prevent further logging
         self._finalized = True
@@ -606,8 +632,10 @@ class GUILogger:
         """Log general simulation debug information."""
         self.log("SIMULATION", message, step)
     
-    def get_current_log_path(self) -> Path:
+    def get_current_log_path(self) -> Optional[Path]:
         """Get path to current log file for GUI reading."""
+        if not self._log_initialized:
+            return None
         return self.log_path
 
 
