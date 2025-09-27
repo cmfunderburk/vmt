@@ -10,6 +10,8 @@ Determinism Invariants:
 4. Metrics hash contract (`simulation/metrics.py`) excludes trade + debug overlay metrics
 5. RNG separation: external (legacy/random movement) vs internal `Simulation._rng` (respawn, homes, trade drafts)
 
+Project Structure: Python 3.11+ package with PyQt6/pygame deps, virtual env `vmt-dev/`. Entry points: `main.py` (dual GUI system), educational scenarios in `MANUAL_TESTS/`, unit tests in `tests/unit/` (210+ tests). Core modules: `simulation/world.py` (coordinator), `gui/embedded_pygame.py` (rendering), `preferences/*.py` (economic models), `simulation/agent.py` (behavior).
+
 Core Architecture: Dual GUI (Start Menu new path default `ECONSIM_NEW_GUI=1`; legacy when 0) sharing `EmbeddedPygameWidget` + `Simulation` (`simulation/world.py`). Factory: `Simulation.from_config(SimConfig, preference_factory, agent_positions=...)` seeds internal RNG, optional `RespawnScheduler`, `MetricsCollector`; homes via deterministic secondary seed (`seed+9973`). Preferences must be pure/stateless; register in `preferences/factory.py` + tests (validation, utility math, serialize round‑trip).
 
 Feature Flags (environment):
@@ -44,9 +46,14 @@ Perf Expectations: ~62 FPS typical (floor ≥30). Validate with `make perf` or `
 
 Testing & PR Flow: Run `make test-unit lint type perf`. Any state or perf‑sensitive change: add/adjust unit test (determinism, perf guard, hash). Manual GUI validation: `make manual-tests` (7 educational scenarios). PR summary: Goal | Changes | Tests/Perf | Result | Next. Keep diffs minimal.
 
-Development Workflow: **ALWAYS activate virtual environment first**: `source vmt-dev/bin/activate` (create with `make venv` if missing). Entry point `make enhanced-tests` (canonical development build) or `make dev` (basic GUI). Environment flags control features (see above). Live config via Controls panel; settings persist across GUI sessions. Factory construction via `Simulation.from_config()` preferred over manual wiring.
+Development Workflow: **ALWAYS activate virtual environment first**: `source vmt-dev/bin/activate` (create with `make venv` if missing). Primary workflows:
+* `make enhanced-tests` – canonical development build with optimized logging (compact format by default)
+* `make dev` – basic GUI (Start Menu → scenario selection)
+* `make test-unit lint type perf` – full validation pipeline
+* `pytest -q` – run 210+ automated tests
+* `python scripts/perf_stub.py` – performance benchmarking
 
-Debug System: Centralized logging via `src/econsim/gui/debug_logger.py` with environment flags (`ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_DEBUG_TRADES`, etc). Manual tests include debug panels with 250ms update timers. Use `log_phase_transition()`, `log_comprehensive()` for educational scenarios.
+Debug System: Centralized logging via `src/econsim/gui/debug_logger.py` with environment flags (`ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_DEBUG_TRADES`, etc). Manual tests include debug panels with 250ms update timers. Use `log_phase_transition()`, `log_comprehensive()` for educational scenarios. Current branch `debug_improvements` focuses on performance debugging display tweaks.
 
 Manual Testing Framework: 7 educational scenarios in `MANUAL_TESTS/` (run via `make manual-tests` or individual `.py` files). Standard 6‑phase structure (900 turns): Both enabled (1‑200) → Forage only (201‑400) → Exchange only (401‑600) → Both disabled (601‑650) → Both enabled (651‑850) → Final disabled (851‑900). Phase transitions via environment variable management. Current tests have massive duplication (~400 lines each); refactor plan in `MANUAL_TESTS/REFACTOR_PLAN.md` proposes configuration‑driven approach with `TestConfiguration` dataclass + `BaseManualTest` framework.
 
@@ -56,4 +63,6 @@ Teardown Integrity: `closeEvent` stops timer → `pygame.quit()` → `super().cl
 
 Educational Context: This is a microeconomic simulation for teaching spatial resource allocation, agent decision-making, and exchange dynamics. Behavioral changes must be educationally meaningful and deterministically reproducible across classroom sessions.
 
-When Unsure: Read the relevant unit tests FIRST. If an invariant feels ambiguous, write/strengthen a test before refactor.
+Code Quality Standards: Python 3.11+, Black formatting (line-length 100), Ruff linting, MyPy type checking. Use `make format lint type` before commits. All state changes require corresponding unit tests in `tests/unit/`. Performance-sensitive changes must pass `make perf` regression tests.
+
+When Unsure: Read the relevant unit tests FIRST. If an invariant feels ambiguous, write/strengthen a test before refactor. The `tests/unit/` directory contains 80+ test files covering determinism, performance, GUI integration, and economic behavior patterns.

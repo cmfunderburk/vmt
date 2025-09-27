@@ -272,6 +272,7 @@ class GUILogger:
             
             # Log each group
             timestamp_prefix = self._format_simulation_time(step)
+            step_info = f"S{step}" if step is not None else ""
             
             for (old_mode, new_mode), agent_ids in transition_groups.items():
                 if len(agent_ids) == 1:
@@ -283,16 +284,17 @@ class GUILogger:
                         formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE: Agent {agent_id} mode: {old_mode} -> {new_mode}\n"
                     self._write_to_file(formatted)
                 else:
-                    # Multiple similar transitions - batch them
+                    # Multiple similar transitions - batch them with structured format
                     if self.log_format == LogFormat.COMPACT:
                         if len(agent_ids) <= 5:
-                            # Show individual agents if small group
-                            agents_str = ",".join(agent_ids)
-                            formatted = f"{timestamp_prefix} BATCH: {agents_str} {old_mode}→{new_mode}\n"
+                            # Small groups: include agent IDs in structured format
+                            agents_list = ",".join(agent_ids)
+                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids)} agents {old_mode}→{new_mode} ids=[{agents_list}]\n"
                         else:
-                            # Just show count if large group
-                            formatted = f"{timestamp_prefix} BATCH: {len(agent_ids)} agents {old_mode}→{new_mode}\n"
+                            # Large groups: show count only
+                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids)} agents {old_mode}→{new_mode}\n"
                     else:
+                        # Legacy format for non-compact modes
                         formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE_BATCH: {len(agent_ids)} agents {old_mode} -> {new_mode}\n"
                     self._write_to_file(formatted)
         

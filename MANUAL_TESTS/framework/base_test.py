@@ -177,10 +177,20 @@ class BaseManualTest(QWidget):
             print(f"DEBUG: Periodic logging triggered at turn {self.current_turn}")
             agent_count = len(self.simulation.agents)
             resource_count = len(list(self.simulation.grid.iter_resources()))
-            status_msg = f"Turn {self.current_turn}: Phase {self.phase}, {agent_count} agents, {resource_count} resources"
-            from econsim.gui.debug_logger import log_comprehensive, log_economics
-            log_comprehensive(f"PERIODIC STATUS: {status_msg}", self.current_turn)
-            print(f"DEBUG: log_comprehensive called successfully")
+            
+            # Calculate performance metrics like the main simulation does
+            steps_per_sec = 60.0  # Default fallback
+            frame_ms = 16.7  # Default fallback
+            
+            if hasattr(self.simulation, '_step_times') and len(self.simulation._step_times) >= 2:
+                time_window = self.simulation._step_times[-1] - self.simulation._step_times[0]
+                if time_window > 0:
+                    steps_per_sec = (len(self.simulation._step_times) - 1) / time_window
+                    frame_ms = (time_window / (len(self.simulation._step_times) - 1)) * 1000
+            
+            from econsim.gui.debug_logger import log_periodic_summary, log_economics
+            log_periodic_summary(steps_per_sec, frame_ms, agent_count, resource_count, self.phase, self.current_turn)
+            print(f"DEBUG: log_periodic_summary called successfully")
             
             # Resource flow analysis
             resource_by_type = {"good1": 0, "good2": 0}
