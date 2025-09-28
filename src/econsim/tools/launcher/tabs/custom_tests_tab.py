@@ -39,6 +39,13 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
         self._tab_id = "custom_tests"
         self.setup_ui()
         self.populate_custom_tests()
+    
+    def get_custom_tests_dir(self) -> Path:
+        """Get custom tests directory (always in project)."""
+        # Always use project-local custom tests directory  
+        # This keeps user-created tests with the project for easy access and version control choice
+        project_root = Path(__file__).parent.parent.parent.parent.parent.parent
+        return project_root / "MANUAL_TESTS" / "custom_tests"
         
     def setup_ui(self):
         """Create the custom tests UI."""
@@ -80,7 +87,7 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
         # Info text
         info_text = QLabel(  # type: ignore[call-arg]
             "Custom tests are created using the Configuration Editor. " +
-            "They are saved in the MANUAL_TESTS/custom_tests/ directory."
+            "Use the 'Open Folder' button to see the custom tests directory."
         )
         try:
             info_text.setStyleSheet("color: #666; margin: 5px 0;")  # type: ignore[attr-defined]
@@ -126,9 +133,7 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
             pass
         
         # Find custom test files
-        # This file is in src/econsim/tools/launcher/tabs/custom_tests_tab.py
-        # We need to go up 6 levels to get to project root, then down to MANUAL_TESTS/custom_tests
-        custom_tests_dir = Path(__file__).parent.parent.parent.parent.parent.parent / "MANUAL_TESTS" / "custom_tests"
+        custom_tests_dir = self.get_custom_tests_dir()
         
         if not custom_tests_dir.exists():
             try:
@@ -228,10 +233,7 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
             
     def open_custom_tests_folder(self):
         """Open the custom tests directory in file explorer."""
-        # This file is in src/econsim/tools/launcher/tabs/custom_tests_tab.py
-        # We need to go up 6 levels to get to project root, then down to MANUAL_TESTS/custom_tests
-        project_root = Path(__file__).parent.parent.parent.parent.parent.parent
-        custom_tests_dir = project_root / "MANUAL_TESTS" / "custom_tests"
+        custom_tests_dir = self.get_custom_tests_dir()
         
         if not custom_tests_dir.exists():
             custom_tests_dir.mkdir(parents=True, exist_ok=True)

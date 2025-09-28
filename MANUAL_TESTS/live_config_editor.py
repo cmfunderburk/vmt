@@ -390,9 +390,15 @@ class PresetManager(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.presets: List[ConfigurationPreset] = []
-        self.presets_file = Path(__file__).parent / "config_presets.json"
+        self.presets_file = self._get_presets_file()
         self.setup_ui()
         self.load_presets()
+    
+    def _get_presets_file(self) -> Path:
+        """Get presets file (always in project)."""
+        # Always use project-local presets file
+        # This keeps configuration presets with the project for easy sharing and version control
+        return Path(__file__).parent / "config_presets.json"
         
     def setup_ui(self):
         """Create preset management UI."""

@@ -162,9 +162,10 @@ class GUILogger:
         self._trade_bundle_buffer: dict[int, dict[str, list[str]]] = {}  # step -> {trades: [], utilities: []}
         self._last_bundle_step = -1
         
-        # Create logs directory if it doesn't exist (at project root)
+        # Always use project-local logs directory
+        # Logs stay in the project for development convenience and are excluded via .gitignore
         self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
-        self.logs_dir.mkdir(exist_ok=True)
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
         
         # Defer log file creation until simulation actually starts
         self._simulation_start_time: Optional[datetime] = None  # Set when first simulation step begins
@@ -181,6 +182,7 @@ class GUILogger:
                     cls._instance = cls()
         return cls._instance
     
+
     def _initialize_log_file(self) -> None:
         """Initialize log file when simulation first starts."""
         if self._log_initialized:

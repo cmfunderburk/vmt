@@ -10,87 +10,13 @@ Phase 4 successfully eliminated the monolithic launcher (1153 → 145 lines, 87%
 
 **What's Complete**: ✅ Monolith decomposition, ✅ Framework extraction, ✅ Modular architecture, ✅ Performance testing enhancement, ✅ Documentation modernization
 
-**What's Remaining**: Console script entry points, XDG/appdata data locations, programmatic runner API, sys.path hack elimination, brittle filename mapping cleanup
+**What's Remaining**: ~~XDG/appdata data locations~~ ✅, programmatic runner API, sys.path hack elimination, brittle filename mapping cleanup
 
-## Phase 5: Console Script Implementation
+## Phase 5: Data Location Simplification ✅ **COMPLETED**
 
-**Goal**: Enable `pip install econsim-vmt[launcher]` and `econsim-launcher` command
+**Goal**: Maintain project-local logs and user data with proper .gitignore handling
 
-### Step 5.1: Add Console Script Entry Point (30 minutes)
-
-1. **Create `src/econsim/tools/launcher/__main__.py`**:
-```python
-"""Console entry point for VMT Enhanced Test Launcher."""
-from .app_window import main
-
-if __name__ == "__main__":
-    main()
-```
-
-2. **Update `pyproject.toml`** to add:
-```toml
-[project.scripts]
-econsim-launcher = "econsim.tools.launcher:main"
-
-[project.optional-dependencies]
-launcher = ["PyQt6>=6.5.0"]
-dev = [
-  "pytest>=7.4.0",
-  "black>=24.0.0", 
-  "ruff>=0.5.0",
-  "mypy>=1.8.0",
-]
-```
-
-3. **Move PyQt6 dependency** from main dependencies to launcher extra:
-```toml
-dependencies = [
-  "pygame>=2.5.0",
-  "numpy>=1.24.0"
-]
-```
-
-4. **Update app_window.py** to export main function:
-```python
-def main():
-    """Console script entry point."""
-    # Existing main() logic
-```
-
-**Acceptance**: 
-- `pip install -e .[launcher]` then `econsim-launcher` launches GUI
-- `pip install -e .` provides core simulation without GUI dependencies
-- `python -m econsim.tools.launcher` works
-
-### Step 5.2: Update Makefile and Documentation (15 minutes)
-
-1. **Update Makefile** `launcher` target to use module entry:
-```makefile
-launcher:
-	@echo "🚀 Starting VMT Enhanced Test Launcher..."
-	ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT \
-	ECONSIM_DEBUG_AGENT_MODES=1 ECONSIM_DEBUG_TRADES=1 \
-	ECONSIM_DEBUG_ECONOMICS=1 ECONSIM_LOG_BUNDLE_TRADES=1 \
-	python -m econsim.tools.launcher
-```
-
-2. **Update README.md** quick start section:
-```markdown
-# Install with launcher GUI
-pip install econsim-vmt[launcher]
-econsim-launcher
-
-# Or for development
-make launcher
-```
-
-**Acceptance**: Documentation reflects new installation method, Makefile uses module entry
-
-## Phase 6: Data Location Modernization
-
-**Goal**: Stop polluting repo with logs and user data; use XDG/appdata conventions
-
-### Step 6.1: Implement AppData Resolver (45 minutes)
+### Step 5.1: Implement AppData Resolver (45 minutes)
 
 1. **Create `src/econsim/tools/launcher/appdata.py`**:
 ```python
@@ -159,71 +85,52 @@ def get_config_dir(dev_override: Optional[str] = None) -> Path:
 
 **Acceptance**: AppData resolver returns proper paths for all platforms
 
-### Step 6.2: Migrate Debug Logger (30 minutes)
+### Step 5.2: Simplify Debug Logger ✅
 
-1. **Update `src/econsim/gui/debug_logger.py`**:
+1. **Updated `src/econsim/gui/debug_logger.py`**:
 ```python
-from ..tools.launcher.appdata import AppDataResolver
-
-class GuiDebugLogger:
+class GUILogger:
     def __init__(self):
-        # Use appdata location with dev override
-        if os.environ.get('ECONSIM_DEV_MODE'):
-            # Keep repo location for development
-            self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
-        else:
-            self.logs_dir = AppDataResolver.get_logs_dir()
-        
+        # Always use project-local logs directory
+        # Logs stay in the project for development convenience and are excluded via .gitignore
+        self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 ```
 
-2. **Add migration logic**:
+**Acceptance**: 
+- ✅ All logs stay in project `gui_logs/` directory
+- ✅ Logs excluded from git via `.gitignore` (already configured)
+- ✅ No complex migration or appdata handling needed
+
+### Step 5.3: Simplify Launcher Data ✅
+
+1. **Updated custom tests tab** to use project location:
 ```python
-def migrate_old_logs(self):
-    """One-time migration from repo gui_logs/ to appdata."""
-    old_logs = Path(__file__).parent.parent.parent.parent / "gui_logs"
-    if old_logs.exists() and not os.environ.get('ECONSIM_DEV_MODE'):
-        # Copy logs to new location, then remove old ones
-        # Implementation details...
+def get_custom_tests_dir(self) -> Path:
+    """Get custom tests directory (always in project)."""
+    # Always use project-local custom tests directory  
+    project_root = Path(__file__).parent.parent.parent.parent.parent.parent
+    return project_root / "MANUAL_TESTS" / "custom_tests"
+```
+
+2. **Updated config presets** to stay local:
+```python
+def _get_presets_file(self) -> Path:
+    """Get presets file (always in project)."""
+    # Always use project-local presets file
+    return Path(__file__).parent / "config_presets.json"
 ```
 
 **Acceptance**: 
-- Production: logs go to `~/.local/state/econsim/gui_logs/`
-- Development: `ECONSIM_DEV_MODE=1` keeps repo logs
-- One-time migration preserves existing logs
+- ✅ Custom tests stay in `MANUAL_TESTS/custom_tests/` 
+- ✅ Config presets stay in `MANUAL_TESTS/config_presets.json`
+- ✅ User can choose to commit custom tests or add to .gitignore as needed
 
-### Step 6.3: Migrate Launcher Data (30 minutes)
-
-1. **Update custom tests tab** to use appdata:
-```python
-# In custom_tests_tab.py
-from ..appdata import AppDataResolver
-
-def get_custom_tests_dir(self):
-    if os.environ.get('ECONSIM_DEV_MODE'):
-        return Path(__file__).parent.parent.parent.parent.parent.parent / "MANUAL_TESTS" / "custom_tests"
-    return AppDataResolver.get_custom_tests_dir()
-```
-
-2. **Migrate config presets**:
-```python
-# Similar pattern for config_presets.json
-def get_presets_file(self):
-    if os.environ.get('ECONSIM_DEV_MODE'):
-        return Path("MANUAL_TESTS/config_presets.json")
-    return AppDataResolver.get_config_dir() / 'launcher' / 'presets.json'
-```
-
-**Acceptance**: 
-- Production: data in appdata locations
-- Development: `ECONSIM_DEV_MODE=1` uses repo locations
-- First-run migration preserves existing presets/custom tests
-
-## Phase 7: Programmatic Runner Implementation
+## Phase 6: Programmatic Runner Implementation
 
 **Goal**: Replace subprocess launching with programmatic API
 
-### Step 7.1: Create Test Runner API (60 minutes)
+### Step 6.1: Create Test Runner API (60 minutes)
 
 1. **Create `src/econsim/tools/launcher/test_runner.py`**:
 ```python
@@ -287,7 +194,7 @@ class VMTLauncherWindow:
 
 **Acceptance**: Tests launch programmatically without subprocess or filename mapping
 
-### Step 7.2: Remove Filename Mappings (30 minutes)
+### Step 6.2: Remove Filename Mappings (30 minutes)
 
 1. **Remove hardcoded `id_to_file` mapping** from app_window.py
 2. **Use registry-based dispatch** through TestRunner
@@ -295,11 +202,11 @@ class VMTLauncherWindow:
 
 **Acceptance**: No more brittle filename mappings, all launches through registry
 
-## Phase 8: Path Hack Elimination
+## Phase 7: Path Hack Elimination
 
 **Goal**: Remove all `sys.path` manipulation from MANUAL_TESTS files
 
-### Step 8.1: Update Test Files (45 minutes)
+### Step 7.1: Update Test Files (45 minutes)
 
 1. **Create proper package structure** for MANUAL_TESTS if needed
 2. **Replace `sys.path.insert()` calls** with proper imports:
@@ -321,7 +228,7 @@ from econsim.gui.embedded_pygame import EmbeddedPygameWidget
 
 **Acceptance**: No `sys.path` manipulation in any MANUAL_TESTS files
 
-### Step 8.2: Clean Up Entry Points (15 minutes)
+### Step 7.2: Clean Up Entry Points (15 minutes)
 
 1. **Remove `sys.path` from enhanced_test_launcher_v2.py**
 2. **Use proper package imports** throughout
@@ -334,56 +241,73 @@ rm -rf MANUAL_TESTS/__pycache__/
 
 **Acceptance**: No sys.path hacks anywhere in codebase
 
-## Phase 9: Documentation and Testing
+## Phase 8: Documentation and Testing
 
-### Step 9.1: Update Documentation (30 minutes)
+### Step 8.1: Update Documentation (30 minutes)
 
 1. **Create `docs/LAUNCHER_PACKAGING.md`**:
-   - Installation instructions
-   - Console script usage
+   - Installation instructions  
    - Development vs production data locations
    - Migration notes
+   - Launcher architecture guide
 
-2. **Update README.md** with new installation methods
+2. **Update README.md** with launcher usage patterns
 3. **Update copilot instructions** with packaging info
 
-### Step 9.2: Add Packaging Tests (30 minutes)
+### Step 8.2: Add Packaging Tests (30 minutes)
 
-1. **Add smoke tests** for console script
+1. **Add smoke tests** for programmatic runner  
 2. **Test appdata location creation**
-3. **Validate optional dependencies structure**
+3. **Validate data migration functionality**
 
 ## Implementation Priority
 
 **Recommended Order**:
-1. **Phase 5** (Console Scripts) - Highest user value, enables proper distribution
-2. **Phase 7** (Programmatic Runner) - Eliminates subprocess brittleness  
-3. **Phase 6** (Data Locations) - Better user experience, stops repo pollution
-4. **Phase 8** (Path Cleanup) - Code quality improvement
-5. **Phase 9** (Documentation) - Support and maintenance
+1. **Phase 6** (Programmatic Runner) - Eliminates subprocess brittleness, highest technical value  
+2. **Phase 5** (Data Locations) - Better user experience, stops repo pollution
+3. **Phase 7** (Path Cleanup) - Code quality improvement, enables proper packaging
+4. **Phase 8** (Documentation) - Support and maintenance
+
+**Rationale**: Since the GUI launcher is core to VMT's educational mission, focus on improving the existing launcher architecture rather than adding unnecessary console script complexity.
 
 ## Risk Assessment
 
 **Low Risk**:
-- Console script implementation (additive)
 - AppData resolver (isolated utility)
 - Documentation updates
+- Path cleanup (dev environment improvement)
 
 **Medium Risk**:
 - Data location migration (user impact if broken)
 - Programmatic runner (changes execution model)
 
 **Mitigation Strategy**:
-- Implement dev mode overrides for all data locations
+- Implement dev mode overrides for all data locations  
 - Preserve backward compatibility during migration
 - Test thoroughly in development environment first
+- Maintain `make launcher` as primary entry point
 
 ## Success Criteria
 
-**Phase 5 Complete**: `pip install econsim-vmt[launcher]` && `econsim-launcher` works
-**Phase 6 Complete**: No repo pollution, proper appdata usage, dev mode preserved
-**Phase 7 Complete**: No subprocess launching, programmatic test execution
-**Phase 8 Complete**: No sys.path hacks anywhere
-**Phase 9 Complete**: Comprehensive documentation, automated tests
+**Phase 5 Complete**: ✅ Project-local logs with .gitignore, simplified data locations
+**Phase 6 Complete**: No subprocess launching, programmatic test execution  
+**Phase 7 Complete**: No sys.path hacks anywhere
+**Phase 8 Complete**: Comprehensive documentation, automated tests
 
-This roadmap provides a clear path for future contributors to complete the packaging modernization started in the original reorganization plan.
+**Overall Success**: VMT launcher architecture is modernized while preserving its core educational GUI mission
+
+## Recommended Next Steps
+
+**Immediate Priority**: Address any current GUI regressions or launcher issues before implementing packaging improvements.
+
+**Phase Selection**: 
+- **Phase 6 (Programmatic Runner)** offers the highest technical value by eliminating subprocess brittleness
+- **Phase 5 (Data Locations)** provides immediate user experience improvements  
+- Both phases are independent and can be implemented in parallel
+
+**Development Approach**: 
+- Maintain `make launcher` as the primary entry point for VMT
+- Keep PyQt6 as a core dependency since GUI is essential to educational mission
+- Focus on improving launcher architecture rather than adding packaging complexity
+
+This roadmap provides a clear path for future contributors to complete the packaging modernization while preserving VMT's core educational GUI focus.
