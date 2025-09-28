@@ -21,9 +21,10 @@ from .types import (
 from .registry import TestRegistry  # noqa: F401
 from .comparison import ComparisonController  # noqa: F401
 from .executor import TestExecutor  # noqa: F401
-from .cards import build_card_models, TestCard, TestCardModel  # noqa: F401
+from .cards import build_card_models, TestCard, TestCardModel, CustomTestCardWidget, TestCardWidget  # noqa: F401
 from .gallery import TestGallery  # noqa: F401
-from .tabs import LauncherTabs  # noqa: F401
+from .tabs import LauncherTabs, AbstractTab, CustomTestsTab  # noqa: F401
+from .widgets import TestGalleryWidget  # noqa: F401
 from .app_window import LauncherWindow, create_launcher_window  # noqa: F401
 
 __all__ = [
@@ -43,6 +44,9 @@ __all__ = [
     "TestCardModel",
     "TestGallery",
     "LauncherTabs",
+    "AbstractTab",
+    "CustomTestsTab",
+    "TestGalleryWidget",
     "LauncherWindow",
     "create_launcher_window",
 ]

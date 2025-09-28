@@ -28,7 +28,6 @@ try:  # Soft dependency during refactor; if missing we fall back to legacy logic
     from econsim.tools.launcher.executor import TestExecutor
     from econsim.tools.launcher.cards import CustomTestCardWidget, TestCardWidget
     from econsim.tools.launcher.tabs import CustomTestsTab
-    from econsim.tools.launcher.widgets import TestGalleryWidget
     _launcher_modules_available = True
 except Exception:  # pragma: no cover - fallback path
     _launcher_modules_available = False
@@ -74,27 +73,6 @@ if not _launcher_modules_available:
             super().__init__(parent)
             layout = QVBoxLayout(self)
             layout.addWidget(QLabel("CustomTestsTab not available - using fallback"))
-            
-    class TestGalleryWidget(QWidget):  # pragma: no cover - fallback during refactor
-        """Fallback implementation when extracted module not available."""
-        
-        # Dummy signals for compatibility
-        testLaunchRequested = pyqtSignal(str, str)
-        statusUpdate = pyqtSignal(str)
-        
-        def __init__(self, parent=None):
-            super().__init__(parent)
-            self.test_cards = {}
-            self.comparison_selection = []
-            self.status_area = QTextEdit()
-            self.status_area.setReadOnly(True)
-            layout = QVBoxLayout(self)
-            layout.addWidget(QLabel("TestGalleryWidget not available - using fallback"))
-            layout.addWidget(self.status_area)
-        
-        def set_comparison_controller(self, controller): pass
-        def populate_tests(self): pass
-        def get_comparison_selection(self): return []
 
 # CustomTestCardWidget extracted to src/econsim/tools/launcher/cards.py in Phase 2.1
 # TestCardWidget extracted to src/econsim/tools/launcher/cards.py in Phase 2.2
@@ -163,27 +141,19 @@ class EnhancedTestLauncher(QMainWindow):
         
         layout.addLayout(controls_layout)
         
-        # Gallery widget (extracted from monolith in Phase 2.4)
-        self.gallery_widget = TestGalleryWidget()
-        if _launcher_modules_available:
-            # Connect gallery signals
-            self.gallery_widget.testLaunchRequested.connect(self.launch_test)
-            self.gallery_widget.statusUpdate.connect(self._handle_gallery_status)
-        else:
-            # Setup fallback components when extracted modules not available
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            
-            # Grid layout for test cards
-            self.cards_widget = QWidget()
-            self.cards_layout = QGridLayout(self.cards_widget)
-            self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-            
-            scroll.setWidget(self.cards_widget)
-            
-        layout.addWidget(self.gallery_widget)
+        # Test cards scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Grid layout for test cards
+        self.cards_widget = QWidget()
+        self.cards_layout = QGridLayout(self.cards_widget)
+        self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
+        scroll.setWidget(self.cards_widget)
+        layout.addWidget(scroll)
         
         # Add configuration editor, batch runner, and bookmark manager tabs
         try:
@@ -194,18 +164,21 @@ class EnhancedTestLauncher(QMainWindow):
             # Create tab widget for main content
             main_tabs = QTabWidget()
             
-            # Gallery tab (using extracted component)
-            main_tabs.addTab(self.gallery_widget, "🖼️ Test Gallery")
+            # Gallery tab (existing content)
+            gallery_widget = QWidget()
+            gallery_layout = QVBoxLayout(gallery_widget)
             
-            # Set up status area reference for compatibility
-            if hasattr(self.gallery_widget, 'status_area'):
-                self.status_area = self.gallery_widget.status_area
-            else:
-                # Fallback status area
-                self.status_area = QTextEdit()
-                self.status_area.setReadOnly(True)
-                self.status_area.setMaximumHeight(100)
-                self.status_area.setStyleSheet("background-color: #f8f9fa;")
+            # Move existing scroll area to gallery tab
+            gallery_layout.addWidget(scroll)
+            
+            # Status area in gallery
+            self.status_area = QTextEdit()
+            self.status_area.setReadOnly(True)
+            self.status_area.setMaximumHeight(100)
+            self.status_area.setStyleSheet("background-color: #f8f9fa;")
+            gallery_layout.addWidget(self.status_area)
+            
+            main_tabs.addTab(gallery_widget, "🖼️ Test Gallery")
             
             # Configuration editor tab
             config_editor = LiveConfigEditor()
@@ -238,62 +211,45 @@ class EnhancedTestLauncher(QMainWindow):
         # Status bar
         self.statusBar().showMessage("Ready to launch tests")
         
-    def _handle_gallery_status(self, message: str):
-        """Handle status updates from the gallery widget."""
-        if message == "COMPARISON_LIMIT":
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Comparison Limit", "Maximum 4 tests can be compared simultaneously.")
-        elif message == "COMPARISON_CHANGED":
-            self._update_comparison_ui()
-        else:
-            # Regular status message
-            self.statusBar().showMessage(message)
-        
     def populate_tests(self):
         """Populate the test gallery with available tests."""
-        if _launcher_modules_available and hasattr(self.gallery_widget, 'populate_tests'):
-            # Delegate to extracted gallery widget
+        # Clear existing cards
+        for card in self.test_cards.values():
+            card.setParent(None)
+        self.test_cards.clear()
+        
+        # Initialize / clear comparison selection (delegated when new modules present)
+        if _launcher_modules_available:
+            # Lazy initialize on first population to avoid import cost earlier
             if not hasattr(self, "_comparison_controller"):
                 self._comparison_controller = ComparisonController(max_selections=4)
-            self.gallery_widget.set_comparison_controller(self._comparison_controller)
-            self.gallery_widget.populate_tests()
-            
-            # Update backward compatibility references
-            self.test_cards = self.gallery_widget.test_cards
-            self.comparison_selection = self.gallery_widget.get_comparison_selection()
-            self._update_comparison_ui()
+            else:
+                self._comparison_controller.clear()
+            self.comparison_selection = self._comparison_controller.selected()  # backward compatibility view
         else:
-            # Fallback logic when extracted modules not available
-            # Clear existing cards
-            for card in self.test_cards.values():
-                card.setParent(None)
-            self.test_cards.clear()
-            
-            # Initialize comparison selection
             self.comparison_selection.clear()
-            self._update_comparison_ui()
-                
-            # Create test cards (fallback)
-            row, col = 0, 0
-            max_cols = 3
+        self._update_comparison_ui()
+            
+        # Create test cards
+        row, col = 0, 0
+        max_cols = 3
 
-            for config in ALL_TEST_CONFIGS.values():  # Builtin list still authoritative for card ordering
-                card_widget = TestCardWidget(config)
-                card_widget.launchRequested.connect(self.launch_test)
-                card_widget.compareRequested.connect(self.add_to_comparison)
-                if hasattr(self, 'cards_layout'):
-                    self.cards_layout.addWidget(card_widget, row, col)
-                self.test_cards[config.name] = card_widget
+        for config in ALL_TEST_CONFIGS.values():  # Builtin list still authoritative for card ordering
+            card_widget = TestCardWidget(config)
+            card_widget.launchRequested.connect(self.launch_test)
+            card_widget.compareRequested.connect(self.add_to_comparison)
+            self.cards_layout.addWidget(card_widget, row, col)
+            self.test_cards[config.name] = card_widget
 
-                col += 1
-                if col >= max_cols:
-                    col = 0
-                    row += 1
+            col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
 
-            # Update status
-            self.statusBar().showMessage(f"Loaded {len(ALL_TEST_CONFIGS)} tests")
-            self.log_status("Enhanced test launcher initialized")
-            self.log_status(f"Found {len(ALL_TEST_CONFIGS)} test configurations")
+        # Update status
+        self.statusBar().showMessage(f"Loaded {len(ALL_TEST_CONFIGS)} tests")
+        self.log_status("Enhanced test launcher initialized")
+        self.log_status(f"Found {len(ALL_TEST_CONFIGS)} test configurations")
         
     def launch_test(self, test_name: str, version: str):
         """Launch a specific test version."""
