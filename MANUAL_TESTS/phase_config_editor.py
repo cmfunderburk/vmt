@@ -15,7 +15,8 @@ import os
 from typing import List, Tuple, Optional
 
 # Add project root to path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
+repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(repo_root, 'src'))
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
@@ -26,8 +27,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
-from framework.phase_manager import PhaseDefinition, PhaseBehavior, PhaseManager
-from framework.test_configs import TestConfiguration
+from econsim.tools.launcher.framework.phase_manager import PhaseDefinition, PhaseBehavior, PhaseManager
+from econsim.tools.launcher.framework.test_configs import TestConfiguration
 
 
 class PhaseConfigRow(QWidget):

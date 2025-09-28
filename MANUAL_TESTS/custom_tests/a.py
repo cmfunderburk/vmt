@@ -15,8 +15,10 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import QApplication
-from framework.base_test import StandardPhaseTest
-from framework.test_configs import TestConfiguration
+# Import from new framework location
+sys.path.insert(0, str(project_root / "src"))
+from econsim.tools.launcher.framework.base_test import StandardPhaseTest
+from econsim.tools.launcher.framework.test_configs import TestConfiguration
 
 # Custom test configuration
 CUSTOM_CONFIG = TestConfiguration(

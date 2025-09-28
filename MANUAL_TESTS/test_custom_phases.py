@@ -18,11 +18,15 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / 'src'))
 sys.path.insert(0, str(project_root / 'MANUAL_TESTS'))
 
+# Pre-import framework components to avoid repetitive conditional imports
+from econsim.tools.launcher.framework.phase_manager import PhaseManager, PhaseBehavior, PhaseDefinition
+from econsim.tools.launcher.framework.test_configs import TestConfiguration
+
 def test_basic_phase_creation():
     """Test basic phase creation methods."""
     print("=== Testing Basic Phase Creation ===\n")
     
-    from framework.phase_manager import PhaseManager, PhaseBehavior
+    # Using pre-imported framework components
     
     # Test 1: Standard phases
     print("1. Standard 6-Phase Schedule:")
@@ -59,7 +63,7 @@ def test_phase_validation():
     """Test phase configuration validation."""
     print("=== Testing Phase Validation ===\n")
     
-    from framework.phase_manager import PhaseManager, PhaseDefinition, PhaseBehavior
+    # Using pre-imported framework components
     
     # Test valid configuration
     try:
@@ -100,7 +104,7 @@ def test_phase_transitions():
     """Test phase transition logic."""
     print("=== Testing Phase Transition Logic ===\n")
     
-    from framework.phase_manager import PhaseManager, PhaseBehavior
+    # Using pre-imported framework components
     
     # Create a simple schedule
     manager = PhaseManager.create_custom_phases([
@@ -132,8 +136,7 @@ def test_integration_with_test_config():
     """Test integration with TestConfiguration."""
     print("=== Testing Integration with TestConfiguration ===\n")
     
-    from framework.test_configs import TestConfiguration
-    from framework.phase_manager import PhaseManager, PhaseBehavior
+    # Using pre-imported framework components
     
     # Create custom phases
     custom_phases = PhaseManager.create_custom_phases([

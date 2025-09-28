@@ -27,20 +27,23 @@ def load_registry_from_monolith() -> TestRegistry:
     Phase 2.4.
     """
 
-    # Local import. The manual tests package lives under repository root / MANUAL_TESTS.
-    # We attempt a direct import first (assuming cwd / sys.path already configured by test harness).
-    try:  # pragma: no cover - import branch
-        from MANUAL_TESTS.framework import test_configs as legacy  # type: ignore
-    except ModuleNotFoundError:  # Fallback: attempt relative path injection
-        import sys
-        from pathlib import Path
-        root = Path(__file__).resolve().parents[4]  # src/econsim/tools/launcher -> repo root
-        manual_dir = root / "MANUAL_TESTS" / "framework"
-        if manual_dir.exists():
-            sys.path.insert(0, str(manual_dir.parent.parent))  # add repo root
+    # Import framework test configs. Try new location first, fallback to legacy.
+    try:  # New location (Phase 1.3 migration)
+        from .framework import test_configs as legacy  # type: ignore
+    except ModuleNotFoundError:
+        # Fallback to legacy location for compatibility
+        try:  # pragma: no cover - import branch
             from MANUAL_TESTS.framework import test_configs as legacy  # type: ignore
-        else:  # If still unavailable, propagate original error
-            raise
+        except ModuleNotFoundError:  # Fallback: attempt relative path injection
+            import sys
+            from pathlib import Path
+            root = Path(__file__).resolve().parents[4]  # src/econsim/tools/launcher -> repo root
+            manual_dir = root / "MANUAL_TESTS" / "framework"
+            if manual_dir.exists():
+                sys.path.insert(0, str(manual_dir.parent.parent))  # add repo root
+                from MANUAL_TESTS.framework import test_configs as legacy  # type: ignore
+            else:  # If still unavailable, propagate original error
+                raise
 
     def builtin_source() -> List[TestConfiguration]:
         out: List[TestConfiguration] = []

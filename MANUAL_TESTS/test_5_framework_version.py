@@ -9,11 +9,13 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 
-# Add current directory to path for framework imports
+# Add paths for framework imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(repo_root, "src"))
 
-from framework.base_test import StandardPhaseTest  
-from framework.test_configs import TEST_5_COBB_DOUGLAS
+from econsim.tools.launcher.framework.base_test import StandardPhaseTest  
+from econsim.tools.launcher.framework.test_configs import TEST_5_COBB_DOUGLAS
 
 
 class Test5WindowNew(StandardPhaseTest):

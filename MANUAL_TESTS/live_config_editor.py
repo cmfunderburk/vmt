@@ -43,11 +43,22 @@ except ImportError as e:
     sys.exit(1)
 
 try:
-    from framework.test_configs import TestConfiguration, ALL_TEST_CONFIGS
-    from framework.simulation_factory import SimulationFactory
-except ImportError as e:
-    print(f"❌ Framework import failed: {e}")
-    sys.exit(1)
+    # Try new framework location first
+    import os
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(repo_root, "src"))
+    from econsim.tools.launcher.framework.test_configs import TestConfiguration, ALL_TEST_CONFIGS
+    from econsim.tools.launcher.framework.simulation_factory import SimulationFactory
+    from econsim.tools.launcher.framework.phase_manager import PhaseManager
+except ImportError:
+    try:
+        # Fallback to legacy framework location
+        from framework.test_configs import TestConfiguration, ALL_TEST_CONFIGS
+        from framework.simulation_factory import SimulationFactory
+        from framework.phase_manager import PhaseManager
+    except ImportError as e:
+        print(f"❌ Framework import failed: {e}")
+        sys.exit(1)
 
 
 @dataclass
@@ -192,7 +203,7 @@ class ConfigurationValidator(QWidget):
             else:
                 # Validate phase configuration
                 try:
-                    from framework.phase_manager import PhaseManager
+                    # PhaseManager already imported at top
                     PhaseManager(custom_phases)  # This will validate the phases
                 except Exception as e:
                     issues["errors"].append(f"Invalid phase configuration: {str(e)}")
@@ -993,7 +1004,7 @@ class LiveConfigEditor(QWidget):
         """Update the phase summary label."""
         try:
             if self.custom_phases:
-                from framework.phase_manager import PhaseManager
+                # PhaseManager already imported at top
                 manager = PhaseManager(self.custom_phases)
                 total_turns = manager.get_total_turns()
                 phase_count = manager.get_phase_count()
@@ -1200,8 +1211,10 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import QApplication
-from framework.base_test import StandardPhaseTest
-from framework.test_configs import TestConfiguration
+# Import from new framework location
+sys.path.insert(0, str(project_root / "src"))
+from econsim.tools.launcher.framework.base_test import StandardPhaseTest
+from econsim.tools.launcher.framework.test_configs import TestConfiguration
 
 # Custom test configuration
 CUSTOM_CONFIG = TestConfiguration(

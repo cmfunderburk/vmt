@@ -25,8 +25,10 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 
-# Add current directory to path for framework imports
+# Add paths for framework imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(repo_root, "src"))
 
 # Force fresh import of debug logger to avoid caching issues in subprocess
 import importlib
@@ -39,8 +41,9 @@ for module_name in modules_to_clear:
 # Also clear any cached bytecode
 importlib.invalidate_caches()
 
-from framework.base_test import StandardPhaseTest  
-from framework.test_configs import TEST_1_BASELINE
+# Import from new framework location
+from econsim.tools.launcher.framework.base_test import StandardPhaseTest  
+from econsim.tools.launcher.framework.test_configs import TEST_1_BASELINE
 
 
 class Test1WindowNew(StandardPhaseTest):
