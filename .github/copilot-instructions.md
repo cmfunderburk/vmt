@@ -39,4 +39,6 @@ When Unsure: Read existing unit tests covering the target area first; mirror pat
 
 Educational Constraint: Any behavioral change must retain clarity for teaching spatial allocation & exchange; prefer explicit, documented heuristics over opaque optimizations.
 
+Refactor Ops Addendum: For multi-phase refactors, use status sentinel JSON (component, phase, completion %), legacy symbol prevention tests, PH[N]-[OP] commit taxonomy, and validation gates after destructive changes. See `launcher_refactor_status.json` and `test_no_legacy_symbols.py` patterns.
+
 If a desired change conflicts with an invariant above: halt, open a design note, and add a guarded feature flag + tests before proceeding.
