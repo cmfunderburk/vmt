@@ -1,48 +1,100 @@
-## VMT Copilot Instructions (High-Signal Operational Guide)
+# VMT Copilot Instructions
 
-Purpose: Educational microeconomic simulation (PyQt6 shell embedding a single Pygame surface). Absolute non‑negotiables: deterministic replay, single QTimer frame loop, O(n) per step (n=agents+resources), minimal allocations.
+## Project Overview
+VMT is an educational microeconomic simulation combining PyQt6 desktop GUI with a deterministic Pygame-rendered spatial agent model. Agents with economic preferences move on a grid, collect resources, and engage in bilateral trade while maintaining strict determinism for educational reproducibility.
 
-Core Frame Pipeline (DO NOT ALTER): One QTimer (~16ms) → `Simulation.step(ext_rng, use_decision)` → `_update_scene` → `update()` → `paintEvent` (surface→bytes→QImage→QPainter). Never add extra timers/threads, sleeps, blocking loops, surface reallocation, per‑pixel Python loops, or layout math changes.
+## Architecture Essentials
 
-Determinism Invariants:
-1. Target tie-break EXACT key: `(-ΔU, distance, x, y)` (or documented trade key when trade priority flag on).
-2. Stable resource ordering via `iter_resources_sorted`; never iterate a raw unordered collection for contests.
-3. Frozen constants: `EPSILON_UTILITY`, `default_PERCEPTION_RADIUS`.
-4. Hash contract in `simulation/metrics.py` excludes trade + debug overlays; do not add fields silently.
-5. RNG split: external RNG param vs internal `Simulation._rng` (respawn, homes, trade drafts). No cross‑contamination.
-6. Agent list order = processing & contest priority; never reorder in place.
-7. Snapshot / serialization fields (`snapshot.py`, `world.py`, `agent.py`, `grid.py`) are append‑only; never reorder/remove.
+### Core Pipeline (IMMUTABLE)
+`QTimer(16ms)` → `Simulation.step(ext_rng, use_decision)` → `_update_scene()` → `paintEvent()`
 
-Project Status (Post-Phase 4): Launcher monolith cleanup COMPLETE (87% code reduction: 1153→145 lines). Modular architecture established in `src/econsim/tools/launcher/` with clean UI components, registry, and framework extraction. MANUAL_TESTS/ cleaned and organized with comprehensive guides. Next: Gate 6 integration work OR console script implementation (see `tmp_plans/CURRENT/LAUNCHER_PACKAGING_ROADMAP.md`).
+Never add: extra timers, threads, blocking loops, surface reallocation, or per-pixel Python operations.
 
-Performance Guardrails: Typical ~62 FPS; floor ≥30. Investigate if: extra allocations in step loop, added logging inside hot loops, N^2 partner/resource scans, surface re-creations, font reloads. Use `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` for quick checks. Overlays must remain read‑only & <~2% overhead.
+### Key Components
+- **`simulation/world.py`**: Core orchestrator with `Simulation` class
+- **`simulation/agent.py`**: Agent behavior, unified target selection with distance-discounted utility  
+- **`simulation/grid.py`**: 2D spatial grid with deterministic resource iteration via `iter_resources_sorted()`
+- **`gui/embedded_pygame.py`**: PyQt6↔Pygame integration with single off-screen surface
+- **`preferences/factory.py`**: Economic preference types (Cobb-Douglas, Perfect Substitutes, Leontief)
+- **`simulation/config.py`**: SimConfig factory pattern for deterministic setup
 
-Allowed Low-Risk Changes: New pure preference type (register + tests), deterministic O(n) overlay, additive metrics (update hash tests), respawn param plumbing, launcher modularization (no behavior drift), documentation sync.
+## Determinism Requirements (CRITICAL)
+1. **Tie-breaking**: Always use `(-ΔU, distance, x, y)` for resources; `(-ΔU, seller_id, buyer_id, give_type, take_type)` for trade
+2. **Iteration order**: Use `iter_resources_sorted()`, maintain agent list order for processing priority  
+3. **RNG separation**: External `rng` parameter vs internal `Simulation._rng` for hooks
+4. **Hash contract**: `simulation/metrics.py` excludes trade metrics and debug overlays
+5. **Serialization**: All schemas are append-only (`world.py`, `agent.py`, `grid.py`, `snapshot.py`)
 
-Forbidden Changes: Tie-break semantics, core constants, randomness injection, extra timers/threads, unordered iteration where order matters, mutable preference state, silent serialization/hash schema edits, per‑step quadratic scans, breaking frame pipeline.
+## Development Workflow
 
-Unified Selection Path: Default decision logic (`Agent.select_unified_target`) uses distance‑discounted utility `ΔU_base/(1+k*dist^2)`, profitability filter `ΔU_base>0`, deterministic tiebreaks ((x,y) or partner id). Maintain O(n) `AgentSpatialGrid` rebuild each step; no caching that changes iteration determinism.
+### Environment Setup
+```bash
+make venv && source vmt-dev/bin/activate
+```
 
-Trading / Exchange: Partner search O(agents); at most one execution per pair per step; stagnation fallback after 100 idle steps triggers single forced deposit. Priority key when enabled: `(-delta_utility, seller_id, buyer_id, give_type, take_type)`. Trade metrics & fairness_round remain hash‑excluded.
+### Primary Commands
+- **`make launcher`**: Main development interface (canonical test launcher)
+- **`make dev`**: Legacy GUI (Start Menu → scenarios)  
+- **`pytest -q`**: Full test suite (210+ tests)
+- **`make perf`**: Performance validation (~62 FPS target, ≥30 floor)
 
-Rendering Rules: Exactly one Pygame surface; cell size = `min(surface_w//gw, surface_h//gh)` (no centering remainder). Cache fonts once; sprites from `vmt_sprites_pack_1/` (rect fallback OK). No per-frame surface recreation.
+### Factory Pattern (Preferred)
+```python
+from econsim.simulation.config import SimConfig
+from econsim.simulation.world import Simulation
 
-Development Workflow: Activate venv (`source vmt-dev/bin/activate`). Use: `make launcher` (canonical VMT test launcher), `make dev` (legacy GUI), `make test-unit lint type perf`, or `pytest -q`. Add tests for any state/ordering/perf changes before refactor. Run perf after modifying agent selection, trade, respawn, or rendering.
+cfg = SimConfig(
+    grid_size=(12,12), 
+    seed=123, 
+    distance_scaling_factor=0.0,  # k=0 no distance penalty, k=5 local behavior
+    enable_respawn=True,
+    enable_metrics=True
+)
+sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
+```
 
-Project Planning: Active planning in `tmp_plans/CURRENT/` (roadmaps, execution plans). Completed work archived in `completed_steps_docs/archived/`. MANUAL_TESTS/ cleaned with essential tools only: launcher, batch runner, bookmarks, config editor, core scenarios (test_1.py-test_7.py), examples/ subdirectory.
+## Key Patterns & Conventions
 
-Logging & Debug: Central logger `gui/debug_logger.py`; enable categories via env (`ECONSIM_DEBUG_*`). Avoid verbose logs in frame loop. Use provided helper functions for phase transitions.
+### Decision Logic
+- **Unified selection**: `Agent.select_unified_target()` evaluates resources vs trade partners
+- **Distance scaling**: `ΔU_discounted = ΔU_base / (1 + k × distance²)`
+- **Spatial indexing**: `AgentSpatialGrid` rebuilt each step, maintains O(n) complexity
 
-Key Modules: `simulation/world.py` (orchestrator), `simulation/agent.py`, `simulation/trade.py`, `simulation/metrics.py`, `simulation/snapshot.py`, `gui/embedded_pygame.py`, `preferences/factory.py`, `simulation/config.py`, launcher package (`tools/launcher/*`), perf harness `scripts/perf_stub.py`.
+### Feature Flags
+- `ECONSIM_LEGACY_RANDOM=1`: Force legacy random walk instead of decision mode
+- `ECONSIM_FORAGE_ENABLED=0`: Disable resource collection  
+- `ECONSIM_TRADE_DRAFT=1`: Enable trade intent enumeration
+- `ECONSIM_TRADE_EXEC=1`: Enable trade execution
+- `ECONSIM_DEBUG_AGENT_MODES=1`: Log mode transitions
 
-Safety Checklist Before PR: (1) determinism tests pass, (2) perf check no regression, (3) hash tests updated only for intentional additive fields, (4) no new unordered iterations, (5) single QTimer still sole driver, (6) serialization diffs append-only.
+### Performance Constraints  
+- Maintain O(n) per step where n=agents+resources
+- Overlays must be <2% FPS overhead, read-only
+- No quadratic scans in hot paths
+- Cache fonts, reuse surfaces, avoid per-frame allocations
 
-When Unsure: Read existing unit tests covering the target area first; mirror patterns. If changing ordering or adding metrics, extend tests concurrently—not after.
+## Testing & Quality
 
-Educational Constraint: Any behavioral change must retain clarity for teaching spatial allocation & exchange; prefer explicit, documented heuristics over opaque optimizations.
+### Before Any Change
+1. Run `pytest -q` (determinism tests must pass)
+2. Run `make perf` (no FPS regression)  
+3. Update hash tests only for intentional additive fields
+4. Ensure no unordered iteration where order matters
 
-Refactor Ops Addendum: For multi-phase refactors, use status sentinel JSON (component, phase, completion %), legacy symbol prevention tests, PH[N]-[OP] commit taxonomy, and validation gates after destructive changes. Phase 4 methodology documented in `completed_steps_docs/archived/` as template for future cleanups.
+### Test Categories
+- **Determinism**: `test_determinism_hash.py`, `test_decision_determinism.py`
+- **Performance**: `test_perf_simulation.py`, `scripts/perf_stub.py`
+- **Integration**: Factory construction, GUI controls, overlay regression
 
-Current Development Options: (1) Gate 6 integration work (factory patterns, GUI defaults, metrics panels) from main `ROADMAP_REVISED.md`, OR (2) Phase 5+ packaging work (console scripts, appdata locations, programmatic runner) from `tmp_plans/CURRENT/LAUNCHER_PACKAGING_ROADMAP.md`. Both paths well-documented and ready for implementation.
+## Common Pitfalls
+- **Breaking determinism**: Changing tie-break keys, adding unguarded RNG calls, reordering agent lists
+- **Performance regressions**: Adding O(n²) scans, allocations in step loop, redundant surface operations  
+- **Hash drift**: Silently adding fields to metrics without excluding from hash
+- **Pipeline violations**: Extra timers, blocking operations, surface recreation
 
-If a desired change conflicts with an invariant above: halt, open a design note, and add a guarded feature flag + tests before proceeding.
+## Current Status & Roadmap
+**Completed**: Gate 6 integration (factory patterns, GUI defaults, overlay toggle)
+**Active**: Choose Gate 7 (trading primitives) OR console script packaging  
+**Planning**: See `ROADMAP_REVISED.md` and `tmp_plans/CURRENT/`
+
+Use `make launcher` for primary development. All changes must preserve educational clarity and deterministic reproducibility.
