@@ -21,13 +21,12 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List
 
-# Transitional launcher module imports (Phase 2.2 integration)
+# Transitional launcher module imports (Phase 2.1 integration)
 try:  # Soft dependency during refactor; if missing we fall back to legacy logic
     from econsim.tools.launcher.adapters import load_registry_from_monolith
     from econsim.tools.launcher.comparison import ComparisonController
     from econsim.tools.launcher.executor import TestExecutor
-    from econsim.tools.launcher.cards import CustomTestCardWidget, TestCardWidget
-    from econsim.tools.launcher.tabs import CustomTestsTab
+    from econsim.tools.launcher.cards import CustomTestCardWidget
     _launcher_modules_available = True
 except Exception:  # pragma: no cover - fallback path
     _launcher_modules_available = False
@@ -63,19 +62,372 @@ except ImportError:
         sys.exit(1)
 
 
-# CustomTestsWidget extracted to src/econsim/tools/launcher/tabs/custom_tests_tab.py in Phase 2.3
+class CustomTestsWidget(QWidget):
+    """Widget for discovering and displaying custom generated tests."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+        self.populate_custom_tests()
+        
+    def setup_ui(self):
+        """Create the custom tests UI."""
+        layout = QVBoxLayout(self)
+        
+        # Header
+        header_layout = QHBoxLayout()
+        
+        title = QLabel("Custom Generated Tests")
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        header_layout.addWidget(title)
+        
+        header_layout.addStretch()
+        
+        # Refresh button
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.clicked.connect(self.populate_custom_tests)
+        header_layout.addWidget(refresh_btn)
+        
+        # Open folder button
+        open_folder_btn = QPushButton("📁 Open Folder")
+        open_folder_btn.clicked.connect(self.open_custom_tests_folder)
+        header_layout.addWidget(open_folder_btn)
+        
+        layout.addLayout(header_layout)
+        
+        # Info text
+        info_text = QLabel(
+            "Custom tests are created using the Configuration Editor. "
+            "They are saved in the MANUAL_TESTS/custom_tests/ directory."
+        )
+        info_text.setStyleSheet("color: #666; margin: 5px 0;")
+        info_text.setWordWrap(True)
+        layout.addWidget(info_text)
+        
+        # Scroll area for custom tests
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        self.scroll_widget = QWidget()
+        self.grid_layout = QGridLayout(self.scroll_widget)
+        self.scroll_area.setWidget(self.scroll_widget)
+        
+        layout.addWidget(self.scroll_area)
+        
+        # Status label
+        self.status_label = QLabel("Loading custom tests...")
+        self.status_label.setStyleSheet("color: #666; font-style: italic;")
+        layout.addWidget(self.status_label)
+        
+    def populate_custom_tests(self):
+        """Discover and display custom test files."""
+        # Clear existing widgets
+        for i in reversed(range(self.grid_layout.count())):
+            child = self.grid_layout.itemAt(i).widget()
+            if child:
+                child.setParent(None)
+        
+        # Find custom test files
+        custom_tests_dir = Path(__file__).parent / "custom_tests"
+        
+        if not custom_tests_dir.exists():
+            self.status_label.setText("No custom tests directory found. Create custom tests using the Configuration Editor.")
+            return
+            
+        test_files = list(custom_tests_dir.glob("*.py"))
+        
+        if not test_files:
+            self.status_label.setText("No custom tests found. Create custom tests using the Configuration Editor.")
+            return
+            
+        # Create cards for each custom test
+        row = 0
+        col = 0
+        max_cols = 3
+        
+        for test_file in sorted(test_files):
+            try:
+                # Parse test metadata from file
+                test_info = self.parse_test_file(test_file)
+                
+                if test_info:
+                    # Create card widget with parent reference
+                    card = CustomTestCardWidget(test_file, test_info, self)
+                    self.grid_layout.addWidget(card, row, col)
+                    
+                    col += 1
+                    if col >= max_cols:
+                        col = 0
+                        row += 1
+                        
+            except Exception as e:
+                print(f"Error parsing {test_file.name}: {e}")
+                
+        self.status_label.setText(f"Found {len(test_files)} custom test{'s' if len(test_files) != 1 else ''}")
+        
+    def parse_test_file(self, test_file: Path) -> dict:
+        """Parse test file to extract metadata."""
+        try:
+            with open(test_file, 'r') as f:
+                content = f.read()
+                
+            # Extract metadata from the file header and configuration
+            info = {
+                'name': 'Unknown Test',
+                'description': 'Custom generated test',
+                'created': 'Unknown',
+                'config': {}
+            }
+            
+            # Parse docstring for metadata
+            import re
+            
+            # Extract test name from docstring
+            name_match = re.search(r'Custom Generated Test: (.+)', content)
+            if name_match:
+                info['name'] = name_match.group(1).strip()
+                
+            # Extract creation date
+            date_match = re.search(r'Created: (.+)', content)
+            if date_match:
+                info['created'] = date_match.group(1).strip()
+                
+            # Extract configuration parameters
+            config_match = re.search(r'CUSTOM_CONFIG = TestConfiguration\((.*?)\)', content, re.DOTALL)
+            if config_match:
+                config_text = config_match.group(1)
+                
+                # Parse key parameters
+                grid_match = re.search(r'grid_size=\((\d+), (\d+)\)', config_text)
+                if grid_match:
+                    info['config']['grid_size'] = f"{grid_match.group(1)}×{grid_match.group(2)}"
+                    
+                agent_match = re.search(r'agent_count=(\d+)', config_text)
+                if agent_match:
+                    info['config']['agent_count'] = agent_match.group(1)
+                    
+                density_match = re.search(r'resource_density=([0-9.]+)', config_text)
+                if density_match:
+                    info['config']['resource_density'] = f"{float(density_match.group(1)):.2f}"
+                    
+                pref_match = re.search(r'preference_mix="([^"]+)"', config_text)
+                if pref_match:
+                    info['config']['preference_mix'] = pref_match.group(1)
+                    
+            return info
+            
+        except Exception as e:
+            print(f"Error parsing {test_file}: {e}")
+            return None
+            
+    def open_custom_tests_folder(self):
+        """Open the custom tests directory in file explorer."""
+        custom_tests_dir = Path(__file__).parent / "custom_tests"
+        
+        if not custom_tests_dir.exists():
+            custom_tests_dir.mkdir(exist_ok=True)
+            
+        import subprocess
+        import sys
+        
+        if sys.platform == "win32":
+            subprocess.run(["explorer", str(custom_tests_dir)])
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(custom_tests_dir)])
+        else:
+            subprocess.run(["xdg-open", str(custom_tests_dir)])
 
-# Fallback implementations for when extracted modules aren't available
-if not _launcher_modules_available:
-    class CustomTestsTab(QWidget):  # pragma: no cover - fallback during refactor
-        """Fallback implementation when extracted module not available."""
-        def __init__(self, parent=None):
-            super().__init__(parent)
-            layout = QVBoxLayout(self)
-            layout.addWidget(QLabel("CustomTestsTab not available - using fallback"))
+
+class TestCardWidget(QFrame):
+    """Visual card representation of a test configuration."""
+
 
 # CustomTestCardWidget extracted to src/econsim/tools/launcher/cards.py in Phase 2.1
-# TestCardWidget extracted to src/econsim/tools/launcher/cards.py in Phase 2.2
+
+
+class TestCardWidget(QFrame):
+    """Visual card representation of a test configuration."""
+    
+    launchRequested = pyqtSignal(str, str)  # test_name, test_type
+    compareRequested = pyqtSignal(str)      # test_name
+    
+    def __init__(self, config: TestConfiguration, parent=None):
+        super().__init__(parent)
+        self.config = config
+        self.selected_for_comparison = False
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Create the test card UI."""
+        self.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border: 2px solid #ddd;
+                border-radius: 8px;
+                margin: 4px;
+            }
+            QFrame:hover {
+                border-color: #4CAF50;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+        
+        # Header with test name
+        name_label = QLabel(self.config.name)
+        name_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(name_label)
+        
+        # Description
+        desc_label = QLabel(self.config.description)
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addWidget(desc_label)
+        
+        # Configuration summary
+        config_text = f"""
+        <b>Configuration:</b><br>
+        • Grid: {self.config.grid_size[0]}×{self.config.grid_size[1]}<br>
+        • Agents: {self.config.agent_count}<br>
+        • Density: {self.config.resource_density:.2f}<br>
+        • Perception: {self.config.perception_radius}<br>
+        • Type: {self.config.preference_mix.replace('_', ' ').title()}
+        """
+        config_label = QLabel(config_text)
+        config_label.setStyleSheet("font-size: 9px; color: #555;")
+        layout.addWidget(config_label)
+        
+        # Runtime estimate
+        runtime = self._estimate_runtime()
+        runtime_label = QLabel(f"⏱️ Runtime: {runtime}")
+        runtime_label.setStyleSheet("font-size: 9px; color: #888; font-style: italic;")
+        layout.addWidget(runtime_label)
+        
+        # Action buttons
+        button_layout = QVBoxLayout()
+        
+        # Launch buttons
+        if self._check_original_available():
+            original_btn = QPushButton("🚀 Launch Original")
+            original_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    border: none;
+                    padding: 6px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #1976D2;
+                }
+            """)
+            original_btn.clicked.connect(lambda: self.launchRequested.emit(self.config.name, "original"))
+            button_layout.addWidget(original_btn)
+            
+        framework_btn = QPushButton("⚡ Launch Framework")
+        framework_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        framework_btn.clicked.connect(lambda: self.launchRequested.emit(self.config.name, "framework"))
+        button_layout.addWidget(framework_btn)
+            
+        # Secondary actions
+        secondary_layout = QHBoxLayout()
+        
+        compare_btn = QPushButton("📊 Compare")
+        compare_btn.setToolTip("Add to Comparison")
+        compare_btn.clicked.connect(lambda: self.compareRequested.emit(self.config.name))
+        secondary_layout.addWidget(compare_btn)
+        
+        button_layout.addLayout(secondary_layout)
+        layout.addLayout(button_layout)
+        
+        # Set size
+        self.setMinimumSize(250, 300)
+        self.setMaximumSize(300, 350)
+        
+    def _check_original_available(self) -> bool:
+        """Check if original test implementation is available."""
+        # Map test config IDs to original file names
+        id_to_file = {
+            1: "test_1_baseline_simple.py",
+            2: "test_2_sparse_longrange.py", 
+            3: "test_3_dense_shortrange.py",
+            4: "test_4_mixed_preferences.py",
+            5: "test_5_pure_cobbdouglas.py",
+            6: "test_6_pure_leontief.py",
+            7: "test_7_pure_perfectsubstitutes.py"
+        }
+        
+        original_file = id_to_file.get(self.config.id)
+        if original_file:
+            return (Path(__file__).parent / original_file).exists()
+        return False
+        
+    def _estimate_runtime(self) -> str:
+        """Estimate test runtime based on configuration."""
+        # Base time: 15 minutes for standard 900 steps
+        base_minutes = 15
+        
+        # Adjust for grid size
+        total_cells = self.config.grid_size[0] * self.config.grid_size[1]
+        size_factor = total_cells / 900  # 30x30 baseline
+        
+        # Adjust for agent count
+        agent_factor = self.config.agent_count / 20  # 20 agents baseline
+        
+        # Combined factor
+        total_factor = (size_factor + agent_factor) / 2
+        estimated_minutes = int(base_minutes * total_factor)
+        
+        if estimated_minutes < 10:
+            return "~5-10 min"
+        elif estimated_minutes < 20:
+            return "~10-20 min" 
+        elif estimated_minutes < 30:
+            return "~20-30 min"
+        else:
+            return "~30+ min"
+            
+    def set_comparison_selected(self, selected: bool):
+        """Visual feedback for comparison selection."""
+        self.selected_for_comparison = selected
+        if selected:
+            self.setStyleSheet("""
+                QFrame {
+                    background-color: #fff3e0;
+                    border: 3px solid #ff9800;
+                    border-radius: 8px;
+                    margin: 4px;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QFrame {
+                    background-color: white;
+                    border: 2px solid #ddd;
+                    border-radius: 8px;
+                    margin: 4px;
+                }
+                QFrame:hover {
+                    border-color: #4CAF50;
+                }
+            """)
 
 
 class EnhancedTestLauncher(QMainWindow):
@@ -193,7 +545,7 @@ class EnhancedTestLauncher(QMainWindow):
             main_tabs.addTab(bookmark_manager, "⭐ Bookmarks")
             
             # Custom tests tab
-            custom_tests_widget = CustomTestsTab()
+            custom_tests_widget = CustomTestsWidget()
             main_tabs.addTab(custom_tests_widget, "🔧 Custom Tests")
             
             layout.addWidget(main_tabs)
