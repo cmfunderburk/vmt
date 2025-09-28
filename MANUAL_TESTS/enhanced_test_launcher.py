@@ -56,13 +56,19 @@ except ImportError as e:
     print("Please ensure PyQt6 is installed in your virtual environment.")
     sys.exit(1)
 
-# Import framework components
+# Import framework components - try new location first, fallback to legacy
 try:
-    from framework.test_configs import TestConfiguration, ALL_TEST_CONFIGS
-except ImportError as e:
-    print(f"❌ Framework import failed: {e}")
-    print("Please ensure you're running from the MANUAL_TESTS directory.")
-    sys.exit(1)
+    import os
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(repo_root, "src"))
+    from econsim.tools.launcher.framework.test_configs import TestConfiguration, ALL_TEST_CONFIGS
+except ImportError:
+    try:
+        from framework.test_configs import TestConfiguration, ALL_TEST_CONFIGS
+    except ImportError as e:
+        print(f"❌ Framework import failed: {e}")
+        print("Please ensure you're running from the MANUAL_TESTS directory.")
+        sys.exit(1)
 
 
 

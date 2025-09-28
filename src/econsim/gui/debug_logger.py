@@ -6,7 +6,7 @@ instead of direct print statements for better organization and GUI integration.
 
 Environment Variables:
     ECONSIM_LOG_LEVEL: Controls verbosity (CRITICAL|EVENTS|PERIODIC|VERBOSE) [default: EVENTS]
-    ECONSIM_LOG_FORMAT: Output format (COMPACT|STRUCTURED|LEGACY) [default: LEGACY]
+    ECONSIM_LOG_FORMAT: Output format (COMPACT|STRUCTURED) [default: COMPACT]
     ECONSIM_LOG_BUNDLE_TRADES: Bundle trade+utility logs into single line [default: 0]
 
 Logging Levels:
@@ -95,7 +95,6 @@ class LogFormat(Enum):
     """Log output formats."""
     COMPACT = "COMPACT"
     STRUCTURED = "STRUCTURED"
-    LEGACY = "LEGACY"
 
 
 class GUILogger:
@@ -110,7 +109,7 @@ class GUILogger:
         
         # Parse environment configuration
         level_str = os.environ.get("ECONSIM_LOG_LEVEL", "EVENTS").upper()
-        format_str = os.environ.get("ECONSIM_LOG_FORMAT", "LEGACY").upper()
+        format_str = os.environ.get("ECONSIM_LOG_FORMAT", "COMPACT").upper()
         
         try:
             self.log_level = LogLevel(level_str)
@@ -120,7 +119,7 @@ class GUILogger:
         try:
             self.log_format = LogFormat(format_str)
         except ValueError:
-            self.log_format = LogFormat.LEGACY  # Safe default
+            self.log_format = LogFormat.COMPACT  # Safe default
             
         # Performance tracking for conditional logging
         self._last_perf_log_step = 0
@@ -183,7 +182,7 @@ class GUILogger:
         self._log_initialized = True
     
     def _write_header(self) -> None:
-        """Legacy method - now handled by _initialize_log_file."""
+        """Deprecated method - now handled by _initialize_log_file."""
         pass
     
     def _should_log_category(self, category: str) -> bool:
@@ -271,7 +270,7 @@ class GUILogger:
                         aggregated = f"S{step} T: {', '.join(trade_summaries)}\n"
                         self._write_to_file(aggregated)
                 else:
-                    # Log each trade individually in legacy format
+                    # Log each trade individually in non-compact format
                     for trade in trades:
                         formatted = self._format_message("TRADE", trade, step)
                         self._write_to_file(formatted)
@@ -311,7 +310,8 @@ class GUILogger:
                         target_str = f" @({target_match.group(1)},{target_match.group(2)})" if target_match else ""
                         formatted = f"{timestamp_prefix} {agent_id}: {old_mode}→{new_mode}{reason_str}{carry_str}{target_str}\n"
                     else:
-                        formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE: Agent {agent_id} mode: {old_mode} -> {new_mode} {context}\n"
+                        # STRUCTURED format for non-compact modes
+                        formatted = f"MODE|S{step}|Agent {agent_id} mode: {old_mode} -> {new_mode} {context}\n"
                     self._write_to_file(formatted)
                 else:
                     # Multiple similar transitions - batch them with structured format
@@ -325,8 +325,8 @@ class GUILogger:
                             # Large groups: show count only
                             formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids)} agents {old_mode}→{new_mode}\n"
                     else:
-                        # Legacy format for non-compact modes
-                        formatted = f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Step {step}] MODE_BATCH: {len(agent_ids)} agents {old_mode} -> {new_mode}\n"
+                        # STRUCTURED format for non-compact modes
+                        formatted = f"MODE_BATCH|S{step}|{len(agent_ids)} agents {old_mode} -> {new_mode}\n"
                     self._write_to_file(formatted)
         
         # Clear buffers and reset deduplication (allow new cycles)
@@ -528,10 +528,12 @@ class GUILogger:
             step_info = f"|S{step}" if step is not None else ""
             return f"{category}{step_info}|{message}\n"
         
-        # LEGACY format (default) - use simulation time for consistency
-        sim_time = self._format_simulation_time(step)
-        step_info = f" [Step {step}]" if step is not None else ""
-        return f"[{sim_time}]{step_info} {category}: {message}\n"
+        # Fallback to COMPACT format for any unknown format
+        timestamp_prefix = self._format_simulation_time(step)
+        step_info = f"S{step}" if step is not None else ""
+        clean_message = message
+        prefix_part = step_info if step_info else category.split('_')[0][:3]
+        return f"{timestamp_prefix} {prefix_part}: {clean_message}\n"
 
     def log(self, category: str, message: str, step: Optional[int] = None) -> None:
         """Log a debug message with timestamp and category.
@@ -769,7 +771,7 @@ def log_comprehensive(message: str, step: Optional[int] = None) -> None:
                 else:
                     return  # Skip intermediate step summaries
             else:
-                category = "SIMULATION"  # Log all summaries in legacy verbose mode
+                category = "SIMULATION"  # Log all summaries in verbose mode
         else:
             category = "SIMULATION"
             

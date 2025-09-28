@@ -225,61 +225,26 @@ class Agent:
                 any_deposited = self.deposit()
                 if any_deposited:
                     if forage_enabled and exchange_enabled:
-                        # Both enabled: withdraw goods and continue active behavior
                         self.withdraw_all()
                         self._set_mode(AgentMode.FORAGE, "deposited_goods")
                     elif forage_enabled and not exchange_enabled:
-                        # Only forage: continue foraging without withdrawal
                         self._set_mode(AgentMode.FORAGE, "deposited_goods")
                     elif not forage_enabled and exchange_enabled:
-                        # Only exchange: withdraw for trading
                         self.withdraw_all()
                         self._set_mode(AgentMode.IDLE, "deposited_goods")
                     else:
-                        # Neither enabled: idle at home
                         self._set_mode(AgentMode.IDLE, "deposited_goods")
                 else:
                     # No goods to deposit - transition to appropriate mode
                     if forage_enabled:
                         self._set_mode(AgentMode.FORAGE, "phase_change")
                     elif exchange_enabled:
-                        self.withdraw_all()  # Get goods from home for trading
+                        self.withdraw_all()
                         self._set_mode(AgentMode.IDLE, "phase_change")
                     else:
                         self._set_mode(AgentMode.IDLE, "phase_change")
-                
                 self.target = None
-                self.target = None
-                return
-            
-            # Deposit logic based on enabled behaviors
-            any_deposited = self.deposit()
-            if any_deposited:
-                if forage_enabled and exchange_enabled:
-                    # Both enabled: withdraw goods and continue active behavior
-                    self.withdraw_all()
-                    self._set_mode(AgentMode.FORAGE, "deposited, both forage+trade enabled")
-                elif forage_enabled and not exchange_enabled:
-                    # Only forage: continue foraging without withdrawal
-                    self._set_mode(AgentMode.FORAGE, "deposited, forage only")
-                elif not forage_enabled and exchange_enabled:
-                    # Only exchange: withdraw for trading
-                    self.withdraw_all()
-                    self._set_mode(AgentMode.IDLE, "deposited, trade only")
-                else:
-                    # Neither enabled: idle at home
-                    self._set_mode(AgentMode.IDLE, "deposited, no behaviors enabled")
-            else:
-                # No goods to deposit - transition to appropriate mode
-                if forage_enabled:
-                    self._set_mode(AgentMode.FORAGE, "no goods to deposit, forage enabled")
-                elif exchange_enabled:
-                    self.withdraw_all()  # Get goods from home for trading
-                    self._set_mode(AgentMode.IDLE, "no goods to deposit, trade enabled")
-                else:
-                    self._set_mode(AgentMode.IDLE, "no goods to deposit, no behaviors enabled")
-            
-            self.target = None
+            return
 
     def maybe_withdraw_for_trading(self) -> None:
         """Withdraw home inventory when at home for bilateral exchange mode.""" 

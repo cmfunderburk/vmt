@@ -1,18 +1,21 @@
 import pytest
 
 from econsim.preferences import PerfectSubstitutesPreference, PreferenceError
+from econsim.simulation.constants import UTILITY_SCALE_FACTOR
 
 
 def test_ps_basic_utility():
     pref = PerfectSubstitutesPreference(a=2.0, b=1.0)
-    # U = 2*3 + 1*5 = 11
-    assert abs(pref.utility((3.0, 5.0)) - 11.0) < 1e-12
+    # U = 2*3 + 1*5 = 11 then scaled
+    expected = 11.0 * UTILITY_SCALE_FACTOR
+    assert abs(pref.utility((3.0, 5.0)) - expected) < 1e-7
 
 
 def test_ps_update_params():
     pref = PerfectSubstitutesPreference(a=1.0, b=1.0)
     pref.update_params(a=3.0)
-    assert abs(pref.utility((1.0, 1.0)) - 4.0) < 1e-12  # 3*1 + 1*1
+    expected = 4.0 * UTILITY_SCALE_FACTOR  # 3*1 + 1*1 then scaled
+    assert abs(pref.utility((1.0, 1.0)) - expected) < 1e-7
 
 
 def test_ps_invalid_coeff():

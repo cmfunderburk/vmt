@@ -5,8 +5,7 @@ This directory contains timestamped debug logs from VMT EconSim GUI sessions. Th
 ## 📋 Quick Reference
 
 ### Log Format Types
-- **LEGACY**: Full verbose format (original)
-- **COMPACT**: 60-85% shorter messages, high readability
+- **COMPACT**: 60-85% shorter messages, high readability (default)
 - **STRUCTURED**: Machine-parseable `CATEGORY|STEP|MESSAGE` format
 
 ### Log Levels
@@ -21,16 +20,16 @@ Control logging via environment variables:
 
 ```bash
 # Default: Everything in optimized compact format (92% size reduction)
-make enhanced-tests
+make launcher
 
 # Balanced: Lighter logging for faster analysis
-ECONSIM_LOG_LEVEL=EVENTS make enhanced-tests
+ECONSIM_LOG_LEVEL=EVENTS make launcher
 
 # Minimal: Critical events only (phase transitions, errors)
-ECONSIM_LOG_LEVEL=CRITICAL make enhanced-tests
+ECONSIM_LOG_LEVEL=CRITICAL make launcher
 
-# Legacy: Original verbose format (for compatibility)
-ECONSIM_LOG_FORMAT=LEGACY make enhanced-tests
+# Structured: Machine-parseable format for analysis tools
+ECONSIM_LOG_FORMAT=STRUCTURED make launcher
 ```
 
 ## 📖 Reading Compact Format
@@ -100,10 +99,10 @@ S50 P: 98.3s/s 8.2ms R145               # Step 50: Performance drop, more resour
 
 | **Format** | **Typical Size** | **Use Case** |
 |------------|------------------|--------------|
-| LEGACY + VERBOSE | 800KB | Legacy compatibility, detailed debugging |
-| COMPACT + EVENTS | 65KB | **Recommended**: Analysis and review |
+| COMPACT + EVENTS | 65KB | **Default**: Analysis and review |
 | COMPACT + PERIODIC | 85KB | Educational use with performance data |
 | COMPACT + CRITICAL | 15KB | Monitoring and error detection |
+| STRUCTURED + EVENTS | 70KB | Machine-parseable format for analysis tools |
 
 ## 🔍 Analysis Tips
 
@@ -159,7 +158,7 @@ The compact format preserves all key information for educational analysis:
 ## 🚀 Performance Impact
 
 The optimized logging system provides:
-- **92% size reduction** compared to legacy format
+- **92% size reduction** compared to previous verbose format
 - **Faster log parsing** due to consistent message structure
 - **Reduced I/O overhead** during simulation execution
 - **Better readability** for human analysis

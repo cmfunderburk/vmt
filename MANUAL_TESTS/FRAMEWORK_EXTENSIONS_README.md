@@ -17,7 +17,7 @@ The VMT Framework Extensions provide a comprehensive suite of professional educa
 
 **Usage:**
 ```bash
-make enhanced-tests
+make launcher
 # Or directly:
 cd MANUAL_TESTS && python enhanced_test_launcher_v2.py
 ```
@@ -92,7 +92,7 @@ cd MANUAL_TESTS && python test_bookmarks.py
 
 ### Framework Integration
 - **Unified Interface**: All extensions work together seamlessly
-- **Make Target Integration**: Easy access via `make enhanced-tests`, `make batch-tests`
+- **Make Target Integration**: Easy access via `make launcher`, `make batch-tests`
 - **Backward Compatibility**: Existing `make manual-tests` workflow preserved
 - **89% Code Reduction**: Maintained from original framework implementation
 
@@ -111,7 +111,7 @@ cd MANUAL_TESTS && python test_bookmarks.py
 ## 🚀 Getting Started
 
 ### Quick Start
-1. **Enhanced Launcher**: `make enhanced-tests`
+1. **VMT Launcher**: `make launcher`
    - Browse test gallery in first tab
    - Configure parameters in second tab  
    - Run batch operations in third tab
@@ -122,7 +122,7 @@ cd MANUAL_TESTS && python test_bookmarks.py
    - Review execution logs and results
 
 ### Integration Workflow
-1. Start with **Enhanced Test Launcher** (`make enhanced-tests`)
+1. Start with **VMT Test Launcher** (`make launcher`)
 2. Use **Test Gallery** tab to browse and launch individual tests
 3. Use **Configuration Editor** tab to create custom test parameters
 4. Use **Batch Runner** tab for systematic execution and analysis
@@ -137,7 +137,7 @@ The VMT Framework Extensions now provide a **complete professional educational t
 3. **🔄 Batch Test Runner**: Sequential execution with progress tracking and comprehensive logging
 4. **⭐ Test Bookmarking System**: Save, categorize, and quick-launch favorite configurations
 5. **🔗 Unified Interface**: All components seamlessly integrated in professional tabbed layout
-6. **📋 Make Integration**: Easy access via `make enhanced-tests`, `make batch-tests`, `make bookmarks`
+6. **📋 Make Integration**: Easy access via `make launcher`, `make batch-tests`, `make bookmarks`
 
 ### Complete Feature Matrix
 - **Visual Test Cards**: Browse all 7 educational scenarios with configuration summaries
@@ -241,8 +241,8 @@ Ready for implementation:
 
 ### Basic Test Execution
 ```bash
-# Launch enhanced launcher
-make enhanced-tests
+# Launch VMT test launcher
+make launcher
 
 # Navigate to Test Gallery tab
 # Click "Launch Framework" on desired test
@@ -251,8 +251,8 @@ make enhanced-tests
 
 ### Custom Configuration Creation
 ```bash
-# Launch enhanced launcher  
-make enhanced-tests
+# Launch VMT test launcher
+make launcher
 
 # Navigate to Configuration Editor tab
 # Adjust sliders for desired parameters

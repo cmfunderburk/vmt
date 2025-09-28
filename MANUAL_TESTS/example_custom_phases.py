@@ -20,11 +20,12 @@ from pathlib import Path
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
 
 from PyQt6.QtWidgets import QApplication
-from framework.base_test import StandardPhaseTest
-from framework.test_configs import TestConfiguration
-from framework.phase_manager import PhaseManager, PhaseBehavior
+from econsim.tools.launcher.framework.base_test import StandardPhaseTest
+from econsim.tools.launcher.framework.test_configs import TestConfiguration
+from econsim.tools.launcher.framework.phase_manager import PhaseManager, PhaseBehavior
 
 
 # Create custom phase configuration

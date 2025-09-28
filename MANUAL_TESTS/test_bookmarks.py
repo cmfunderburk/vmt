@@ -51,10 +51,18 @@ except ImportError as e:
     sys.exit(1)
 
 try:
-    from MANUAL_TESTS.framework.test_configs import ALL_TEST_CONFIGS, TestConfiguration
+    # Try new framework location first
+    import os
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(repo_root, "src"))
+    from econsim.tools.launcher.framework.test_configs import ALL_TEST_CONFIGS, TestConfiguration
 except ImportError:
-    print("❌ Framework import failed. Please ensure framework is properly installed.")
-    sys.exit(1)
+    try:
+        # Fallback to old location (legacy)
+        from MANUAL_TESTS.framework.test_configs import ALL_TEST_CONFIGS, TestConfiguration
+    except ImportError:
+        print("❌ Framework import failed. Please ensure framework is properly installed.")
+        sys.exit(1)
 
 
 @dataclass

@@ -8,19 +8,21 @@ import os
 
 # Add current directory to path for framework imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(repo_root, "src"))
 
-# Import framework components  
-from framework.simulation_factory import SimulationFactory
-from framework.phase_manager import PhaseManager
-from framework.debug_orchestrator import DebugOrchestrator
+# Import framework components from new location
+from econsim.tools.launcher.framework.simulation_factory import SimulationFactory
+from econsim.tools.launcher.framework.phase_manager import PhaseManager
+from econsim.tools.launcher.framework.debug_orchestrator import DebugOrchestrator
 
 def test_framework():
     """Comprehensive validation of framework components and all test configs."""
     
     print("🧪 Testing Framework Components...")
     
-    # Import all test configs
-    from framework.test_configs import (
+    # Import all test configs from new location
+    from econsim.tools.launcher.framework.test_configs import (
         TEST_1_BASELINE, TEST_2_SPARSE, TEST_3_HIGH_DENSITY, 
         TEST_4_LARGE_WORLD, TEST_5_COBB_DOUGLAS, TEST_6_LEONTIEF, 
         TEST_7_PERFECT_SUBSTITUTES, ALL_TEST_CONFIGS

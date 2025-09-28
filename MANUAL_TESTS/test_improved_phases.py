@@ -47,7 +47,12 @@ def test_simple_phase_validation():
     """Test basic phase validation logic."""
     print("\n=== Testing Phase Validation ===")
     
-    from framework.test_configs import TestConfiguration
+    # Import from new framework location
+    import sys
+    import os
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(repo_root, "src"))
+    from econsim.tools.launcher.framework.test_configs import TestConfiguration
     
     # Test config without custom phases (should be valid)
     config_no_phases = TestConfiguration(
@@ -77,7 +82,12 @@ def test_custom_phase_creation():
     """Test creating custom phases programmatically."""
     print("\n=== Testing Custom Phase Creation ===")
     
-    from framework.phase_manager import PhaseManager, PhaseBehavior
+    # Import from new framework location
+    import sys
+    import os
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(repo_root, "src"))
+    from econsim.tools.launcher.framework.phase_manager import PhaseManager, PhaseBehavior
     
     # Test simple creation
     manager = PhaseManager.create_custom_phases([
@@ -100,9 +110,14 @@ def test_control_panel_integration():
     """Test that control panels can handle custom phases."""
     print("\n=== Testing Control Panel Integration ===")
     
-    from framework.ui_components import ControlPanel
-    from framework.test_configs import TestConfiguration
-    from framework.phase_manager import PhaseManager, PhaseBehavior
+    # Import from new framework location
+    import sys
+    import os
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(repo_root, "src"))
+    from econsim.tools.launcher.framework.ui_components import ControlPanel
+    from econsim.tools.launcher.framework.test_configs import TestConfiguration
+    from econsim.tools.launcher.framework.phase_manager import PhaseManager, PhaseBehavior
     from PyQt6.QtWidgets import QApplication
     
     QApplication.instance() or QApplication(sys.argv)

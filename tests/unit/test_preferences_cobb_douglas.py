@@ -1,10 +1,12 @@
 from econsim.preferences import CobbDouglasPreference, PreferenceError
+from econsim.simulation.constants import UTILITY_SCALE_FACTOR
 
 
 def test_cobb_douglas_basic_utility():
     pref = CobbDouglasPreference(alpha=0.5)
-    # sqrt(4) * sqrt(9) = 2 * 3 = 6
-    assert abs(pref.utility((4.0, 9.0)) - 6.0) < 1e-9
+    # sqrt(4) * sqrt(9) = 2 * 3 = 6 then scaled
+    expected = 6.0 * UTILITY_SCALE_FACTOR
+    assert abs(pref.utility((4.0, 9.0)) - expected) < 1e-7
 
 
 def test_cobb_douglas_zero_bundle():

@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test-unit perf manual-tests enhanced-tests batch-tests bookmarks test tests clean venv
+.PHONY: install dev lint format type test-unit perf manual-tests launcher enhanced-tests batch-tests bookmarks test tests clean venv
 
 # Create canonical development virtual environment (vmt-dev) and install deps
 .PHONY: venv
@@ -39,7 +39,11 @@ test-unit:
 	pytest -q
 
 perf:
+	@echo "=== Synthetic Performance Test ==="
 	$(PYTHON) scripts/perf_stub.py
+	@echo ""
+	@echo "=== Widget Performance Test ==="
+	$(PYTHON) scripts/perf_stub.py --mode widget --duration 3 --json
 
 manual-tests:
 	# Launch comprehensive manual GUI tests for unified target selection
@@ -51,8 +55,8 @@ manual-tests:
 		cd MANUAL_TESTS && $(PYTHON) test_start_menu.py; \
 	fi
 
-enhanced-tests:
-	# Launch enhanced test launcher with comprehensive educational logging enabled
+launcher:
+	# Launch VMT test launcher with comprehensive educational logging enabled
 	# Includes agent modes, trades, utilities, economics, and trade+utility bundling
 	# Override flags individually or use ECONSIM_LOG_LEVEL=VERBOSE for maximum detail
 	@if [ -d "vmt-dev" ]; then \
@@ -94,6 +98,10 @@ test: test-unit
 
 tests: manual-tests
 	@echo "Note: 'make tests' is now 'make manual-tests'."
+
+enhanced-tests:
+	@echo "Note: 'make enhanced-tests' is now 'make launcher'."
+	@$(MAKE) launcher
 
 clean:
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +

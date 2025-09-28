@@ -18,9 +18,14 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPu
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
-from framework.phase_manager import PhaseManager, PhaseBehavior
-from framework.test_configs import TestConfiguration
-from framework.base_test import StandardPhaseTest
+# Import from new framework location
+import sys
+import os
+repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(repo_root, "src"))
+from econsim.tools.launcher.framework.phase_manager import PhaseManager, PhaseBehavior
+from econsim.tools.launcher.framework.test_configs import TestConfiguration
+from econsim.tools.launcher.framework.base_test import StandardPhaseTest
 from phase_config_editor import PhaseConfigDialog
 
 
