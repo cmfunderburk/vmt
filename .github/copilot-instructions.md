@@ -13,7 +13,7 @@ Determinism Invariants:
 6. Agent list order = processing & contest priority; never reorder in place.
 7. Snapshot / serialization fields (`snapshot.py`, `world.py`, `agent.py`, `grid.py`) are append‑only; never reorder/remove.
 
-Active Refactor (Phase 4 – Monolith Cleanup): Migrating launcher from legacy `MANUAL_TESTS/enhanced_test_launcher_v2.py` to modular package `src/econsim/tools/launcher/` (cards, gallery, tabs, registry, executor). Remaining task: remove obsolete fallback class + path hacks; new entry will become console script (`econsim-launcher`).
+Project Status (Post-Phase 4): Launcher monolith cleanup COMPLETE (87% code reduction: 1153→145 lines). Modular architecture established in `src/econsim/tools/launcher/` with clean UI components, registry, and framework extraction. MANUAL_TESTS/ cleaned and organized with comprehensive guides. Next: Gate 6 integration work OR console script implementation (see `tmp_plans/CURRENT/LAUNCHER_PACKAGING_ROADMAP.md`).
 
 Performance Guardrails: Typical ~62 FPS; floor ≥30. Investigate if: extra allocations in step loop, added logging inside hot loops, N^2 partner/resource scans, surface re-creations, font reloads. Use `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` for quick checks. Overlays must remain read‑only & <~2% overhead.
 
@@ -29,6 +29,8 @@ Rendering Rules: Exactly one Pygame surface; cell size = `min(surface_w//gw, sur
 
 Development Workflow: Activate venv (`source vmt-dev/bin/activate`). Use: `make launcher` (canonical VMT test launcher), `make dev` (legacy GUI), `make test-unit lint type perf`, or `pytest -q`. Add tests for any state/ordering/perf changes before refactor. Run perf after modifying agent selection, trade, respawn, or rendering.
 
+Project Planning: Active planning in `tmp_plans/CURRENT/` (roadmaps, execution plans). Completed work archived in `completed_steps_docs/archived/`. MANUAL_TESTS/ cleaned with essential tools only: launcher, batch runner, bookmarks, config editor, core scenarios (test_1.py-test_7.py), examples/ subdirectory.
+
 Logging & Debug: Central logger `gui/debug_logger.py`; enable categories via env (`ECONSIM_DEBUG_*`). Avoid verbose logs in frame loop. Use provided helper functions for phase transitions.
 
 Key Modules: `simulation/world.py` (orchestrator), `simulation/agent.py`, `simulation/trade.py`, `simulation/metrics.py`, `simulation/snapshot.py`, `gui/embedded_pygame.py`, `preferences/factory.py`, `simulation/config.py`, launcher package (`tools/launcher/*`), perf harness `scripts/perf_stub.py`.
@@ -39,6 +41,8 @@ When Unsure: Read existing unit tests covering the target area first; mirror pat
 
 Educational Constraint: Any behavioral change must retain clarity for teaching spatial allocation & exchange; prefer explicit, documented heuristics over opaque optimizations.
 
-Refactor Ops Addendum: For multi-phase refactors, use status sentinel JSON (component, phase, completion %), legacy symbol prevention tests, PH[N]-[OP] commit taxonomy, and validation gates after destructive changes. See `launcher_refactor_status.json` and `test_no_legacy_symbols.py` patterns.
+Refactor Ops Addendum: For multi-phase refactors, use status sentinel JSON (component, phase, completion %), legacy symbol prevention tests, PH[N]-[OP] commit taxonomy, and validation gates after destructive changes. Phase 4 methodology documented in `completed_steps_docs/archived/` as template for future cleanups.
+
+Current Development Options: (1) Gate 6 integration work (factory patterns, GUI defaults, metrics panels) from main `ROADMAP_REVISED.md`, OR (2) Phase 5+ packaging work (console scripts, appdata locations, programmatic runner) from `tmp_plans/CURRENT/LAUNCHER_PACKAGING_ROADMAP.md`. Both paths well-documented and ready for implementation.
 
 If a desired change conflicts with an invariant above: halt, open a design note, and add a guarded feature flag + tests before proceeding.
