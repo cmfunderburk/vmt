@@ -284,26 +284,26 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
                 self.log_status(f"✗ Test configuration not found: {test_name}")
                 return
                 
-            # Map config IDs to framework test files
+            # Map config IDs to test files
             id_to_file = {
-                1: "test_1_framework_version.py",
-                2: "test_2_framework_version.py", 
-                3: "test_3_framework_version.py",
-                4: "test_4_framework_version.py",
-                5: "test_5_framework_version.py",
-                6: "test_6_framework_version.py",
-                7: "test_7_framework_version.py"
+                1: "test_1.py",
+                2: "test_2.py", 
+                3: "test_3.py",
+                4: "test_4.py",
+                5: "test_5.py",
+                6: "test_6.py",
+                7: "test_7.py"
             }
             
-            framework_file = id_to_file.get(config.id)
-            if not framework_file:
-                self.log_status(f"✗ Framework test file not found for: {test_name}")
+            test_file = id_to_file.get(config.id)
+            if not test_file:
+                self.log_status(f"✗ Test file not found for: {test_name}")
                 return
                 
-            # Construct test file path
-            test_path = Path(__file__).parent.parent.parent.parent / "MANUAL_TESTS" / framework_file
+            # Construct test file path (go up from src/econsim/tools/launcher/ to project root)
+            test_path = Path(__file__).parent.parent.parent.parent.parent / "MANUAL_TESTS" / test_file
             if not test_path.exists():
-                self.log_status(f"✗ Test file not found: {framework_file}")
+                self.log_status(f"✗ Test file not found: {test_file}")
                 return
                 
             # Launch test in subprocess

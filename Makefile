@@ -39,7 +39,11 @@ test-unit:
 	pytest -q
 
 perf:
+	@echo "=== Synthetic Performance Test ==="
 	$(PYTHON) scripts/perf_stub.py
+	@echo ""
+	@echo "=== Widget Performance Test ==="
+	$(PYTHON) scripts/perf_stub.py --mode widget --duration 3 --json
 
 manual-tests:
 	# Launch comprehensive manual GUI tests for unified target selection
