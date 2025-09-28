@@ -1,10 +1,10 @@
 """Main Application Window for VMT Enhanced Test Launcher.
 
-Provides the primary window coordination and application lifecycle management,
-extracted from the monolithic enhanced_test_launcher_v2.py in Step 2.6.
+Provides programmatic test execution using TestRunner API with comprehensive
+error handling, status monitoring, and launcher-specific logging system.
 
-Legacy Phase 3.4 LauncherWindow preserved below for compatibility.
-VMTLauncherWindow is the Step 2.6 extraction target.
+Implements direct framework test execution while maintaining subprocess fallback
+for backward compatibility. Features real-time status display and health monitoring.
 """
 from __future__ import annotations
 
@@ -62,10 +62,15 @@ except ImportError:  # pragma: no cover - fallback path
 
 
 class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application window
-    """Main window for the VMT Enhanced Test Launcher (Step 2.6 extraction).
+    """Main window for the VMT Enhanced Test Launcher with programmatic execution.
     
-    Coordinates tab management, test execution, comparison mode, and application lifecycle.
-    Replaces the monolithic EnhancedTestLauncher class with a more modular architecture.
+    Features:
+    - Programmatic test execution via TestRunner API (eliminates subprocess overhead)
+    - Comprehensive status monitoring with real-time health indicators
+    - Independent launcher logging system (launcher_logs/ directory)
+    - Enhanced error handling with detailed component validation
+    - Subprocess fallback for backward compatibility
+    - Dynamic GUI status display with color-coded health states
     """
     
     def __init__(self, parent=None):
@@ -77,6 +82,7 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self.tab_manager: Optional[TabManager] = None
         self.gallery_widget: Optional[TestGalleryWidget] = None
         self.status_area: Optional[QTextEdit] = None
+        self.status_label: Optional[QLabel] = None
         
         # Controllers and services
         self._comparison_controller: Optional[ComparisonController] = None
@@ -120,7 +126,12 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self.statusBar().showMessage("Ready to launch tests")
     
     def _init_test_runner(self) -> None:
-        """Initialize TestRunner for programmatic test execution."""
+        """Initialize TestRunner for direct framework test execution.
+        
+        Creates programmatic TestRunner instance using TestConfiguration registry
+        and framework components. Eliminates subprocess overhead and provides
+        comprehensive status monitoring. Logs initialization status to launcher logs.
+        """
         if not _test_runner_available or TestRunner is None:
             self.log_status("⚠️ TestRunner not available - using subprocess fallback")
             return
@@ -198,12 +209,30 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         
         controls_layout.addStretch()
         
+        # TestRunner status label
+        self.status_label = QLabel("📊 Initializing...")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background-color: #e3f2fd;
+                border: 1px solid #1976d2;
+                border-radius: 4px;
+                padding: 4px 8px;
+                color: #1565c0;
+                font-weight: bold;
+            }
+        """)
+        controls_layout.addWidget(self.status_label)
+        
         # Refresh button
         refresh_btn = QPushButton("🔄 Refresh")
         refresh_btn.clicked.connect(self._populate_tests)
+        refresh_btn.clicked.connect(self.update_runner_status)  # Update status on refresh
         controls_layout.addWidget(refresh_btn)
         
         layout.addLayout(controls_layout)
+        
+        # Update status after controls are created
+        self.update_runner_status()
         
     def _create_main_content(self, layout: QVBoxLayout) -> None:
         """Create the main tabbed content area."""
@@ -331,7 +360,15 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self._launch_test(test_name)
             
     def _launch_test(self, test_name: str) -> None:
-        """Launch test using programmatic TestRunner or subprocess fallback."""
+        """Launch test using programmatic TestRunner with comprehensive logging.
+        
+        Primary execution method using TestRunner API for direct framework
+        instantiation. Falls back to subprocess launching if programmatic
+        execution fails. All execution attempts logged to launcher_logs/.
+        
+        Args:
+            test_name: Display name of test to launch
+        """
         try:
             # Get test configuration
             if not hasattr(self, "_registry") or not self._registry:
@@ -592,6 +629,117 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         
         # Also print to console for immediate feedback during development
         print(f"[LAUNCHER] {message}")
+    
+    def update_runner_status(self) -> None:
+        """Update GUI with real-time test runner status and health indicators.
+        
+        Displays dynamic status including test count, framework availability,
+        and current execution state. Uses color-coded health indicators:
+        - Green: Healthy (framework available, tests loaded)
+        - Yellow: Warning (partial functionality)
+        - Red: Error (component failures, recent errors)
+        
+        Integrates with launcher logging for health issue tracking.
+        """
+        if not self.status_label:
+            return  # Status label not created yet
+            
+        if not self.test_runner:
+            self.status_label.setText("❌ TestRunner: Unavailable")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #ffebee;
+                    border: 1px solid #d32f2f;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    color: #c62828;
+                    font-weight: bold;
+                }
+            """)
+            return
+        
+        try:
+            status = self.test_runner.get_status()
+            
+            # Create status text based on runner state
+            status_parts = []
+            status_parts.append(f"📊 Tests: {status['available_tests']}")
+            status_parts.append("Framework: " + ("✅" if status['framework_available'] else "❌"))
+            
+            if status['current_test']:
+                status_parts.append("🚀 Running")
+            
+            status_text = " | ".join(status_parts)
+            
+            # Set status text
+            self.status_label.setText(status_text)
+            
+            # Update style based on overall health
+            if status['framework_available'] and status['available_tests'] > 0:
+                # Healthy state - green
+                self.status_label.setStyleSheet("""
+                    QLabel {
+                        background-color: #e8f5e8;
+                        border: 1px solid #4caf50;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: #2e7d32;
+                        font-weight: bold;
+                    }
+                """)
+            elif status['last_error']:
+                # Error state - red
+                self.status_label.setStyleSheet("""
+                    QLabel {
+                        background-color: #ffebee;
+                        border: 1px solid #d32f2f;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: #c62828;
+                        font-weight: bold;
+                    }
+                """)
+                # Log the error to status area if not already logged
+                if status['last_error'] and self.launcher_logger:
+                    self.launcher_logger.warning(f"TestRunner error: {status['last_error']}")
+            else:
+                # Warning state - yellow
+                self.status_label.setStyleSheet("""
+                    QLabel {
+                        background-color: #fff8e1;
+                        border: 1px solid #f57f17;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: #ef6c00;
+                        font-weight: bold;
+                    }
+                """)
+            
+            # Log health check on refresh if there are issues
+            if not status['framework_available'] or status['available_tests'] == 0:
+                try:
+                    health = self.test_runner.get_health_check()
+                    if not health['overall_healthy'] and self.launcher_logger:
+                        for issue in health['issues']:
+                            self.launcher_logger.warning(f"Health check: {issue}")
+                except Exception:
+                    pass  # Don't fail if health check fails
+            
+        except Exception as e:
+            # Fallback error display
+            self.status_label.setText("⚠️ Status Error")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #ffebee;
+                    border: 1px solid #d32f2f;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    color: #c62828;
+                    font-weight: bold;
+                }
+            """)
+            if self.launcher_logger:
+                self.launcher_logger.error(f"Failed to update runner status: {e}")
 
 
 class LauncherWindow(QMainWindow):  # type: ignore[misc] # pragma: no cover - GUI component
