@@ -78,13 +78,22 @@ def main(argv: List[str] | None = None, headless: bool | None = None) -> int:
     app = QApplication(sys.argv)
     PlatformStyler.configure_application(app)
 
-    # Instantiate controllers for future UI wiring (Phase 3 usage)
-    comparison = ComparisonController()
-    executor = TestExecutor(registry=registry, launcher_script=Path(__file__).resolve())
-
-    # TODO (Phase 3): import & construct LauncherWindow using new components
-    # For now, we simply exit after environment bootstrap to keep stub side-effect free.
-    return 0
+    # Phase 3 complete: construct LauncherWindow using new components
+    from .app_window import create_launcher_window
+    
+    if flags["headless"]:
+        # In headless mode, just validate construction and exit
+        try:
+            window = create_launcher_window(registry)
+            return 0
+        except Exception as e:
+            print(f"Error creating launcher window: {e}")
+            return 1
+    else:
+        # Normal GUI mode
+        window = create_launcher_window(registry)
+        window.show()  # type: ignore[attr-defined]
+        return app.exec()  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":  # pragma: no cover

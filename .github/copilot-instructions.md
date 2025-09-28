@@ -3,12 +3,14 @@ Purpose: Educational micro‑econ spatial sim (PyQt6 shell + ONE embedded Pygame
 
 Frame Pipeline (DO NOT CHANGE): single QTimer (~16ms) → `Simulation.step(ext_rng, use_decision)` → `_update_scene` → `update()` → `paintEvent` (Surface→bytes→QImage→QPainter). Forbidden: extra timers/threads, sleeps, blocking loops, surface realloc/recreate, per‑pixel Python loops, layout/resize math changes.
 
-Determinism Invariants:
+Determinism Invariants (CRITICAL - Breaking these breaks classroom reproducibility):
 1. Target tie-break key EXACT: (-ΔU, distance, x, y)
 2. Stable resource iteration (`iter_resources_sorted`); original agent list order breaks contests
 3. Constants frozen: `EPSILON_UTILITY`, `default_PERCEPTION_RADIUS`
 4. Metrics hash contract (`simulation/metrics.py`) excludes trade + debug overlay metrics
 5. RNG separation: external (legacy/random movement) vs internal `Simulation._rng` (respawn, homes, trade drafts)
+6. Agent processing order must remain stable (list order = contest priority)
+7. Append-only serialization fields in `snapshot.py`, `world.py`, `agent.py`, `grid.py`
 
 Project Structure: Python 3.11+ package with PyQt6/pygame deps, virtual env `vmt-dev/`. Entry points: `main.py` (dual GUI system), enhanced test launcher in `MANUAL_TESTS/enhanced_test_launcher_v2.py` (canonical dev interface), unit tests in `tests/unit/` (210+ tests). Core modules: `simulation/world.py` (coordinator), `gui/embedded_pygame.py` (rendering), `preferences/*.py` (economic models), `simulation/agent.py` (behavior).
 
@@ -42,7 +44,7 @@ Manual Test Patterns (Current Technical Debt): All 7 tests in `MANUAL_TESTS/` sh
 
 Enhanced Test Framework (Current Reality): `MANUAL_TESTS/enhanced_test_launcher_v2.py` is the **primary development interface** (1153 lines) with visual test launcher, comparison mode, and tabbed interface. Framework components in `MANUAL_TESTS/framework/` (`test_configs.py`, `base_test.py`, `phase_manager.py`, `ui_components.py`, `simulation_factory.py`). **Major technical debt**: 7 educational tests (`test_*_baseline_simple.py`, `test_*_framework_version.py`) share ~3000 lines of duplicated code for identical 6‑phase UI structure. **ACTIVE REFACTOR IN PROGRESS**: Comprehensive restructuring planned per `tmp_plans/CURRENT/CRITICAL_REVIEW_AND_REORG_PLAN_ENHANCED_TESTS.md` to extract monolithic launcher into proper package structure under `src/econsim/tools/launcher/` (main VMT user environment) with console scripts, XDG data directories, and programmatic test runner APIs. Current implementation has brittle path hacks, subprocess coupling, and repo-polluting data locations that need resolution.
 
-Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) overlay; additional metrics (update hash contract + tests); respawn parameter plumbing; doc sync; manual test framework extraction (high‑impact, low‑risk). **REFACTOR CONTEXT**: Current session focuses on comprehensive launcher framework restructuring - prioritize work supporting the migration to `src/econsim/tools/launcher/` package structure (main VMT user environment). Forbidden: tie‑break alteration, constant edits, adding randomness, extra timers/threads, unordered iteration where order matters, mutable preference state, silent hash schema change, per‑step quadratic scans.
+Allowed Low‑Risk Contributions: new pure preference type; deterministic O(n) overlay; additional metrics (update hash contract + tests); respawn parameter plumbing; doc sync; launcher framework modularization (Part 2 UI extraction). **REFACTOR CONTEXT**: Current session focuses on launcher framework restructuring - prioritize work supporting the migration to `src/econsim/tools/launcher/` package structure. Forbidden: tie‑break alteration, constant edits, adding randomness, extra timers/threads, unordered iteration where order matters, mutable preference state, silent hash schema change, per‑step quadratic scans.
 
 Perf Expectations: ~62 FPS typical (floor ≥30). Validate with `make perf` or `python scripts/perf_stub.py --mode widget --duration 2 --json` (overlays <~2% overhead). Watch for regressions: surface realloc, object churn, logging in hot loop, accidental N^2 partner scans.
 
@@ -66,11 +68,14 @@ Teardown Integrity: `closeEvent` stops timer → `pygame.quit()` → `super().cl
 Educational Context: This is a microeconomic simulation for teaching spatial resource allocation, agent decision-making, and exchange dynamics. Behavioral changes must be educationally meaningful and deterministically reproducible across classroom sessions.
 
 **CRITICAL REFACTOR CONTEXT (September 2025)**: The project is undergoing comprehensive restructuring of the enhanced test framework. Current session goals:
-1. **Deprecation Path**: Features not accessible via `make enhanced-tests` are candidates for removal in future refactoring passes
-2. **Package Migration**: Moving from monolithic `MANUAL_TESTS/enhanced_test_launcher_v2.py` (1153 lines) to proper package structure under `src/econsim/tools/launcher/` (main VMT user environment)
-3. **Technical Debt Resolution**: Addressing ~3000 lines of duplicated test code, brittle path hacks, subprocess coupling, and repo-polluting data locations
-4. **Planned Phases**: Framework extraction → launcher factoring → programmatic runner → test registry centralization → XDG data migration → console scripts + packaging
-5. **Architecture Target**: Console script `econsim-launcher` (or `vmt-launcher`), proper imports (no `sys.path` hacks), appdata directories, programmatic test APIs
+1. **Active Refactor**: Moving from monolithic `MANUAL_TESTS/enhanced_test_launcher_v2.py` (1153 lines) to proper package structure under `src/econsim/tools/launcher/` (main VMT user environment)
+2. **Part 1 COMPLETED**: Extracted utilities + core business logic (`style.py`, `data.py`, `discovery.py`, `types.py`, `registry.py`, `comparison.py`, `executor.py`, `adapters.py`) with full test coverage
+3. **Part 2 IN PROGRESS**: UI component extraction (cards, gallery, tabs) + public API shell for console script
+4. **Technical Debt Resolution**: Addressing ~3000 lines of duplicated test code, brittle path hacks, subprocess coupling, and repo-polluting data locations  
+5. **Architecture Target**: Console script `econsim-launcher`, proper imports (no `sys.path` hacks), XDG data directories, programmatic test APIs
+6. **Deprecation Path**: Features not accessible via `make enhanced-tests` are candidates for removal in future refactoring passes
+
+Code Quality Standards: Python 3.11+, Black formatting (line-length 100), Ruff linting, MyPy type checking. Use `make format lint type` before commits. All state changes require corresponding unit tests in `tests/unit/`. Performance-sensitive changes must pass `make perf` regression tests.
 
 Code Quality Standards: Python 3.11+, Black formatting (line-length 100), Ruff linting, MyPy type checking. Use `make format lint type` before commits. All state changes require corresponding unit tests in `tests/unit/`. Performance-sensitive changes must pass `make perf` regression tests.
 
