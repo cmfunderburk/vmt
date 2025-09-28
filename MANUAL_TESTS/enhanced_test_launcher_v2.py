@@ -12,7 +12,11 @@ Features:
 - Test comparison selection
 
 Usage:
-    python enhanced_test_launcher.py
+    python enhanced_test_launcher.py [options]
+    
+Options:
+    --version       Show version information
+    --help         Show this help message
 """
 
 import sys
@@ -20,6 +24,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Dict, List
+import argparse
 
 # Transitional launcher module imports (Phase 2.2 integration)
 try:  # Soft dependency during refactor; if missing we fall back to legacy logic
@@ -28,6 +33,7 @@ try:  # Soft dependency during refactor; if missing we fall back to legacy logic
     from econsim.tools.launcher.executor import TestExecutor
     from econsim.tools.launcher.cards import CustomTestCardWidget, TestCardWidget
     from econsim.tools.launcher.tabs import CustomTestsTab, TabManager, ConfigEditorTab, BatchRunnerTab, BookmarksTab, GalleryTab
+    from econsim.tools.launcher.style import PlatformStyler
     from econsim.tools.launcher.widgets import TestGalleryWidget
     from econsim.tools.launcher.app_window import VMTLauncherWindow
     _launcher_modules_available = True
@@ -124,15 +130,7 @@ class EnhancedTestLauncher(QMainWindow):
         header = QLabel("🧪 VMT Enhanced Test Launcher")
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        header.setStyleSheet("""
-            QLabel {
-                background-color: #f5f5f5;
-                padding: 12px;
-                border-radius: 6px;
-                color: #333;
-                margin-bottom: 10px;
-            }
-        """)
+        header.setStyleSheet(PlatformStyler.get_header_style())
         layout.addWidget(header)
         
         # Controls
@@ -259,7 +257,7 @@ class EnhancedTestLauncher(QMainWindow):
             self.status_area = QTextEdit()
             self.status_area.setReadOnly(True)
             self.status_area.setMaximumHeight(100)
-            self.status_area.setStyleSheet("background-color: #f8f9fa;")
+            self.status_area.setStyleSheet(PlatformStyler.get_status_area_style())
             layout.addWidget(self.status_area)
         
         # Status bar
@@ -556,17 +554,42 @@ class EnhancedTestLauncher(QMainWindow):
 
 
 
-def main():
-    """Main entry point for enhanced test launcher."""
-    # Ensure we're in a virtual environment for safety
+def parse_command_line() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="VMT Enhanced Test Launcher",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python enhanced_test_launcher_v2.py           # Launch GUI
+  python enhanced_test_launcher_v2.py --version # Show version
+        """.strip()
+    )
+    
+    parser.add_argument(
+        '--version', 
+        action='version',
+        version='VMT Enhanced Test Launcher 1.0.0'
+    )
+    
+    return parser.parse_args()
+
+
+def check_environment():
+    """Check virtual environment status and warn if not in venv."""
     if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
         print("⚠️  Warning: Not running in a virtual environment")
         print("   It's recommended to activate your vmt-dev environment first")
-        
-    # Configure environment for better cross-platform compatibility
+
+
+def configure_qt_environment():
+    """Configure Qt environment variables for cross-platform compatibility."""
     import os
     os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '1'
-    
+
+
+def create_application() -> 'QApplication':
+    """Create and configure QApplication with proper settings."""
     app = QApplication(sys.argv)
     
     # Set application properties
@@ -574,20 +597,48 @@ def main():
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("VMT Project")
     
-    # Apply platform-specific styling fixes (extracted module)
+    return app
+
+
+def apply_platform_styling(app: 'QApplication') -> None:
+    """Apply platform-specific styling using extracted components."""
     try:
-        from econsim.tools.launcher.style import PlatformStyler  # type: ignore
-        PlatformStyler.configure_application(app)
+        if _launcher_modules_available:
+            # Use the PlatformStyler imported at the top
+            PlatformStyler.configure_application(app)
+        else:
+            # Fallback - import directly if extracted modules not available
+            from econsim.tools.launcher.style import PlatformStyler as LocalPlatformStyler  # type: ignore
+            LocalPlatformStyler.configure_application(app)
     except Exception as exc:  # pragma: no cover - styling fallback
         print(f"[Launcher Styling Warning] {exc}")
-    
-    # Create and show main window
+
+
+def create_main_window():
+    """Create the main launcher window using extracted components."""
     if _launcher_modules_available:
         # Use extracted VMTLauncherWindow
-        launcher = VMTLauncherWindow()
+        return VMTLauncherWindow()
     else:
         # Fallback to legacy EnhancedTestLauncher
-        launcher = EnhancedTestLauncher()
+        return EnhancedTestLauncher()
+
+
+def main():
+    """Main entry point for enhanced test launcher."""
+    # Parse command-line arguments (handles --version and --help automatically)
+    args = parse_command_line()
+    
+    # Check environment and setup
+    check_environment()
+    configure_qt_environment()
+    
+    # Create and configure application
+    app = create_application()
+    apply_platform_styling(app)
+    
+    # Create and show main window
+    launcher = create_main_window()
     launcher.show()
     
     # Start application event loop

@@ -21,8 +21,15 @@ class PlatformStyler:
     - configure_application(app): apply style + stylesheet
     - base_stylesheet(): returns computed stylesheet for current platform
     - apply_post_init_fixes(app): hook for late adjustments (currently none)
+    - get_status_area_style(): common status area styling
+    - get_header_style(): common header styling
     """
 
+    # Common color constants
+    BACKGROUND_COLOR = "#f8f9fa"
+    HEADER_BACKGROUND = "#f5f5f5"
+    HEADER_TEXT_COLOR = "#333"
+    
     _APPLIED_FLAG_ENV = "ECONSIM_LAUNCHER_STYLE_APPLIED"
 
     @staticmethod
@@ -65,6 +72,24 @@ class PlatformStyler:
     def apply_post_init_fixes(app: Any) -> None:  # pragma: no cover - placeholder for future
         # Reserved for future dark-mode or DPI adjustments after widgets shown.
         return None
+    
+    @staticmethod
+    def get_status_area_style() -> str:
+        """Get standardized status area styling."""
+        return f"background-color: {PlatformStyler.BACKGROUND_COLOR};"
+    
+    @staticmethod
+    def get_header_style() -> str:
+        """Get standardized header styling."""
+        return f"""
+            QLabel {{
+                background-color: {PlatformStyler.HEADER_BACKGROUND};
+                padding: 12px;
+                border-radius: 6px;
+                color: {PlatformStyler.HEADER_TEXT_COLOR};
+                margin-bottom: 10px;
+            }}
+        """
 
     # --- Internal stylesheet builders (kept separate for testability) -------
     @staticmethod

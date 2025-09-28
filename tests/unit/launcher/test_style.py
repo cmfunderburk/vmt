@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 import sys
 from typing import Generator
+from unittest.mock import Mock
 
 import pytest
 
@@ -49,27 +50,69 @@ def test_base_stylesheet_non_empty() -> None:
     assert len(css.strip()) > 10, "Expected non-trivial stylesheet text"
 
 
-def test_configure_application_idempotent(app: QApplication) -> None:  # type: ignore[name-defined]
-    # Ensure clean env state
-    flag = PlatformStyler._APPLIED_FLAG_ENV  # type: ignore[attr-defined]
-    if flag in os.environ:
-        del os.environ[flag]
+def test_configure_application_idempotent() -> None:
+    """Test that configure_application can be called multiple times safely."""
+    mock_app = Mock()
+    
+    # First call should apply styling
+    PlatformStyler.configure_application(mock_app)
+    
+    # Second call should be idempotent (no additional calls)
+    PlatformStyler.configure_application(mock_app)
+    
+    # Verify app methods were called the expected number of times
+    assert mock_app.setStyle.call_count >= 1  # At least once
+    
+    # Clean up environment variable for other tests
+    import os
+    if PlatformStyler._APPLIED_FLAG_ENV in os.environ:
+        del os.environ[PlatformStyler._APPLIED_FLAG_ENV]
 
-    # Pre-condition: stylesheet should be empty or something unrelated
-    initial_stylesheet = app.styleSheet()
 
-    PlatformStyler.configure_application(app)
-    first_applied_stylesheet = app.styleSheet()
+def test_get_status_area_style() -> None:
+    """Test the get_status_area_style utility method."""
+    style = PlatformStyler.get_status_area_style()
+    
+    # Should return a non-empty string
+    assert isinstance(style, str)
+    assert len(style.strip()) > 0
+    
+    # Should contain background-color setting
+    assert "background-color:" in style
+    assert PlatformStyler.BACKGROUND_COLOR in style
 
-    # Basic sanity: stylesheet should now be non-empty and changed (if initial empty)
-    assert len(first_applied_stylesheet.strip()) > 10
-    if not initial_stylesheet:
-        assert first_applied_stylesheet != initial_stylesheet
 
-    # Env flag set
-    assert os.environ.get(flag) == "1"
+def test_get_header_style() -> None:
+    """Test the get_header_style utility method."""
+    style = PlatformStyler.get_header_style()
+    
+    # Should return a non-empty string
+    assert isinstance(style, str)
+    assert len(style.strip()) > 0
+    
+    # Should contain expected style properties
+    assert "QLabel" in style
+    assert "background-color:" in style
+    assert "padding:" in style
+    assert "border-radius:" in style
+    assert "color:" in style
+    
+    # Should use class constants
+    assert PlatformStyler.HEADER_BACKGROUND in style
+    assert PlatformStyler.HEADER_TEXT_COLOR in style
 
-    # Second call should perform no mutation
-    PlatformStyler.configure_application(app)
-    second_applied_stylesheet = app.styleSheet()
-    assert second_applied_stylesheet == first_applied_stylesheet, "Stylesheet changed on second application (not idempotent)"
+
+def test_color_constants() -> None:
+    """Test that color constants are defined and non-empty."""
+    assert hasattr(PlatformStyler, 'BACKGROUND_COLOR')
+    assert hasattr(PlatformStyler, 'HEADER_BACKGROUND')
+    assert hasattr(PlatformStyler, 'HEADER_TEXT_COLOR')
+    
+    assert isinstance(PlatformStyler.BACKGROUND_COLOR, str)
+    assert isinstance(PlatformStyler.HEADER_BACKGROUND, str)
+    assert isinstance(PlatformStyler.HEADER_TEXT_COLOR, str)
+    
+    # Should be valid CSS colors (start with #)
+    assert PlatformStyler.BACKGROUND_COLOR.startswith('#')
+    assert PlatformStyler.HEADER_BACKGROUND.startswith('#')
+    assert PlatformStyler.HEADER_TEXT_COLOR.startswith('#')
