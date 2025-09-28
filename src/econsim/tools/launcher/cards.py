@@ -101,20 +101,17 @@ class TestCard(QWidget):  # pragma: no cover - GUI behaviour will be smoke/integ
     def _setup_ui(self) -> None:
         layout = QVBoxLayout()  # type: ignore[call-arg]
         layout.addWidget(QLabel(self._model.label))  # type: ignore[arg-type]
-        btn_launch_original = QPushButton("Launch Original")  # type: ignore[call-arg]
-        btn_launch_framework = QPushButton("Launch Framework")  # type: ignore[call-arg]
+        btn_launch_test = QPushButton("Launch Test")  # type: ignore[call-arg]
         btn_compare = QPushButton("Add to Comparison")  # type: ignore[call-arg]
 
         # Wire actions – deferring robust error handling until later phases
         try:
-            btn_launch_original.clicked.connect(lambda: self._executor.launch_original(self._model.label))  # type: ignore[attr-defined]
-            btn_launch_framework.clicked.connect(lambda: self._executor.launch_framework(self._model.label))  # type: ignore[attr-defined]
+            btn_launch_test.clicked.connect(lambda: self._executor.launch_framework(self._model.label))  # type: ignore[attr-defined]
             btn_compare.clicked.connect(lambda: self._comparison.add(self._model.label))  # type: ignore[attr-defined]
         except Exception:
             pass  # In headless/type-stub environment signals may be absent
 
-        layout.addWidget(btn_launch_original)  # type: ignore[arg-type]
-        layout.addWidget(btn_launch_framework)  # type: ignore[arg-type]
+        layout.addWidget(btn_launch_test)  # type: ignore[arg-type]
         layout.addWidget(btn_compare)  # type: ignore[arg-type]
         try:
             self.setLayout(layout)  # type: ignore[attr-defined]
@@ -437,31 +434,10 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
         # Action buttons
         button_layout = QVBoxLayout()  # type: ignore[call-arg]
         
-        # Launch buttons
-        if self._check_original_available():
-            original_btn = QPushButton("🚀 Launch Original")  # type: ignore[call-arg]
-            try:
-                original_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2196F3;
-                        color: white;
-                        border: none;
-                        padding: 6px;
-                        border-radius: 4px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #1976D2;
-                    }
-                """)
-                original_btn.clicked.connect(lambda: self.launchRequested.emit(self.config.name, "original"))  # type: ignore[attr-defined]
-            except Exception:
-                pass
-            button_layout.addWidget(original_btn)  # type: ignore[arg-type]
-            
-        framework_btn = QPushButton("⚡ Launch Framework")  # type: ignore[call-arg]
+        # Launch button
+        launch_btn = QPushButton("⚡ Launch Test")  # type: ignore[call-arg]
         try:
-            framework_btn.setStyleSheet("""
+            launch_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #4CAF50;
                     color: white;
@@ -474,10 +450,10 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
                     background-color: #45a049;
                 }
             """)
-            framework_btn.clicked.connect(lambda: self.launchRequested.emit(self.config.name, "framework"))  # type: ignore[attr-defined]
+            launch_btn.clicked.connect(lambda: self.launchRequested.emit(self.config.name, "framework"))  # type: ignore[attr-defined]
         except Exception:
             pass
-        button_layout.addWidget(framework_btn)  # type: ignore[arg-type]
+        button_layout.addWidget(launch_btn)  # type: ignore[arg-type]
             
         # Secondary actions
         secondary_layout = QHBoxLayout()  # type: ignore[call-arg]
@@ -500,23 +476,7 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
         except Exception:
             pass
         
-    def _check_original_available(self) -> bool:
-        """Check if original test implementation is available."""
-        # Map test config IDs to original file names
-        id_to_file = {
-            1: "test_1_baseline_simple.py",
-            2: "test_2_sparse_longrange.py", 
-            3: "test_3_dense_shortrange.py",
-            4: "test_4_mixed_preferences.py",
-            5: "test_5_pure_cobbdouglas.py",
-            6: "test_6_pure_leontief.py",
-            7: "test_7_pure_perfectsubstitutes.py"
-        }
-        
-        original_file = id_to_file.get(self.config.id)
-        if original_file:
-            return (Path(__file__).parent.parent.parent.parent / "MANUAL_TESTS" / original_file).exists()
-        return False
+
         
     def _estimate_runtime(self) -> str:
         """Estimate test runtime based on configuration."""

@@ -9,6 +9,7 @@ VMTLauncherWindow is the Step 2.6 extraction target.
 from __future__ import annotations
 
 import sys
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -260,83 +261,77 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
             # Regular status message
             self.statusBar().showMessage(message)
             
-    def launch_test(self, test_name: str, version: str) -> None:
-        """Launch a specific test version."""
-        if version == "original":
-            self._launch_original_test(test_name)
-        elif version == "framework":
-            self._launch_framework_test(test_name)
-        else:
-            self.log_status(f"Unknown test version: {version}")
+    def launch_test(self, test_name: str, version: str = "framework") -> None:
+        """Launch a test (always uses framework version now)."""
+        # Version parameter kept for compatibility but ignored
+        self._launch_test(test_name)
             
-    def _launch_original_test(self, test_name: str) -> None:
-        """Launch original version of a test."""
-        self._init_executor()
+    def _launch_test(self, test_name: str) -> None:
+        """Launch test (framework version)."""
         try:
-            # Use TestExecutor for deterministic command construction
-            result = self._executor.launch_single(test_name, "original")
-            
-            if result.success:
-                # Extract command details for logging
-                if result.details and "command" in result.details:
-                    cmd_parts = result.details["command"]
-                    if isinstance(cmd_parts, list) and len(cmd_parts) > 1:
-                        script_name = Path(cmd_parts[1]).name
-                        self.log_status(f"✓ Launched original {test_name} → {script_name}")
-                    else:
-                        self.log_status(f"✓ Launched original {test_name}")
-                else:
-                    self.log_status(f"✓ Launched original {test_name}")
-                    
-                self.statusBar().showMessage(f"Launched original {test_name}")
-            else:
-                error_msg = result.error or "Unknown launch error"
-                self.log_status(f"✗ Failed to launch original {test_name}: {error_msg}")
-                self.statusBar().showMessage(f"Failed to launch {test_name}")
+            # Get test configuration
+            if not hasattr(self, "_registry") or not self._registry:
+                self._init_executor()
                 
-        except Exception as e:
-            self.log_status(f"✗ Exception launching original {test_name}: {str(e)}")
-            print(f"Launch error: {e}")
-            
-    def _launch_framework_test(self, test_name: str) -> None:
-        """Launch framework version of a test."""
-        self._init_executor() 
-        try:
-            # Use TestExecutor for deterministic command construction
-            result = self._executor.launch_single(test_name, "framework")
-            
-            if result.success:         
-                # Extract command details for logging
-                if result.details and "command" in result.details:
-                    cmd_parts = result.details["command"]
-                    if isinstance(cmd_parts, list) and len(cmd_parts) > 1:
-                        script_name = Path(cmd_parts[1]).name
-                        self.log_status(f"✓ Launched framework {test_name} → {script_name}")
-                    else:
-                        self.log_status(f"✓ Launched framework {test_name}")
-                else:
-                    self.log_status(f"✓ Launched framework {test_name}")
+            # Find config by label to get ID  
+            config = None
+            for cfg in self._registry.all().values():
+                if cfg.label == test_name:
+                    config = cfg
+                    break
                     
-                self.statusBar().showMessage(f"Launched framework {test_name}")
-            else:
-                error_msg = result.error or "Unknown launch error"
-                self.log_status(f"✗ Failed to launch framework {test_name}: {error_msg}")
-                self.statusBar().showMessage(f"Failed to launch {test_name}")
+            if not config:
+                self.log_status(f"✗ Test configuration not found: {test_name}")
+                return
                 
+            # Map config IDs to framework test files
+            id_to_file = {
+                1: "test_1_framework_version.py",
+                2: "test_2_framework_version.py", 
+                3: "test_3_framework_version.py",
+                4: "test_4_framework_version.py",
+                5: "test_5_framework_version.py",
+                6: "test_6_framework_version.py",
+                7: "test_7_framework_version.py"
+            }
+            
+            framework_file = id_to_file.get(config.id)
+            if not framework_file:
+                self.log_status(f"✗ Framework test file not found for: {test_name}")
+                return
+                
+            # Construct test file path
+            test_path = Path(__file__).parent.parent.parent.parent / "MANUAL_TESTS" / framework_file
+            if not test_path.exists():
+                self.log_status(f"✗ Test file not found: {framework_file}")
+                return
+                
+            # Launch test in subprocess
+            self.log_status(f"🚀 Launching {test_name}...")
+            subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
+            self.statusBar().showMessage(f"Launched {test_name}")
+            
         except Exception as e:
-            self.log_status(f"✗ Exception launching framework {test_name}: {str(e)}")
+            self.log_status(f"✗ Exception launching {test_name}: {str(e)}")
             print(f"Launch error: {e}")
             
     def add_to_comparison(self, test_name: str) -> None:
         """Add test to comparison selection."""
         if _launcher_modules_available and self._comparison_controller:
             # Delegate to comparison controller
-            if self._comparison_controller.can_add():
-                self._comparison_controller.add(test_name)
+            add_result = self._comparison_controller.add(test_name)
+            if add_result.added:
                 self._update_comparison_ui()
             else:
-                QMessageBox.information(self, "Comparison Full", 
-                                      "Maximum 4 tests can be compared simultaneously.")
+                if add_result.reason == "capacity":
+                    QMessageBox.information(self, "Comparison Full", 
+                                          "Maximum 4 tests can be compared simultaneously.")
+                elif add_result.reason == "duplicate":
+                    QMessageBox.information(self, "Already Selected", 
+                                          f"Test '{test_name}' is already in comparison selection.")
+                else:
+                    QMessageBox.warning(self, "Invalid Selection", 
+                                      f"Cannot add '{test_name}' to comparison.")
         else:
             # Fallback logic
             if test_name not in self.comparison_selection and len(self.comparison_selection) < 4:
@@ -387,9 +382,9 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
                 self.log_status(f"✓ Launched comparison: {', '.join(labels)}")
                 self.statusBar().showMessage(f"Launched {len(labels)} tests for comparison")
             else:
-                error_msg = result.error or "Unknown comparison launch error"
+                error_msg = "; ".join(result.errors) if result.errors else "Unknown comparison launch error"
                 self.log_status(f"✗ Failed to launch comparison: {error_msg}")
-                self.statusBar().showMessage(f"Launched {len(selection)} tests for comparison")
+                self.statusBar().showMessage(f"Failed to launch comparison")
                 
         except Exception as e:
             self.log_status(f"✗ Exception in comparison launch: {str(e)}")
