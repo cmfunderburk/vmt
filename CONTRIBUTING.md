@@ -10,8 +10,8 @@ Thank you for your interest in contributing! This project is licensed under the 
 3. Install dev dependencies: `pip install -e .[dev]`
 4. Run the validation pipeline locally:
    - make test-unit lint type perf
-5. Launch the enhanced test launcher for interactive development:
-   - make enhanced-tests
+5. Launch the VMT test launcher for interactive development:
+   - make launcher
 
 ## Development Guidelines
 - Determinism: Never introduce nondeterministic iteration, randomness without using the sanctioned RNG split, or alter tie-break ordering.

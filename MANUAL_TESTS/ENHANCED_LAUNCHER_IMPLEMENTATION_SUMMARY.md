@@ -51,7 +51,7 @@ MANUAL_TESTS/
 ```
 
 ### Integration Points
-- **Makefile Integration**: New `make enhanced-tests` target alongside existing `make manual-tests`
+- **Makefile Integration**: New `make launcher` target alongside existing `make manual-tests`
 - **Backward Compatibility**: Original workflow completely preserved
 - **Framework Dependency**: Uses existing `ALL_TEST_CONFIGS` dictionary from framework
 - **Launch Compatibility**: Compatible with both PyQt6 GUI tests and existing infrastructure
@@ -63,8 +63,8 @@ MANUAL_TESTS/
 # Activate virtual environment
 source vmt-dev/bin/activate
 
-# Launch enhanced test launcher
-make enhanced-tests
+# Launch VMT test launcher
+make launcher
 # OR directly:
 cd MANUAL_TESTS && python enhanced_test_launcher_v2.py
 ```

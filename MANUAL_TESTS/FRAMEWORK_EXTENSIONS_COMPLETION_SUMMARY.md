@@ -44,7 +44,7 @@ We have successfully completed the **complete VMT Framework Extensions suite**, 
 - Professional styling and responsive layout
 
 **Integration:**
-- Main entry point via `make enhanced-tests`
+- Main entry point via `make launcher`
 - Hosts Configuration Editor, Batch Runner, and Bookmarks as tabs
 - Status area with real-time feedback
 - Comparison selection with visual indicators
@@ -118,7 +118,7 @@ All extensions are seamlessly integrated into a single Enhanced Test Launcher wi
 ### **Make Target Integration**
 ```bash
 # Complete unified interface
-make enhanced-tests
+make launcher
 
 # Standalone components
 make batch-tests         # Batch execution system

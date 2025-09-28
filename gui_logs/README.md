@@ -20,16 +20,16 @@ Control logging via environment variables:
 
 ```bash
 # Default: Everything in optimized compact format (92% size reduction)
-make enhanced-tests
+make launcher
 
 # Balanced: Lighter logging for faster analysis
-ECONSIM_LOG_LEVEL=EVENTS make enhanced-tests
+ECONSIM_LOG_LEVEL=EVENTS make launcher
 
 # Minimal: Critical events only (phase transitions, errors)
-ECONSIM_LOG_LEVEL=CRITICAL make enhanced-tests
+ECONSIM_LOG_LEVEL=CRITICAL make launcher
 
 # Structured: Machine-parseable format for analysis tools
-ECONSIM_LOG_FORMAT=STRUCTURED make enhanced-tests
+ECONSIM_LOG_FORMAT=STRUCTURED make launcher
 ```
 
 ## 📖 Reading Compact Format

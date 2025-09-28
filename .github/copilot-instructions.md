@@ -27,7 +27,7 @@ Trading / Exchange: Partner search O(agents); at most one execution per pair per
 
 Rendering Rules: Exactly one Pygame surface; cell size = `min(surface_w//gw, surface_h//gh)` (no centering remainder). Cache fonts once; sprites from `vmt_sprites_pack_1/` (rect fallback OK). No per-frame surface recreation.
 
-Development Workflow: Activate venv (`source vmt-dev/bin/activate`). Use: `make enhanced-tests` (canonical launcher), `make dev` (legacy GUI), `make test-unit lint type perf`, or `pytest -q`. Add tests for any state/ordering/perf changes before refactor. Run perf after modifying agent selection, trade, respawn, or rendering.
+Development Workflow: Activate venv (`source vmt-dev/bin/activate`). Use: `make launcher` (canonical VMT test launcher), `make dev` (legacy GUI), `make test-unit lint type perf`, or `pytest -q`. Add tests for any state/ordering/perf changes before refactor. Run perf after modifying agent selection, trade, respawn, or rendering.
 
 Logging & Debug: Central logger `gui/debug_logger.py`; enable categories via env (`ECONSIM_DEBUG_*`). Avoid verbose logs in frame loop. Use provided helper functions for phase transitions.
 
