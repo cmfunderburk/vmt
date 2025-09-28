@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 try:
     from PyQt6.QtWidgets import (
@@ -44,6 +44,22 @@ from .cards import build_card_models
 from .gallery import TestGallery
 from .tabs import LauncherTabs
 
+# Import TestRunner for programmatic test execution
+try:
+    from .test_runner import TestRunner
+    _test_runner_available = True
+except ImportError:  # pragma: no cover - fallback path
+    TestRunner = None  # type: ignore
+    _test_runner_available = False
+
+# Import launcher-specific logger for file logging
+try:
+    from .launcher_logger import get_launcher_logger
+    _launcher_logger_available = True
+except ImportError:  # pragma: no cover - fallback path
+    get_launcher_logger = None  # type: ignore
+    _launcher_logger_available = False
+
 
 class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application window
     """Main window for the VMT Enhanced Test Launcher (Step 2.6 extraction).
@@ -66,6 +82,14 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self._comparison_controller: Optional[ComparisonController] = None
         self._registry = None
         self._executor = None
+        
+        # Initialize launcher file logging first (needed by other init methods)
+        self.launcher_logger = None
+        self._init_launcher_logging()
+        
+        # Initialize TestRunner for programmatic test execution
+        self.test_runner = None
+        self._init_test_runner()
         
         # Initialize the application
         self._setup_window()
@@ -94,6 +118,46 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         
         # Status bar
         self.statusBar().showMessage("Ready to launch tests")
+    
+    def _init_test_runner(self) -> None:
+        """Initialize TestRunner for programmatic test execution."""
+        if not _test_runner_available or TestRunner is None:
+            self.log_status("⚠️ TestRunner not available - using subprocess fallback")
+            return
+        
+        try:
+            self.test_runner = TestRunner()  # type: ignore[misc]
+            self.log_status("✅ Test runner initialized successfully")
+            
+            # Log runner initialization to launcher logger
+            if self.launcher_logger:
+                self.launcher_logger.runner_init("programmatic TestRunner framework")
+                
+        except Exception as e:
+            self.test_runner = None
+            self.log_status(f"⚠️ Test runner failed to initialize: {e}")
+            
+            # Log initialization failure to launcher logger
+            if self.launcher_logger:
+                self.launcher_logger.error(f"TestRunner initialization failed: {e}")
+            
+            # Log full error for debugging
+            import traceback
+            print(f"TestRunner initialization error:\n{traceback.format_exc()}")
+    
+    def _init_launcher_logging(self) -> None:
+        """Initialize launcher file logging."""
+        if not _launcher_logger_available or get_launcher_logger is None:
+            print("⚠️ Launcher logger not available for file logging")
+            return
+        
+        try:
+            self.launcher_logger = get_launcher_logger()  # type: ignore[misc]
+            # Log initial launcher startup
+            self.log_status("🚀 VMT Enhanced Test Launcher started")
+        except Exception as e:
+            self.launcher_logger = None
+            print(f"⚠️ Launcher logging initialization failed: {e}")
         
     def _create_header(self, layout: QVBoxLayout) -> None:
         """Create the application header."""
@@ -267,7 +331,7 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self._launch_test(test_name)
             
     def _launch_test(self, test_name: str) -> None:
-        """Launch test (framework version)."""
+        """Launch test using programmatic TestRunner or subprocess fallback."""
         try:
             # Get test configuration
             if not hasattr(self, "_registry") or not self._registry:
@@ -283,8 +347,53 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
             if not config:
                 self.log_status(f"✗ Test configuration not found: {test_name}")
                 return
-                
-            # Map config IDs to test files
+            
+            # Try programmatic TestRunner first
+            if self.test_runner:
+                try:
+                    self.log_status(f"🚀 Launching {test_name} (programmatic)...")
+                    
+                    # Log test start to launcher logger
+                    if self.launcher_logger:
+                        self.launcher_logger.test_start(str(config.id), test_name)
+                    
+                    import time
+                    start_time = time.time()
+                    self.test_runner.run_by_id(config.id, "framework")
+                    execution_time = time.time() - start_time
+                    
+                    self.log_status(f"✅ Test {test_name} launched successfully")
+                    
+                    # Log test success to launcher logger
+                    if self.launcher_logger:
+                        self.launcher_logger.test_success(str(config.id), execution_time)
+                    
+                    return
+                except Exception as e:
+                    self.log_status(f"⚠️ Programmatic launch failed: {e}")
+                    
+                    # Log test error to launcher logger
+                    if self.launcher_logger:
+                        self.launcher_logger.test_error(str(config.id), str(e))
+                    
+                    # Continue to subprocess fallback
+            
+            # Fallback to subprocess launching
+            self.log_status(f"🚀 Launching {test_name} (subprocess fallback)...")
+            self._launch_test_subprocess_fallback(config, test_name)
+            
+        except Exception as e:
+            self.log_status(f"✗ Exception launching {test_name}: {str(e)}")
+            print(f"Launch error: {e}")
+    
+    def _launch_test_subprocess_fallback(self, config: Any, test_name: str) -> None:
+        """Fallback to original subprocess launching if programmatic fails."""
+        try:
+            # Log fallback usage to launcher logger
+            if self.launcher_logger:
+                self.launcher_logger.info(f"🔄 Using subprocess fallback for test {config.id}")
+            
+            # Map config IDs to test files (preserved for fallback)
             id_to_file = {
                 1: "test_1.py",
                 2: "test_2.py", 
@@ -297,23 +406,63 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
             
             test_file = id_to_file.get(config.id)
             if not test_file:
-                self.log_status(f"✗ Test file not found for: {test_name}")
+                error_msg = f"No test file mapping for config ID {config.id}"
+                self.log_status(f"✗ {error_msg}")
+                if self.launcher_logger:
+                    self.launcher_logger.test_error(str(config.id), error_msg)
                 return
                 
             # Construct test file path (go up from src/econsim/tools/launcher/ to project root)
             test_path = Path(__file__).parent.parent.parent.parent.parent / "MANUAL_TESTS" / test_file
             if not test_path.exists():
-                self.log_status(f"✗ Test file not found: {test_file}")
+                error_msg = f"Test file not found: {test_path}"
+                self.log_status(f"✗ {error_msg}")
+                if self.launcher_logger:
+                    self.launcher_logger.test_error(str(config.id), error_msg)
                 return
-                
-            # Launch test in subprocess
-            self.log_status(f"🚀 Launching {test_name}...")
-            subprocess.Popen([sys.executable, str(test_path)], cwd=str(test_path.parent))
-            self.statusBar().showMessage(f"Launched {test_name}")
+            
+            # Log subprocess launch attempt
+            if self.launcher_logger:
+                self.launcher_logger.info(f"🔧 Launching subprocess: {test_file}")
+            
+            # Launch test in subprocess with proper environment
+            import os
+            env = os.environ.copy()
+            
+            import time
+            start_time = time.time()
+            
+            # Use Popen for non-blocking launch (like original behavior)
+            process = subprocess.Popen(
+                [sys.executable, str(test_path)], 
+                cwd=str(test_path.parent),
+                env=env,
+                stdout=None,  # Let output go to console
+                stderr=None
+            )
+            
+            execution_time = time.time() - start_time
+            
+            self.log_status(f"✅ Test {test_name} launched via subprocess (PID: {process.pid})")
+            
+            # Log subprocess success to launcher logger
+            if self.launcher_logger:
+                self.launcher_logger.info(f"✅ Subprocess launched successfully - PID: {process.pid}")
+                # Note: We can't easily track subprocess completion time, so we log launch time
+                self.launcher_logger.test_success(str(config.id), execution_time)
             
         except Exception as e:
-            self.log_status(f"✗ Exception launching {test_name}: {str(e)}")
-            print(f"Launch error: {e}")
+            error_msg = f"Subprocess fallback failed: {e}"
+            self.log_status(f"✗ {error_msg}")
+            
+            # Log subprocess failure to launcher logger
+            if self.launcher_logger:
+                self.launcher_logger.error(error_msg)
+                self.launcher_logger.test_error(str(config.id), str(e))
+            
+            # Log full traceback for debugging
+            import traceback
+            print(f"Subprocess fallback error details:\n{traceback.format_exc()}")
             
     def add_to_comparison(self, test_name: str) -> None:
         """Add test to comparison selection."""
@@ -419,7 +568,8 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
             self._executor = TestExecutor(self._registry, launcher_script=launcher_script)
             
     def log_status(self, message: str) -> None:
-        """Add message to status area."""
+        """Add message to status area and log file."""
+        # Add to GUI status area
         if self.status_area:
             self.status_area.append(f"• {message}")
             
@@ -430,6 +580,18 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
                 cursor.select(cursor.SelectionType.LineUnderCursor)
                 cursor.removeSelectedText()
                 cursor.deletePreviousChar()  # Remove the newline
+        
+        # Also log to file if launcher logger is available
+        if self.launcher_logger:
+            try:
+                # Use launcher-specific logging method
+                self.launcher_logger.info(message)
+            except Exception as e:
+                # Don't let logging errors crash the GUI
+                print(f"⚠️ Launcher logging error: {e}")
+        
+        # Also print to console for immediate feedback during development
+        print(f"[LAUNCHER] {message}")
 
 
 class LauncherWindow(QMainWindow):  # type: ignore[misc] # pragma: no cover - GUI component
