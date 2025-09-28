@@ -83,6 +83,7 @@ profile*
 
 # Debug logs
 gui_logs/*.log
+gui_logs/*.json
 # Allow documentation in gui_logs directory
 !gui_logs/README.md
 !gui_logs/.gitignore
