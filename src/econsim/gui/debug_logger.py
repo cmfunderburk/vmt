@@ -23,6 +23,40 @@ from typing import Optional
 import threading
 from enum import Enum
 
+# Import enhanced configuration system
+try:
+    from .log_config import LogConfig, LogLevel, LogFormat, get_log_config
+    _has_log_config = True
+except ImportError:  # pragma: no cover
+    _has_log_config = False
+    # Fallback enum definitions when config module unavailable
+    class LogLevel(Enum):
+        CRITICAL = "CRITICAL"
+        EVENTS = "EVENTS" 
+        PERIODIC = "PERIODIC"
+        VERBOSE = "VERBOSE"
+
+    class LogFormat(Enum):
+        COMPACT = "COMPACT"
+        STRUCTURED = "STRUCTURED"
+
+# Import educational context functions
+try:
+    from .log_utils import (
+        explain_utility_change, explain_trade_decision, explain_agent_mode,
+        explain_decision_logic, get_economic_context, 
+        should_add_educational_context, should_explain_decisions
+    )
+    _has_educational_logging = True
+except ImportError:  # pragma: no cover
+    _has_educational_logging = False
+
+try:
+    from .log_config import get_log_manager
+    _has_enhanced_config = True
+except ImportError:  # pragma: no cover
+    _has_enhanced_config = False
+
 
 def format_agent_id(agent_id: int) -> str:
     """Format agent ID with consistent zero-padded format.
@@ -83,18 +117,7 @@ def format_delta(value: float) -> str:
     return f"{value:+.3f}"
 
 
-class LogLevel(Enum):
-    """Logging verbosity levels."""
-    CRITICAL = "CRITICAL"
-    EVENTS = "EVENTS" 
-    PERIODIC = "PERIODIC"
-    VERBOSE = "VERBOSE"
 
-
-class LogFormat(Enum):
-    """Log output formats."""
-    COMPACT = "COMPACT"
-    STRUCTURED = "STRUCTURED"
 
 
 class GUILogger:
@@ -136,7 +159,7 @@ class GUILogger:
         self._last_transition_flush_time = datetime.now()
         
         # Trade+Utility bundling buffers (Phase 3.1)
-        self._trade_bundle_buffer: dict[int, dict] = {}  # step -> {trades: [], utilities: []}
+        self._trade_bundle_buffer: dict[int, dict[str, list[str]]] = {}  # step -> {trades: [], utilities: []}
         self._last_bundle_step = -1
         
         # Create logs directory if it doesn't exist (at project root)
@@ -187,6 +210,16 @@ class GUILogger:
     
     def _should_log_category(self, category: str) -> bool:
         """Check if a message category should be logged at current level."""
+        # Use enhanced configuration if available
+        if _has_log_config:
+            try:
+                from .log_config import get_log_config
+                config = get_log_config()
+                return config.should_log_category(category)
+            except Exception:  # pragma: no cover
+                pass  # Fall back to original logic
+                
+        # Original logic as fallback
         if self.log_level == LogLevel.VERBOSE:
             # In verbose mode, log everything except when COMPACT format filters some noise
             return True
@@ -259,15 +292,17 @@ class GUILogger:
             else:
                 # Multiple trades - aggregate if compact format
                 if self.log_format == LogFormat.COMPACT:
-                    trade_summaries = []
+                    trade_summaries: list[str] = []
                     for trade in trades:
                         import re
-                        match = re.search(r'Agent_(\d+).*?Agent_(\d+)', trade)
+                        # Match both "Agent_001" and "A001" formats
+                        match = re.search(r'(?:Agent_|A)(\d+).*?(?:Agent_|A)(\d+)', trade)
                         if match:
                             agent1, agent2 = match.groups()
                             trade_summaries.append(f"{format_agent_id(int(agent1))}↔{format_agent_id(int(agent2))}")
                     if trade_summaries:
-                        aggregated = f"S{step} T: {', '.join(trade_summaries)}\n"
+                        timestamp_prefix = self._format_simulation_time(step)
+                        aggregated = f"{timestamp_prefix} S{step} T: {', '.join(trade_summaries)}\n"
                         self._write_to_file(aggregated)
                 else:
                     # Log each trade individually in non-compact format
@@ -393,13 +428,13 @@ class GUILogger:
                     bundled = f"{timestamp_prefix} {step_info} T: {format_agent_id(seller_id)}↔{format_agent_id(buyer_id)} {give_type}→{recv_type} {format_delta(float(combined_delta))}"
                     
                     # Add utility details if available
-                    utility_parts = []
+                    utility_parts: list[str] = []
                     if seller_id in agent_utilities:
-                        old, new, delta = agent_utilities[seller_id]
-                        utility_parts.append(f"{format_agent_id(seller_id)}:{old}→{new} Δ{delta}")
+                        old_val, new_val, delta_val = agent_utilities[seller_id]
+                        utility_parts.append(f"{format_agent_id(seller_id)}:{old_val}→{new_val} Δ{delta_val}")
                     if buyer_id in agent_utilities:
-                        old, new, delta = agent_utilities[buyer_id]
-                        utility_parts.append(f"{format_agent_id(buyer_id)}:{old}→{new} Δ{delta}")
+                        old_val, new_val, delta_val = agent_utilities[buyer_id]
+                        utility_parts.append(f"{format_agent_id(buyer_id)}:{old_val}→{new_val} Δ{delta_val}")
                     
                     if utility_parts:
                         bundled += f" | U {'; '.join(utility_parts)}"
@@ -612,6 +647,16 @@ class GUILogger:
     
     def should_log_performance(self, step: int, steps_per_sec: float) -> bool:
         """Check if performance should be logged based on step interval and rate changes."""
+        # Use enhanced configuration if available
+        if _has_log_config:
+            try:
+                from .log_config import get_log_config
+                config = get_log_config()
+                return config.should_log_performance(step, steps_per_sec, self._last_steps_per_sec)
+            except Exception:  # pragma: no cover
+                pass  # Fall back to original logic
+                
+        # Original logic as fallback
         if self.log_level == LogLevel.VERBOSE:
             return True  # Always log in verbose mode
         
@@ -702,8 +747,28 @@ def log_performance(message: str, step: Optional[int] = None) -> None:
 def log_trade_detail(agent1_id: int, resource1: str, agent2_id: int, resource2: str, utility_change: Optional[float] = None, step: Optional[int] = None) -> None:
     """Log formatted trade details with agent IDs and resources."""
     if os.environ.get("ECONSIM_DEBUG_TRADES") == "1":
-        utility_str = f" (utility: {format_delta(utility_change)})" if utility_change is not None else ""
-        message = f"Agent_{agent1_id:03d} gives {resource1} to Agent_{agent2_id:03d}; receives {resource2} in exchange{utility_str}"
+        utility_str = f" (Δ{utility_change:+.2f})" if utility_change is not None else ""
+        message = f"Trade: {format_agent_id(agent1_id)} gives {resource1} to {format_agent_id(agent2_id)}; receives {resource2}{utility_str}"
+        get_gui_logger().log("TRADE", message, step)
+
+
+def log_enhanced_trade(agent1_id: int, resource1: str, agent1_utility_gain: float,
+                      agent2_id: int, resource2: str, agent2_utility_gain: float, 
+                      step: Optional[int] = None) -> None:
+    """Log trade with educational explanations."""
+    if os.environ.get("ECONSIM_DEBUG_TRADES") == "1":
+        message = f"Trade: {format_agent_id(agent1_id)}↔{format_agent_id(agent2_id)} {resource1}→{resource2} (Δ{agent1_utility_gain:+.2f}, Δ{agent2_utility_gain:+.2f})"
+        
+        # Add educational explanation if enabled
+        if _has_educational_logging:
+            try:
+                from .log_utils import should_add_educational_context, explain_trade_decision
+                if should_add_educational_context():
+                    explanation = explain_trade_decision(agent1_utility_gain, agent2_utility_gain, resource1, resource2)
+                    message += f" - {explanation}"
+            except Exception:  # pragma: no cover
+                pass  # Fall back to basic message
+                
         get_gui_logger().log("TRADE", message, step)
 
 
@@ -738,12 +803,22 @@ def log_spatial(message: str, step: Optional[int] = None) -> None:
         get_gui_logger().log("SPATIAL", message, step)
 
 
-def log_utility_change(agent_id: int, old_utility: float, new_utility: float, reason: str = "", step: Optional[int] = None) -> None:
+def log_utility_change(agent_id: int, old_utility: float, new_utility: float, reason: str = "", step: Optional[int] = None, good_type: str = "") -> None:
     """Log agent utility changes from trades or other economic events."""
     if os.environ.get("ECONSIM_DEBUG_ECONOMICS") == "1":
         delta = new_utility - old_utility
         reason_str = f" ({reason})" if reason else ""
         message = f"Agent_{agent_id:03d} utility: {old_utility:.1f} → {new_utility:.1f} (Δ{format_delta(delta)}){reason_str}"
+        
+        # Add educational explanation if enabled
+        if _has_educational_logging:
+            try:
+                if should_add_educational_context():
+                    explanation = explain_utility_change(old_utility, new_utility, reason, good_type)
+                    message += f" - {explanation}"
+            except Exception:  # pragma: no cover
+                pass  # Fall back to basic message
+                
         get_gui_logger().log("UTILITY", message, step)
 
 
@@ -776,6 +851,53 @@ def log_comprehensive(message: str, step: Optional[int] = None) -> None:
             category = "SIMULATION"
             
         logger.log(category, message, step)
+
+
+def log_performance_analysis(fps: float, step_time: float, render_time: float, 
+                           agent_count: int, resource_count: int, 
+                           step: Optional[int] = None) -> None:
+    """Log comprehensive performance analysis with bottleneck identification."""
+    logger = get_gui_logger()
+    
+    if _has_enhanced_config:
+        try:
+            from .log_config import get_log_manager
+            config = get_log_manager().config
+            performance_logging = getattr(config, 'log_performance_details', False)
+            perf_thresholds = getattr(config, 'performance_thresholds', {})
+            fps_threshold = perf_thresholds.get('fps', 30.0) if perf_thresholds else 30.0
+            step_threshold = perf_thresholds.get('step_time', 0.02) if perf_thresholds else 0.02
+        except Exception:  # pragma: no cover
+            performance_logging = os.environ.get("ECONSIM_DEBUG_PERFORMANCE") == "1"
+            fps_threshold = 30.0
+            step_threshold = 0.02
+    else:
+        performance_logging = os.environ.get("ECONSIM_DEBUG_PERFORMANCE") == "1"
+        fps_threshold = 30.0
+        step_threshold = 0.02
+    
+    if performance_logging:
+        # Basic performance metrics
+        fps_warning = " ⚠️" if fps < fps_threshold else ""
+        step_warning = " ⚠️" if step_time > step_threshold else ""
+        
+        message = f"Performance Analysis: FPS={fps:.1f}{fps_warning}, Step={step_time*1000:.1f}ms{step_warning}, Render={render_time*1000:.1f}ms"
+        logger.log("PERF", message, step)
+        
+        # Entity counts
+        if agent_count > 100 or resource_count > 200:
+            entity_warning = " ⚠️"
+        else:
+            entity_warning = ""
+        message = f"Entity Counts: Agents={agent_count}, Resources={resource_count}{entity_warning}"
+        logger.log("PERF", message, step)
+        
+        # Bottleneck identification
+        render_ratio = render_time / step_time if step_time > 0 else 0
+        if render_ratio > 0.7:
+            logger.log("PERF", "Bottleneck: Rendering consuming >70% of frame time", step)
+        elif step_time - render_time > 0.01:
+            logger.log("PERF", "Bottleneck: Simulation logic taking significant time", step)
 
 
 def finalize_log_session() -> None:
