@@ -92,6 +92,12 @@ sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 - **Hash drift**: Silently adding fields to metrics without excluding from hash
 - **Pipeline violations**: Extra timers, blocking operations, surface recreation
 
+## Git Commit Guidelines
+When committing changes, keep messages concise and neutral in tone. They serve as changelog entries for future developer reference, not sales pitches. Focus on:
+- What was changed (technical implementation)
+- Why it was changed (problem solved)
+- Key impacts (performance, compatibility, functionality)
+
 ## Current Status & Roadmap
 **Completed**: Gate 6 integration (factory patterns, GUI defaults, overlay toggle)
 **Active**: Choose Gate 7 (trading primitives) OR console script packaging  
