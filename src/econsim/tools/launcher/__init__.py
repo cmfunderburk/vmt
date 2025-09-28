@@ -25,7 +25,7 @@ from .cards import build_card_models, TestCard, TestCardModel, CustomTestCardWid
 from .gallery import TestGallery  # noqa: F401
 from .tabs import LauncherTabs, AbstractTab, CustomTestsTab  # noqa: F401
 from .widgets import TestGalleryWidget  # noqa: F401
-from .app_window import LauncherWindow, create_launcher_window  # noqa: F401
+from .app_window import LauncherWindow, create_launcher_window, VMTLauncherWindow  # noqa: F401
 
 __all__ = [
     "PlatformStyler",
@@ -49,6 +49,7 @@ __all__ = [
     "TestGalleryWidget",
     "LauncherWindow",
     "create_launcher_window",
+    "VMTLauncherWindow",
 ]
 
 __version_placeholder__ = "0.1.0-dev-scaffold"

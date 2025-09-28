@@ -1,28 +1,440 @@
-"""Launcher Main Window Shell (Phase 3.4).
+"""Main Application Window for VMT Enhanced Test Launcher.
 
-Gate G14: Slim main window coordinating components with ≤30% LOC reduction vs original.
-Follows Breakdown Plan Phase 4: Streamlined main class focusing on composition and coordination.
+Provides the primary window coordination and application lifecycle management,
+extracted from the monolithic enhanced_test_launcher_v2.py in Step 2.6.
 
-This is the "VMTLauncher" referenced in Critical Review, but named LauncherWindow 
-for Part 2 compatibility. Architectural cleanup prioritized over naming.
+Legacy Phase 3.4 LauncherWindow preserved below for compatibility.
+VMTLauncherWindow is the Step 2.6 extraction target.
 """
 from __future__ import annotations
 
-from typing import List
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional
 
 try:
-    from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit
+    from PyQt6.QtWidgets import (
+        QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+        QCheckBox, QTextEdit, QTabWidget, QApplication, QMessageBox
+    )
     from PyQt6.QtCore import Qt
     from PyQt6.QtGui import QFont
-except Exception:  # pragma: no cover
-    QMainWindow = QWidget = QVBoxLayout = QHBoxLayout = QLabel = QTextEdit = object  # type: ignore
+except Exception:  # pragma: no cover - allows pure tests without Qt plugin
+    QMainWindow = QWidget = QVBoxLayout = QHBoxLayout = object  # type: ignore
+    QLabel = QPushButton = QCheckBox = QTextEdit = QTabWidget = object  # type: ignore
+    QApplication = QMessageBox = Qt = QFont = object  # type: ignore
 
+# Import extracted components with fallback handling
+try:
+    from .adapters import load_registry_from_monolith
+    from .comparison import ComparisonController
+    from .executor import TestExecutor
+    from .cards import TestCardWidget
+    from .tabs import TabManager, ConfigEditorTab, BatchRunnerTab, BookmarksTab, GalleryTab
+    from .widgets import TestGalleryWidget
+    from .style import PlatformStyler
+    _launcher_modules_available = True
+except Exception:  # pragma: no cover - fallback path
+    _launcher_modules_available = False
+
+# Legacy imports for Phase 3.4 compatibility
 from .registry import TestRegistry
-from .comparison import ComparisonController
-from .executor import TestExecutor
 from .cards import build_card_models
 from .gallery import TestGallery
 from .tabs import LauncherTabs
+
+
+class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application window
+    """Main window for the VMT Enhanced Test Launcher (Step 2.6 extraction).
+    
+    Coordinates tab management, test execution, comparison mode, and application lifecycle.
+    Replaces the monolithic EnhancedTestLauncher class with a more modular architecture.
+    """
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        # Core state
+        self.test_cards: Dict[str, TestCardWidget] = {}
+        self.comparison_selection: List[str] = []
+        self.tab_manager: Optional[TabManager] = None
+        self.gallery_widget: Optional[TestGalleryWidget] = None
+        self.status_area: Optional[QTextEdit] = None
+        
+        # Controllers and services
+        self._comparison_controller: Optional[ComparisonController] = None
+        self._registry = None
+        self._executor = None
+        
+        # Initialize the application
+        self._setup_window()
+        self._setup_ui()
+        self._populate_tests()
+        
+    def _setup_window(self) -> None:
+        """Configure the main window properties."""
+        self.setWindowTitle("VMT Enhanced Test Launcher")
+        self.setMinimumSize(1000, 700)
+        
+    def _setup_ui(self) -> None:
+        """Create the main UI layout and components."""
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        
+        # Header
+        self._create_header(layout)
+        
+        # Controls
+        self._create_controls(layout)
+        
+        # Main content area with tabs
+        self._create_main_content(layout)
+        
+        # Status bar
+        self.statusBar().showMessage("Ready to launch tests")
+        
+    def _create_header(self, layout: QVBoxLayout) -> None:
+        """Create the application header."""
+        header = QLabel("🧪 VMT Enhanced Test Launcher")
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        header.setStyleSheet("""
+            QLabel {
+                background-color: #f5f5f5;
+                padding: 12px;
+                border-radius: 6px;
+                color: #333;
+                margin-bottom: 10px;
+            }
+        """)
+        layout.addWidget(header)
+        
+    def _create_controls(self, layout: QVBoxLayout) -> None:
+        """Create the control buttons and toggles."""
+        controls_layout = QHBoxLayout()
+        
+        # Comparison mode toggle
+        self.comparison_toggle = QCheckBox("Comparison Mode")
+        self.comparison_toggle.toggled.connect(self.toggle_comparison_mode)
+        controls_layout.addWidget(self.comparison_toggle)
+        
+        # Clear comparison
+        self.clear_comparison_btn = QPushButton("Clear Selection") 
+        self.clear_comparison_btn.clicked.connect(self.clear_comparison)
+        self.clear_comparison_btn.setEnabled(False)
+        controls_layout.addWidget(self.clear_comparison_btn)
+        
+        # Launch comparison
+        self.launch_comparison_btn = QPushButton("🔍 Launch Selected")
+        self.launch_comparison_btn.clicked.connect(self.launch_comparison)
+        self.launch_comparison_btn.setEnabled(False)
+        controls_layout.addWidget(self.launch_comparison_btn)
+        
+        controls_layout.addStretch()
+        
+        # Refresh button
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.clicked.connect(self._populate_tests)
+        controls_layout.addWidget(refresh_btn)
+        
+        layout.addLayout(controls_layout)
+        
+    def _create_main_content(self, layout: QVBoxLayout) -> None:
+        """Create the main tabbed content area."""
+        if _launcher_modules_available:
+            self._create_modern_tabs(layout)
+        else:
+            self._create_fallback_content(layout)
+            
+    def _create_modern_tabs(self, layout: QVBoxLayout) -> None:
+        """Create modern tab-managed content using extracted components."""
+        # Create tab widget and manager
+        main_tabs = QTabWidget()
+        self.tab_manager = TabManager(main_tabs)
+        
+        # Register gallery tab
+        gallery_tab = GalleryTab()
+        self.tab_manager.register_tab(gallery_tab)
+        
+        # Get gallery widget for backward compatibility
+        self.gallery_widget = gallery_tab.get_gallery_widget() or gallery_tab
+        
+        # Set up status area reference for compatibility
+        if hasattr(self.gallery_widget, 'status_area'):
+            self.status_area = self.gallery_widget.status_area
+        else:
+            # Fallback status area
+            self.status_area = QTextEdit()
+            self.status_area.setReadOnly(True)
+            self.status_area.setMaximumHeight(100)
+            self.status_area.setStyleSheet("background-color: #f8f9fa;")
+        
+        # Register other tab components
+        config_tab = ConfigEditorTab()
+        self.tab_manager.register_tab(config_tab)
+        
+        batch_tab = BatchRunnerTab()
+        self.tab_manager.register_tab(batch_tab)
+        
+        bookmarks_tab = BookmarksTab()
+        self.tab_manager.register_tab(bookmarks_tab)
+        
+        # Wire up gallery signals
+        if hasattr(self.gallery_widget, 'testLaunchRequested'):
+            self.gallery_widget.testLaunchRequested.connect(self.launch_test)
+        if hasattr(self.gallery_widget, 'statusUpdate'):
+            self.gallery_widget.statusUpdate.connect(self._handle_gallery_status)
+            
+        layout.addWidget(main_tabs)
+        
+    def _create_fallback_content(self, layout: QVBoxLayout) -> None:
+        """Create fallback content when extracted modules aren't available."""
+        # Import fallback implementations
+        try:
+            from live_config_editor import LiveConfigEditor
+            from batch_test_runner import BatchTestRunner  
+            from test_bookmarks import TestBookmarkManager
+            
+            # Create basic tab widget
+            main_tabs = QTabWidget()
+            
+            # Create fallback gallery widget
+            self.gallery_widget = TestGalleryWidget()
+            main_tabs.addTab(self.gallery_widget, "🖼️ Test Gallery")
+            
+            # Add other tabs
+            config_editor = LiveConfigEditor()
+            main_tabs.addTab(config_editor, "⚙️ Configuration Editor")
+            
+            batch_runner = BatchTestRunner()
+            main_tabs.addTab(batch_runner, "🔄 Batch Runner")
+            
+            bookmark_manager = TestBookmarkManager()
+            main_tabs.addTab(bookmark_manager, "⭐ Bookmarks")
+            
+            layout.addWidget(main_tabs)
+            
+        except ImportError:
+            # Final fallback - just show a basic label
+            fallback_label = QLabel("Enhanced Test Launcher components not available")
+            fallback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(fallback_label)
+            
+        # Set up fallback status area
+        self.status_area = QTextEdit()
+        self.status_area.setReadOnly(True)
+        self.status_area.setMaximumHeight(100)
+        self.status_area.setStyleSheet("background-color: #f8f9fa;")
+        layout.addWidget(self.status_area)
+        
+    def _populate_tests(self) -> None:
+        """Populate the test gallery with available tests."""
+        if _launcher_modules_available and hasattr(self.gallery_widget, 'populate_tests'):
+            # Delegate to extracted gallery widget
+            if not hasattr(self, "_comparison_controller") or not self._comparison_controller:
+                self._comparison_controller = ComparisonController(max_selections=4)
+            self.gallery_widget.set_comparison_controller(self._comparison_controller)
+            self.gallery_widget.populate_tests()
+            
+            # Update backward compatibility references
+            if hasattr(self.gallery_widget, 'test_cards'):
+                self.test_cards = self.gallery_widget.test_cards
+            if hasattr(self.gallery_widget, 'get_comparison_selection'):
+                self.comparison_selection = self.gallery_widget.get_comparison_selection()
+            self._update_comparison_ui()
+        else:
+            # Fallback logic when extracted modules not available
+            self.test_cards.clear()
+            self.comparison_selection.clear()
+            self._update_comparison_ui()
+            
+    def _handle_gallery_status(self, message: str) -> None:
+        """Handle status updates from the gallery widget."""
+        if message == "COMPARISON_LIMIT":
+            QMessageBox.information(self, "Comparison Limit", 
+                                  "Maximum 4 tests can be compared simultaneously.")
+        elif message == "COMPARISON_CHANGED":
+            self._update_comparison_ui()
+        else:
+            # Regular status message
+            self.statusBar().showMessage(message)
+            
+    def launch_test(self, test_name: str, version: str) -> None:
+        """Launch a specific test version."""
+        if version == "original":
+            self._launch_original_test(test_name)
+        elif version == "framework":
+            self._launch_framework_test(test_name)
+        else:
+            self.log_status(f"Unknown test version: {version}")
+            
+    def _launch_original_test(self, test_name: str) -> None:
+        """Launch original version of a test."""
+        self._init_executor()
+        try:
+            # Use TestExecutor for deterministic command construction
+            result = self._executor.launch_single(test_name, "original")
+            
+            if result.success:
+                # Extract command details for logging
+                if result.details and "command" in result.details:
+                    cmd_parts = result.details["command"]
+                    if isinstance(cmd_parts, list) and len(cmd_parts) > 1:
+                        script_name = Path(cmd_parts[1]).name
+                        self.log_status(f"✓ Launched original {test_name} → {script_name}")
+                    else:
+                        self.log_status(f"✓ Launched original {test_name}")
+                else:
+                    self.log_status(f"✓ Launched original {test_name}")
+                    
+                self.statusBar().showMessage(f"Launched original {test_name}")
+            else:
+                error_msg = result.error or "Unknown launch error"
+                self.log_status(f"✗ Failed to launch original {test_name}: {error_msg}")
+                self.statusBar().showMessage(f"Failed to launch {test_name}")
+                
+        except Exception as e:
+            self.log_status(f"✗ Exception launching original {test_name}: {str(e)}")
+            print(f"Launch error: {e}")
+            
+    def _launch_framework_test(self, test_name: str) -> None:
+        """Launch framework version of a test."""
+        self._init_executor() 
+        try:
+            # Use TestExecutor for deterministic command construction
+            result = self._executor.launch_single(test_name, "framework")
+            
+            if result.success:         
+                # Extract command details for logging
+                if result.details and "command" in result.details:
+                    cmd_parts = result.details["command"]
+                    if isinstance(cmd_parts, list) and len(cmd_parts) > 1:
+                        script_name = Path(cmd_parts[1]).name
+                        self.log_status(f"✓ Launched framework {test_name} → {script_name}")
+                    else:
+                        self.log_status(f"✓ Launched framework {test_name}")
+                else:
+                    self.log_status(f"✓ Launched framework {test_name}")
+                    
+                self.statusBar().showMessage(f"Launched framework {test_name}")
+            else:
+                error_msg = result.error or "Unknown launch error"
+                self.log_status(f"✗ Failed to launch framework {test_name}: {error_msg}")
+                self.statusBar().showMessage(f"Failed to launch {test_name}")
+                
+        except Exception as e:
+            self.log_status(f"✗ Exception launching framework {test_name}: {str(e)}")
+            print(f"Launch error: {e}")
+            
+    def add_to_comparison(self, test_name: str) -> None:
+        """Add test to comparison selection."""
+        if _launcher_modules_available and self._comparison_controller:
+            # Delegate to comparison controller
+            if self._comparison_controller.can_add():
+                self._comparison_controller.add(test_name)
+                self._update_comparison_ui()
+            else:
+                QMessageBox.information(self, "Comparison Full", 
+                                      "Maximum 4 tests can be compared simultaneously.")
+        else:
+            # Fallback logic
+            if test_name not in self.comparison_selection and len(self.comparison_selection) < 4:
+                self.comparison_selection.append(test_name)
+                self._update_comparison_ui()
+                
+    def toggle_comparison_mode(self, enabled: bool) -> None:
+        """Toggle comparison mode on/off."""
+        # Update UI state based on comparison mode
+        for card in self.test_cards.values():
+            if hasattr(card, 'set_comparison_mode'):
+                card.set_comparison_mode(enabled)
+        self._update_comparison_ui()
+        
+    def clear_comparison(self) -> None:
+        """Clear comparison selection."""
+        if _launcher_modules_available and self._comparison_controller:
+            self._comparison_controller.clear()
+        else:
+            self.comparison_selection.clear()
+            
+        # Update card visual states
+        for card in self.test_cards.values():
+            if hasattr(card, 'set_selected'):
+                card.set_selected(False)
+                
+        self._update_comparison_ui()
+        
+    def launch_comparison(self) -> None:
+        """Launch comparison of selected tests."""
+        if _launcher_modules_available and self._comparison_controller:
+            selection = self._comparison_controller.selected()
+        else:
+            selection = self.comparison_selection
+            
+        if len(selection) < 2:
+            QMessageBox.warning(self, "Insufficient Selection", 
+                              "Please select at least 2 tests for comparison.")
+            return
+            
+        self._init_executor()
+        try:
+            # Use TestExecutor for comparison launch
+            result = self._executor.launch_comparison(selection)
+            
+            if result.success:
+                labels = [f"{name}({vers})" for name, vers in zip(selection, ["original", "framework"] * len(selection))]
+                self.log_status(f"✓ Launched comparison: {', '.join(labels)}")
+                self.statusBar().showMessage(f"Launched {len(labels)} tests for comparison")
+            else:
+                error_msg = result.error or "Unknown comparison launch error"
+                self.log_status(f"✗ Failed to launch comparison: {error_msg}")
+                self.statusBar().showMessage(f"Launched {len(selection)} tests for comparison")
+                
+        except Exception as e:
+            self.log_status(f"✗ Exception in comparison launch: {str(e)}")
+            self.statusBar().showMessage(f"Failed to launch comparison")
+            
+    def _update_comparison_ui(self) -> None:
+        """Update comparison mode UI elements."""
+        # Sync with comparison controller if available
+        if _launcher_modules_available and self._comparison_controller:
+            self.comparison_selection = self._comparison_controller.selected()
+            
+        count = len(self.comparison_selection)
+        self.clear_comparison_btn.setEnabled(count > 0)
+        self.launch_comparison_btn.setEnabled(count >= 2)
+        
+        if count > 0:
+            self.statusBar().showMessage(
+                f"Selected {count} tests for comparison: {', '.join(self.comparison_selection)}")
+        else:
+            self.statusBar().showMessage("Ready to launch tests")
+            
+    def _init_executor(self) -> None:
+        """Initialize the test executor if needed."""
+        if not _launcher_modules_available:
+            return
+            
+        if not hasattr(self, "_registry") or not self._registry:
+            self._registry = load_registry_from_monolith()
+        if not hasattr(self, "_executor") or not self._executor:
+            # Pass the current file path to maintain command shape consistency
+            launcher_script = Path(__file__).parent.parent.parent.parent / "MANUAL_TESTS" / "enhanced_test_launcher_v2.py"
+            self._executor = TestExecutor(self._registry, launcher_script=launcher_script)
+            
+    def log_status(self, message: str) -> None:
+        """Add message to status area."""
+        if self.status_area:
+            self.status_area.append(f"• {message}")
+            
+            # Keep status area from growing too large
+            if hasattr(self.status_area, 'document') and self.status_area.document().lineCount() > 20:
+                cursor = self.status_area.textCursor()
+                cursor.movePosition(cursor.MoveOperation.Start)
+                cursor.select(cursor.SelectionType.LineUnderCursor)
+                cursor.removeSelectedText()
+                cursor.deletePreviousChar()  # Remove the newline
 
 
 class LauncherWindow(QMainWindow):  # type: ignore[misc] # pragma: no cover - GUI component
