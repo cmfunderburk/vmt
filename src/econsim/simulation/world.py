@@ -36,7 +36,12 @@ from .agent import Agent, AgentMode
 from .grid import Grid
 from .respawn import RespawnScheduler  # type: ignore
 from .metrics import MetricsCollector  # type: ignore
-from .trade import enumerate_intents_for_cell, TradeIntent, execute_single_intent  # type: ignore
+from .trade import (  # type: ignore
+    enumerate_intents_for_cell,
+    TradeEnumerationStats,
+    TradeIntent,
+    execute_single_intent,
+)
 import os
 
 
@@ -177,6 +182,7 @@ class Simulation:
         # Draft trade intent enumeration (feature flag; no state mutation)
         if draft_enabled or exec_enabled:  # enumeration only when a trade feature flag is active
             intents: List[TradeIntent] = []
+            funnel_stats = TradeEnumerationStats()
             # Build co-location index (O(n))
             cell_map: Dict[Tuple[int, int], List[Agent]] = {}
             for a in self.agents:
@@ -188,37 +194,10 @@ class Simulation:
                     if use_decision and forage_enabled and len(foraged_ids) > 0:
                         filtered = [ag for ag in coloc_agents if ag.id not in foraged_ids]
                         if len(filtered) > 1:
-                            intents.extend(enumerate_intents_for_cell(filtered))
+                            intents.extend(enumerate_intents_for_cell(filtered, funnel_stats))
                     else:
-                        intents.extend(enumerate_intents_for_cell(coloc_agents))
+                        intents.extend(enumerate_intents_for_cell(coloc_agents, funnel_stats))
             self.trade_intents = intents
-            
-            # Emit trade intent funnel instrumentation
-            if intents:  # Only log when there are intents to analyze
-                try:
-                    from ..gui.debug_logger import get_gui_logger
-                    logger = get_gui_logger()
-                    
-                    drafted_count = len(intents)
-                    max_delta = max((intent.delta_utility for intent in intents), default=0.0)
-                    
-                    # For now, we'll track basic metrics. Future enhancement: 
-                    # modify enumerate_intents_for_cell to return pruning counts
-                    pruned_micro = 0  # TODO: Need to modify enumeration to track this
-                    pruned_nonpositive = 0  # TODO: Need to modify enumeration to track this
-                    executed_count = 1 if exec_enabled else 0  # Will be updated after execution
-                    
-                    builder_result = logger.build_trade_intent_funnel(
-                        drafted=drafted_count,
-                        pruned_micro=pruned_micro,
-                        pruned_nonpositive=pruned_nonpositive,
-                        executed=executed_count,
-                        max_delta_u=max_delta
-                    )
-                    logger.emit_built_event(step_num, builder_result)
-                except Exception:
-                    pass  # Don't break simulation if logging fails
-            
             executed: TradeIntent | None = None
             if exec_enabled and intents:
                 # Optional hash parity mode: if ECONSIM_TRADE_HASH_NEUTRAL=1 we restore inventories after metrics.
@@ -256,6 +235,23 @@ class Simulation:
                         print("[PARITY_EXEC_SNAP]" + _json.dumps(snap))
                     except Exception:
                         pass
+            # Emit trade intent funnel instrumentation after possible execution
+            if funnel_stats.drafted > 0:
+                try:
+                    from ..gui.debug_logger import get_gui_logger
+                    logger = get_gui_logger()
+
+                    executed_count = 1 if executed is not None else 0
+                    builder_result = logger.build_trade_intent_funnel(
+                        drafted=funnel_stats.drafted,
+                        pruned_micro=funnel_stats.pruned_micro,
+                        pruned_nonpositive=funnel_stats.pruned_nonpositive,
+                        executed=executed_count,
+                        max_delta_u=funnel_stats.max_delta_u,
+                    )
+                    logger.emit_built_event(step_num, builder_result)
+                except Exception:
+                    pass  # Don't break simulation if logging fails
             if self.metrics_collector is not None:
                 try:
                     mc = self.metrics_collector  # type: ignore[attr-defined]

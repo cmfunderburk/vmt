@@ -161,7 +161,18 @@ class TradeIntent:
         )
 
 
-def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
+@dataclass(slots=True)
+class TradeEnumerationStats:
+    drafted: int = 0
+    pruned_micro: int = 0
+    pruned_nonpositive: int = 0
+    kept: int = 0
+    max_delta_u: float = 0.0
+
+
+def enumerate_intents_for_cell(
+    agents: List[Agent], stats: Optional[TradeEnumerationStats] = None
+) -> List[TradeIntent]:
     """Generate trade intents among co-located agents.
 
     Phase 3 rule (marginal utility test): For each unordered pair (i,j) compute marginal utility
@@ -199,6 +210,8 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and mui.get("good2", 0.0) > mui.get("good1", 0.0)
                 and muj.get("good1", 0.0) > muj.get("good2", 0.0)
             ):
+                if stats is not None:
+                    stats.drafted += 1
                 # Compute exact combined utility delta
                 delta_u: float = _compute_exact_utility_delta(ai, aj, "good1", "good2")
                 # Keep micro / zero delta intents when only drafting (exec flag off) so tests relying
@@ -208,25 +221,36 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 if exec_on and os.environ.get("ECONSIM_FORCE_MICRO_DELTA_EMIT") == "1":
                     # Force emission even if delta >= threshold (test hook)
                     _emit_micro_delta_once(delta_u)
+                if stats is not None and delta_u > stats.max_delta_u:
+                    stats.max_delta_u = delta_u
                 threshold = _effective_min_trade_delta()
+                if delta_u <= 0.0 and exec_on:
+                    if stats is not None:
+                        stats.pruned_nonpositive += 1
+                    _emit_micro_delta_once(delta_u)
+                    continue
                 if delta_u < threshold and exec_on:
                     _emit_micro_delta_once(delta_u)
-                if delta_u >= threshold or not exec_on:
-                    if use_delta_priority:
-                        priority: PriorityKey = (-delta_u, ai.id, aj.id, "good1", "good2")
-                    else:
-                        priority = (0.0, ai.id, aj.id, "good1", "good2")
-                    out.append(
-                        TradeIntent(
-                            seller_id=ai.id,
-                            buyer_id=aj.id,
-                            give_type="good1",
-                            take_type="good2",
-                            quantity=1,
-                            priority=priority,
-                            delta_utility=delta_u,
-                        )
+                    if stats is not None and delta_u > 0.0:
+                        stats.pruned_micro += 1
+                    continue
+                if use_delta_priority:
+                    priority: PriorityKey = (-delta_u, ai.id, aj.id, "good1", "good2")
+                else:
+                    priority = (0.0, ai.id, aj.id, "good1", "good2")
+                out.append(
+                    TradeIntent(
+                        seller_id=ai.id,
+                        buyer_id=aj.id,
+                        give_type="good1",
+                        take_type="good2",
+                        quantity=1,
+                        priority=priority,
+                        delta_utility=delta_u,
                     )
+                )
+                if stats is not None:
+                    stats.kept += 1
             # Opposite direction: ai gives good2, aj gives good1
             if (
                 ai.carrying.get("good2", 0) > 0
@@ -234,35 +258,48 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and mui.get("good1", 0.0) > mui.get("good2", 0.0)
                 and muj.get("good2", 0.0) > muj.get("good1", 0.0)
             ):
+                if stats is not None:
+                    stats.drafted += 1
                 delta_u = _compute_exact_utility_delta(ai, aj, "good2", "good1")
                 exec_on = os.environ.get("ECONSIM_TRADE_EXEC") == "1"
                 if exec_on and os.environ.get("ECONSIM_FORCE_MICRO_DELTA_EMIT") == "1":
                     _emit_micro_delta_once(delta_u)
+                if stats is not None and delta_u > stats.max_delta_u:
+                    stats.max_delta_u = delta_u
                 threshold = _effective_min_trade_delta()
+                if delta_u <= 0.0 and exec_on:
+                    if stats is not None:
+                        stats.pruned_nonpositive += 1
+                    _emit_micro_delta_once(delta_u)
+                    continue
                 if delta_u < threshold and exec_on:
                     _emit_micro_delta_once(delta_u)
-                if delta_u >= threshold or not exec_on:
-                    if use_delta_priority:
-                        priority: PriorityKey = (-delta_u, ai.id, aj.id, "good2", "good1")
-                    else:
-                        priority = (0.0, ai.id, aj.id, "good2", "good1")
-                    out.append(
-                        TradeIntent(
-                            seller_id=ai.id,
-                            buyer_id=aj.id,
-                            give_type="good2",
-                            take_type="good1",
-                            quantity=1,
-                            priority=priority,
-                            delta_utility=delta_u,
-                        )
+                    if stats is not None and delta_u > 0.0:
+                        stats.pruned_micro += 1
+                    continue
+                if use_delta_priority:
+                    priority: PriorityKey = (-delta_u, ai.id, aj.id, "good2", "good1")
+                else:
+                    priority = (0.0, ai.id, aj.id, "good2", "good1")
+                out.append(
+                    TradeIntent(
+                        seller_id=ai.id,
+                        buyer_id=aj.id,
+                        give_type="good2",
+                        take_type="good1",
+                        quantity=1,
+                        priority=priority,
+                        delta_utility=delta_u,
                     )
+                )
+                if stats is not None:
+                    stats.kept += 1
     # Deterministic ordering (sort by priority tuple)
     out.sort(key=lambda t: t.priority)
     return out
 
 
-__all__ = ["TradeIntent", "enumerate_intents_for_cell"]
+__all__ = ["TradeIntent", "TradeEnumerationStats", "enumerate_intents_for_cell"]
 
 
 def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Agent], step: Optional[int] = None) -> Optional[TradeIntent]:
