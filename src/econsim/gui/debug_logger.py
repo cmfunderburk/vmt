@@ -17,44 +17,49 @@ Logging Levels:
 """
 
 import os
+import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Dict
 import threading
 from enum import Enum
 
-# Import enhanced configuration system
-try:
-    from .log_config import LogConfig, LogLevel, LogFormat, get_log_config
+# Import enhanced configuration system (safely)
+try:  # type: ignore
+    from .log_config import LogLevel, LogFormat, get_log_config  # type: ignore  # noqa: F401
+    _get_log_config_ref = get_log_config  # touch to avoid unused import warnings
     _has_log_config = True
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     _has_log_config = False
-    # Fallback enum definitions when config module unavailable
-    class LogLevel(Enum):
+    class LogLevel(Enum):  # fallback
         CRITICAL = "CRITICAL"
-        EVENTS = "EVENTS" 
+        EVENTS = "EVENTS"
         PERIODIC = "PERIODIC"
         VERBOSE = "VERBOSE"
-
-    class LogFormat(Enum):
+    class LogFormat(Enum):  # fallback
         COMPACT = "COMPACT"
         STRUCTURED = "STRUCTURED"
 
 # Import educational context functions
-try:
+try:  # type: ignore
     from .log_utils import (
-        explain_utility_change, explain_trade_decision, explain_agent_mode,
-        explain_decision_logic, get_economic_context, 
-        should_add_educational_context, should_explain_decisions
+        explain_utility_change,
+        should_add_educational_context,
     )
     _has_educational_logging = True
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     _has_educational_logging = False
+    # Provide no-op fallbacks to satisfy type checkers (match real signatures)
+    def explain_utility_change(old_utility: float, new_utility: float, reason: str = "", good_type: str = "") -> str:  # type: ignore
+        return ""
+    def should_add_educational_context() -> bool:  # type: ignore
+        return False
 
-try:
-    from .log_config import get_log_manager
+try:  # type: ignore
+    from .log_config import get_log_manager as _get_log_manager  # noqa: F401
+    _ = _get_log_manager  # touch to avoid unused import warnings
     _has_enhanced_config = True
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     _has_enhanced_config = False
 
 
@@ -192,18 +197,35 @@ class GUILogger:
         now = datetime.now()
         self._simulation_start_time = now
         
-        # Generate timestamped filename
+        # Generate timestamped filenames
         timestamp = now.strftime("%Y-%m-%d %H-%M-%S")
         self.log_filename = f"{timestamp} GUI.log"
         self.log_path = self.logs_dir / self.log_filename
-        
-        # Write log file header
+        # Structured JSONL side-channel
+        structured_dir = self.logs_dir / "structured"
+        structured_dir.mkdir(parents=True, exist_ok=True)
+        self.structured_log_path = structured_dir / f"{timestamp} GUI.jsonl"  # type: ignore[attr-defined]
+
+        # Write human-readable header
         with open(self.log_path, 'w', encoding='utf-8') as f:
-            f.write(f"VMT EconSim GUI Debug Log\n")
+            f.write("VMT EconSim GUI Debug Log\n")
             f.write(f"Session started: {now.strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Log Level: {self.log_level.value} | Format: {self.log_format.value}\n")
             f.write("=" * 50 + "\n\n")
-        
+
+        # Write structured metadata record (first JSON line)
+        try:
+            meta: Dict[str, Any] = {
+                "schema": 1,
+                "session_started": now.isoformat(timespec='seconds'),
+                "log_level": self.log_level.value,
+                "selected_format": self.log_format.value,
+            }
+            with open(self.structured_log_path, 'w', encoding='utf-8') as sf:  # type: ignore[attr-defined]
+                sf.write(json.dumps(meta, separators=(",", ":")) + "\n")
+        except Exception:
+            pass
+
         self._log_initialized = True
     
     def _write_header(self) -> None:
@@ -282,22 +304,29 @@ class GUILogger:
             self._last_transition_flush_time = datetime.now()
     
     def _flush_trade_buffer(self) -> None:
-        """Flush buffered trades, potentially aggregating them."""
+        """Flush buffered trades.
+
+        Compact log may aggregate; structured log always receives per-trade records.
+        """
         if not self._trade_buffer:
             return
-            
+
         for step, trades in self._trade_buffer.items():
-            if len(trades) == 1:
-                # Single trade - log normally
-                formatted = self._format_message("TRADE", trades[0], step)
-                self._write_to_file(formatted)
-            else:
-                # Multiple trades - aggregate if compact format
-                if self.log_format == LogFormat.COMPACT:
+            # Always emit structured records (per trade)
+            for trade in trades:
+                payload = self._parse_trade(trade)
+                structured = self._emit_structured("TRADE", step, payload)
+                self._write_structured_line(structured)
+
+            # Human-readable compact aggregation (only if compact selected)
+            if self.log_format == LogFormat.COMPACT:
+                if len(trades) == 1:
+                    formatted = self._format_message("TRADE", trades[0], step)
+                    self._write_to_file(formatted)
+                else:
                     trade_summaries: list[str] = []
                     for trade in trades:
                         import re
-                        # Match both "Agent_001" and "A001" formats
                         match = re.search(r'(?:Agent_|A)(\d+).*?(?:Agent_|A)(\d+)', trade)
                         if match:
                             agent1, agent2 = match.groups()
@@ -306,38 +335,57 @@ class GUILogger:
                         timestamp_prefix = self._format_simulation_time(step)
                         aggregated = f"{timestamp_prefix} S{step} T: {', '.join(trade_summaries)}\n"
                         self._write_to_file(aggregated)
-                else:
-                    # Log each trade individually in non-compact format
-                    for trade in trades:
-                        formatted = self._format_message("TRADE", trade, step)
-                        self._write_to_file(formatted)
-        
+
         self._trade_buffer.clear()
 
     def _flush_transition_buffer(self) -> None:
-        """Flush buffered agent transitions, batching similar ones."""
+        """Flush buffered agent transitions, batching similar ones for compact output.
+
+        Structured log always receives individual or batch records irrespective of compact formatting.
+        """
         if not self._agent_transition_buffer:
             return
-            
+
         for step, transitions in self._agent_transition_buffer.items():
-            # Group transitions by (old_mode -> new_mode) pattern, but keep context for individuals
-            transition_groups: dict[tuple[str, str], list[tuple[str, str]]] = {}  # (old, new) -> [(agent_id, context)]
+            transition_groups: dict[tuple[str, str], list[tuple[str, str]]] = {}
             for agent_id, old_mode, new_mode, context in transitions:
                 key = (old_mode, new_mode)
-                if key not in transition_groups:
-                    transition_groups[key] = []
-                transition_groups[key].append((agent_id, context))
-            
-            # Log each group
+                transition_groups.setdefault(key, []).append((agent_id, context))
+
             timestamp_prefix = self._format_simulation_time(step)
-            step_info = f"S{step}" if step is not None else ""
-            
+            # step from buffer keys is always an int (may be -1 sentinel)
+            step_info = f"S{step}" if step >= 0 else ""
+
             for (old_mode, new_mode), agent_context_pairs in transition_groups.items():
+                # Structured emission
                 if len(agent_context_pairs) == 1:
-                    # Single transition - log with full context including reason
                     agent_id, context = agent_context_pairs[0]
-                    if self.log_format == LogFormat.COMPACT:
-                        # Parse context to extract reason, carrying, and target info
+                    payload: Dict[str, Any] = {
+                        "event": "mode_transition",
+                        "agent": int(agent_id[1:]),
+                        "old_mode": old_mode,
+                        "new_mode": new_mode,
+                    }
+                    if context:
+                        payload["context"] = context
+                    structured = self._emit_structured("MODE", step, payload)
+                    self._write_structured_line(structured)
+                else:
+                    agent_ids = [int(a[1:]) for a, _ in agent_context_pairs]
+                    payload = {
+                        "event": "mode_batch",
+                        "old_mode": old_mode,
+                        "new_mode": new_mode,
+                        "agents": agent_ids,
+                        "count": len(agent_ids),
+                    }
+                    structured = self._emit_structured("MODE_BATCH", step, payload)
+                    self._write_structured_line(structured)
+
+                # Compact human-readable output
+                if self.log_format == LogFormat.COMPACT:
+                    if len(agent_context_pairs) == 1:
+                        agent_id, context = agent_context_pairs[0]
                         import re
                         reason_match = re.search(r'^\s*(\([^)]+\))', context) if context else None
                         reason_str = f" {reason_match.group(1)}" if reason_match else ""
@@ -346,27 +394,16 @@ class GUILogger:
                         carry_str = f" c{carry_match.group(1)}" if carry_match else ""
                         target_str = f" @({target_match.group(1)},{target_match.group(2)})" if target_match else ""
                         formatted = f"{timestamp_prefix} {agent_id}: {old_mode}→{new_mode}{reason_str}{carry_str}{target_str}\n"
+                        self._write_to_file(formatted)
                     else:
-                        # STRUCTURED format for non-compact modes
-                        formatted = f"MODE|S{step}|Agent {agent_id} mode: {old_mode} -> {new_mode} {context}\n"
-                    self._write_to_file(formatted)
-                else:
-                    # Multiple similar transitions - batch them with structured format
-                    agent_ids = [agent_id for agent_id, _ in agent_context_pairs]
-                    if self.log_format == LogFormat.COMPACT:
-                        if len(agent_ids) <= 5:
-                            # Small groups: include agent IDs in structured format
-                            agents_list = ",".join(agent_ids)
-                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids)} agents {old_mode}→{new_mode} ids=[{agents_list}]\n"
+                        agent_ids_compact = [agent_id for agent_id, _ in agent_context_pairs]
+                        if len(agent_ids_compact) <= 5:
+                            agents_list = ",".join(agent_ids_compact)
+                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids_compact)} agents {old_mode}→{new_mode} ids=[{agents_list}]\n"
                         else:
-                            # Large groups: show count only
-                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids)} agents {old_mode}→{new_mode}\n"
-                    else:
-                        # STRUCTURED format for non-compact modes
-                        formatted = f"MODE_BATCH|S{step}|{len(agent_ids)} agents {old_mode} -> {new_mode}\n"
-                    self._write_to_file(formatted)
-        
-        # Clear buffers and reset deduplication (allow new cycles)
+                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids_compact)} agents {old_mode}→{new_mode}\n"
+                        self._write_to_file(formatted)
+
         self._agent_transition_buffer.clear()
         self._transition_dedupe.clear()
     
@@ -406,7 +443,8 @@ class GUILogger:
             utilities = data["utilities"]
             
             # Create a mapping of agent utilities for this step
-            agent_utilities = {}  # agent_id -> (old_util, new_util, delta)
+            from typing import Tuple
+            agent_utilities: dict[int, Tuple[str, str, str]] = {}  # agent_id -> (old_util, new_util, delta)
             for utility_msg in utilities:
                 import re
                 match = re.search(r'Agent_(\d+) utility: ([0-9.]+) → ([0-9.]+) \(Δ([+-][0-9.]+)\)', utility_msg)
@@ -424,7 +462,7 @@ class GUILogger:
                     
                     # Build bundled message
                     timestamp_prefix = self._format_simulation_time(step)
-                    step_info = f"S{step}" if step is not None and step >= 0 else ""
+                    step_info = f"S{step}" if step >= 0 else ""
                     
                     # Base trade info
                     bundled = f"{timestamp_prefix} {step_info} T: {format_agent_id(seller_id)}↔{format_agent_id(buyer_id)} {give_type}→{recv_type} {format_delta(float(combined_delta))}"
@@ -432,17 +470,29 @@ class GUILogger:
                     # Add utility details if available
                     utility_parts: list[str] = []
                     if seller_id in agent_utilities:
-                        old_val, new_val, delta_val = agent_utilities[seller_id]
-                        utility_parts.append(f"{format_agent_id(seller_id)}:{old_val}→{new_val} Δ{delta_val}")
+                        old_tuple = agent_utilities[seller_id]
+                        old_val_str, new_val_str, delta_val_str = old_tuple[0], old_tuple[1], old_tuple[2]
+                        utility_parts.append(f"{format_agent_id(seller_id)}:{old_val_str}→{new_val_str} Δ{delta_val_str}")
                     if buyer_id in agent_utilities:
-                        old_val, new_val, delta_val = agent_utilities[buyer_id]
-                        utility_parts.append(f"{format_agent_id(buyer_id)}:{old_val}→{new_val} Δ{delta_val}")
+                        buyer_tuple = agent_utilities[buyer_id]
+                        old_val_str, new_val_str, delta_val_str = buyer_tuple[0], buyer_tuple[1], buyer_tuple[2]
+                        utility_parts.append(f"{format_agent_id(buyer_id)}:{old_val_str}→{new_val_str} Δ{delta_val_str}")
                     
                     if utility_parts:
                         bundled += f" | U {'; '.join(utility_parts)}"
                     
                     bundled += "\n"
                     self._write_to_file(bundled)
+
+            # Structured emits underlying individual events regardless of bundling choice
+            for utility_msg in utilities:
+                payload_u = self._parse_utility(utility_msg)
+                structured_u = self._emit_structured("UTILITY", step, payload_u)
+                self._write_structured_line(structured_u)
+            for trade_msg in trades:
+                payload_t = self._parse_trade(trade_msg)
+                structured_t = self._emit_structured("TRADE", step, payload_t)
+                self._write_structured_line(structured_t)
         
         self._trade_bundle_buffer.clear()
     
@@ -460,6 +510,40 @@ class GUILogger:
                     f.flush()
             except Exception:
                 pass
+
+    def _write_structured_line(self, structured_line: str) -> None:
+        """Write a structured JSONL line to the structured side-channel file."""
+        if not self._log_initialized:
+            self._initialize_log_file()
+        with self._lock:
+            try:
+                with open(self.structured_log_path, 'a', encoding='utf-8') as sf:  # type: ignore[attr-defined]
+                    sf.write(structured_line)
+                    sf.flush()
+            except Exception:
+                pass
+
+    def _build_structured_payload(self, category: str, message: str) -> Dict[str, Any]:
+        """Build structured payload for a message without writing.
+
+        Reuses the same parsing branches used for STRUCTURED format, allowing
+        dual emission when COMPACT is selected.
+        """
+        if category in ("MODE", "AGENT_MODE"):
+            return self._parse_mode_transition(message)
+        if category == "UTILITY":
+            return self._parse_utility(message)
+        if category == "TRADE":
+            return self._parse_trade(message)
+        if category in ("SIMULATION", "PERIODIC_SIM"):
+            if "steps/sec | Frame" in message:
+                return self._parse_periodic_summary(message)
+            return {"event": "simulation", "raw": message}
+        if category == "PHASE":
+            return self._parse_phase(message)
+        if category in ("PERF", "PERIODIC_PERF"):
+            return self._parse_perf(message)
+        return {"event": category.lower(), "raw": message}
     
     def _format_simulation_time(self, step: Optional[int] = None) -> str:
         """Format elapsed wall clock time since simulation start.
@@ -477,6 +561,155 @@ class GUILogger:
         # Always use wall clock time elapsed since simulation start
         elapsed_seconds = (datetime.now() - self._simulation_start_time).total_seconds()
         return f"+{elapsed_seconds:.1f}s"
+
+    def _relative_seconds(self) -> float:
+        """Return elapsed wall clock time (float seconds) since simulation start."""
+        if self._simulation_start_time is None:
+            return 0.0
+        return (datetime.now() - self._simulation_start_time).total_seconds()
+
+    # ---------------- Structured Logging Helpers -----------------
+    def _emit_structured(self, category: str, step: Optional[int], payload: Dict[str, Any]) -> str:
+        """Build a structured JSON line for a logging event.
+
+        All structured lines share a minimal envelope:
+            ts_rel: float seconds since session start
+            category: original category token
+            step: simulation step (may be null)
+            event: semantic event type (payload should include or we infer)
+        """
+        data: Dict[str, Any] = {
+            "ts_rel": round(self._relative_seconds(), 3),
+            "category": category,
+            "step": step,
+        }
+        # Ensure deterministic key ordering for readability (Python 3.7+ preserves insertion)
+        # Merge payload after envelope so payload can override (event, etc.)
+        data.update(payload)
+        return json.dumps(data, separators=(",", ":")) + "\n"
+
+    def _parse_mode_transition(self, message: str) -> Dict[str, Any]:
+        import re
+        # Support both formats used internally
+        m1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)(.*)$', message)
+        m2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)(.*)$', message)
+        result: Dict[str, Any] = {"event": "mode_transition", "raw": message}
+        match = m1 or m2
+        if match:
+            agent_id, old_mode, new_mode, context = match.groups()
+            result.update({
+                "agent": int(agent_id),
+                "old_mode": old_mode,
+                "new_mode": new_mode,
+            })
+            if context:
+                # Extract reason/carry/target if present
+                reason_match = re.search(r'\(([^)]+)\)', context)
+                if reason_match:
+                    result["reason"] = reason_match.group(1)
+                carry_match = re.search(r'carrying: (\d+)', context)
+                if carry_match:
+                    result["carrying"] = int(carry_match.group(1))
+                target_match = re.search(r'target: \((\d+), (\d+)\)', context)
+                if target_match:
+                    result["target"] = {"x": int(target_match.group(1)), "y": int(target_match.group(2))}
+        return result
+
+    def _parse_utility(self, message: str) -> Dict[str, Any]:
+        import re
+        # Pattern: Agent_005 utility: 4.2 → 4.8 (Δ+0.600) (reason?) - explanation
+        m = re.search(r'Agent_(\d+) utility: ([0-9.]+) → ([0-9.]+) \(Δ([+\-][0-9.]+)\)(.*)', message)
+        data: Dict[str, Any] = {"event": "utility_change", "raw": message}
+        if m:
+            agent_id, old_u, new_u, delta, tail = m.groups()
+            data.update({
+                "agent": int(agent_id),
+                "old": float(old_u),
+                "new": float(new_u),
+                "delta": float(delta),
+            })
+            # Reason detection before optional explanation dash
+            reason_match = None
+            if tail:
+                reason_match = re.search(r'\(([^(]*?)\)', tail)
+            if reason_match:
+                data["reason"] = reason_match.group(1).strip()
+        return data
+
+    def _parse_trade(self, message: str) -> Dict[str, Any]:
+        import re
+        data: Dict[str, Any] = {"event": "trade", "raw": message}
+        # New style: Trade: A001↔A009 bread→fish (Δ+0.10, Δ+0.08)
+        m_new = re.search(r'Trade: A(\d+)↔A(\d+) (\w+)→(\w+) \(Δ([+\-][0-9.]+), Δ([+\-][0-9.]+)\)', message)
+        if m_new:
+            a1, a2, give, receive, d1, d2 = m_new.groups()
+            data.update({
+                "agent1": int(a1),
+                "agent2": int(a2),
+                "give": give,
+                "receive": receive,
+                "delta_agent1": float(d1),
+                "delta_agent2": float(d2)
+            })
+            return data
+        # Older style: Agent_001 gives bread to Agent_009; receives fish ... utility: +0.123
+        m_old = re.search(r'Agent_(\d+) gives (\w+) to Agent_(\d+); receives (\w+).*?utility: ([+\-]?[0-9.]+)', message)
+        if m_old:
+            a1, give, a2, receive, combined = m_old.groups()
+            data.update({
+                "agent1": int(a1),
+                "agent2": int(a2),
+                "give": give,
+                "receive": receive,
+                "combined_delta": float(combined)
+            })
+            return data
+        # Bundled compact variant already parsed earlier – leave raw
+        return data
+
+    def _parse_periodic_summary(self, message: str) -> Dict[str, Any]:
+        import re
+        # 123.4 steps/sec | Frame: 8.1ms | Agents: 20 | Resources: 120 | Phase: 3
+        m = re.search(r'([0-9.]+) steps/sec \| Frame: ([0-9.]+)ms \| Agents: (\d+) \| Resources: (\d+)(?: \| Phase: (\d+))?', message)
+        data: Dict[str, Any] = {"event": "periodic_summary", "raw": message}
+        if m:
+            steps_sec, frame_ms, agents, resources, phase = m.groups()
+            data.update({
+                "steps_per_sec": float(steps_sec),
+                "frame_ms": float(frame_ms),
+                "agents": int(agents),
+                "resources": int(resources)
+            })
+            if phase is not None:
+                data["phase"] = int(phase)
+        return data
+
+    def _parse_phase(self, message: str) -> Dict[str, Any]:
+        import re
+        m = re.search(r'Phase (\d+) start \(Turn (\d+)\): (.+)', message)
+        data: Dict[str, Any] = {"event": "phase_transition", "raw": message}
+        if m:
+            phase, turn, desc = m.groups()
+            data.update({"phase": int(phase), "turn": int(turn), "description": desc})
+        return data
+
+    def _parse_perf(self, message: str) -> Dict[str, Any]:
+        import re
+        # Performance Analysis, Entity Counts, Bottleneck
+        data: Dict[str, Any] = {"event": "performance", "raw": message}
+        pa = re.search(r'Performance Analysis: FPS=([0-9.]+).*?Step=([0-9.]+)ms.*?Render=([0-9.]+)ms', message)
+        if pa:
+            fps, step_ms, render_ms = pa.groups()
+            data.update({"fps": float(fps), "step_ms": float(step_ms), "render_ms": float(render_ms)})
+            return data
+        ec = re.search(r'Entity Counts: Agents=(\d+), Resources=(\d+)', message)
+        if ec:
+            a, r = ec.groups()
+            data.update({"entity_counts": {"agents": int(a), "resources": int(r)}})
+            return data
+        if 'Bottleneck:' in message:
+            data.update({"bottleneck": message.split('Bottleneck:')[-1].strip()})
+        return data
     
     def _format_message(self, category: str, message: str, step: Optional[int] = None) -> str:
         """Format message according to current format setting."""
@@ -562,8 +795,26 @@ class GUILogger:
             prefix_part = step_info if step_info else category.split('_')[0][:3]  # Use first 3 chars of category if no step
             return f"{timestamp_prefix} {prefix_part}: {clean_message}\n"
         elif self.log_format == LogFormat.STRUCTURED:
-            step_info = f"|S{step}" if step is not None else ""
-            return f"{category}{step_info}|{message}\n"
+            # Attempt semantic parsing per category for JSON payload
+            payload: Dict[str, Any]
+            if category in ("MODE", "AGENT_MODE"):
+                payload = self._parse_mode_transition(message)
+            elif category == "UTILITY":
+                payload = self._parse_utility(message)
+            elif category == "TRADE":
+                payload = self._parse_trade(message)
+            elif category in ("SIMULATION", "PERIODIC_SIM"):
+                if "steps/sec | Frame" in message:
+                    payload = self._parse_periodic_summary(message)
+                else:
+                    payload = {"event": "simulation", "raw": message}
+            elif category == "PHASE":
+                payload = self._parse_phase(message)
+            elif category in ("PERF", "PERIODIC_PERF"):
+                payload = self._parse_perf(message)
+            else:
+                payload = {"event": category.lower(), "raw": message}
+            return self._emit_structured(category, step, payload)
         
         # Fallback to COMPACT format for any unknown format
         timestamp_prefix = self._format_simulation_time(step)
@@ -589,7 +840,7 @@ class GUILogger:
             self._buffer_trade_bundle(category, message, step)
             return
             
-        # Special handling for trade aggregation
+        # Special handling for trade aggregation (compact human readable only)
         if category == "TRADE" and self.log_format == LogFormat.COMPACT:
             self._buffer_trade(message, step)
             return
@@ -610,9 +861,17 @@ class GUILogger:
                 context = context.strip() if context else ""
                 self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, context, step)
                 return
-            
+        # Normal immediate write path
         formatted_message = self._format_message(category, message, step)
-        self._write_to_file(formatted_message)
+        if self.log_format == LogFormat.COMPACT:
+            self._write_to_file(formatted_message)
+            # Also emit structured side-channel
+            payload = self._build_structured_payload(category, message)
+            structured = self._emit_structured(category, step, payload)
+            self._write_structured_line(structured)
+        else:  # STRUCTURED primary mode already returns JSON text; write to both files
+            self._write_to_file(formatted_message)  # JSON in primary log too (unchanged behavior if selected)
+            self._write_structured_line(formatted_message)
     
     def log_agent_mode(self, agent_id: int, old_mode: str, new_mode: str, reason: str = "", step: Optional[int] = None) -> None:
         """Log agent mode transitions."""
