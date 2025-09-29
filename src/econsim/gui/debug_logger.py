@@ -773,26 +773,66 @@ class GUILogger:
         method: str,
         cooldown_global: int,
         cooldown_partner: int,
+        rejected_partners: list[tuple[int, str]] | None = None,
     ) -> tuple[str, Dict[str, Any], str]:
-        """Partner search summary (successful selection).
+        """Partner search summary with consolidated rejections (abbreviated format).
+
+        Args:
+            agent_id: Agent performing the search
+            scanned: Total partners scanned
+            eligible: Eligible partners (after filtering)
+            chosen_id: ID of chosen partner (-1 if none)
+            method: Selection method (unified_selection)
+            cooldown_global: Global cooldown counter
+            cooldown_partner: Partner cooldown counter
+            rejected_partners: Optional list of (partner_id, reason) tuples for rejected candidates
 
         Returns:
             tuple(compact_line, structured_payload, category)
+            
+        Note:
+            Uses abbreviated field names for compact JSON output:
+            - cat: category (PAIR = PAIRING)
+            - ev: event (psearch = partner_search)
+            - a: agent ID
+            - scan: scanned count
+            - elig: eligible count
+            - cho: chosen partner ID
+            - rej: rejected partners array [{c: candidate_id, r: reason_abbrev}]
         """
         category = "PAIRING"
-        compact = (
-            f"PS: A{agent_id:03d} scanned={scanned} eligible={eligible} "
-            f"chosen=A{chosen_id:03d} method={method} cooldowns(g={cooldown_global},p={cooldown_partner})"
-        )
+        
+        # Build compact human-readable line
+        compact = f"PS: A{agent_id:03d} scan={scanned} elig={eligible} cho=A{chosen_id:03d}"
+        if rejected_partners:
+            compact += f" rej={len(rejected_partners)}"
+        
+        # Build abbreviated structured payload
         payload: Dict[str, Any] = {
-            "event": "partner_search",
-            "agent": agent_id,
-            "scanned": scanned,
-            "eligible": eligible,
-            "chosen": chosen_id,
-            "method": method,
-            "cooldowns": {"global": cooldown_global, "partner": cooldown_partner},
+            "ev": "psearch",  # Abbreviated event name
+            "a": agent_id,
+            "scan": scanned,
+            "elig": eligible,
+            "cho": chosen_id,
         }
+        
+        # Add rejection data if provided (consolidated into single event)
+        if rejected_partners:
+            # Abbreviate rejection reasons for compactness
+            reason_map = {
+                "negative_utility": "neg_u",
+                "already_paired": "paired",
+                "cooldown": "cd",
+                "not_interested": "no_int",
+            }
+            payload["rej"] = [
+                {
+                    "c": partner_id,  # candidate
+                    "r": reason_map.get(reason, reason[:8])  # abbreviated reason
+                }
+                for partner_id, reason in rejected_partners
+            ]
+        
         return compact, payload, category
 
     def build_partner_reject(
@@ -802,7 +842,11 @@ class GUILogger:
         reason: str,
         sampled: bool,
     ) -> tuple[str, Dict[str, Any], str]:
-        """Partner rejection sample (only emitted when sampled)."""
+        """DEPRECATED: Partner rejection sample (consolidated into build_partner_search).
+        
+        This method is kept for backward compatibility but should not be used.
+        Use build_partner_search with rejected_partners parameter instead.
+        """
         category = "PAIRING"
         compact = (
             f"PSR: A{agent_id:03d} reject=A{candidate_id:03d} reason={reason}" + (" sampled" if sampled else "")

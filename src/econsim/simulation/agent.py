@@ -713,9 +713,8 @@ class Agent:
                 if best_choice is not None and best_choice[0] == "partner" and best_choice[1]["partner_id"] == other.id:
                     chosen_partner_id = other.id
 
-        # Emit partner search instrumentation (every step for debugging)
+        # Emit partner search instrumentation with consolidated rejections
         if enable_trade and nearby_agents and scanned_count > 0:
-            # Log every step to debug missing partner search events
             import os
             sample_period = int(os.environ.get("ECONSIM_PARTNER_SEARCH_SAMPLE_PERIOD", "1"))
             
@@ -723,8 +722,10 @@ class Agent:
                 from ..gui.debug_logger import get_gui_logger
                 logger = get_gui_logger()
                 
-                # Always emit partner search event when conditions are met
-                # (even if no partner was chosen, to see the search process)
+                # Emit consolidated partner search event with rejection data
+                # Sample first 3 rejections to keep log size manageable
+                rejection_sample = rejected_partners[:3] if rejected_partners else None
+                
                 builder_result = logger.build_partner_search(
                     agent_id=self.id,
                     scanned=scanned_count,
@@ -732,19 +733,10 @@ class Agent:
                     chosen_id=chosen_partner_id if chosen_partner_id is not None else -1,
                     method="unified_selection",
                     cooldown_global=0,  # TODO: Track actual cooldowns if implemented
-                    cooldown_partner=0
+                    cooldown_partner=0,
+                    rejected_partners=rejection_sample  # Consolidated rejection data
                 )
                 logger.emit_built_event(step, builder_result)
-                
-                # Sample some rejections for analysis (limit to avoid spam)
-                for partner_id, reason in rejected_partners[:3]:  # Only log first 3 rejections
-                    builder_result = logger.build_partner_reject(
-                        agent_id=self.id,
-                        candidate_id=partner_id,
-                        reason=reason,
-                        sampled=True
-                    )
-                    logger.emit_built_event(step, builder_result)
                     
         self.current_unified_task = best_choice
         return best_choice
