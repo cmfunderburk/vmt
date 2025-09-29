@@ -1,44 +1,78 @@
-## VMT Copilot Instructions (High-Signal, ~Concise)
-Goal: Let AI agents contribute without breaking determinism, performance (~60–62 FPS), or educational clarity. If a change touches ordering, hashing, or per‑step complexity, STOP and add/adjust a test.
+## VMT EconSim AI Coding Agent Instructions
+**VMT**: Educational microeconomic simulation platform with deterministic spatial agents, PyQt6/Pygame rendering, and feature-gated bilateral exchange system.
 
-### 1. Immutable Frame Pipeline
+**Critical Goal**: Maintain determinism, ~60-62 FPS performance, and educational clarity. If changes affect ordering, hashing, or per-step complexity, STOP and add/adjust tests first.
+
+## Architecture Overview
+- **Single-threaded**: PyQt6 `QTimer(16ms)` drives simulation → rendering pipeline
+- **Deterministic**: Ordered iteration, stable tie-breaking, separated RNG streams  
+- **Educational**: Feature flags gate foraging, trading, visualization for teaching flexibility
+- **Factory Pattern**: `SimConfig` + `Simulation.from_config()` for reproducible builds
+
+## 1. Core Development Workflows
+
+**Primary Interface**: `make launcher` (Enhanced TestRunner with PyQt6 GUI)
+```bash
+make venv && source vmt-dev/bin/activate  # Setup
+make launcher      # Primary development (7 educational scenarios)
+make dev          # Fallback basic GUI  
+pytest -q         # Full test suite (210+ tests)
+make perf         # Performance validation
+```
+
+**Factory Construction Pattern** (preferred):
+```python
+from econsim.simulation.config import SimConfig
+from econsim.simulation.world import Simulation
+
+cfg = SimConfig(
+    grid_size=(12,12), seed=123, enable_respawn=True, enable_metrics=True,
+    distance_scaling_factor=1.5,  # k=0.0 for no distance penalty
+    initial_resources=[(2,2,'A'), (4,5,'B')]
+)
+sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
+```
+
+## 2. Immutable Frame Pipeline
 `QTimer(16ms)` → `Simulation.step(ext_rng, use_decision)` → `EmbeddedPygameWidget._update_scene()` → `paintEvent()`. No extra timers/threads/sleeps. Never recreate the single Pygame surface; no per‑pixel Python loops.
 
-### 2. Determinism Invariants (DO NOT VIOLATE)
+## 3. Determinism Invariants (DO NOT VIOLATE)
 1. Resource iteration only via `Grid.iter_resources_sorted()`.
 2. Tie-breaks: resources / selection `(-ΔU, distance, x, y)`; trades `(-ΔU, seller_id, buyer_id, give_type, take_type)` (priority flag may reorder ONLY, not alter multiset).
 3. Agent list order is priority; never mutate or sort in-place mid step.
 4. RNG separation: external `ext_rng` passed into `Simulation.step` vs internal `Simulation._rng` (respawn, home placement). Do not change call counts.
 5. One executed trade max per step when execution flag enabled.
 
-### 3. Core Edit Surface (no ad‑hoc clones)
+## 4. Core Edit Surface (no ad‑hoc clones)
 `simulation/world.py`, `simulation/agent.py`, `simulation/grid.py`, `simulation/trade.py`, `simulation/config.py`, `simulation/metrics.py`, `simulation/respawn.py`, `simulation/snapshot.py`, `preferences/factory.py`, `gui/embedded_pygame.py`, `gui/simulation_controller.py`, launcher under `tools/launcher/`. Extend here; keep schema append‑only.
 
-### 4. Unified Selection Algorithm
+## 5. Unified Selection Algorithm
 Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups vs (flagged) trade intents in O(agents + visible resources). Use existing spatial index; never introduce quadratic scans. Filter out non‑positive base ΔU early. Preserve tie‑break key ordering.
 
-### 5. Feature / Teaching Flags
-`ECONSIM_LEGACY_RANDOM=1` (disable decision system) · `ECONSIM_FORAGE_ENABLED=0` (no collection path) · `ECONSIM_TRADE_DRAFT=1` (enumerate intents) · `ECONSIM_TRADE_EXEC=1` (execute ≤1 intent) · `ECONSIM_DEBUG_AGENT_MODES=1` (mode logs) · `ECONSIM_DEBUG_FPS=1` (show FPS) · `ECONSIM_HEADLESS_RENDER=1` (skip drawing for CI) plus optional priority & hash neutral trade flags. Idle semantics when both foraging & trading disabled (no auto‑deposit).
+## 6. Feature / Teaching Flags
+- **Movement**: `ECONSIM_LEGACY_RANDOM=1` (disable decision system, use random walk)
+- **Foraging**: `ECONSIM_FORAGE_ENABLED=0` (disable resource collection)  
+- **Trading**: `ECONSIM_TRADE_DRAFT=1` (enumerate intents), `ECONSIM_TRADE_EXEC=1` (execute ≤1 intent)
+- **Debug**: `ECONSIM_DEBUG_AGENT_MODES=1` (mode logs), `ECONSIM_DEBUG_FPS=1` (show FPS)
+- **Testing**: `ECONSIM_HEADLESS_RENDER=1` (skip drawing for CI)
+- **Idle semantics**: When both foraging & trading disabled (no auto‑deposit)
 
-### 6. Structured Debug Logging
+## 7. Structured Debug Logging
 Use builders in `gui/debug_logger.py`; never raw print. Flags: `ECONSIM_LOG_LEVEL`, `ECONSIM_LOG_FORMAT`, `ECONSIM_LOG_CATEGORIES`, `ECONSIM_LOG_EXPLANATIONS=1`, `ECONSIM_LOG_DECISION_REASONING=1`.
 
-### 7. Launcher / Workflows
-Primary: `make launcher` (Enhanced TestRunner with PyQt6 GUI). Framework tests via `src/econsim/tools/launcher/` with config registry at `framework/test_configs.py`. Fallback: `make dev` (basic GUI). Programmatic: `Simulation.from_config(SimConfig(...))`. Perf check: `make perf`. Full tests: `pytest -q`. Never create standalone scripts; extend registry or use existing test harnesses.
-
-### 8. Performance Guardrails
+## 8. Performance Guardrails
 Per step O(n) (n = agents + resources). Overlay & logging overhead <2%. Avoid per‑frame allocations (reuse surfaces, fonts). Maintain FPS floor ≥30 (CI) / target ~60. Keep intent enumeration linear in co‑located agents.
 
-### 9. Metrics & Hash
+## 9. Metrics & Hash
 Determinism hash excludes trade/debug metrics. Adding a metric? Either exclude from hash or update reference expectations + tests. Do not mutate inventories in hash-neutral debug modes unless flag explicitly set.
 
-### 10. Schema & Serialization Rules
+## 10. Schema & Serialization Rules
 Append-only fields in snapshots, agent/grid/world dataclasses, trade intent tuples. Never reorder or remove existing fields/keys. New overlays must be state‑neutral (pure view). Any added flag requires doc update + test if it changes behavior.
 
-### 11. Common Pitfalls (AVOID)
+## 11. Common Pitfalls (AVOID)
 Unsorted resource scans; re-sorting agents; extra RNG draws; modifying tie-break tuple shape; quadratic partner searches; blocking sleeps; allocating large objects in render loop; multi-trade execution per step; modifying carried/home inventories in view code.
 
-### 12. Minimal Deterministic Factory Example
+## 12. Minimal Deterministic Factory Example
 ```python
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
@@ -46,19 +80,19 @@ cfg = SimConfig(grid_size=(12,12), seed=123, distance_scaling_factor=1.5, enable
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ```
 
-### 13. Safe Extension Checklist
+## 13. Safe Extension Checklist
 1. Tests: `pytest -q` all green. 2. Perf: `make perf` within FPS expectations. 3. No unordered iteration added. 4. Tie-break & ordering untouched (or tests updated). 5. Metrics hash unaffected (or expectations updated). 6. Docs + this file updated for any new flag/param. 7. Logging uses structured system.
 
-### 14. Commit Message Pattern
+## 14. Commit Message Pattern
 Imperative WHAT + WHY (+ optional PERF/DET). Example: `agent: cache distance map cutting selection O(n)→O(1) (hash stable)`.
 
-### 15. TestRunner Framework Architecture
+## 15. TestRunner Framework Architecture
 Modern launcher under `src/econsim/tools/launcher/` replaces subprocess-based testing. Key components: `TestRegistry` loads from `framework/test_configs.py` (7 educational scenarios), `TestRunner` provides programmatic test execution, `app_window.py` is the main GUI. Pattern: `TestConfiguration` dataclass → `SimulationFactory.create()` → GUI test window. Add tests via config registry, not hardcoded file mappings.
 
-### 16. Educational Test Structure
+## 16. Educational Test Structure
 All 7 tests follow `StandardPhaseTest` pattern: config-driven setup → 6 educational phases (Observation, Resource Competition, etc.) → GUI controls for respawn/trade features. Test files in `MANUAL_TESTS/` are thin wrappers; business logic in framework. Never bypass the config registry for new educational content.
 
-### 17. Test Patterns & Environment Setup
+## 17. Test Patterns & Environment Setup
 **Headless Testing**: Always set `os.environ["QT_QPA_PLATFORM"] = "offscreen"` and `os.environ["SDL_VIDEODRIVER"] = "dummy"` for PyQt6/Pygame tests. Use `QApplication.instance() or QApplication([])` pattern.
 
 **SimConfig Factory Pattern**: Use `SimConfig` + `Simulation.from_config()` for all test construction. Standard pattern:
@@ -73,7 +107,7 @@ sim.step(ext_rng, use_decision=True)
 
 **Mock Patterns**: For launcher tests, mock PyQt6 availability with `patch('module._qt_available', True)`. Use `TestConfiguration` mocks with proper `.id`, `.name` attributes.
 
-### 18. When Unsure
+## 18. When Unsure
 Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
 
 Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.

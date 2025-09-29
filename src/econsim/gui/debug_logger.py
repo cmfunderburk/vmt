@@ -151,6 +151,11 @@ class GUILogger:
         self._trade_bundle_buffer: dict[int, dict[str, list[str]]] = {}  # step -> {trades: [], utilities: []}
         self._last_bundle_step = -1
         
+        # PAIRING aggregation system for volume reduction
+        self._pairing_accumulator: dict[str, Any] = {}  # Current step's PAIRING data
+        self._pairing_current_step = -1
+        self._pairing_stats_cache: dict[str, Any] = {}  # For anomaly detection
+        
         # Always use project-local logs directory
         # Logs stay in the project for development convenience and are excluded via .gitignore
         self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
@@ -860,6 +865,221 @@ class GUILogger:
         }
         return compact, payload, category
 
+    # --- PAIRING Aggregation System ---
+    
+    def flush_pairing_for_step(self, step: int) -> None:
+        """Explicitly flush PAIRING accumulator for the given step.
+        
+        This should be called at the end of each simulation step to emit
+        the PAIRING_SUMMARY for that step.
+        """
+        if self._pairing_current_step == step and self._pairing_accumulator:
+            self._flush_pairing_step()
+    
+    def accumulate_partner_search(
+        self,
+        step: int,
+        agent_id: int,
+        scanned: int,
+        eligible: int,
+        chosen_id: int,
+        rejected_partners: list[tuple[int, str]] | None = None,
+    ) -> None:
+        """Accumulate partner search data for step-based aggregation.
+        
+        This replaces immediate logging with accumulation for statistical summary.
+        Individual events are still emitted for successful pairings and anomalies.
+        """
+        # Initialize accumulator for new step
+        if self._pairing_current_step != step:
+            self._flush_pairing_step()  # Flush previous step if any
+            self._pairing_current_step = step
+            self._pairing_accumulator = {
+                "step": step,
+                "searches": [],
+                "rejection_counts": {},
+                "successful_pairings": [],
+                "anomalies": [],
+                "total_scanned": 0,
+                "total_eligible": 0,
+                "count": 0,
+            }
+        
+        # Add search data
+        search_data = {
+            "agent_id": agent_id,
+            "scanned": scanned,
+            "eligible": eligible,
+            "chosen_id": chosen_id,
+            "rejected_partners": rejected_partners or [],
+        }
+        
+        self._pairing_accumulator["searches"].append(search_data)
+        self._pairing_accumulator["total_scanned"] += scanned
+        self._pairing_accumulator["total_eligible"] += eligible
+        self._pairing_accumulator["count"] += 1
+        
+        # Count rejections by reason
+        if rejected_partners:
+            for _, reason in rejected_partners:
+                # Use abbreviated reason names from build_partner_search
+                reason_map = {
+                    "negative_utility": "neg_u",
+                    "already_paired": "paired",
+                    "cooldown": "cd",
+                    "not_interested": "no_int",
+                }
+                abbrev_reason = reason_map.get(reason, reason[:8])
+                self._pairing_accumulator["rejection_counts"][abbrev_reason] = (
+                    self._pairing_accumulator["rejection_counts"].get(abbrev_reason, 0) + 1
+                )
+        
+        # Check if this should be logged individually (exceptions)
+        should_log_individual = self._should_log_pairing_individually(search_data)
+        
+        if should_log_individual:
+            # Use existing build_partner_search for individual exceptional events
+            builder_result = self.build_partner_search(
+                agent_id=agent_id,
+                scanned=scanned,
+                eligible=eligible,
+                chosen_id=chosen_id,
+                method="unified_selection",
+                cooldown_global=0,
+                cooldown_partner=0,
+                rejected_partners=rejected_partners,
+            )
+            self.emit_built_event(step, builder_result)
+            
+            # Track in accumulator for record keeping
+            if chosen_id >= 0:
+                self._pairing_accumulator["successful_pairings"].append(search_data)
+            else:
+                self._pairing_accumulator["anomalies"].append(search_data)
+    
+    def _should_log_pairing_individually(self, search_data: dict[str, Any]) -> bool:
+        """Determine if a PAIRING event should be logged individually."""
+        # Always log successful pairings
+        if search_data["chosen_id"] >= 0:
+            return True
+        
+        # Log anomalous scan counts (>2σ from current step mean)
+        if self._is_scan_count_anomaly(search_data["scanned"]):
+            return True
+        
+        # Log first occurrence of new rejection reasons
+        if self._has_new_rejection_reasons(search_data.get("rejected_partners", [])):
+            return True
+            
+        return False
+    
+    def _is_scan_count_anomaly(self, scan_count: int) -> bool:
+        """Check if scan count is anomalous (>2σ from mean)."""
+        if self._pairing_accumulator["count"] < 3:  # Need minimum data for statistics
+            return False
+            
+        # Calculate current mean and std deviation
+        scan_counts = [s["scanned"] for s in self._pairing_accumulator["searches"]]
+        if len(scan_counts) < 2:
+            return False
+            
+        mean_scan = sum(scan_counts) / len(scan_counts)
+        variance = sum((x - mean_scan) ** 2 for x in scan_counts) / len(scan_counts)
+        std_dev = variance ** 0.5
+        
+        # Check if current scan count is >2σ from mean
+        return abs(scan_count - mean_scan) > (2 * std_dev)
+    
+    def _has_new_rejection_reasons(self, rejected_partners: list[tuple[int, str]]) -> bool:
+        """Check if any rejection reasons are new this step."""
+        if not rejected_partners:
+            return False
+            
+        existing_reasons = set(self._pairing_accumulator["rejection_counts"].keys())
+        for _, reason in rejected_partners:
+            reason_map = {
+                "negative_utility": "neg_u", 
+                "already_paired": "paired",
+                "cooldown": "cd",
+                "not_interested": "no_int",
+            }
+            abbrev_reason = reason_map.get(reason, reason[:8])
+            if abbrev_reason not in existing_reasons:
+                return True
+        return False
+    
+    def _flush_pairing_step(self) -> None:
+        """Flush accumulated PAIRING data as a step summary."""
+        if not self._pairing_accumulator or self._pairing_accumulator["count"] == 0:
+            return
+            
+        acc = self._pairing_accumulator
+        step = acc["step"]
+        
+        # Calculate statistics
+        scan_counts = [s["scanned"] for s in acc["searches"]]
+        eligible_counts = [s["eligible"] for s in acc["searches"]]
+        
+        avg_scan = sum(scan_counts) / len(scan_counts) if scan_counts else 0
+        avg_eligible = sum(eligible_counts) / len(eligible_counts) if eligible_counts else 0
+        
+        # Find top scanners for debugging
+        sorted_searches = sorted(acc["searches"], key=lambda x: x["scanned"], reverse=True)
+        top_agents_by_scan = [
+            {"a": s["agent_id"], "scan": s["scanned"]} 
+            for s in sorted_searches[:3]  # Top 3
+        ]
+        
+        # Build PAIRING_SUMMARY event
+        builder_result = self.build_pairing_summary(
+            step=step,
+            total_searches=acc["count"],
+            avg_scan=avg_scan,
+            avg_eligible=avg_eligible,
+            successful_pairings=len(acc["successful_pairings"]),
+            rejection_breakdown=acc["rejection_counts"],
+            top_agents_by_scan=top_agents_by_scan,
+        )
+        
+        self.emit_built_event(step, builder_result)
+        
+        # Clear accumulator
+        self._pairing_accumulator = {}
+    
+    def build_pairing_summary(
+        self,
+        step: int,
+        total_searches: int,
+        avg_scan: float,
+        avg_eligible: float,
+        successful_pairings: int,
+        rejection_breakdown: dict[str, int],
+        top_agents_by_scan: list[dict[str, Any]],
+    ) -> tuple[str, Dict[str, Any], str]:
+        """Build PAIRING_SUMMARY event with aggregated statistics."""
+        category = "PAIRING_SUMMARY"
+        
+        # Build compact summary
+        compact = (
+            f"PAIRING_SUMMARY: step={step} searches={total_searches} "
+            f"avg_scan={avg_scan:.1f} avg_eligible={avg_eligible:.1f} "
+            f"successful={successful_pairings}"
+        )
+        
+        # Build structured payload matching the plan
+        payload: Dict[str, Any] = {
+            "event": "step_summary",
+            "step": step,
+            "total_searches": total_searches,
+            "avg_scan": round(avg_scan, 1),
+            "avg_eligible": round(avg_eligible, 1),
+            "successful_pairings": successful_pairings,
+            "rejection_breakdown": rejection_breakdown,
+            "top_agents_by_scan": top_agents_by_scan,
+        }
+        
+        return compact, payload, category
+
     def build_trade_intent_funnel(
         self,
         drafted: int,
@@ -1363,6 +1583,9 @@ class GUILogger:
         self._flush_trade_buffer()
         self._flush_transition_buffer()
         self._flush_bundle_buffer()
+        
+        # Flush any remaining PAIRING accumulator data
+        self._flush_pairing_step()
         
         # Write structured session end marker if log was initialized
         if self._log_initialized:

@@ -726,17 +726,15 @@ class Agent:
                 # Sample first 3 rejections to keep log size manageable
                 rejection_sample = rejected_partners[:3] if rejected_partners else None
                 
-                builder_result = logger.build_partner_search(
+                # Use new PAIRING aggregation system for volume reduction
+                logger.accumulate_partner_search(
+                    step=step,
                     agent_id=self.id,
                     scanned=scanned_count,
                     eligible=eligible_count,
                     chosen_id=chosen_partner_id if chosen_partner_id is not None else -1,
-                    method="unified_selection",
-                    cooldown_global=0,  # TODO: Track actual cooldowns if implemented
-                    cooldown_partner=0,
                     rejected_partners=rejection_sample  # Consolidated rejection data
                 )
-                logger.emit_built_event(step, builder_result)
                     
         self.current_unified_task = best_choice
         return best_choice

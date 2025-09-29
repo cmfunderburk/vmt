@@ -451,6 +451,13 @@ class Simulation:
                         except Exception:
                             pass  # Don't break simulation if logging fails
         
+        # Flush PAIRING accumulator for completed step
+        try:
+            from ..gui.debug_logger import get_gui_logger
+            get_gui_logger().flush_pairing_for_step(step_num)
+        except Exception:
+            pass  # Don't break simulation if logging fails
+        
         self._steps += 1
         # Expire highlight if past its lifetime
         if self._last_trade_highlight is not None:
