@@ -1,21 +1,23 @@
-# Debug Log Fixes (Phase 3 Instrumentation Reconciliation)
+# Debug Log Instrumentation Completeness Review
 
 Date: 2025-09-28
-Context: Post-category normalization (PERF, TRADE) and launcher override removal. Observed logs show partial Phase 3 events only.
+Context: Post-architectural refactor to structured-only logging (.jsonl). Single source of truth established. Need to audit and complete missing instrumentation events.
 
-## 1. Observed vs Expected Events
-Observed (both compact + structured):
-- mode_transition (MODE)
-- mode_batch (MODE_BATCH)
-- periodic_summary (SIMULATION)
-- micro_delta_threshold (proper structured event)
-- trade (TRADE) executions
-- phase_transition (PHASE)
+## 1. Current State: Structured-Only Logging (.jsonl)
+✅ **Working Events** (confirmed in latest logs):
+- mode_transition (MODE) - Individual agent transitions with structured context
+- mode_batch (MODE_BATCH) - Batch transitions with agent arrays  
+- periodic_summary (SIMULATION) - Performance metrics every 25 steps
+- micro_delta_threshold (TRADE) - Proper structured event at simulation start
+- trade (TRADE) - Individual trade executions with raw text
+- phase_transition (PHASE) - Phase changes with structured metadata
+- session_end (SESSION) - Clean structured session termination
 
-Observed but Problematic:
-- Duplicate micro_delta_threshold representation: a second structured line misclassified as event=trade with raw `TI: micro_delta_threshold=...`.
+❌ **Problematic** (FIXED in architectural refactor):
+- ~~Duplicate micro_delta_threshold~~: No longer occurs since compact log eliminated
+- ~~Mixed format pollution~~: Pure JSON Lines now
 
-Missing (expected instrumentation):
+❌ **Missing Instrumentation** (gaps to address):
 - trade_intent_funnel (TRADE)
 - trade_intent_none / trade_intent_none_executed (TRADE) [context dependent]
 - perf_spike (PERF) [conditional]
@@ -28,12 +30,12 @@ Missing (expected instrumentation):
 - overlay_state (SIMULATION) [when toggles change]
 - config_update (SIMULATION) [dynamic logging adjustments]
 
-## 2. Root Cause Hypotheses
-| Gap | Likely Cause | Notes |
-|-----|--------------|-------|
-| Missing funnel events | Builder call dropped or gated | Post-refactor indentation fix may have removed invocation. |
-| micro_delta duplicate | Trade bundler parses `TI:` lines as trades | Needs pattern exclusion or dedicated category. |
-| perf_spike absent | Threshold not crossed or invocation removed | Verify `build_perf_spike` call site still exists with new category. |
+## 2. Root Cause Analysis (Updated for Structured-Only)
+| Gap | Likely Cause | Priority | Notes |
+|-----|--------------|----------|-------|
+| Missing funnel events | Builder call missing or condition not met | HIGH | Critical for trade analysis |
+| ~~micro_delta duplicate~~ | ~~FIXED~~ | ~~N/A~~ | ~~Eliminated with compact log removal~~ |
+| perf_spike absent | Threshold not reached or builder not called | MEDIUM | May be conditional on performance degradation |
 | partner_search / reject absent | Unified selection path conditions not met or builder not called | Re-check `_unified_selection_pass` instrumentation. |
 | selection_sample absent | Sampling trigger not executed (interval missing) | Add periodic or probability-based trigger with deterministic cadence. |
 | respawn events absent | Density sufficient (no deficit) or logging disabled | Confirm respawn logic & builder call. |
@@ -42,15 +44,13 @@ Missing (expected instrumentation):
 | overlay_state absent | No overlay toggles changed during run | Acceptable if not toggled; ensure builder wired. |
 | config_update absent | No dynamic config changes performed | Acceptable; builder available. |
 
-## 3. Remediation Actions (Proposed Order)
-1. Deduplicate micro_delta_threshold:
-   - In trade parsing/bundling, skip lines starting with `TI:` (regex `^TI:`) from trade classification.
-   - Optionally tag them as meta if needed (currently builder already emits micro_delta event). 
-2. Restore / verify trade_intent_funnel emission:
-   - Inspect `world.py` trade intent enumeration segment; ensure `build_trade_intent_funnel` call executed if drafting attempted or `drafted>0`.
-3. Harden micro-delta one-shot guard:
-   - Confirm state variable (e.g., `_micro_delta_emitted`) persists and not reset each step.
-4. Partner search & reject:
+## 3. Action Plan (Structured-Only Focus)
+
+### Phase 1: High Priority Gaps (Blocking Trade Analysis)
+1. **Restore trade_intent_funnel emission**:
+   - Audit `world.py` trade intent enumeration; verify `build_trade_intent_funnel` call exists and conditions met
+   - Emit structured event with `{drafted, pruned, executed}` counts per step
+2. **Verify partner search instrumentation**:
    - Ensure calls to `build_partner_search` and `build_partner_reject` appear in unified selection path after evaluation. Add sampling logic if absent.
 5. Selection sample emission:
    - Introduce deterministic periodic sample: e.g., every N steps (env var `ECONSIM_SELECTION_SAMPLE_PERIOD`, default 200) or a low fixed step modulo, using no randomness (preserves determinism).
@@ -65,16 +65,17 @@ Missing (expected instrumentation):
 10. Overlay state / config_update:
     - Confirm builder functions exist; wire overlay toggles in GUI if not already; leave as “on demand” (no constant polling).
 
-## 4. Determinism Safeguards
-- No new random draws; periodic sampling must be step-modulo based.
-- Do not alter ordering of existing iteration over agents/resources.
-- Keep new env flags read once per step (string→int conversion) without fallback randomness.
-- Append-only changes: do not remove existing structured fields.
+## 4. Structured Logging Principles
+- **Pure JSON Lines**: All events must be valid JSON objects with consistent schema
+- **Determinism Preserved**: No random sampling, use step-modulo patterns only
+- **Append-Only Fields**: Extend existing events, don't remove structured fields
+- **Performance Conscious**: Batch expensive operations, avoid per-agent overhead
 
-## 5. Performance Considerations
-- Avoid per-step string regex on every trade line for exclusion: pre-check prefix (`message.startswith('TI:')`) before heavier parsing.
-- Reuse small static compiled regex objects if needed (module scope) to avoid allocation.
-- Limit selection / churn / respawn / churn emission to sparse cadence (e.g., every 200 steps) to keep overhead <2%.
+## 5. Implementation Strategy
+- **Direct Structured Emission**: Use `emit_built_event()` directly, skip raw text parsing
+- **Efficient Batching**: Group related events (mode transitions already batched)
+- **Sparse Sampling**: Limit analytics events to every 200+ steps to maintain 60+ FPS
+- **Schema Consistency**: Use existing event patterns as templates
 
 ## 6. Implementation Checklist
 - [ ] Patch `debug_logger._parse_trade` (or earlier bundler decision) to return early if line begins with `TI:`.
@@ -98,13 +99,34 @@ Missing (expected instrumentation):
 - Overlapping category gating could still filter new events at non-VERBOSE levels (need to verify categories appear in EVENTS level if they are considered events; may require classification update if necessary).
 - Potential performance regression if churn or selection snapshots allocate large candidate arrays each emission (mitigate by slicing top N for compact line only; structured can include full list sparingly).
 
-## 9. Acceptance Criteria
-- No duplicate micro_delta structured entries.
-- At least one trade_intent_funnel event appears in structured log under typical run with trading enabled.
-- Partner search or selection sample events appear when unified selection active.
-- No new nondeterminism (hash unchanged in determinism tests).
-- Performance test shows <2% degradation vs pre-fix baseline.
-- Documentation updated outlining new events and triggers.
+## 6. Next Steps Discussion
+
+### Architectural Benefits Achieved ✅
+- **Eliminated complexity**: No more dual-file management
+- **Single source of truth**: Pure structured JSON Lines format  
+- **GUI integration**: Reads structured logs, formats for human display
+- **Clean session management**: Proper JSON session_end events
+
+### Immediate Priorities for Instrumentation Gaps
+1. **Audit existing builders**: Check which `build_*` methods exist but aren't being called
+2. **Identify missing conditions**: Determine why certain events aren't triggering
+3. **Add missing instrumentation**: Focus on trade analysis gaps first
+4. **Validate with tests**: Ensure new events appear in typical simulation runs
+
+### Questions for Discussion
+- **Scope**: Should we tackle all missing events or focus on trade/performance analysis?
+- **Priority**: Which gaps are blocking current analysis workflows?
+- **Testing**: How should we validate that new events are working correctly?
+- **Performance**: What's our acceptable overhead budget for additional instrumentation?
+
+## 7. Acceptance Criteria (Updated)
+- ✅ Pure structured JSON log format (no format pollution)
+- ✅ Clean session management with structured session_end
+- [ ] Trade funnel events appear when trading enabled
+- [ ] Partner selection metrics available during unified selection
+- [ ] Performance spike detection functional
+- [ ] All new events preserve determinism (hash tests pass)
+- [ ] Simulation maintains 60+ FPS target with new instrumentation
 
 ---
-End of plan draft.
+Ready for discussion and next phase planning.
