@@ -71,6 +71,7 @@ class Agent:
     home_inventory: dict[str, int] = field(default_factory=lambda: {"good1": 0, "good2": 0})
     # Backward compatibility alias (legacy code/tests may still read 'inventory')
     inventory: dict[str, int] = field(init=False, repr=False)
+    
     # Trade partner tracking for bilateral exchange
     trade_partner_id: int | None = field(default=None, init=False, repr=False)
     meeting_point: Position | None = field(default=None, init=False, repr=False)
@@ -81,6 +82,16 @@ class Agent:
     last_trade_mode_utility: float = field(default=0.0, init=False, repr=False)
     trade_stagnation_steps: int = field(default=0, init=False, repr=False)
     force_deposit_once: bool = field(default=False, init=False, repr=False)
+    # Target churn tracking for instrumentation
+    _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
+    
+    def _track_target_change(self, new_target: Position | None, step: int) -> None:
+        """Track target changes for churn analysis."""
+        if new_target != self.target:
+            self._recent_retargets.append(step)
+            # Keep only recent retargets (last 100 steps)
+            if len(self._recent_retargets) > 100:
+                self._recent_retargets = self._recent_retargets[-100:]
     # Unified target selection metadata (resource vs partner) for GUI/testing
     current_unified_task: tuple[str, object] | None = field(default=None, init=False, repr=False)
     # Unified selection commitment (placeholder richer structure):
@@ -698,8 +709,8 @@ class Agent:
                     "discounted": discounted,
                     "dist": dist,
                 })
-                # Check if this partner was chosen
-                if best_choice != old_best and best_choice is not None and best_choice[0] == "partner":
+                # Check if this partner was chosen (regardless of whether choice changed)
+                if best_choice is not None and best_choice[0] == "partner" and best_choice[1]["partner_id"] == other.id:
                     chosen_partner_id = other.id
 
         # Emit partner search instrumentation (every step for debugging)
@@ -709,34 +720,31 @@ class Agent:
             sample_period = int(os.environ.get("ECONSIM_PARTNER_SEARCH_SAMPLE_PERIOD", "1"))
             
             if step % sample_period == 0:
-                try:
-                    from ..gui.debug_logger import get_gui_logger
-                    logger = get_gui_logger()
-                    
-                    # Emit partner search event if someone was chosen
-                    if chosen_partner_id is not None:
-                        builder_result = logger.build_partner_search(
-                            agent_id=self.id,
-                            scanned=scanned_count,
-                            eligible=eligible_count,
-                            chosen_id=chosen_partner_id,
-                            method="unified_selection",
-                            cooldown_global=0,  # TODO: Track actual cooldowns if implemented
-                            cooldown_partner=0
-                        )
-                        logger.emit_built_event(step, builder_result)
-                    
-                    # Sample some rejections for analysis (limit to avoid spam)
-                    for partner_id, reason in rejected_partners[:3]:  # Only log first 3 rejections
-                        builder_result = logger.build_partner_reject(
-                            agent_id=self.id,
-                            candidate_id=partner_id,
-                            reason=reason,
-                            sampled=True
-                        )
-                        logger.emit_built_event(step, builder_result)
-                except Exception:
-                    pass  # Don't break simulation if logging fails
+                from ..gui.debug_logger import get_gui_logger
+                logger = get_gui_logger()
+                
+                # Always emit partner search event when conditions are met
+                # (even if no partner was chosen, to see the search process)
+                builder_result = logger.build_partner_search(
+                    agent_id=self.id,
+                    scanned=scanned_count,
+                    eligible=eligible_count,
+                    chosen_id=chosen_partner_id if chosen_partner_id is not None else -1,
+                    method="unified_selection",
+                    cooldown_global=0,  # TODO: Track actual cooldowns if implemented
+                    cooldown_partner=0
+                )
+                logger.emit_built_event(step, builder_result)
+                
+                # Sample some rejections for analysis (limit to avoid spam)
+                for partner_id, reason in rejected_partners[:3]:  # Only log first 3 rejections
+                    builder_result = logger.build_partner_reject(
+                        agent_id=self.id,
+                        candidate_id=partner_id,
+                        reason=reason,
+                        sampled=True
+                    )
+                    logger.emit_built_event(step, builder_result)
                     
         self.current_unified_task = best_choice
         return best_choice

@@ -1,0 +1,106 @@
+# VMT (Virtual Market Trading) Simulation - AI Agent Instructions
+
+**Last Updated:** September 2025  
+**Target Audience:** AI agents, developers, and contributors working on the VMT simulation
+
+## Table of Contents
+1. [Project Overview](#project-overview)
+2. [🚨 CRITICAL: Determinism Invariants](#critical-determinism-invariants)
+3. [Core Architecture](#core-architecture)
+4. [File Organization](#file-organization)
+5. [Decision Patterns](#decision-patterns)
+6. [Feature Flags](#feature-flags)
+7. [Development Workflow](#development-workflow)
+8. [Safety Checklist](#safety-checklist)
+9. [Common Pitfalls](#common-pitfalls)
+10. [Code Examples](#code-examples)
+11. [Structural Rules](#structural-rules)
+12. [Commit Guidelines](#commit-guidelines)
+13. [Pre-PR Checklist](#pre-pr-checklist)
+---
+
+**Restrictions:**
+- If a test wil require gui_log/structured/ log output, never run those tests yourself. Stop and ask me to run a test. I will provide the log output to you.
+
+---
+
+## File Organization
+
+### Core Files (Edit Here, Not Ad Hoc Clones)
+- `simulation/world.py` - Main orchestrator
+- `simulation/agent.py` - Unified target selection
+- `simulation/grid.py` - Spatial + sorted iteration
+- `simulation/config.py` - Factory pattern
+- `preferences/factory.py` - Utility forms
+- `gui/embedded_pygame.py` - Single surface bridge
+- `gui/debug_logger.py` - Structured logging
+- `tools/launcher/` - TestRunner + configs
+
+---
+
+## Decision Patterns
+
+### Unified Selection Algorithm
+Ranks resource pickups vs (flagged) trade intents using distance-discounted utility:
+
+**Formula:** `ΔU' = ΔU / (1 + k·d²)`
+
+**Requirements:**
+- Maintain O(agents + visible resources) complexity
+- Use existing spatial index
+- ❌ No quadratic scans
+
+---
+
+## Development Workflow
+
+### Primary Entry Points
+- **Main:** `make launcher` (TestRunner + registry)
+
+---
+
+## Safety Checklist
+
+Before committing, verify:
+
+1. ✅ Added metrics either hash-excluded or tests updated
+2. ✅ Debug logging uses structured builders
+
+---
+
+## Structural Rules
+
+### Schema Management
+- **Append-only:** snapshot/agent/grid/world schemas
+- **Never:** retroactively reorder fields
+- **New overlays:** must be state-neutral
+- **Trade limit:** one trade max per step when execution flag enabled
+
+---
+
+## Commit Guidelines
+
+### Message Pattern
+**Format:** `WHAT + WHY + (optional) PERF/DET note`
+
+**Examples:**
+- `agent: cache distance map to cut selection O(n) → O(1) (no hash change)`
+- `grid: fix resource ordering bug (determinism restored)`
+- `perf: optimize render loop (FPS +15%)`
+
+---
+
+## Pre-PR Checklist
+
+1. ✅ `pytest -q` green
+2. ✅ Updated docs if new flag/config added
+
+---
+
+## Final Notes
+
+**When in doubt:** Add/extend a determinism test instead of guessing.
+
+**For deeper context:** See `README.md` & `docs/` directory.
+
+**Remember:** This simulation's determinism is critical for reproducible research and educational value.

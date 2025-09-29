@@ -5,15 +5,12 @@ All debug output from simulation components should use this logging system
 instead of direct print statements for better organization and GUI integration.
 
 Environment Variables:
-    ECONSIM_LOG_LEVEL: Controls verbosity (CRITICAL|EVENTS|PERIODIC|VERBOSE) [default: EVENTS]
-    ECONSIM_LOG_FORMAT: Output format (COMPACT|STRUCTURED) [default: COMPACT]
-    ECONSIM_LOG_BUNDLE_TRADES: Bundle trade+utility logs into single line [default: 0]
+    (Deprecated) All logging is now always enabled in structured format.
+    No environment variables needed for basic logging functionality.
 
-Logging Levels:
-    CRITICAL: Only errors, warnings, phase transitions
-    EVENTS: + trades, utility changes, mode switches  
-    PERIODIC: + step summaries every 25 steps, performance windows
-    VERBOSE: Everything (classic behavior)
+Simplified Logging:
+    All events are logged by default in structured JSON format.
+    No category filtering or level restrictions.
 """
 
 import os
@@ -133,15 +130,8 @@ class GUILogger:
         if GUILogger._instance is not None:
             raise RuntimeError("GUILogger is a singleton. Use get_instance() instead.")
         
-        # Parse environment configuration
-        # Default elevated to VERBOSE so a fresh run (no env var set) surfaces
-        # all available debug events in structured logs.
-        level_str = os.environ.get("ECONSIM_LOG_LEVEL", "VERBOSE").upper()
-        
-        try:
-            self.log_level = LogLevel(level_str)
-        except ValueError:
-            self.log_level = LogLevel.EVENTS  # Safe default
+        # SIMPLIFIED: Always use VERBOSE level and structured format
+        self.log_level = LogLevel.VERBOSE
             
         # Performance tracking for conditional logging
         self._last_perf_log_step = 0
@@ -241,49 +231,8 @@ class GUILogger:
     
     def _should_log_category(self, category: str) -> bool:
         """Check if a message category should be logged at current level."""
-        # Normalize legacy/extended category aliases
-        original_category = category
-        if category == "TRADES":  # builder uses plural, core filters expect singular
-            category = "TRADE"
-        elif category == "PERFORMANCE":  # treat as PERF for filtering purposes
-            category = "PERF"
-        # Use enhanced configuration if available
-        if _has_log_config:
-            try:
-                from .log_config import get_log_config
-                config = get_log_config()
-                # Pass normalized; if config relies on original raw category ensure fallback
-                if hasattr(config, 'should_log_category'):
-                    try:
-                        return bool(config.should_log_category(category)) or bool(config.should_log_category(original_category))  # type: ignore[attr-defined]
-                    except Exception:
-                        return config.should_log_category(category)
-                return True
-            except Exception:  # pragma: no cover
-                pass  # Fall back to original logic
-                
-        # Original logic as fallback
-        if self.log_level == LogLevel.VERBOSE:
-            # In verbose mode, log everything except when COMPACT format filters some noise
-            return True
-        elif self.log_level == LogLevel.PERIODIC:
-            return category in [
-                "CRITICAL", "ERROR", "WARNING",
-                "PHASE", "TRADE", "UTILITY", "MODE",
-                "PERIODIC_PERF", "PERIODIC_SIM", "PERF", "SIMULATION",
-                # Newly introduced categories (Phase 3) - permit periodic visibility
-                "PAIRING", "STAGNATION"
-            ]
-        elif self.log_level == LogLevel.EVENTS:
-            return category in [
-                "CRITICAL", "ERROR", "WARNING",
-                "PHASE", "TRADE", "UTILITY", "MODE", "SIMULATION",
-                # Show partner search + stagnation triggers at EVENTS (they are rare/educational)
-                "PAIRING", "STAGNATION"
-            ]
-        elif self.log_level == LogLevel.CRITICAL:
-            return category in ["CRITICAL", "ERROR", "WARNING", "PHASE"]
-        return False
+        # SIMPLIFIED: Always log everything - no category filtering
+        return True
 
     def _buffer_agent_transition(self, agent_id: str, old_mode: str, new_mode: str, context: str, step: Optional[int]) -> None:
         """Buffer agent transitions for potential batching and deduplication."""
@@ -675,22 +624,6 @@ class GUILogger:
     # ---------------- Phase 3 Event Builder Helpers -----------------
     # Each returns (compact_line: str, structured_payload: Dict[str, Any], category: str)
 
-    def build_perf_spike(self, step: int, time_ms: float, rolling_mean_ms: float, agents: int, resources: int, phase: Optional[int]) -> tuple[str, Dict[str, Any], str]:
-        # Canonical category token (was PERFORMANCE, now PERF to match filtering & avoid normalization)
-        category = "PERF"
-        phase_part = f" phase={phase}" if phase is not None else ""
-        compact = f"PERF_SPIKE: step={step} time={time_ms:.1f}ms mean={rolling_mean_ms:.1f}ms agents={agents} resources={resources}{phase_part}"
-        payload: Dict[str, Any] = {
-            "event": "perf_spike",
-            "step": step,
-            "time_ms": round(time_ms, 3),
-            "rolling_mean_ms": round(rolling_mean_ms, 3),
-            "agents": agents,
-            "resources": resources,
-        }
-        if phase is not None:
-            payload["phase"] = phase
-        return compact, payload, category
 
     def build_micro_delta_threshold(self, threshold: float, first_drop_delta: float | None = None) -> tuple[str, Dict[str, Any], str]:
         category = "TRADE"
@@ -949,76 +882,79 @@ class GUILogger:
 
     def build_selection_sample(
         self,
-        agent_id: int,
-        k: float,
-        candidates: Sequence[Dict[str, Any]],
-        top_n: int = 3,
+        step: int,
+        resource_candidates: List[Dict[str, Any]],
+        partner_candidates: List[Dict[str, Any]],
+        total_agents: int,
+        active_agents: int,
     ) -> tuple[str, Dict[str, Any], str]:
-        """Selection ranking sample.
+        """Selection ranking sample for multiple agents.
 
         Args:
-            agent_id: Agent sampled.
-            k: distance scaling factor.
-            candidates: iterable of candidate dicts with keys described in plan.
-            top_n: truncate candidate count in compact line (structured keeps all).
+            step: Current simulation step.
+            resource_candidates: List of resource candidates with agent info.
+            partner_candidates: List of partner candidates with agent info.
+            total_agents: Total number of agents in simulation.
+            active_agents: Number of agents with current tasks.
         """
         category = "DECISIONS"
-        shown: List[Dict[str, Any]] = list(candidates)[:top_n]  # type: ignore[arg-type]
+        
+        # Build compact representation
         frag_parts: List[str] = []
-        for c in shown:
-            ctype = c.get("type")  # type: ignore[assignment]
-            d = c.get("d")  # type: ignore[assignment]
-            du = c.get("delta_u")  # type: ignore[assignment]
-            dud = c.get("delta_u_discounted")  # type: ignore[assignment]
-            if ctype == "RESOURCE":
-                pos = c.get("pos")  # type: ignore[assignment]
-                if isinstance(pos, (list, tuple)) and len(pos) == 2 and isinstance(du, (int, float)) and isinstance(dud, (int, float)):  # type: ignore[arg-type]
-                    frag = f"R@({pos[0]},{pos[1]}) d={d} ΔU={du:.2f} ΔU'={dud:.2f}"
-                else:
-                    frag = f"R d={d}"
-            elif ctype == "TRADE":
-                partner = c.get("partner")  # type: ignore[assignment]
-                if isinstance(partner, int) and isinstance(du, (int, float)) and isinstance(dud, (int, float)):
-                    frag = f"TRADE(A{partner:03d}) d={d} ΔU={du:.2f} ΔU'={dud:.2f}"
-                elif isinstance(partner, int):
-                    frag = f"TRADE(A{partner:03d}) d={d}"
-                else:
-                    frag = f"TRADE d={d}"
+        
+        # Add resource candidates
+        for i, rc in enumerate(resource_candidates[:3]):  # Top 3 resources
+            agent_id = rc.get("agent_id", -1)
+            pos = rc.get("pos", (0, 0))
+            score = rc.get("score", 0.0)
+            delta_u = rc.get("delta_u", 0.0)
+            if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                frag_parts.append(f"R{i+1}:A{agent_id:03d}@({pos[0]},{pos[1]}) s={score:.2f} ΔU={delta_u:.2f}")
             else:
-                frag = "?"
-            frag_parts.append(frag)
-        cand_compact = ", ".join(frag_parts)
-        compact = f"USAMP: A{agent_id:03d} k={k:g} cand=[{cand_compact}]"
+                frag_parts.append(f"R{i+1}:A{agent_id:03d} s={score:.2f} ΔU={delta_u:.2f}")
+        
+        # Add partner candidates  
+        for i, pc in enumerate(partner_candidates[:3]):  # Top 3 partners
+            agent_id = pc.get("agent_id", -1)
+            partner_id = pc.get("partner_id", -1)
+            score = pc.get("score", 0.0)
+            delta_u = pc.get("delta_u", 0.0)
+            frag_parts.append(f"P{i+1}:A{agent_id:03d}→A{partner_id:03d} s={score:.2f} ΔU={delta_u:.2f}")
+        
+        compact = f"SEL: step={step} active={active_agents}/{total_agents} " + " ".join(frag_parts)
+        
         payload: Dict[str, Any] = {
             "event": "selection_sample",
-            "agent": agent_id,
-            "k": k,
-            "candidates": list(candidates),  # preserve provided order & detail
+            "step": step,
+            "resource_candidates": resource_candidates,
+            "partner_candidates": partner_candidates,
+            "total_agents": total_agents,
+            "active_agents": active_agents,
         }
         return compact, payload, category
 
     def build_respawn_cycle(
         self,
         step: int,
-        deficit: int,
+        current_count: int,
+        target_count: int,
+        current_density: float,
         target_density: float,
-        planned: int,
-        placed: int,
-        remaining: int,
+        deficit: int,
     ) -> tuple[str, Dict[str, Any], str]:
         category = "RESOURCES"
         compact = (
-            f"RESP: step={step} deficit={deficit} target_density={target_density:g} "
-            f"plan={planned} placed={placed} remaining={remaining}"
+            f"RESP: step={step} current={current_count} target={target_count} "
+            f"density={current_density:.3f}/{target_density:.3f} deficit={deficit}"
         )
         payload: Dict[str, Any] = {
             "event": "respawn_cycle",
             "step": step,
-            "deficit": deficit,
+            "current_count": current_count,
+            "target_count": target_count,
+            "current_density": current_density,
             "target_density": target_density,
-            "planned": planned,
-            "placed": placed,
-            "remaining": remaining,
+            "deficit": deficit,
         }
         return compact, payload, category
 
@@ -1034,25 +970,58 @@ class GUILogger:
 
     def build_target_churn(
         self,
-        window: int,
-        retarget_events: int,
-        distinct_agents: int,
-        top_agent_id: int,
-        top_agent_events: int,
+        step: int,
+        total_retargets: int,
+        active_agents: int,
+        retarget_data: list[dict],
+        window_size: int,
     ) -> tuple[str, Dict[str, Any], str]:
         category = "DECISIONS"
+        top_agent_id = retarget_data[0]["agent_id"] if retarget_data else 0
+        top_agent_events = retarget_data[0]["retarget_count"] if retarget_data else 0
+        
         compact = (
-            f"CHURN: window={window} retarget_events={retarget_events} distinct_agents={distinct_agents} "
+            f"CHURN: step={step} window={window_size} retarget_events={total_retargets} distinct_agents={active_agents} "
             f"top_agent=A{top_agent_id:03d} count={top_agent_events}"
         )
         payload: Dict[str, Any] = {
             "event": "target_churn",
-            "window": window,
-            "retarget_events": retarget_events,
-            "distinct_agents": distinct_agents,
+            "step": step,
+            "window": window_size,
+            "retarget_events": total_retargets,
+            "distinct_agents": active_agents,
             "top_agent_id": top_agent_id,
             "top_agent_events": top_agent_events,
+            "retarget_data": retarget_data,
         }
+        return compact, payload, category
+
+    def build_perf_spike(
+        self,
+        step: int,
+        time_ms: float,
+        rolling_mean_ms: float,
+        agents: int,
+        resources: int,
+        phase: Optional[int] = None,
+    ) -> tuple[str, Dict[str, Any], str]:
+        """Performance spike detection event."""
+        category = "PERF"
+        phase_fragment = f" phase={phase}" if phase is not None else ""
+        compact = (
+            f"PERF: spike step={step} time={time_ms:.1f}ms mean={rolling_mean_ms:.1f}ms "
+            f"agents={agents} resources={resources}{phase_fragment}"
+        )
+        payload: Dict[str, Any] = {
+            "event": "perf_spike",
+            "step": step,
+            "time_ms": round(time_ms, 1),
+            "rolling_mean_ms": round(rolling_mean_ms, 1),
+            "agents": agents,
+            "resources": resources,
+        }
+        if phase is not None:
+            payload["phase"] = phase
         return compact, payload, category
 
     def build_overlay_state(

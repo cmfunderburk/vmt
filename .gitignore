@@ -81,9 +81,12 @@ coverage.xml
 *.pstat
 profile*
 
-# Debug logs
+# Debug logs and structured logs
 gui_logs/*.log
 gui_logs/*.json
+gui_logs/*.jsonl
+gui_logs/structured/
+gui_logs/compact/
 # Allow documentation in gui_logs directory
 !gui_logs/README.md
 !gui_logs/.gitignore

@@ -56,8 +56,8 @@ manual-tests:
 	fi
 
 launcher:
-	# Launch Enhanced Test Launcher with INTERNAL DEFAULT logging (now VERBOSE by default).
-	# To override, export e.g.: ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT make launcher
+	# Launch Enhanced Test Launcher with simplified logging (all events logged by default).
+	# No environment variables needed - logging is always on and structured.
 	@if [ -d "vmt-dev" ]; then \
 		echo "[launcher] Using virtual environment (no explicit log overrides)."; \
 		. vmt-dev/bin/activate && cd MANUAL_TESTS && $(PYTHON) enhanced_test_launcher_v2.py; \

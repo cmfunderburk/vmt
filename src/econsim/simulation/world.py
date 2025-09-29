@@ -86,16 +86,17 @@ class Simulation:
         """
         # Performance tracking
         import time
+        import os
         from ..gui.debug_logger import log_comprehensive, log_simulation, log_performance
-        
+
         step_start = time.perf_counter()
         step_num = self._steps + 1
-        
+
         # Comprehensive debug logging for simulation steps
         log_comprehensive(f"=== SIMULATION STEP {step_num} START ===", step_num)
-        
+
     # Removed legacy summary line (Agents/Resources/Decision Mode) as redundant with newer instrumentation
-        
+
         forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
         hash_neutral = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"  # default early to avoid unbound
         parity_restore_snapshot: list[tuple[int, dict[str,int]]] | None = None
@@ -319,7 +320,47 @@ class Simulation:
             if self._respawn_interval and self._respawn_interval > 0:
                 if (self._steps % self._respawn_interval) == 0:
                     try:
-                        self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)
+                        # Emit respawn cycle event
+                        try:
+                            from ..gui.debug_logger import get_gui_logger
+                            logger = get_gui_logger()
+                            
+                            # Calculate current density for logging
+                            total_cells = self.grid.width * self.grid.height
+                            current_count = self.grid.resource_count()
+                            current_density = current_count / total_cells if total_cells > 0 else 0.0
+                            target_density = self.respawn_scheduler.target_density
+                            
+                            builder_result = logger.build_respawn_cycle(
+                                step=self._steps,
+                                current_count=current_count,
+                                target_count=int(target_density * total_cells),
+                                current_density=current_density,
+                                target_density=target_density,
+                                deficit=int(target_density * total_cells) - current_count
+                            )
+                            logger.emit_built_event(self._steps, builder_result)
+                        except Exception:
+                            pass  # Don't break simulation if logging fails
+                        
+                        # Execute respawn
+                        spawned_count = self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)
+                        
+                        # Log if no resources were spawned (skipped)
+                        if spawned_count == 0:
+                            try:
+                                from ..gui.debug_logger import get_gui_logger
+                                logger = get_gui_logger()
+                                
+                                reason = "density_adequate" if current_count >= int(target_density * total_cells) else "no_empty_cells"
+                                builder_result = logger.build_respawn_skipped(
+                                    step=self._steps,
+                                    reason=reason
+                                )
+                                logger.emit_built_event(self._steps, builder_result)
+                            except Exception:
+                                pass  # Don't break simulation if logging fails
+                                
                     except Exception as exc:  # pragma: no cover - defensive placeholder
                         logging.getLogger(__name__).warning("Respawn scheduler error: %s", exc)
         # Metrics hook (placeholder logic handled inside collector)
@@ -377,6 +418,38 @@ class Simulation:
                 steps_per_sec = (len(self._step_times) - 1) / time_window
                 # Use legacy performance logging - unified periodic logging is handled by higher-level code
                 log_performance(f"{steps_per_sec:.1f} steps/sec | Frame: {step_duration:.1f}ms | Agents: {len(self.agents)} | Resources: {self.grid.resource_count()}", step_num)
+                
+                # Performance spike detection
+                if len(self._step_times) >= 10:  # Need enough data for rolling average
+                    # Calculate rolling mean of step durations
+                    step_durations = []
+                    for i in range(1, len(self._step_times)):
+                        duration = (self._step_times[i] - self._step_times[i-1]) * 1000  # ms
+                        step_durations.append(duration)
+                    
+                    if step_durations:
+                        rolling_mean = sum(step_durations) / len(step_durations)
+                        
+                        # Check for performance spike (current step significantly slower than rolling mean)
+                        import os
+                        spike_factor = float(os.environ.get("ECONSIM_PERF_SPIKE_FACTOR", "1.35"))
+                        
+                        # Debug: Always emit perf spike event to see if it's working
+                        try:
+                            from ..gui.debug_logger import get_gui_logger
+                            logger = get_gui_logger()
+                            
+                            builder_result = logger.build_perf_spike(
+                                step=step_num,
+                                time_ms=step_duration,
+                                rolling_mean_ms=rolling_mean,
+                                agents=len(self.agents),
+                                resources=self.grid.resource_count(),
+                                phase=None  # Could be enhanced to track phase if available
+                            )
+                            logger.emit_built_event(step_num, builder_result)
+                        except Exception:
+                            pass  # Don't break simulation if logging fails
         
         self._steps += 1
         # Expire highlight if past its lifetime
@@ -544,6 +617,25 @@ class Simulation:
             agent.trade_stagnation_steps >= 100
             and agent.mode not in (AgentMode.RETURN_HOME,)
         ):
+            # Emit stagnation trigger event
+            try:
+                from ..gui.debug_logger import get_gui_logger
+                logger = get_gui_logger()
+                
+                # Calculate last improvement step (approximate)
+                last_improve_step = self._steps - agent.trade_stagnation_steps
+                
+                builder_result = logger.build_stagnation_trigger(
+                    agent_id=agent.id,
+                    threshold=100,
+                    last_improve_step=last_improve_step,
+                    action="return_home",
+                    deposit=True
+                )
+                logger.emit_built_event(self._steps, builder_result)
+            except Exception:
+                pass  # Don't break simulation if logging fails
+                
             if agent.trade_partner_id is not None:
                 partner = self._find_agent_by_id(agent.trade_partner_id)
                 if partner is not None:
@@ -760,9 +852,12 @@ class Simulation:
                 # No target found - fall back to deposit/idle logic
                 if a.carrying_total() > 0:
                     a.mode = AgentMode.RETURN_HOME
-                    a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                    new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                    a._track_target_change(new_target, step)
+                    a.target = new_target
                 else:
                     a.mode = AgentMode.IDLE
+                    a._track_target_change(None, step)
                     a.target = None
                 continue
             kind, payload = choice
@@ -772,23 +867,30 @@ class Simulation:
                     # Already claimed; idle fallback
                     if a.carrying_total() > 0:
                         a.mode = AgentMode.RETURN_HOME
-                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                        new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                        a._track_target_change(new_target, step)
+                        a.target = new_target
                     else:
                         a.mode = AgentMode.IDLE
+                        a._track_target_change(None, step)
                         a.target = None
                     continue
                 claimed_resources.add(pos)
+                a._track_target_change(pos, step)
                 a.target = pos
                 a.mode = AgentMode.FORAGE
                 # Immediate attempt collect if already on cell
                 collected = a.collect(self.grid)
                 if collected:
                     foraged_ids.add(a.id)
+                    a._track_target_change(None, step)
                     a.target = None
                     # After collecting, check if should return home
                     if a.carrying_total() > 0:
                         a.mode = AgentMode.RETURN_HOME
-                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                        new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                        a._track_target_change(new_target, step)
+                        a.target = new_target
                 else:
                     # Move one step toward
                     if a.target is not None and (a.x, a.y) != a.target:
@@ -814,9 +916,12 @@ class Simulation:
                     # Partner already claimed; fallback
                     if a.carrying_total() > 0:
                         a.mode = AgentMode.RETURN_HOME
-                        a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                        new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
+                        a._track_target_change(new_target, step)
+                        a.target = new_target
                     else:
                         a.mode = AgentMode.IDLE
+                        a._track_target_change(None, step)
                         a.target = None
                     continue
                 partner = agents_by_id.get(pid)
@@ -828,9 +933,11 @@ class Simulation:
                 from .agent import AgentMode
                 _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
                 a.mode = AgentMode.MOVE_TO_PARTNER
+                a._track_target_change(a.meeting_point, step)
                 a.target = a.meeting_point
                 _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
                 partner.mode = AgentMode.MOVE_TO_PARTNER
+                partner._track_target_change(partner.meeting_point, step)
                 partner.target = partner.meeting_point
                 # Initial convergence step
                 a.move_toward_meeting_point(self.grid)
@@ -855,6 +962,87 @@ class Simulation:
                     elif a.at_home():
                         a.mode = _AM.IDLE  # Only idle at home
                     # If no cargo and not at home, let them continue seeking or return home
+        # Emit selection sample instrumentation (periodic)
+        import os
+        sample_period = int(os.environ.get("ECONSIM_SELECTION_SAMPLE_PERIOD", "200"))
+        if step % sample_period == 0:
+            try:
+                from ..gui.debug_logger import get_gui_logger
+                logger = get_gui_logger()
+                
+                # Collect top candidates for analysis
+                resource_candidates = []
+                partner_candidates = []
+                
+                for a in self.agents:
+                    if a.current_unified_task is not None:
+                        kind, payload = a.current_unified_task
+                        if kind == "resource":
+                            resource_candidates.append({
+                                "agent_id": a.id,
+                                "pos": payload.get("pos"),
+                                "score": payload.get("score", 0.0),
+                                "delta_u": payload.get("delta_u", 0.0)
+                            })
+                        elif kind == "partner":
+                            partner_candidates.append({
+                                "agent_id": a.id,
+                                "partner_id": payload.get("partner_id"),
+                                "score": payload.get("score", 0.0),
+                                "delta_u": payload.get("delta_u", 0.0)
+                            })
+                
+                # Sort by score (descending) and take top N
+                resource_candidates.sort(key=lambda x: x["score"], reverse=True)
+                partner_candidates.sort(key=lambda x: x["score"], reverse=True)
+                
+                builder_result = logger.build_selection_sample(
+                    step=step,
+                    resource_candidates=resource_candidates[:5],  # Top 5 resources
+                    partner_candidates=partner_candidates[:5],   # Top 5 partners
+                    total_agents=len(self.agents),
+                    active_agents=len([a for a in self.agents if a.current_unified_task is not None])
+                )
+                logger.emit_built_event(step, builder_result)
+            except Exception:
+                pass  # Don't break simulation if logging fails
+
+        # Emit target churn instrumentation (periodic)
+        churn_period = int(os.environ.get("ECONSIM_CHURN_EMIT_PERIOD", "500"))
+        if step % churn_period == 0:
+            try:
+                from ..gui.debug_logger import get_gui_logger
+                logger = get_gui_logger()
+                
+                # Collect retarget data from all agents
+                retarget_data = []
+                total_retargets = 0
+                
+                for a in self.agents:
+                    if a._recent_retargets:
+                        # Count retargets in the last window
+                        window_start = max(0, step - int(os.environ.get("ECONSIM_CHURN_WINDOW", "100")))
+                        recent_count = len([s for s in a._recent_retargets if s >= window_start])
+                        if recent_count > 0:
+                            retarget_data.append({
+                                "agent_id": a.id,
+                                "retarget_count": recent_count,
+                                "last_retarget": max(a._recent_retargets) if a._recent_retargets else step
+                            })
+                            total_retargets += recent_count
+                
+                # Debug: Always emit target churn event (even if no retargets) to see if it's working
+                builder_result = logger.build_target_churn(
+                    step=step,
+                    total_retargets=total_retargets,
+                    active_agents=len(retarget_data),
+                    retarget_data=retarget_data[:10],  # Top 10 most active agents
+                    window_size=int(os.environ.get("ECONSIM_CHURN_WINDOW", "100"))
+                )
+                logger.emit_built_event(step, builder_result)
+            except Exception:
+                pass  # Don't break simulation if logging fails
+
         # Post-pass movement for existing pairings (finish convergence)
         for a in self.agents:
             if getattr(a, 'trade_partner_id', None) is not None:
