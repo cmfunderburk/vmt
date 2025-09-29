@@ -24,6 +24,12 @@ class AbstractTab(QWidget):  # pragma: no cover - GUI base class for tab compone
         super().__init__(parent)  # type: ignore[misc]
         self._tab_title = "Unknown Tab"
         self._tab_id = "unknown"
+        
+        # Set dark mode background for all tabs by default
+        try:
+            self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")  # type: ignore[attr-defined]
+        except Exception:
+            pass
     
     @property
     def tab_title(self) -> str:

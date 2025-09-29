@@ -58,17 +58,40 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         self._session: Optional[_SimulationPageBundle] = None
         self.setStyleSheet(
             """
+            QMainWindow, QWidget, QDialog {
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
             QGroupBox {
                 font-weight: 600;
                 margin-top: 8px;
+                color: #ffffff;
+                border: 2px solid #555555;
+                border-radius: 3px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 6px;
                 padding: 0 4px;
+                background-color: #2b2b2b;
             }
             QLabel {
                 font-size: 11px;
+                color: #ffffff;
+            }
+            QPushButton {
+                background-color: #404040;
+                color: #ffffff;
+                border: 1px solid #666666;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #4a4a4a;
+            }
+            QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
             }
             """
         )

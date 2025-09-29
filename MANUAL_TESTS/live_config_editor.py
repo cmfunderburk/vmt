@@ -114,13 +114,13 @@ class ParameterSlider(QWidget):
         range_layout.setContentsMargins(0, 0, 0, 0)
         
         min_label = QLabel(f"{self.min_val}{self.suffix}")
-        min_label.setStyleSheet("color: #666; font-size: 8px;")
+        min_label.setStyleSheet("color: #cccccc; font-size: 8px;")
         range_layout.addWidget(min_label)
         
         range_layout.addStretch()
         
         max_label = QLabel(f"{self.max_val}{self.suffix}")
-        max_label.setStyleSheet("color: #666; font-size: 8px;")
+        max_label.setStyleSheet("color: #cccccc; font-size: 8px;")
         range_layout.addWidget(max_label)
         
         layout.addLayout(range_layout)
@@ -163,14 +163,14 @@ class ConfigurationValidator(QWidget):
         # Validation status
         self.status_label = QLabel("✅ Configuration Valid")
         self.status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        self.status_label.setStyleSheet("color: #2e7d32; background: #e8f5e8; padding: 8px; border-radius: 4px;")
+        self.status_label.setStyleSheet("color: #81c784; background: #1a3d1a; padding: 8px; border-radius: 4px;")
         layout.addWidget(self.status_label)
         
         # Validation details
         self.details_text = QTextEdit()
         self.details_text.setMaximumHeight(150)
         self.details_text.setReadOnly(True)
-        self.details_text.setStyleSheet("background: #f8f9fa; font-size: 9px;")
+        self.details_text.setStyleSheet("background: #1e1e1e; color: #ffffff; font-size: 9px;")
         layout.addWidget(self.details_text)
         
     def validate_config(self, config: TestConfiguration) -> Dict[str, List[str]]:
@@ -250,37 +250,37 @@ class ConfigurationValidator(QWidget):
         # Update status
         if issues["errors"]:
             self.status_label.setText("❌ Configuration Invalid")
-            self.status_label.setStyleSheet("color: #c62828; background: #ffebee; padding: 8px; border-radius: 4px;")
+            self.status_label.setStyleSheet("color: #ff6b6b; background: #3d1a1a; padding: 8px; border-radius: 4px;")
         elif issues["warnings"]:
             self.status_label.setText("⚠️ Configuration Has Warnings")
-            self.status_label.setStyleSheet("color: #f57c00; background: #fff3e0; padding: 8px; border-radius: 4px;")
+            self.status_label.setStyleSheet("color: #ffb74d; background: #3d2f1a; padding: 8px; border-radius: 4px;")
         else:
             self.status_label.setText("✅ Configuration Valid")
-            self.status_label.setStyleSheet("color: #2e7d32; background: #e8f5e8; padding: 8px; border-radius: 4px;")
+            self.status_label.setStyleSheet("color: #81c784; background: #1a3d1a; padding: 8px; border-radius: 4px;")
             
         # Update details
         details_html = ""
         
         if issues["errors"]:
-            details_html += "<b style='color: #c62828;'>Errors (Must Fix):</b><ul>"
+            details_html += "<b style='color: #ff6b6b;'>Errors (Must Fix):</b><ul>"
             for error in issues["errors"]:
                 details_html += f"<li>{error}</li>"
             details_html += "</ul>"
             
         if issues["warnings"]:
-            details_html += "<b style='color: #f57c00;'>Warnings:</b><ul>"
+            details_html += "<b style='color: #ffb74d;'>Warnings:</b><ul>"
             for warning in issues["warnings"]:
                 details_html += f"<li>{warning}</li>"
             details_html += "</ul>"
             
         if issues["info"]:
-            details_html += "<b style='color: #1976d2;'>Information:</b><ul>"
+            details_html += "<b style='color: #64b5f6;'>Information:</b><ul>"
             for info in issues["info"]:
                 details_html += f"<li>{info}</li>"
             details_html += "</ul>"
             
         if not details_html:
-            details_html = "<span style='color: #2e7d32;'>All parameters are within recommended ranges.</span>"
+            details_html = "<span style='color: #81c784;'>All parameters are within recommended ranges.</span>"
             
         self.details_text.setHtml(details_html)
         
@@ -307,12 +307,12 @@ class ConfigurationPreview(QWidget):
         self.preview_text = QTextEdit()
         self.preview_text.setReadOnly(True)
         self.preview_text.setMaximumHeight(200)
-        self.preview_text.setStyleSheet("background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;")
+        self.preview_text.setStyleSheet("background: #1e1e1e; color: #ffffff; border: 1px solid #555555; border-radius: 4px;")
         layout.addWidget(self.preview_text)
         
         # Estimated runtime
         self.runtime_label = QLabel("⏱️ Estimated Runtime: ~15 min")
-        self.runtime_label.setStyleSheet("font-style: italic; color: #666; margin-top: 5px;")
+        self.runtime_label.setStyleSheet("font-style: italic; color: #cccccc; margin-top: 5px;")
         layout.addWidget(self.runtime_label)
         
     def update_preview(self, config: TestConfiguration):
@@ -342,7 +342,7 @@ class ConfigurationPreview(QWidget):
         <tr><td><b>Preferences:</b></td><td>{config.preference_mix.replace('_', ' ').title()}</td></tr>
         </table>
         
-        <p style='margin-top: 10px; font-size: 9px; color: #666;'>
+        <p style='margin-top: 10px; font-size: 9px; color: #cccccc;'>
         <b>Expected Behavior:</b><br>
         {'High competition for resources' if resource_ratio < 2 else 'Moderate resource availability' if resource_ratio < 4 else 'Abundant resources'}<br>
         {'Agents can see most of the grid' if perception_coverage > 50 else 'Limited visibility encourages exploration' if perception_coverage < 20 else 'Moderate perception range'}<br>
@@ -837,7 +837,7 @@ class LiveConfigEditor(QWidget):
         phase_config_layout.addWidget(self.phase_config_btn)
         
         self.phase_summary_label = QLabel("Standard 6-phase schedule")
-        self.phase_summary_label.setStyleSheet("color: #666; font-size: 9px; font-style: italic;")
+        self.phase_summary_label.setStyleSheet("color: #cccccc; font-size: 9px; font-style: italic;")
         phase_config_layout.addWidget(self.phase_summary_label)
         phase_config_layout.addStretch()
         
@@ -865,7 +865,7 @@ class LiveConfigEditor(QWidget):
                 background-color: #45a049;
             }
             QPushButton:disabled {
-                background-color: #cccccc;
+                background-color: #666666;
             }
         """)
         self.launch_btn.clicked.connect(self.launch_custom_test)
@@ -885,7 +885,7 @@ class LiveConfigEditor(QWidget):
                 background-color: #1976D2;
             }
             QPushButton:disabled {
-                background-color: #cccccc;
+                background-color: #666666;
             }
         """)
         self.save_test_btn.clicked.connect(self.save_custom_test)

@@ -51,12 +51,19 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
         """Create the custom tests UI."""
         layout = QVBoxLayout(self)  # type: ignore[call-arg]
         
+        # Set dark mode background for the main widget
+        try:
+            self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        
         # Header
         header_layout = QHBoxLayout()  # type: ignore[call-arg]
         
         title = QLabel("Custom Generated Tests")  # type: ignore[call-arg]
         try:
             title.setFont(QFont("Arial", 16, QFont.Weight.Bold))  # type: ignore[attr-defined]
+            title.setStyleSheet("color: #ffffff;")  # type: ignore[attr-defined]
         except Exception:
             pass
         header_layout.addWidget(title)  # type: ignore[arg-type]
@@ -90,7 +97,7 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
             "Use the 'Open Folder' button to see the custom tests directory."
         )
         try:
-            info_text.setStyleSheet("color: #666; margin: 5px 0;")  # type: ignore[attr-defined]
+            info_text.setStyleSheet("color: #cccccc; margin: 5px 0;")  # type: ignore[attr-defined]
             info_text.setWordWrap(True)  # type: ignore[attr-defined]
         except Exception:
             pass
@@ -101,6 +108,7 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
         try:
             self.scroll_area.setWidgetResizable(True)  # type: ignore[attr-defined]
             self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)  # type: ignore[attr-defined]
+            self.scroll_area.setStyleSheet("background-color: #2b2b2b;")  # type: ignore[attr-defined]
         except Exception:
             pass
         
@@ -108,6 +116,7 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
         self.grid_layout = QGridLayout(self.scroll_widget)  # type: ignore[call-arg]
         try:
             self.scroll_area.setWidget(self.scroll_widget)  # type: ignore[attr-defined]
+            self.scroll_widget.setStyleSheet("background-color: #2b2b2b;")  # type: ignore[attr-defined]
         except Exception:
             pass
         
@@ -116,7 +125,7 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
         # Status label
         self.status_label = QLabel("Loading custom tests...")  # type: ignore[call-arg]
         try:
-            self.status_label.setStyleSheet("color: #666; font-style: italic;")  # type: ignore[attr-defined]
+            self.status_label.setStyleSheet("color: #cccccc; font-style: italic;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(self.status_label)  # type: ignore[arg-type]

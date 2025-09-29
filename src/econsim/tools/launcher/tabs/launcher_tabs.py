@@ -37,10 +37,16 @@ class ComparisonTab(QWidget):  # type: ignore[misc] # pragma: no cover - GUI com
     def _setup_ui(self) -> None:
         layout = QVBoxLayout()  # type: ignore[call-arg]
         
+        # Set dark mode background for the main widget
+        try:
+            self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        
         # Header
         header = QLabel("Test Comparison")  # type: ignore[call-arg]
         try:
-            header.setStyleSheet("font-weight: bold; font-size: 14px;")  # type: ignore[attr-defined]
+            header.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(header)  # type: ignore[arg-type]
@@ -115,10 +121,16 @@ class HistoryTab(QWidget):  # type: ignore[misc] # pragma: no cover - GUI compon
     def _setup_ui(self) -> None:
         layout = QVBoxLayout()  # type: ignore[call-arg]
         
+        # Set dark mode background for the main widget
+        try:
+            self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        
         # Header
         header = QLabel("Execution History")  # type: ignore[call-arg]
         try:
-            header.setStyleSheet("font-weight: bold; font-size: 14px;")  # type: ignore[attr-defined]
+            header.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(header)  # type: ignore[arg-type]

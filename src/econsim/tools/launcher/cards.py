@@ -139,15 +139,15 @@ class CustomTestCardWidget(QFrame):  # pragma: no cover - GUI component extracte
             self.setFrameStyle(QFrame.Shape.Box)  # type: ignore[attr-defined]
             self.setStyleSheet("""
                 QFrame {
-                    border: 2px solid #ddd;
+                    border: 2px solid #555555;
                     border-radius: 8px;
-                    background-color: #f9f9f9;
+                    background-color: #1e1e1e;
                     margin: 5px;
                     padding: 10px;
                 }
                 QFrame:hover {
-                    border-color: #007acc;
-                    background-color: #f0f8ff;
+                    border-color: #0078d4;
+                    background-color: #2a2a2a;
                 }
             """)
             self.setMinimumHeight(200)  # type: ignore[attr-defined]
@@ -162,6 +162,7 @@ class CustomTestCardWidget(QFrame):  # pragma: no cover - GUI component extracte
         try:
             name_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))  # type: ignore[attr-defined]
             name_label.setWordWrap(True)  # type: ignore[attr-defined]
+            name_label.setStyleSheet("color: #ffffff;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(name_label)  # type: ignore[arg-type]
@@ -170,7 +171,7 @@ class CustomTestCardWidget(QFrame):  # pragma: no cover - GUI component extracte
         if self.test_info['created'] != 'Unknown':
             created_label = QLabel(f"Created: {self.test_info['created']}")  # type: ignore[call-arg]
             try:
-                created_label.setStyleSheet("color: #666; font-size: 10px;")  # type: ignore[attr-defined]
+                created_label.setStyleSheet("color: #cccccc; font-size: 10px;")  # type: ignore[attr-defined]
             except Exception:
                 pass
             layout.addWidget(created_label)  # type: ignore[arg-type]
@@ -191,7 +192,7 @@ class CustomTestCardWidget(QFrame):  # pragma: no cover - GUI component extracte
             if config_text:
                 config_label = QLabel(" | ".join(config_text))  # type: ignore[call-arg]
                 try:
-                    config_label.setStyleSheet("color: #444; font-size: 11px; margin: 5px 0;")  # type: ignore[attr-defined]
+                    config_label.setStyleSheet("color: #cccccc; font-size: 11px; margin: 5px 0;")  # type: ignore[attr-defined]
                     config_label.setWordWrap(True)  # type: ignore[attr-defined]
                 except Exception:
                     pass
@@ -200,7 +201,7 @@ class CustomTestCardWidget(QFrame):  # pragma: no cover - GUI component extracte
         # File name
         file_label = QLabel(f"File: {self.test_file.name}")  # type: ignore[call-arg]
         try:
-            file_label.setStyleSheet("color: #666; font-size: 10px; font-family: monospace;")  # type: ignore[attr-defined]
+            file_label.setStyleSheet("color: #cccccc; font-size: 10px; font-family: monospace;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(file_label)  # type: ignore[arg-type]
@@ -370,8 +371,8 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
             self.setFrameStyle(QFrame.Shape.StyledPanel)  # type: ignore[attr-defined]
             self.setStyleSheet("""
                 QFrame {
-                    background-color: white;
-                    border: 2px solid #ddd;
+                    background-color: #1e1e1e;
+                    border: 2px solid #555555;
                     border-radius: 8px;
                     margin: 4px;
                 }
@@ -393,6 +394,7 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
         try:
             name_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))  # type: ignore[attr-defined]
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # type: ignore[attr-defined]
+            name_label.setStyleSheet("color: #ffffff;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(name_label)  # type: ignore[arg-type]
@@ -401,7 +403,7 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
         desc_label = QLabel(self.config.description)  # type: ignore[call-arg]
         try:
             desc_label.setWordWrap(True)  # type: ignore[attr-defined]
-            desc_label.setStyleSheet("color: #666; font-size: 10px;")  # type: ignore[attr-defined]
+            desc_label.setStyleSheet("color: #cccccc; font-size: 10px;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(desc_label)  # type: ignore[arg-type]
@@ -417,7 +419,7 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
         """
         config_label = QLabel(config_text)  # type: ignore[call-arg]
         try:
-            config_label.setStyleSheet("font-size: 9px; color: #555;")  # type: ignore[attr-defined]
+            config_label.setStyleSheet("font-size: 9px; color: #cccccc;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(config_label)  # type: ignore[arg-type]
@@ -426,7 +428,7 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
         runtime = self._estimate_runtime()
         runtime_label = QLabel(f"⏱️ Runtime: {runtime}")  # type: ignore[call-arg]
         try:
-            runtime_label.setStyleSheet("font-size: 9px; color: #888; font-style: italic;")  # type: ignore[attr-defined]
+            runtime_label.setStyleSheet("font-size: 9px; color: #aaaaaa; font-style: italic;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(runtime_label)  # type: ignore[arg-type]
@@ -510,7 +512,7 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
             try:
                 self.setStyleSheet("""
                     QFrame {
-                        background-color: #fff3e0;
+                        background-color: #2a1a00;
                         border: 3px solid #ff9800;
                         border-radius: 8px;
                         margin: 4px;
@@ -522,8 +524,8 @@ class TestCardWidget(QFrame):  # pragma: no cover - GUI component extracted from
             try:
                 self.setStyleSheet("""
                     QFrame {
-                        background-color: white;
-                        border: 2px solid #ddd;
+                        background-color: #1e1e1e;
+                        border: 2px solid #555555;
                         border-radius: 8px;
                         margin: 4px;
                     }

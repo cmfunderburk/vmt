@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 
 from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtCore import Qt
 
 from econsim.gui.embedded_pygame import EmbeddedPygameWidget
 try:  # feature flag import (optional during transition)
@@ -48,32 +49,69 @@ def _apply_platform_styling(app: QApplication) -> None:
         # Force consistent cross-platform style instead of native macOS
         app.setStyle('Fusion')
         
-        # Comprehensive light theme stylesheet for dark mode compatibility
+        # Comprehensive dark theme stylesheet for all platforms
         app.setStyleSheet("""
-            /* Main containers */
+            /* Main containers - force dark mode for all window elements */
             QMainWindow, QWidget, QDialog {
-                background-color: #f5f5f5;
-                color: #1a1a1a;
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #555555;
+            }
+            
+            /* Window frame styling */
+            QMainWindow {
+                border: 2px solid #555555;
+                background-color: #2b2b2b;
+            }
+            
+            /* Ensure all child widgets inherit dark mode */
+            QMainWindow > QWidget {
+                background-color: #2b2b2b;
+                color: #ffffff;
             }
             
             /* Text areas and logs */
             QTextEdit, QPlainTextEdit {
-                background-color: #ffffff;
-                color: #000000;
+                background-color: #1e1e1e;
+                color: #ffffff;
                 font-family: 'Monaco', 'Courier New', 'DejaVu Sans Mono', monospace;
                 font-size: 11pt;
-                border: 1px solid #cccccc;
-                selection-background-color: #316AC5;
+                border: 1px solid #555555;
+                selection-background-color: #0078d4;
                 selection-color: #ffffff;
             }
             
             /* Input fields */
-            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
                 padding: 4px;
                 font-size: 11pt;
+            }
+            
+            /* Slider styling */
+            QSlider::groove:horizontal {
+                border: 1px solid #666666;
+                height: 6px;
+                background: #1e1e1e;
+                margin: 2px 0;
+            }
+            
+            QSlider::handle:horizontal {
+                background: #0078d4;
+                border: 1px solid #0078d4;
+                width: 16px;
+                margin: -5px 0;
+                border-radius: 8px;
+            }
+            
+            QSlider::sub-page:horizontal {
+                background: #0078d4;
+            }
+            
+            QSlider::add-page:horizontal {
+                background: #1e1e1e;
             }
             
             QComboBox::drop-down {
@@ -85,40 +123,40 @@ def _apply_platform_styling(app: QApplication) -> None:
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 5px solid #666666;
+                border-top: 5px solid #cccccc;
             }
             
             /* Buttons */
             QPushButton {
-                background-color: #e8e8e8;
-                color: #1a1a1a;
-                border: 1px solid #999999;
+                background-color: #404040;
+                color: #ffffff;
+                border: 1px solid #666666;
                 padding: 6px 12px;
                 font-size: 11pt;
                 border-radius: 3px;
             }
             
             QPushButton:hover {
-                background-color: #d0d0d0;
-                border-color: #666666;
+                background-color: #4a4a4a;
+                border-color: #888888;
             }
             
             QPushButton:pressed {
-                background-color: #c0c0c0;
+                background-color: #353535;
             }
             
             QPushButton:disabled {
-                background-color: #f0f0f0;
-                color: #999999;
-                border-color: #cccccc;
+                background-color: #2a2a2a;
+                color: #666666;
+                border-color: #444444;
             }
             
             /* Group boxes */
             QGroupBox {
                 font-weight: bold;
                 font-size: 12pt;
-                color: #1a1a1a;
-                border: 2px solid #cccccc;
+                color: #ffffff;
+                border: 2px solid #555555;
                 border-radius: 3px;
                 margin-top: 10px;
                 padding-top: 5px;
@@ -128,44 +166,44 @@ def _apply_platform_styling(app: QApplication) -> None:
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 8px 0 8px;
-                background-color: #f5f5f5;
+                background-color: #2b2b2b;
             }
             
             /* Labels */
             QLabel {
-                color: #1a1a1a;
+                color: #ffffff;
                 font-size: 11pt;
             }
             
             /* Checkboxes */
             QCheckBox {
-                color: #1a1a1a;
+                color: #ffffff;
                 font-size: 11pt;
             }
             
             QCheckBox::indicator {
                 width: 16px;
                 height: 16px;
-                background-color: #ffffff;
-                border: 1px solid #999999;
+                background-color: #1e1e1e;
+                border: 1px solid #666666;
             }
             
             QCheckBox::indicator:checked {
-                background-color: #316AC5;
-                border-color: #316AC5;
+                background-color: #0078d4;
+                border-color: #0078d4;
             }
             
             /* Sliders */
             QSlider::groove:horizontal {
-                border: 1px solid #999999;
+                border: 1px solid #666666;
                 height: 6px;
-                background: #ffffff;
+                background: #1e1e1e;
                 margin: 2px 0;
             }
             
             QSlider::handle:horizontal {
-                background: #316AC5;
-                border: 1px solid #316AC5;
+                background: #0078d4;
+                border: 1px solid #0078d4;
                 width: 16px;
                 margin: -5px 0;
                 border-radius: 8px;
@@ -173,9 +211,9 @@ def _apply_platform_styling(app: QApplication) -> None:
             
             /* Menu and menu bar */
             QMenuBar {
-                background-color: #f5f5f5;
-                color: #1a1a1a;
-                border-bottom: 1px solid #cccccc;
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border-bottom: 1px solid #555555;
             }
             
             QMenuBar::item {
@@ -184,26 +222,102 @@ def _apply_platform_styling(app: QApplication) -> None:
             }
             
             QMenuBar::item:selected {
-                background-color: #316AC5;
+                background-color: #0078d4;
                 color: #ffffff;
             }
             
             QMenu {
-                background-color: #ffffff;
-                color: #1a1a1a;
-                border: 1px solid #cccccc;
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
             }
             
             QMenu::item:selected {
-                background-color: #316AC5;
+                background-color: #0078d4;
                 color: #ffffff;
             }
             
             /* Status bar */
             QStatusBar {
-                background-color: #f0f0f0;
-                color: #1a1a1a;
-                border-top: 1px solid #cccccc;
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border-top: 1px solid #555555;
+            }
+            
+            /* Content boxes and frames - force dark mode */
+            QFrame, QGroupBox, QScrollArea, QWidget {
+                background-color: #2b2b2b !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+            }
+            
+            /* Force all text elements to dark mode */
+            QLabel, QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+            }
+            
+            /* Override any external component styling */
+            QLabel[objectName*="status"], QLabel[objectName*="info"], QLabel[objectName*="preview"], 
+            QLabel[objectName*="validation"], QLabel[objectName*="config"] {
+                background-color: #1e1e1e !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+                padding: 8px !important;
+                border-radius: 4px !important;
+            }
+            
+            QGroupBox::title {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                padding: 0 8px;
+            }
+            
+            /* Validation and status boxes */
+            QLabel[class="validation"], QLabel[class="status"] {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
+                padding: 4px 8px;
+                border-radius: 3px;
+            }
+            
+            /* Success/error indicators */
+            QLabel[class="success"] {
+                background-color: #1a3d1a !important;
+                color: #81c784 !important;
+                border: 1px solid #4caf50 !important;
+            }
+            
+            QLabel[class="error"] {
+                background-color: #3d1a1a !important;
+                color: #ff6b6b !important;
+                border: 1px solid #d32f2f !important;
+            }
+            
+            /* Force dark mode for all display elements */
+            QLabel[text*="Expected"], QLabel[text*="Configuration"], QLabel[text*="Information"],
+            QLabel[text*="Grid"], QLabel[text*="Agents"], QLabel[text*="Resources"] {
+                background-color: #1e1e1e !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+                padding: 8px !important;
+                border-radius: 4px !important;
+            }
+            
+            /* Override any white backgrounds from external components */
+            * {
+                background-color: #2b2b2b !important;
+                color: #ffffff !important;
+            }
+            
+            /* Specific overrides for common display patterns */
+            QLabel[text*="Expected Behavior"], QLabel[text*="Configuration Valid"] {
+                background-color: #1e1e1e !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+                padding: 8px !important;
             }
         """)
     
@@ -216,21 +330,140 @@ def _apply_platform_styling(app: QApplication) -> None:
         # Use Fusion style for consistency (Windows native can have issues)
         app.setStyle('Fusion')
         
-        # Lighter styling for Windows - mostly just ensure readability
+        # Dark theme styling for Windows
         app.setStyleSheet("""
+            QMainWindow, QWidget, QDialog {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #555555;
+            }
+            
+            /* Window frame styling for Windows */
+            QMainWindow {
+                border: 2px solid #555555;
+                background-color: #2b2b2b;
+            }
+            
             QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
                 font-family: 'Consolas', 'Courier New', monospace;
                 font-size: 10pt;
+                border: 1px solid #555555;
             }
             
             QPushButton {
+                background-color: #404040;
+                color: #ffffff;
+                border: 1px solid #666666;
                 padding: 4px 8px;
+                border-radius: 3px;
+            }
+            
+            QPushButton:hover {
+                background-color: #4a4a4a;
+            }
+            
+            QLabel {
+                color: #ffffff;
+            }
+            
+            /* Input fields for Windows */
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
+                padding: 4px;
+            }
+            
+            /* Content boxes for Windows - force dark mode */
+            QFrame, QGroupBox, QScrollArea, QWidget {
+                background-color: #2b2b2b !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+            }
+            
+            /* Force all text elements to dark mode */
+            QLabel, QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+            }
+            
+            /* Override any white backgrounds from external components */
+            * {
+                background-color: #2b2b2b !important;
+                color: #ffffff !important;
             }
         """)
     
     else:
-        # Linux and other platforms - minimal styling
+        # Linux and other platforms - dark theme styling
         app.setStyle('Fusion')
+        
+        # Dark theme styling for Linux
+        app.setStyleSheet("""
+            QMainWindow, QWidget, QDialog {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #555555;
+            }
+            
+            /* Window frame styling for Linux */
+            QMainWindow {
+                border: 2px solid #555555;
+                background-color: #2b2b2b;
+            }
+            
+            QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
+            }
+            
+            QPushButton {
+                background-color: #404040;
+                color: #ffffff;
+                border: 1px solid #666666;
+                border-radius: 3px;
+            }
+            
+            QPushButton:hover {
+                background-color: #4a4a4a;
+            }
+            
+            QLabel {
+                color: #ffffff;
+            }
+            
+            /* Input fields for Linux */
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
+                padding: 4px;
+            }
+            
+            /* Content boxes for Linux - force dark mode */
+            QFrame, QGroupBox, QScrollArea, QWidget {
+                background-color: #2b2b2b !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+            }
+            
+            /* Force all text elements to dark mode */
+            QLabel, QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e !important;
+                color: #ffffff !important;
+                border: 1px solid #555555 !important;
+            }
+            
+            /* Override any white backgrounds from external components */
+            * {
+                background-color: #2b2b2b !important;
+                color: #ffffff !important;
+            }
+        """)
 
 
 def main() -> int:

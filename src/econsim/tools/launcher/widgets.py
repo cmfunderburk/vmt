@@ -61,12 +61,19 @@ class TestGalleryWidget(QWidget):  # pragma: no cover - GUI component extracted 
         """Create the gallery UI components."""
         layout = QVBoxLayout(self)  # type: ignore[call-arg]
         
+        # Set dark mode background for the main widget
+        try:
+            self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        
         # Test cards scroll area
         self.scroll = QScrollArea()  # type: ignore[call-arg]
         try:
             self.scroll.setWidgetResizable(True)  # type: ignore[attr-defined]
             self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)  # type: ignore[attr-defined]
             self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)  # type: ignore[attr-defined]
+            self.scroll.setStyleSheet("background-color: #2b2b2b;")  # type: ignore[attr-defined]
         except Exception:
             pass
         
@@ -75,6 +82,7 @@ class TestGalleryWidget(QWidget):  # pragma: no cover - GUI component extracted 
         self.cards_layout = QGridLayout(self.cards_widget)  # type: ignore[call-arg]
         try:
             self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # type: ignore[attr-defined]
+            self.cards_widget.setStyleSheet("background-color: #2b2b2b;")  # type: ignore[attr-defined]
         except Exception:
             pass
         
@@ -89,7 +97,7 @@ class TestGalleryWidget(QWidget):  # pragma: no cover - GUI component extracted 
         try:
             self.status_area.setReadOnly(True)  # type: ignore[attr-defined]
             self.status_area.setMaximumHeight(100)  # type: ignore[attr-defined]
-            self.status_area.setStyleSheet("background-color: #f8f9fa;")  # type: ignore[attr-defined]
+            self.status_area.setStyleSheet("background-color: #1e1e1e; color: #ffffff;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(self.status_area)  # type: ignore[arg-type]

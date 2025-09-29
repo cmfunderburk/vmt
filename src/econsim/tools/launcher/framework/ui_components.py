@@ -39,7 +39,7 @@ class DebugPanel(QWidget):
         self.debug_display.setMinimumWidth(300)
         self.debug_display.setMinimumHeight(600)
         self.debug_display.setStyleSheet(
-            "QTextEdit { background:#f2f2f2; border:1px solid #ccc; padding:2px; }"
+            "QTextEdit { background:#1e1e1e; color:#ffffff; border:1px solid #555555; padding:2px; }"
         )
         self.debug_display.setFont(QFont("Courier", 8))
         layout.addWidget(self.debug_display)
@@ -203,7 +203,7 @@ class TestLayout(QHBoxLayout):
         # Pygame viewport (center) - placeholder initially
         self.pygame_placeholder = QLabel("Pygame viewport will appear here when test starts")
         self.pygame_placeholder.setFixedSize(test_config.viewport_size, test_config.viewport_size)
-        self.pygame_placeholder.setStyleSheet("border: 1px solid #ccc; background: #f9f9f9;")
+        self.pygame_placeholder.setStyleSheet("border: 1px solid #555555; background: #2a2a2a; color: #ffffff;")
         self.addWidget(self.pygame_placeholder)
         
         # Control panel (right)

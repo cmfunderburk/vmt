@@ -177,10 +177,10 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         header.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         header.setStyleSheet("""
             QLabel {
-                background-color: #f5f5f5;
+                background-color: #1e1e1e;
                 padding: 12px;
                 border-radius: 6px;
-                color: #333;
+                color: #ffffff;
                 margin-bottom: 10px;
             }
         """)
@@ -213,11 +213,11 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self.status_label = QLabel("📊 Initializing...")
         self.status_label.setStyleSheet("""
             QLabel {
-                background-color: #e3f2fd;
-                border: 1px solid #1976d2;
+                background-color: #1e3a5f;
+                border: 1px solid #0078d4;
                 border-radius: 4px;
                 padding: 4px 8px;
-                color: #1565c0;
+                color: #ffffff;
                 font-weight: bold;
             }
         """)
@@ -245,6 +245,30 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         """Create modern tab-managed content using extracted components."""
         # Create tab widget and manager
         main_tabs = QTabWidget()
+        try:
+            main_tabs.setStyleSheet("""
+                QTabWidget::pane {
+                    border: 1px solid #555555;
+                    background-color: #2b2b2b;
+                }
+                QTabBar::tab {
+                    background-color: #404040;
+                    color: #ffffff;
+                    padding: 8px 16px;
+                    margin-right: 2px;
+                    border-top-left-radius: 3px;
+                    border-top-right-radius: 3px;
+                }
+                QTabBar::tab:selected {
+                    background-color: #2b2b2b;
+                    border-bottom: none;
+                }
+                QTabBar::tab:hover {
+                    background-color: #4a4a4a;
+                }
+            """)
+        except Exception:
+            pass
         self.tab_manager = TabManager(main_tabs)
         
         # Register gallery tab
@@ -262,7 +286,7 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
             self.status_area = QTextEdit()
             self.status_area.setReadOnly(True)
             self.status_area.setMaximumHeight(100)
-            self.status_area.setStyleSheet("background-color: #f8f9fa;")
+            self.status_area.setStyleSheet("background-color: #1e1e1e; color: #ffffff;")
         
         # Register other tab components
         config_tab = ConfigEditorTab()
@@ -319,7 +343,7 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self.status_area = QTextEdit()
         self.status_area.setReadOnly(True)
         self.status_area.setMaximumHeight(100)
-        self.status_area.setStyleSheet("background-color: #f8f9fa;")
+        self.status_area.setStyleSheet("background-color: #1e1e1e; color: #ffffff;")
         layout.addWidget(self.status_area)
         
     def _populate_tests(self) -> None:
@@ -648,11 +672,11 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
             self.status_label.setText("❌ TestRunner: Unavailable")
             self.status_label.setStyleSheet("""
                 QLabel {
-                    background-color: #ffebee;
+                    background-color: #3d1a1a;
                     border: 1px solid #d32f2f;
                     border-radius: 4px;
                     padding: 4px 8px;
-                    color: #c62828;
+                    color: #ff6b6b;
                     font-weight: bold;
                 }
             """)
@@ -679,11 +703,11 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
                 # Healthy state - green
                 self.status_label.setStyleSheet("""
                     QLabel {
-                        background-color: #e8f5e8;
+                        background-color: #1a3d1a;
                         border: 1px solid #4caf50;
                         border-radius: 4px;
                         padding: 4px 8px;
-                        color: #2e7d32;
+                        color: #81c784;
                         font-weight: bold;
                     }
                 """)
@@ -691,11 +715,11 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
                 # Error state - red
                 self.status_label.setStyleSheet("""
                     QLabel {
-                        background-color: #ffebee;
+                        background-color: #3d1a1a;
                         border: 1px solid #d32f2f;
                         border-radius: 4px;
                         padding: 4px 8px;
-                        color: #c62828;
+                        color: #ff6b6b;
                         font-weight: bold;
                     }
                 """)
@@ -706,11 +730,11 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
                 # Warning state - yellow
                 self.status_label.setStyleSheet("""
                     QLabel {
-                        background-color: #fff8e1;
+                        background-color: #3d2f1a;
                         border: 1px solid #f57f17;
                         border-radius: 4px;
                         padding: 4px 8px;
-                        color: #ef6c00;
+                        color: #ffb74d;
                         font-weight: bold;
                     }
                 """)
@@ -730,11 +754,11 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
             self.status_label.setText("⚠️ Status Error")
             self.status_label.setStyleSheet("""
                 QLabel {
-                    background-color: #ffebee;
+                    background-color: #3d1a1a;
                     border: 1px solid #d32f2f;
                     border-radius: 4px;
                     padding: 4px 8px;
-                    color: #c62828;
+                    color: #ff6b6b;
                     font-weight: bold;
                 }
             """)
@@ -836,7 +860,7 @@ class LauncherWindow(QMainWindow):  # type: ignore[misc] # pragma: no cover - GU
         try:
             status_area.setReadOnly(True)  # type: ignore[attr-defined]
             status_area.setMaximumHeight(100)  # type: ignore[attr-defined]
-            status_area.setStyleSheet("background-color: #f8f9fa; font-family: monospace;")  # type: ignore[attr-defined]
+            status_area.setStyleSheet("background-color: #1e1e1e; color: #ffffff; font-family: monospace;")  # type: ignore[attr-defined]
             status_area.append("Enhanced Test Launcher initialized.")  # type: ignore[attr-defined]
         except Exception:
             pass
