@@ -18,7 +18,7 @@ Goal: Let AI agents contribute without breaking determinism, performance (~60–
 Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups vs (flagged) trade intents in O(agents + visible resources). Use existing spatial index; never introduce quadratic scans. Filter out non‑positive base ΔU early. Preserve tie‑break key ordering.
 
 ### 5. Feature / Teaching Flags
-`ECONSIM_LEGACY_RANDOM=1` (disable decision system) · `ECONSIM_FORAGE_ENABLED=0` (no collection path) · `ECONSIM_TRADE_DRAFT=1` (enumerate intents) · `ECONSIM_TRADE_EXEC=1` (execute ≤1 intent) · `ECONSIM_DEBUG_AGENT_MODES=1` (mode logs) plus optional priority & hash neutral trade flags. Idle semantics when both foraging & trading disabled (no auto‑deposit).
+`ECONSIM_LEGACY_RANDOM=1` (disable decision system) · `ECONSIM_FORAGE_ENABLED=0` (no collection path) · `ECONSIM_TRADE_DRAFT=1` (enumerate intents) · `ECONSIM_TRADE_EXEC=1` (execute ≤1 intent) · `ECONSIM_DEBUG_AGENT_MODES=1` (mode logs) · `ECONSIM_DEBUG_FPS=1` (show FPS) · `ECONSIM_HEADLESS_RENDER=1` (skip drawing for CI) plus optional priority & hash neutral trade flags. Idle semantics when both foraging & trading disabled (no auto‑deposit).
 
 ### 6. Structured Debug Logging
 Use builders in `gui/debug_logger.py`; never raw print. Flags: `ECONSIM_LOG_LEVEL`, `ECONSIM_LOG_FORMAT`, `ECONSIM_LOG_CATEGORIES`, `ECONSIM_LOG_EXPLANATIONS=1`, `ECONSIM_LOG_DECISION_REASONING=1`.
@@ -58,7 +58,22 @@ Modern launcher under `src/econsim/tools/launcher/` replaces subprocess-based te
 ### 16. Educational Test Structure
 All 7 tests follow `StandardPhaseTest` pattern: config-driven setup → 6 educational phases (Observation, Resource Competition, etc.) → GUI controls for respawn/trade features. Test files in `MANUAL_TESTS/` are thin wrappers; business logic in framework. Never bypass the config registry for new educational content.
 
-### 17. When Unsure
+### 17. Test Patterns & Environment Setup
+**Headless Testing**: Always set `os.environ["QT_QPA_PLATFORM"] = "offscreen"` and `os.environ["SDL_VIDEODRIVER"] = "dummy"` for PyQt6/Pygame tests. Use `QApplication.instance() or QApplication([])` pattern.
+
+**SimConfig Factory Pattern**: Use `SimConfig` + `Simulation.from_config()` for all test construction. Standard pattern:
+```python
+cfg = SimConfig(grid_size=(10,10), seed=123, enable_respawn=True, enable_metrics=True)
+sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
+ext_rng = random.Random(999)
+sim.step(ext_rng, use_decision=True)
+```
+
+**Fixture Isolation**: Use `@pytest.fixture(autouse=True)` in `tests/conftest.py` to clear trade/forage flags between tests. All environment flags must be reset or tests will interfere.
+
+**Mock Patterns**: For launcher tests, mock PyQt6 availability with `patch('module._qt_available', True)`. Use `TestConfiguration` mocks with proper `.id`, `.name` attributes.
+
+### 18. When Unsure
 Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
 
 Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.

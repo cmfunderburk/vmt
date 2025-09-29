@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import threading
+import os
 
 
 class LauncherLogger:
@@ -21,12 +22,19 @@ class LauncherLogger:
         if LauncherLogger._instance is not None:
             raise RuntimeError("LauncherLogger is a singleton. Use get_instance() instead.")
         
-        # Create launcher-specific logs directory
-        self.logs_dir = Path(__file__).parent.parent.parent.parent.parent / "launcher_logs"
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        # Check if launcher logging is suppressed
+        self.suppress_file_logging = os.environ.get("ECONSIM_LAUNCHER_SUPPRESS_LOGS") == "1"
         
-        # Initialize log file immediately (unlike simulation logger which defers)
-        self._initialize_log_file()
+        # Initialize file logging if not suppressed
+        if not self.suppress_file_logging:
+            # Create launcher-specific logs directory
+            self.logs_dir = Path(__file__).parent.parent.parent.parent.parent / "launcher_logs"
+            self.logs_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Initialize log file immediately (unlike simulation logger which defers)
+            self._initialize_log_file()
+        else:
+            print("[LAUNCHER] 🔇 File logging suppressed (ECONSIM_LAUNCHER_SUPPRESS_LOGS=1)")
     
     @classmethod
     def get_instance(cls) -> "LauncherLogger":
@@ -39,6 +47,12 @@ class LauncherLogger:
     
     def _initialize_log_file(self) -> None:
         """Initialize log file immediately when launcher starts."""
+        if self.suppress_file_logging:
+            # Set dummy values for compatibility but don't create files
+            self.log_filename = "suppressed"
+            self.log_path = None
+            return
+            
         now = datetime.now()
         timestamp = now.strftime("%Y-%m-%d %H-%M-%S")
         self.log_filename = f"{timestamp} Launcher.log"
@@ -61,13 +75,14 @@ class LauncherLogger:
         # Always print to console for immediate feedback
         print(f"[LAUNCHER] {log_entry}")
         
-        # Write to file
-        try:
-            with open(self.log_path, 'a', encoding='utf-8') as f:
-                f.write(log_entry + "\n")
-                f.flush()  # Ensure immediate write for debugging
-        except Exception as e:
-            print(f"[LAUNCHER] ⚠️  Failed to write to log file: {e}")
+        # Write to file only if not suppressed
+        if not self.suppress_file_logging and self.log_path is not None:
+            try:
+                with open(self.log_path, 'a', encoding='utf-8') as f:
+                    f.write(log_entry + "\n")
+                    f.flush()  # Ensure immediate write for debugging
+            except Exception as e:
+                print(f"[LAUNCHER] ⚠️  Failed to write to log file: {e}")
     
     def info(self, message: str) -> None:
         """Log an info message."""
