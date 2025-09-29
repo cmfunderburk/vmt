@@ -44,6 +44,10 @@ from .cards import build_card_models
 from .gallery import TestGallery
 from .tabs import LauncherTabs
 
+# Default window sizing configuration
+DEFAULT_WINDOW_WIDTH_SCALE = 0.48  # 48% of screen width
+DEFAULT_WINDOW_HEIGHT_SCALE = 0.65  # 65% of screen height
+
 # Import TestRunner for programmatic test execution
 try:
     from .test_runner import TestRunner
@@ -102,10 +106,40 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         self._setup_ui()
         self._populate_tests()
         
+    def _calculate_optimal_window_size(self) -> tuple[int, int]:
+        """Calculate optimal window size based on screen dimensions."""
+        try:
+            # Get primary screen's available geometry (excludes taskbars/docks)
+            screen = QApplication.primaryScreen()  # type: ignore[attr-defined]
+            if screen:
+                available = screen.availableGeometry()  # type: ignore[attr-defined]
+                screen_width = available.width()  # type: ignore[attr-defined]
+                screen_height = available.height()  # type: ignore[attr-defined]
+                
+                # Calculate size based on default scaling factors
+                width = int(screen_width * DEFAULT_WINDOW_WIDTH_SCALE)
+                height = int(screen_height * DEFAULT_WINDOW_HEIGHT_SCALE)
+                
+                # Apply constraints
+                width = max(1000, min(width, 1600))   # Min 1000, max 1600
+                height = max(700, min(height, 1200))  # Min 700, max 1200
+                
+                return width, height
+                
+        except Exception:
+            pass
+        
+        # Fallback to current default
+        return 1200, 800
+    
     def _setup_window(self) -> None:
         """Configure the main window properties."""
         self.setWindowTitle("VMT Enhanced Test Launcher")
         self.setMinimumSize(1000, 700)
+        
+        # Set optimal size based on screen dimensions
+        optimal_width, optimal_height = self._calculate_optimal_window_size()
+        self.resize(optimal_width, optimal_height)  # type: ignore[attr-defined]
         
     def _setup_ui(self) -> None:
         """Create the main UI layout and components."""
@@ -792,11 +826,40 @@ class LauncherWindow(QMainWindow):  # type: ignore[misc] # pragma: no cover - GU
         self._setup_ui()
         self._wire_signals()
     
+    def _calculate_optimal_window_size(self) -> tuple[int, int]:
+        """Calculate optimal window size based on screen dimensions."""
+        try:
+            # Get primary screen's available geometry (excludes taskbars/docks)
+            screen = QApplication.primaryScreen()  # type: ignore[attr-defined]
+            if screen:
+                available = screen.availableGeometry()  # type: ignore[attr-defined]
+                screen_width = available.width()  # type: ignore[attr-defined]
+                screen_height = available.height()  # type: ignore[attr-defined]
+                
+                # Calculate size based on default scaling factors
+                width = int(screen_width * DEFAULT_WINDOW_WIDTH_SCALE)
+                height = int(screen_height * DEFAULT_WINDOW_HEIGHT_SCALE)
+                
+                # Apply constraints
+                width = max(1000, min(width, 1600))   # Min 1000, max 1600
+                height = max(700, min(height, 1200))  # Min 700, max 1200
+                
+                return width, height
+                
+        except Exception:
+            pass
+        
+        # Fallback to current default
+        return 1200, 800
+
     def _setup_window(self) -> None:
         """Configure main window properties."""
         try:
             self.setWindowTitle("VMT Enhanced Test Launcher")  # type: ignore[attr-defined]
-            self.setGeometry(100, 100, 1200, 800)  # type: ignore[attr-defined]
+            
+            # Calculate optimal size based on screen dimensions
+            optimal_width, optimal_height = self._calculate_optimal_window_size()
+            self.setGeometry(100, 100, optimal_width, optimal_height)  # type: ignore[attr-defined]
         except Exception:
             pass
     
