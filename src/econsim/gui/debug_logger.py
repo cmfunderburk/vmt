@@ -26,7 +26,7 @@ from enum import Enum
 
 # Import enhanced configuration system (safely)
 try:  # type: ignore
-    from .log_config import LogLevel, LogFormat, get_log_config  # type: ignore  # noqa: F401
+    from .log_config import LogLevel, get_log_config  # type: ignore  # noqa: F401
     _get_log_config_ref = get_log_config  # touch to avoid unused import warnings
     _has_log_config = True
 except Exception:  # pragma: no cover
@@ -36,9 +36,6 @@ except Exception:  # pragma: no cover
         EVENTS = "EVENTS"
         PERIODIC = "PERIODIC"
         VERBOSE = "VERBOSE"
-    class LogFormat(Enum):  # fallback
-        COMPACT = "COMPACT"
-        STRUCTURED = "STRUCTURED"
 
 # Import educational context functions
 try:  # type: ignore
@@ -137,19 +134,13 @@ class GUILogger:
         
         # Parse environment configuration
         # Default elevated to VERBOSE so a fresh run (no env var set) surfaces
-        # all available debug events in both compact and structured logs.
+        # all available debug events in structured logs.
         level_str = os.environ.get("ECONSIM_LOG_LEVEL", "VERBOSE").upper()
-        format_str = os.environ.get("ECONSIM_LOG_FORMAT", "COMPACT").upper()
         
         try:
             self.log_level = LogLevel(level_str)
         except ValueError:
             self.log_level = LogLevel.EVENTS  # Safe default
-        
-        try:
-            self.log_format = LogFormat(format_str)
-        except ValueError:
-            self.log_format = LogFormat.COMPACT  # Safe default
             
         # Performance tracking for conditional logging
         self._last_perf_log_step = 0
@@ -205,7 +196,7 @@ class GUILogger:
     
 
     def _initialize_log_file(self) -> None:
-        """Initialize log file when simulation first starts."""
+        """Initialize structured log file when simulation first starts."""
         if self._log_initialized:
             return
             
@@ -213,21 +204,15 @@ class GUILogger:
         now = datetime.now()
         self._simulation_start_time = now
         
-        # Generate timestamped filenames
+        # Generate timestamped filename for structured log only
         timestamp = now.strftime("%Y-%m-%d %H-%M-%S")
-        self.log_filename = f"{timestamp} GUI.log"
-        self.log_path = self.logs_dir / self.log_filename
-        # Structured JSONL side-channel
         structured_dir = self.logs_dir / "structured"
         structured_dir.mkdir(parents=True, exist_ok=True)
         self.structured_log_path = structured_dir / f"{timestamp} GUI.jsonl"  # type: ignore[attr-defined]
-
-        # Write human-readable header
-        with open(self.log_path, 'w', encoding='utf-8') as f:
-            f.write("VMT EconSim GUI Debug Log\n")
-            f.write(f"Session started: {now.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Log Level: {self.log_level.value} | Format: {self.log_format.value}\n")
-            f.write("=" * 50 + "\n\n")
+        
+        # Keep legacy path references for compatibility but point to structured log
+        self.log_filename = f"{timestamp} GUI.jsonl"
+        self.log_path = self.structured_log_path
 
         # Write structured metadata record (first JSON line)
         try:
@@ -235,7 +220,7 @@ class GUILogger:
                 "schema": 1,
                 "session_started": now.isoformat(timespec='seconds'),
                 "log_level": self.log_level.value,
-                "selected_format": self.log_format.value,
+                "selected_format": "STRUCTURED_ONLY",
             }
             with open(self.structured_log_path, 'w', encoding='utf-8') as sf:  # type: ignore[attr-defined]
                 sf.write(json.dumps(meta, separators=(",", ":")) + "\n")
@@ -330,35 +315,17 @@ class GUILogger:
     def _flush_trade_buffer(self) -> None:
         """Flush buffered trades.
 
-        Compact log may aggregate; structured log always receives per-trade records.
+        Emits structured records for each individual trade.
         """
         if not self._trade_buffer:
             return
 
         for step, trades in self._trade_buffer.items():
-            # Always emit structured records (per trade)
+            # Emit structured records (per trade)
             for trade in trades:
                 payload = self._parse_trade(trade)
                 structured = self._emit_structured("TRADE", step, payload)
                 self._write_structured_line(structured)
-
-            # Human-readable compact aggregation (only if compact selected)
-            if self.log_format == LogFormat.COMPACT:
-                if len(trades) == 1:
-                    formatted = self._format_message("TRADE", trades[0], step)
-                    self._write_to_file(formatted)
-                else:
-                    trade_summaries: list[str] = []
-                    for trade in trades:
-                        import re
-                        match = re.search(r'(?:Agent_|A)(\d+).*?(?:Agent_|A)(\d+)', trade)
-                        if match:
-                            agent1, agent2 = match.groups()
-                            trade_summaries.append(f"{format_agent_id(int(agent1))}↔{format_agent_id(int(agent2))}")
-                    if trade_summaries:
-                        timestamp_prefix = self._format_simulation_time(step)
-                        aggregated = f"{timestamp_prefix} S{step} T: {', '.join(trade_summaries)}\n"
-                        self._write_to_file(aggregated)
 
         self._trade_buffer.clear()
 
@@ -378,9 +345,9 @@ class GUILogger:
         self._last_trade_step = step
 
     def _flush_transition_buffer(self) -> None:
-        """Flush buffered agent transitions, batching similar ones for compact output.
+        """Flush buffered agent transitions.
 
-        Structured log always receives individual or batch records irrespective of compact formatting.
+        Emits structured records for individual transitions or batch records for multiple similar transitions.
         """
         if not self._agent_transition_buffer:
             return
@@ -390,10 +357,6 @@ class GUILogger:
             for agent_id, old_mode, new_mode, context in transitions:
                 key = (old_mode, new_mode)
                 transition_groups.setdefault(key, []).append((agent_id, context))
-
-            timestamp_prefix = self._format_simulation_time(step)
-            # step from buffer keys is always an int (may be -1 sentinel)
-            step_info = f"S{step}" if step >= 0 else ""
 
             for (old_mode, new_mode), agent_context_pairs in transition_groups.items():
                 # Structured emission
@@ -442,28 +405,6 @@ class GUILogger:
                     }
                     structured = self._emit_structured("MODE_BATCH", step, payload)
                     self._write_structured_line(structured)
-
-                # Compact human-readable output
-                if self.log_format == LogFormat.COMPACT:
-                    if len(agent_context_pairs) == 1:
-                        agent_id, context = agent_context_pairs[0]
-                        import re
-                        reason_match = re.search(r'^\s*(\([^)]+\))', context) if context else None
-                        reason_str = f" {reason_match.group(1)}" if reason_match else ""
-                        carry_match = re.search(r'carrying: (\d+)', context) if context else None
-                        target_match = re.search(r'target: \((\d+), (\d+)\)', context) if context else None
-                        carry_str = f" c{carry_match.group(1)}" if carry_match else ""
-                        target_str = f" @({target_match.group(1)},{target_match.group(2)})" if target_match else ""
-                        formatted = f"{timestamp_prefix} {agent_id}: {old_mode}→{new_mode}{reason_str}{carry_str}{target_str}\n"
-                        self._write_to_file(formatted)
-                    else:
-                        agent_ids_compact = [agent_id for agent_id, _ in agent_context_pairs]
-                        if len(agent_ids_compact) <= 5:
-                            agents_list = ",".join(agent_ids_compact)
-                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids_compact)} agents {old_mode}→{new_mode} ids=[{agents_list}]\n"
-                        else:
-                            formatted = f"{timestamp_prefix} {step_info} BATCH M: {len(agent_ids_compact)} agents {old_mode}→{new_mode}\n"
-                        self._write_to_file(formatted)
 
         self._agent_transition_buffer.clear()
         self._transition_dedupe.clear()
@@ -557,23 +498,12 @@ class GUILogger:
         
         self._trade_bundle_buffer.clear()
     
-    def _write_to_file(self, formatted_message: str) -> None:
-        """Write formatted message to log file."""
-        # Ensure log file is initialized before writing
-        if not self._log_initialized:
-            self._initialize_log_file()
-        
-        with self._lock:
-            try:
-                assert self.log_path is not None  # Should be set by _initialize_log_file
-                with open(self.log_path, 'a', encoding='utf-8') as f:
-                    f.write(formatted_message)
-                    f.flush()
-            except Exception:
-                pass
+    def _write_to_file(self, structured_line: str) -> None:
+        """Write structured log line to file (legacy method name for compatibility)."""
+        self._write_structured_line(structured_line)
 
     def _write_structured_line(self, structured_line: str) -> None:
-        """Write a structured JSONL line to the structured side-channel file."""
+        """Write a structured JSONL line to the log file."""
         if not self._log_initialized:
             self._initialize_log_file()
         with self._lock:
@@ -592,6 +522,105 @@ class GUILogger:
                     pass
             except Exception:
                 pass
+
+    def format_structured_event_for_display(self, event: Dict[str, Any]) -> str:
+        """Convert structured event to human-readable format for GUI display."""
+        try:
+            # Extract common fields
+            ts_rel = event.get('ts_rel', 0.0)
+            category = event.get('category', '?')
+            step = event.get('step', None)
+            event_type = event.get('event', '?')
+            
+            # Format timestamp
+            time_prefix = f"+{ts_rel:.1f}s"
+            
+            # Format step info
+            step_info = f"S{step}" if step is not None else ""
+            
+            # Format event-specific content
+            if event_type == "periodic_summary":
+                fps = event.get('steps_per_sec', 0)
+                frame_ms = event.get('frame_ms', 0)
+                agents = event.get('agents', 0)
+                resources = event.get('resources', 0)
+                phase = event.get('phase', None)
+                phase_part = f" Ph{phase}" if phase is not None else ""
+                content = f"P: {fps:.1f}s/s {frame_ms:.1f}ms A{agents} R{resources}{phase_part}"
+            elif event_type == "mode_transition":
+                agent = event.get('agent', '?')
+                old_mode = event.get('old_mode', '?')
+                new_mode = event.get('new_mode', '?')
+                
+                # Build context from structured fields
+                context_parts: List[str] = []
+                if 'reason' in event:
+                    context_parts.append(f"({event['reason']})")
+                if 'carrying' in event:
+                    context_parts.append(f"carrying: {event['carrying']}")
+                if 'target' in event:
+                    target = event['target']
+                    if isinstance(target, dict):
+                        context_parts.append(f"target: ({target.get('x', '?')},{target.get('y', '?')})")
+                
+                context = ", ".join(context_parts) if context_parts else ""
+                content = f"{self._format_agent_id(agent)}: {old_mode}→{new_mode} {context}"
+            elif event_type == "phase_transition":
+                phase = event.get('phase', '?')
+                turn = event.get('turn', '?')
+                description = event.get('description', '?')
+                # Abbreviate common descriptions
+                desc = str(description).replace("Only foraging enabled", "Forage only") \
+                                      .replace("Only exchange enabled", "Exchange only") \
+                                      .replace("Both disabled - agents should idle", "Both disabled") \
+                                      .replace("Both foraging and exchange enabled", "Both enabled")
+                content = f"PHASE{phase}@{turn}: {desc}"
+            elif event_type == "trade":
+                # Handle different trade formats
+                if 'agent1' in event and 'agent2' in event:
+                    a1, a2 = event['agent1'], event['agent2']
+                    give = event.get('give', '?')
+                    receive = event.get('receive', '?')
+                    if 'delta_agent1' in event:
+                        delta = self._format_delta(event['delta_agent1'])
+                        content = f"T: A{a1:03d}↔A{a2:03d} {give}→{receive} {delta}"
+                    else:
+                        content = f"T: A{a1:03d}↔A{a2:03d} {give}→{receive}"
+                else:
+                    content = f"T: {event.get('raw', 'trade event')}"
+            elif event_type == "micro_delta_threshold":
+                threshold = event.get('threshold', '?')
+                content = f"TI: micro_delta_threshold={threshold:g} (activating prune)"
+            else:
+                # Generic fallback
+                content = f"{str(category)[:3]}: {event.get('raw', str(event))}"
+            
+            # Combine pieces
+            if step_info:
+                return f"{time_prefix} {step_info}: {content}"
+            else:
+                return f"{time_prefix} {content}"
+                
+        except Exception:
+            # Fallback to raw JSON if formatting fails
+            return f"LOG: {json.dumps(event, separators=(',', ':'))}"
+    
+    def _format_agent_id(self, agent_id: Any) -> str:
+        """Format agent ID for display."""
+        try:
+            return f"A{int(agent_id):03d}"
+        except (ValueError, TypeError):
+            return f"A{agent_id}"
+    
+    def _format_delta(self, delta: Any) -> str:
+        """Format utility delta for display."""
+        try:
+            if isinstance(delta, (int, float)):
+                return f"Δ{delta:+.1f}"
+            else:
+                return f"Δ{delta}"
+        except Exception:
+            return f"Δ{delta}"
 
     def _build_structured_payload(self, category: str, message: str) -> Dict[str, Any]:
         """Build structured payload for a message without writing.
@@ -1205,117 +1234,7 @@ class GUILogger:
             data.update({"bottleneck": message.split('Bottleneck:')[-1].strip()})
         return data
     
-    def _format_message(self, category: str, message: str, step: Optional[int] = None) -> str:
-        """Format message according to current format setting."""
-        # Calculate simulation timestamp for compact format
-        if self.log_format == LogFormat.COMPACT:
-            timestamp_prefix = self._format_simulation_time(step)
-            step_info = f"S{step}" if step is not None else ""
-            if category == "MODE" or "AGENT_MODE" in category:
-                # Compact format: +12.3s A002: home→forage c1 @(9,14)  
-                import re
-                # Handle both "Agent_X switched from Y to Z" and "Agent X mode: Y -> Z" formats
-                match1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)(.*)$', message)
-                match2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)', message)
-                if match1:
-                    agent_id, old_mode, new_mode, context = match1.groups()
-                    # Extract reason if present (in parentheses at beginning of context)
-                    reason_match = re.search(r'^\s*(\([^)]+\))', context) if context else None
-                    reason_str = f" {reason_match.group(1)}" if reason_match else ""
-                    # Extract carrying and target info if present
-                    carry_match = re.search(r'carrying: (\d+)', context) if context else None
-                    target_match = re.search(r'target: \((\d+), (\d+)\)', context) if context else None
-                    carry_str = f" c{carry_match.group(1)}" if carry_match else ""
-                    target_str = f" @({target_match.group(1)},{target_match.group(2)})" if target_match else ""
-                    return f"{timestamp_prefix} {step_info} {format_agent_id(int(agent_id))}: {old_mode}→{new_mode}{reason_str}{carry_str}{target_str}\n"
-                elif match2:
-                    agent_id, old_mode, new_mode = match2.groups()
-                    # Extract reason if present (in parentheses at end)
-                    reason_match = re.search(r'\(([^)]+)\)$', message)
-                    reason_str = f" ({reason_match.group(1)})" if reason_match else ""
-                    return f"{timestamp_prefix} {step_info} {format_agent_id(int(agent_id))}: {old_mode}→{new_mode}{reason_str}\n"
-            elif category == "PERF" or category == "PERIODIC_PERF" or category == "SIMULATION":
-                # Compact format: +12.3s P: 124.7s/s 5.1ms A20 R122 Ph1 (with phase) or A20 R122 (without phase)  
-                import re
-                # Try unified format with phase first
-                match = re.search(r'([0-9.]+) steps/sec.*?([0-9.]+)ms.*?Agents: (\d+).*?Resources: (\d+).*?Phase: (\d+)', message)
-                if match:
-                    steps_sec, frame_ms, agents, resources, phase = match.groups()
-                    return f"{timestamp_prefix} {step_info} P: {steps_sec}s/s {frame_ms}ms A{agents} R{resources} Ph{phase}\n"
-                # Try unified format without phase
-                match = re.search(r'([0-9.]+) steps/sec.*?([0-9.]+)ms.*?Agents: (\d+).*?Resources: (\d+)', message)
-                if match:
-                    steps_sec, frame_ms, agents, resources = match.groups()
-                    return f"{timestamp_prefix} {step_info} P: {steps_sec}s/s {frame_ms}ms A{agents} R{resources}\n"
-                # Fallback for old format (just performance data)
-                match = re.search(r'([0-9.]+) steps/sec.*?([0-9.]+)ms.*?Resources: (\d+)', message)
-                if match:
-                    steps_sec, frame_ms, resources = match.groups()
-                    return f"{timestamp_prefix} {step_info} P: {steps_sec}s/s {frame_ms}ms R{resources}\n"
-            elif category == "TRADE" and "gives" in message and "receives" in message:
-                # Compact format: +12.3s T: A001↔A009 g2→g1 +0.1
-                import re
-                match = re.search(r'Agent_(\d+) gives (\w+) to Agent_(\d+); receives (\w+).*?utility: ([+-]?[0-9.-]+)', message)
-                if match:
-                    agent1, give, agent2, receive, utility = match.groups()
-                    return f"{timestamp_prefix} {step_info} T: A{agent1}↔A{agent2} {give}→{receive} {format_delta(float(utility))}\n"
-            elif category == "UTILITY":
-                # Compact format: +12.3s U: A001 4.42→4.34 Δ-0.08 (trade)
-                import re
-                match = re.search(r'Agent_(\d+) utility: ([0-9.]+) → ([0-9.]+) \(Δ([+-][0-9.]+)\)(.*)', message)
-                if match:
-                    agent_id, old_util, new_util, delta, reason = match.groups()
-                    reason_str = reason.strip(' ()') if reason.strip() else ""
-                    reason_str = f" ({reason_str})" if reason_str else ""
-                    return f"{timestamp_prefix} {step_info} U: {format_agent_id(int(agent_id))} {old_util}→{new_util} Δ{delta}{reason_str}\n"
-            elif category == "PHASE":
-                # Compact format: +12.3s PHASE2@201: Forage only
-                import re
-                match = re.search(r'Phase (\d+) start \(Turn (\d+)\): (.+)', message)
-                if match:
-                    phase_num, turn, description = match.groups()
-                    # Shorten common descriptions
-                    desc = description.replace("Only foraging enabled", "Forage only") \
-                                    .replace("Only exchange enabled", "Exchange only") \
-                                    .replace("Both foraging and exchange enabled", "Both enabled") \
-                                    .replace("Both disabled - agents should idle", "Both disabled")
-                    return f"{timestamp_prefix} PHASE{phase_num}@{turn}: {desc}\n"
-            # Fallback for other categories in COMPACT format
-            clean_message = message
-            # For PERIODIC_SIM category, clean up the message
-            if category == "PERIODIC_SIM":
-                clean_message = message.replace("Agents:", "Agents:").replace("Resources:", "R:").replace("Decision Mode:", "Decision:")
-            # Format the prefix properly - avoid just ":" when no step
-            prefix_part = step_info if step_info else category.split('_')[0][:3]  # Use first 3 chars of category if no step
-            return f"{timestamp_prefix} {prefix_part}: {clean_message}\n"
-        elif self.log_format == LogFormat.STRUCTURED:
-            # Attempt semantic parsing per category for JSON payload
-            payload: Dict[str, Any]
-            if category in ("MODE", "AGENT_MODE"):
-                payload = self._parse_mode_transition(message)
-            elif category == "UTILITY":
-                payload = self._parse_utility(message)
-            elif category == "TRADE":
-                payload = self._parse_trade(message)
-            elif category in ("SIMULATION", "PERIODIC_SIM"):
-                if "steps/sec | Frame" in message:
-                    payload = self._parse_periodic_summary(message)
-                else:
-                    payload = {"event": "simulation", "raw": message}
-            elif category == "PHASE":
-                payload = self._parse_phase(message)
-            elif category in ("PERF", "PERIODIC_PERF"):
-                payload = self._parse_perf(message)
-            else:
-                payload = {"event": category.lower(), "raw": message}
-            return self._emit_structured(category, step, payload)
-        
-        # Fallback to COMPACT format for any unknown format
-        timestamp_prefix = self._format_simulation_time(step)
-        step_info = f"S{step}" if step is not None else ""
-        clean_message = message
-        prefix_part = step_info if step_info else category.split('_')[0][:3]
-        return f"{timestamp_prefix} {prefix_part}: {clean_message}\n"
+
 
     def log(self, category: str, message: str, step: Optional[int] = None) -> None:
         """Log a debug message with timestamp and category.
@@ -1334,13 +1253,13 @@ class GUILogger:
             self._buffer_trade_bundle(category, message, step)
             return
             
-        # Special handling for trade aggregation (compact human readable only)
-        if category == "TRADE" and self.log_format == LogFormat.COMPACT:
+        # Special handling for trade aggregation (structured output)
+        if category == "TRADE":
             self._buffer_trade(message, step)
             return
         
         # Special handling for agent mode transition batching to prevent spam
-        if category in ("AGENT_MODE", "MODE") and self.log_format == LogFormat.COMPACT:
+        if category in ("AGENT_MODE", "MODE"):
             # Extract agent info for batching
             import re
             match1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)(.*)$', message)
@@ -1355,17 +1274,10 @@ class GUILogger:
                 context = context.strip() if context else ""
                 self._buffer_agent_transition(format_agent_id(int(agent_id)), old_mode, new_mode, context, step)
                 return
-        # Normal immediate write path
-        formatted_message = self._format_message(category, message, step)
-        if self.log_format == LogFormat.COMPACT:
-            self._write_to_file(formatted_message)
-            # Also emit structured side-channel
-            payload = self._build_structured_payload(category, message)
-            structured = self._emit_structured(category, step, payload)
-            self._write_structured_line(structured)
-        else:  # STRUCTURED primary mode already returns JSON text; write to both files
-            self._write_to_file(formatted_message)  # JSON in primary log too (unchanged behavior if selected)
-            self._write_structured_line(formatted_message)
+        # Structured-only logging path
+        payload = self._build_structured_payload(category, message)
+        structured = self._emit_structured(category, step, payload)
+        self._write_structured_line(structured)
     
     def emit_built_event(self, step: Optional[int], builder_result: tuple[str, Dict[str, Any], str]) -> None:
         """Emit a pre-built (compact, structured) event tuple.
@@ -1376,7 +1288,7 @@ class GUILogger:
         if self.is_finalized():
             return
         try:
-            compact_line, payload, category = builder_result
+            _, payload, category = builder_result  # compact_line no longer needed
         except Exception:
             return
         
@@ -1384,17 +1296,10 @@ class GUILogger:
         if not self._should_log_category(category):
             return
             
-        # Structured output first (always for builders)
+        # Structured-only output for builders
         try:
             structured_line = self._emit_structured(category, step, payload)
             self._write_structured_line(structured_line)
-        except Exception:
-            pass
-            
-        # Compact emission - write directly to avoid duplicate structured processing
-        try:
-            formatted_compact = self._format_message(category, compact_line, step)
-            self._write_to_file(formatted_compact)
         except Exception:
             pass
 
@@ -1418,18 +1323,14 @@ class GUILogger:
         self._flush_transition_buffer()
         self._flush_bundle_buffer()
         
-        # Only write end marker if log was actually initialized
-        if self._log_initialized and self.log_path is not None:
-            timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-            end_message = f"[{timestamp}] SESSION: === LOG SESSION ENDED ===\n"
-            
-            with self._lock:
-                try:
-                    with open(self.log_path, 'a', encoding='utf-8') as f:
-                        f.write(end_message)
-                        f.flush()
-                except Exception:
-                    pass
+        # Write structured session end marker if log was initialized
+        if self._log_initialized:
+            payload = {
+                "event": "session_end",
+                "timestamp": datetime.now().isoformat()
+            }
+            structured = self._emit_structured("SESSION", None, payload)
+            self._write_structured_line(structured)
         
         # Mark logger as finalized to prevent further logging
         self._finalized = True
@@ -1473,10 +1374,16 @@ class GUILogger:
         self.log("SIMULATION", message, step)
     
     def get_current_log_path(self) -> Optional[Path]:
-        """Get path to current log file for GUI reading."""
+        """Get path to current log file for GUI reading (legacy method, returns structured log path)."""
         if not self._log_initialized:
             return None
-        return self.log_path
+        return self.structured_log_path
+    
+    def get_structured_log_path(self) -> Optional[Path]:
+        """Get path to current structured log file for GUI reading."""
+        if not self._log_initialized:
+            return None
+        return self.structured_log_path
 
 
 # Convenience functions for global access
@@ -1624,19 +1531,18 @@ def log_comprehensive(message: str, step: Optional[int] = None) -> None:
     if any(os.environ.get(flag) == "1" for flag in debug_flags):
         logger = get_gui_logger()
         
-        # Filter out verbose START/END markers when using COMPACT format
+        # Filter out verbose START/END markers
         if "SIMULATION STEP" in message and ("START" in message or "END" in message):
-            if logger.log_format == LogFormat.COMPACT:
-                return  # Skip these noisy markers in compact mode
+            return  # Skip these noisy markers
         
-        # Use PERIODIC_SIM for step summaries when in compact format or periodic mode
+        # Use PERIODIC_SIM for step summaries in periodic mode
         if step is not None and "Agents:" in message and "Resources:" in message:
-            # In VERBOSE level we emit every summary (no throttling) regardless of format.
+            # In VERBOSE level we emit every summary (no throttling)
             if logger.log_level == LogLevel.VERBOSE:
                 category = "SIMULATION"
             else:
-                # Throttle summaries for non-VERBOSE modes or when compact readability matters
-                if logger.log_format == LogFormat.COMPACT or logger.log_level == LogLevel.PERIODIC:
+                # Throttle summaries for non-VERBOSE modes
+                if logger.log_level == LogLevel.PERIODIC:
                     if step % 25 == 0:
                         category = "PERIODIC_SIM"
                     else:

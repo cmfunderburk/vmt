@@ -1,0 +1,22 @@
+{
+  "level": "EVENTS",
+  "format": "COMPACT",
+  "enabled_categories": [
+    "MODE",
+    "CRITICAL",
+    "ERROR",
+    "UTILITY",
+    "WARNING",
+    "TRADE",
+    "PHASE",
+    "SIMULATION",
+    "PERFORMANCE"
+  ],
+  "disabled_categories": [],
+  "perf_threshold_percent": 10.0,
+  "perf_log_interval": 25,
+  "max_file_size_mb": 50.0,
+  "keep_rotated_files": 5,
+  "include_explanations": false,
+  "explain_decisions": false
+}

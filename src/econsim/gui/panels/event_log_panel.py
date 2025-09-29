@@ -283,31 +283,41 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         self._log_display.ensureCursorVisible()
 
     def _refresh_debug_display(self) -> None:
-        # Display content from centralized debug log files
+        # Display content from centralized structured debug log files
         if self._debug_enabled:
             try:
+                import json
                 from ..debug_logger import get_gui_logger
                 
-                # Get the current log file path
+                # Get the logger and structured log path
                 logger = get_gui_logger()
-                log_path = logger.get_current_log_path()
+                log_path = logger.get_structured_log_path()
                 
                 if log_path is not None and log_path.exists():
-                    # Read the latest log content
-                    with open(log_path, 'r', encoding='utf-8') as f:
-                        log_content = f.read()
+                    # Read the latest structured log content (JSON Lines format)
                     
-                    # Split into lines and take the last N entries (skip header)
-                    lines = log_content.split('\n')
-                    # Skip the header lines (first 4 lines: title, timestamp, separator, blank line)
-                    content_lines = [line for line in lines[4:] if line.strip()]
+                    with open(log_path, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                    
+                    # Process each JSON line and format for display
+                    formatted_lines: list[str] = []
+                    for line in lines:
+                        line = line.strip()
+                        if line:
+                            try:
+                                event = json.loads(line)
+                                formatted_line = logger.format_structured_event_for_display(event)
+                                formatted_lines.append(formatted_line)
+                            except json.JSONDecodeError:
+                                # Skip malformed lines
+                                continue
                     
                     # Keep only the most recent entries
-                    if len(content_lines) > self._max_entries:
-                        content_lines = content_lines[-self._max_entries:]
+                    if len(formatted_lines) > self._max_entries:
+                        formatted_lines = formatted_lines[-self._max_entries:]
                     
-                    # Update the debug display with the log file content
-                    dbg_text = '\n'.join(content_lines)
+                    # Update the debug display with formatted content
+                    dbg_text = '\n'.join(formatted_lines)
                     self._debug_display.setPlainText(dbg_text)
                     
                     # Auto-scroll to bottom to show latest entries
@@ -318,7 +328,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                     
             except Exception as e:
                 # Fallback to show error if log reading fails
-                error_text = f"Debug log error: {str(e)}\nFallback: Reading from centralized log files..."
+                error_text = f"Debug log error: {str(e)}\nFallback: Reading from structured log files..."
                 self._debug_display.setPlainText(error_text)
         else:
             # Clear display when debug is disabled
