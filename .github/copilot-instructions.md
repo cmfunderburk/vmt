@@ -1,41 +1,44 @@
-## VMT Copilot Instructions (Concise)
-Purpose: Enable AI agents to modify the simulation without breaking determinism, performance, or educational clarity.
+## VMT Copilot Instructions (High-Signal, ~Concise)
+Goal: Let AI agents contribute without breaking determinism, performance (~60–62 FPS), or educational clarity. If a change touches ordering, hashing, or per‑step complexity, STOP and add/adjust a test.
 
-### 1. Immutable Core Pipeline
-`QTimer(16ms)` → `Simulation.step(ext_rng, use_decision)` → `_update_scene()` → `paintEvent()`
-Never add timers/threads/blocking loops or recreate the Pygame surface; no per‑pixel Python work.
+### 1. Immutable Frame Pipeline
+`QTimer(16ms)` → `Simulation.step(ext_rng, use_decision)` → `EmbeddedPygameWidget._update_scene()` → `paintEvent()`. No extra timers/threads/sleeps. Never recreate the single Pygame surface; no per‑pixel Python loops.
 
-### 2. Determinism Invariants (DO NOT BREAK)
-1. Resource ordering: iterate via `Grid.iter_resources_sorted()` only.
-2. Tie-break keys: resources `(-ΔU, distance, x, y)`; trades `(-ΔU, seller_id, buyer_id, give_type, take_type)`.
-3. Agent list order = priority; never reorder in-place mid step.
-4. RNG separation: external `ext_rng` param vs internal `Simulation._rng` (keep call counts stable).
+### 2. Determinism Invariants (DO NOT VIOLATE)
+1. Resource iteration only via `Grid.iter_resources_sorted()`.
+2. Tie-breaks: resources / selection `(-ΔU, distance, x, y)`; trades `(-ΔU, seller_id, buyer_id, give_type, take_type)` (priority flag may reorder ONLY, not alter multiset).
+3. Agent list order is priority; never mutate or sort in-place mid step.
+4. RNG separation: external `ext_rng` passed into `Simulation.step` vs internal `Simulation._rng` (respawn, home placement). Do not change call counts.
+5. One executed trade max per step when execution flag enabled.
 
-### 3. Core Files (edit here, not ad hoc clones)
-`simulation/world.py` (orchestrator) · `simulation/agent.py` (unified target selection) · `simulation/grid.py` (spatial + sorted iteration) · `simulation/config.py` (factory) · `preferences/factory.py` (utility forms) · `gui/embedded_pygame.py` (single surface bridge) · `gui/debug_logger.py` (structured logging) · launcher framework under `tools/launcher/` (TestRunner + configs).
+### 3. Core Edit Surface (no ad‑hoc clones)
+`simulation/world.py`, `simulation/agent.py`, `simulation/grid.py`, `simulation/trade.py`, `simulation/config.py`, `simulation/metrics.py`, `simulation/respawn.py`, `simulation/snapshot.py`, `preferences/factory.py`, `gui/embedded_pygame.py`, `gui/simulation_controller.py`, launcher under `tools/launcher/`. Extend here; keep schema append‑only.
 
-### 4. Decision & Selection Pattern
-Unified selection ranks resource pickups vs (flagged) trade intents using distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Maintain O(agents + visible resources). Use existing spatial index; do not introduce quadratic scans.
+### 4. Unified Selection Algorithm
+Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups vs (flagged) trade intents in O(agents + visible resources). Use existing spatial index; never introduce quadratic scans. Filter out non‑positive base ΔU early. Preserve tie‑break key ordering.
 
-### 5. Performance Guardrails
-Target ~60–62 FPS; ≥30 floor (`make perf`). O(n) per step (n=agents+resources). Overlays: pure read-only; keep <2% overhead. Reuse surfaces/fonts; avoid allocating inside tight loops.
+### 5. Feature / Teaching Flags
+`ECONSIM_LEGACY_RANDOM=1` (disable decision system) · `ECONSIM_FORAGE_ENABLED=0` (no collection path) · `ECONSIM_TRADE_DRAFT=1` (enumerate intents) · `ECONSIM_TRADE_EXEC=1` (execute ≤1 intent) · `ECONSIM_DEBUG_AGENT_MODES=1` (mode logs) plus optional priority & hash neutral trade flags. Idle semantics when both foraging & trading disabled (no auto‑deposit).
 
-### 6. Feature / Teaching Flags (Core)
-`ECONSIM_LEGACY_RANDOM=1` (disable decision logic) · `ECONSIM_FORAGE_ENABLED=0` (no collection) · `ECONSIM_TRADE_DRAFT=1` / `ECONSIM_TRADE_EXEC=1` (prototype bilateral exchange) · `ECONSIM_DEBUG_AGENT_MODES=1` (mode logs). Combine carefully; idle semantics when both foraging & trading disabled.
+### 6. Structured Debug Logging
+Use builders in `gui/debug_logger.py`; never raw print. Flags: `ECONSIM_LOG_LEVEL`, `ECONSIM_LOG_FORMAT`, `ECONSIM_LOG_CATEGORIES`, `ECONSIM_LOG_EXPLANATIONS=1`, `ECONSIM_LOG_DECISION_REASONING=1`.
 
-### 6a. Debug Logging Flags (Structured System)
-`ECONSIM_LOG_LEVEL={CRITICAL|EVENTS|PERIODIC|VERBOSE}` · `ECONSIM_LOG_FORMAT={COMPACT|STRUCTURED}` · `ECONSIM_LOG_CATEGORIES="TRADE,PERF,MODE"` (comma-separated) · `ECONSIM_LOG_EXPLANATIONS=1` (utility context) · `ECONSIM_LOG_DECISION_REASONING=1` (agent reasoning). Use `gui/debug_logger.py` builders; avoid direct print/logging calls.
+### 7. Launcher / Workflows
+Primary: `make launcher` (TestRunner + scenario registry). Alternate legacy: `make dev` (maintenance only). Programmatic: `Simulation.from_config(SimConfig(...))`. Add scenarios/tests via `MANUAL_TESTS/framework/test_configs.py` registry (no one‑off scripts). Perf check: `make perf`. Full tests: `pytest -q`.
 
-### 7. Launcher & Programmatic Workflow
-Primary entry: `make launcher` (uses TestRunner `create_test_runner()` + registry `ALL_TEST_CONFIGS`). Legacy GUI: `make dev` (maintenance only). For tests: extend `MANUAL_TESTS/framework/test_configs.py` registry, not ad hoc scripts. Use `SimConfig` factory pattern: `Simulation.from_config(cfg)` for deterministic setup.
+### 8. Performance Guardrails
+Per step O(n) (n = agents + resources). Overlay & logging overhead <2%. Avoid per‑frame allocations (reuse surfaces, fonts). Maintain FPS floor ≥30 (CI) / target ~60. Keep intent enumeration linear in co‑located agents.
 
-### 8. Safe Extension Checklist
-Before committing: (a) `pytest -q` (determinism + hash) (b) `make perf` (FPS) (c) ensure no new unordered iteration (d) verify tie-break keys untouched (e) added metrics either hash-excluded or tests updated (f) debug logging uses structured builders from `gui/debug_logger.py`.
+### 9. Metrics & Hash
+Determinism hash excludes trade/debug metrics. Adding a metric? Either exclude from hash or update reference expectations + tests. Do not mutate inventories in hash-neutral debug modes unless flag explicitly set.
 
-### 9. Common Pitfalls
-Reordering agents; injecting extra RNG draws; alternative resource scans; adding blocking sleeps; per-frame allocations in render loop; modifying trade ordering tuple shape.
+### 10. Schema & Serialization Rules
+Append-only fields in snapshots, agent/grid/world dataclasses, trade intent tuples. Never reorder or remove existing fields/keys. New overlays must be state‑neutral (pure view). Any added flag requires doc update + test if it changes behavior.
 
-### 10. Minimal Factory Example
+### 11. Common Pitfalls (AVOID)
+Unsorted resource scans; re-sorting agents; extra RNG draws; modifying tie-break tuple shape; quadratic partner searches; blocking sleeps; allocating large objects in render loop; multi-trade execution per step; modifying carried/home inventories in view code.
+
+### 12. Minimal Deterministic Factory Example
 ```python
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
@@ -43,19 +46,13 @@ cfg = SimConfig(grid_size=(12,12), seed=123, distance_scaling_factor=1.5, enable
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ```
 
-### 11. Structural Rules
-Append-only: snapshot / agent / grid / world schemas. Do not retroactively reorder fields. New overlays must be state-neutral. One trade max per step when execution flag enabled.
+### 13. Safe Extension Checklist
+1. Tests: `pytest -q` all green. 2. Perf: `make perf` within FPS expectations. 3. No unordered iteration added. 4. Tie-break & ordering untouched (or tests updated). 5. Metrics hash unaffected (or expectations updated). 6. Docs + this file updated for any new flag/param. 7. Logging uses structured system.
 
-### 12. Commit Message Pattern
-Short imperative: WHAT + WHY + (optional) PERF/DET note. Example: "agent: cache distance map to cut selection O(n) → O(1) (no hash change)".
+### 14. Commit Message Pattern
+Imperative WHAT + WHY (+ optional PERF/DET). Example: `agent: cache distance map cutting selection O(n)→O(1) (hash stable)`.
 
-### 13. Pre-PR Quick Gate
-1. `pytest -q` green  2. `make perf` within expected FPS  3. No mypy/flake regressions (if configured)  4. Hash unchanged unless intentionally extended  5. Updated docs if new flag / config added.
+### 15. When Unsure
+Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale.
 
-If unsure about a change touching ordering, add/extend a determinism test instead of guessing.
-
-End of concise instructions – expand via `README.md` & `docs/` when deeper context needed.
-
-If unsure about a change touching ordering, add/extend a determinism test instead of guessing.
-
-End of concise instructions – expand via `README.md` & `docs/` when deeper context needed.
+Expand via `README.md`, `src/econsim/simulation/README.md`, and `docs/` for deeper context.

@@ -12,74 +12,14 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox
 )
-from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QFont
 
 from .test_configs import TestConfiguration
 
 
-class DebugPanel(QWidget):
-    """Reusable debug log display with live updating."""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setup_ui()
-        self.setup_update_timer()
-        
-    def setup_ui(self):
-        """Create debug text display with proper formatting."""
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("Debug Log"))
-        
-        self.debug_display = QTextEdit()
-        self.debug_display.setReadOnly(True)
-        self.debug_display.setMinimumWidth(300)
-        self.debug_display.setMinimumHeight(600)
-        self.debug_display.setStyleSheet(
-            "QTextEdit { background:#1e1e1e; color:#ffffff; border:1px solid #555555; padding:2px; }"
-        )
-        self.debug_display.setFont(QFont("Courier", 8))
-        layout.addWidget(self.debug_display)
-        
-        self.setLayout(layout)
-        self.setFixedWidth(320)
-        
-    def setup_update_timer(self):
-        """Setup 250ms update timer for log file monitoring."""
-        self.debug_timer = QTimer()
-        self.debug_timer.timeout.connect(self.update_debug_log)
-        self.debug_timer.start(250)
-        
-    def update_debug_log(self):
-        """Update debug log display with latest content from centralized log files."""
-        try:
-            from econsim.gui.debug_logger import get_gui_logger
-            
-            # Get the current log file path
-            logger = get_gui_logger()
-            log_path = logger.get_current_log_path()
-            
-            if log_path.exists():
-                # Read the latest log content
-                with open(log_path, 'r', encoding='utf-8') as f:
-                    log_content = f.read()
-                
-                # Update display if content has changed
-                current_content = self.debug_display.toPlainText()
-                if log_content != current_content:
-                    self.debug_display.setPlainText(log_content)
-                    
-                    # Auto-scroll to bottom
-                    cursor = self.debug_display.textCursor()
-                    cursor.movePosition(cursor.MoveOperation.End)
-                    self.debug_display.setTextCursor(cursor)
-                    
-        except Exception as e:
-            # Don't spam errors, just silently fail for debug display
-            pass
+## NOTE: DebugPanel removed (GUI log viewer) – rely on JSONL / structured log files on disk.
 
 
 class ControlPanel(QWidget):
@@ -136,7 +76,8 @@ class ControlPanel(QWidget):
         layout.addWidget(self.status_text)
         
         self.setLayout(layout)
-        self.setFixedWidth(350)
+        # Slightly narrower to reclaim horizontal space after debug panel removal
+        self.setFixedWidth(300)
         
     def update_display(self, turn: int, phase: int, agent_count: int, resource_count: int, phase_manager=None):
         """Update all status displays."""
@@ -190,26 +131,25 @@ class ControlPanel(QWidget):
 
 
 class TestLayout(QHBoxLayout):
-    """Standard three-panel layout: debug + viewport + controls."""
-    
+    """Two-panel layout: viewport + controls (debug panel removed)."""
+
     def __init__(self, test_config: TestConfiguration):
         super().__init__()
         self.config = test_config
-        
-        # Debug panel (left)
-        self.debug_panel = DebugPanel()
-        self.addWidget(self.debug_panel)
-        
-        # Pygame viewport (center) - placeholder initially
+        # Tighten margins & spacing to reduce outer whitespace
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setSpacing(12)
+
+        # Pygame viewport placeholder (left now)
         self.pygame_placeholder = QLabel("Pygame viewport will appear here when test starts")
         self.pygame_placeholder.setFixedSize(test_config.viewport_size, test_config.viewport_size)
         self.pygame_placeholder.setStyleSheet("border: 1px solid #555555; background: #2a2a2a; color: #ffffff;")
         self.addWidget(self.pygame_placeholder)
-        
+
         # Control panel (right)
         self.control_panel = ControlPanel(test_config)
         self.addWidget(self.control_panel)
-        
+
     def replace_viewport(self, pygame_widget):
         """Replace placeholder with actual pygame widget."""
         self.replaceWidget(self.pygame_placeholder, pygame_widget)
