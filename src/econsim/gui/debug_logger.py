@@ -405,8 +405,30 @@ class GUILogger:
                         "old_mode": old_mode,
                         "new_mode": new_mode,
                     }
+                    
+                    # Extract structured fields from context if present
                     if context:
-                        payload["context"] = context
+                        import re
+                        context = context.strip()
+                        
+                        # Extract reason from parentheses
+                        reason_match = re.search(r'\(([^)]+)\)', context)
+                        if reason_match:
+                            payload["reason"] = reason_match.group(1)
+                            
+                        # Extract carrying count
+                        carry_match = re.search(r'carrying: (\d+)', context)
+                        if carry_match:
+                            payload["carrying"] = int(carry_match.group(1))
+                            
+                        # Extract target coordinates
+                        target_match = re.search(r'target: \((\d+), (\d+)\)', context)
+                        if target_match:
+                            payload["target"] = {"x": int(target_match.group(1)), "y": int(target_match.group(2))}
+                        
+                        # Only include raw context if no structured fields were extracted at all
+                        if not (reason_match or carry_match or target_match):
+                            payload["context"] = context
                     structured = self._emit_structured("MODE", step, payload)
                     self._write_structured_line(structured)
                 else:
@@ -624,6 +646,39 @@ class GUILogger:
         }
         if isinstance(first_drop_delta, (int, float)):
             payload["first_drop_delta"] = first_drop_delta
+        return compact, payload, category
+
+    def build_periodic_summary(self, steps_per_sec: float, frame_ms: float, agents: int, resources: int, phase: Optional[int]) -> tuple[str, Dict[str, Any], str]:
+        """Build periodic summary event with structured data (no raw text redundancy)."""
+        category = "SIMULATION"
+        phase_part = f" Ph{phase}" if phase is not None else ""
+        compact = f"P: {steps_per_sec:.1f}s/s {frame_ms:.1f}ms A{agents} R{resources}{phase_part}"
+        payload: Dict[str, Any] = {
+            "event": "periodic_summary",
+            "steps_per_sec": round(steps_per_sec, 1),
+            "frame_ms": round(frame_ms, 1),
+            "agents": agents,
+            "resources": resources
+        }
+        if phase is not None:
+            payload["phase"] = phase
+        return compact, payload, category
+
+    def build_phase_transition(self, phase: int, turn: int, description: str) -> tuple[str, Dict[str, Any], str]:
+        """Build phase transition event with structured data (no raw text redundancy)."""
+        category = "PHASE"
+        # Shorten common descriptions for compact display
+        short_desc = description.replace("Only foraging enabled", "Forage only") \
+                                .replace("Only exchange enabled", "Exchange only") \
+                                .replace("Both foraging and exchange enabled", "Both enabled") \
+                                .replace("Both disabled - agents should idle", "Both disabled")
+        compact = f"PHASE{phase}@{turn}: {short_desc}"
+        payload: Dict[str, Any] = {
+            "event": "phase_transition",
+            "phase": phase,
+            "turn": turn,
+            "description": description
+        }
         return compact, payload, category
 
     def build_config_update(self, changes: Dict[str, Any]) -> tuple[str, Dict[str, Any], str]:
@@ -999,10 +1054,13 @@ class GUILogger:
             step: simulation step (may be null)
             event: semantic event type (payload should include or we infer)
         """
+        # Normalize step field semantics: -1 sentinel -> null, positive integers preserved
+        normalized_step = None if step == -1 else step
+        
         data: Dict[str, Any] = {
             "ts_rel": round(self._relative_seconds(), 3),
             "category": category,
-            "step": step,
+            "step": normalized_step,
         }
         # Ensure deterministic key ordering for readability (Python 3.7+ preserves insertion)
         # Merge payload after envelope so payload can override (event, etc.)
@@ -1014,7 +1072,7 @@ class GUILogger:
         # Support both formats used internally
         m1 = re.search(r'Agent_(\d+) switched from (\w+) to (\w+)(.*)$', message)
         m2 = re.search(r'Agent (\d+) mode: (\w+) -> (\w+)(.*)$', message)
-        result: Dict[str, Any] = {"event": "mode_transition", "raw": message}
+        result: Dict[str, Any] = {"event": "mode_transition"}
         match = m1 or m2
         if match:
             agent_id, old_mode, new_mode, context = match.groups()
@@ -1023,17 +1081,32 @@ class GUILogger:
                 "old_mode": old_mode,
                 "new_mode": new_mode,
             })
+            
+            # Extract structured fields from context  
             if context:
-                # Extract reason/carry/target if present
+                context = context.strip()
+                
+                # Extract reason from parentheses
                 reason_match = re.search(r'\(([^)]+)\)', context)
                 if reason_match:
                     result["reason"] = reason_match.group(1)
+                    
+                # Extract carrying count
                 carry_match = re.search(r'carrying: (\d+)', context)
                 if carry_match:
                     result["carrying"] = int(carry_match.group(1))
+                    
+                # Extract target coordinates
                 target_match = re.search(r'target: \((\d+), (\d+)\)', context)
                 if target_match:
                     result["target"] = {"x": int(target_match.group(1)), "y": int(target_match.group(2))}
+                
+                # Only include raw context if no structured fields were extracted at all
+                if not (reason_match or carry_match or target_match):
+                    result["context"] = context
+        else:
+            # Fallback to raw message if parsing fails
+            result["raw"] = message
         return result
 
     def _parse_utility(self, message: str) -> Dict[str, Any]:
@@ -1306,15 +1379,22 @@ class GUILogger:
             compact_line, payload, category = builder_result
         except Exception:
             return
-        # Structured output first (unconditional for enabled category)
+        
+        # Check if we should log this category
+        if not self._should_log_category(category):
+            return
+            
+        # Structured output first (always for builders)
         try:
             structured_line = self._emit_structured(category, step, payload)
             self._write_structured_line(structured_line)
         except Exception:
             pass
-        # Compact emission (category gating inside log())
+            
+        # Compact emission - write directly to avoid duplicate structured processing
         try:
-            self.log(category, compact_line, step)
+            formatted_compact = self._format_message(category, compact_line, step)
+            self._write_to_file(formatted_compact)
         except Exception:
             pass
 
@@ -1426,7 +1506,8 @@ def log_simulation(message: str, step: Optional[int] = None) -> None:
 def log_phase_transition(phase: int, turn: int, description: str) -> None:
     """Log phase transition events."""
     if os.environ.get("ECONSIM_DEBUG_PHASES") == "1":
-        get_gui_logger().log("PHASE", f"Phase {phase} start (Turn {turn}): {description}", turn)
+        builder_result = get_gui_logger().build_phase_transition(phase, turn, description)
+        get_gui_logger().emit_built_event(turn, builder_result)
 
 
 def log_agent_decision(agent_id: int, decision_type: str, details: str, step: Optional[int] = None) -> None:
@@ -1486,14 +1567,12 @@ def log_enhanced_trade(agent1_id: int, resource1: str, agent1_utility_gain: floa
 
 
 def log_periodic_summary(steps_per_sec: float, frame_ms: float, agent_count: int, resource_count: int, phase: Optional[int], step: int) -> None:
-    """Log unified periodic summary combining performance and status information."""
+    """Log unified periodic summary using structured builder (eliminates raw text redundancy)."""
     logger = get_gui_logger()
     if step % 25 == 0 or logger.should_log_performance(step, steps_per_sec):
-        # Use unified format: steps/sec | frame_ms | agent_count | resource_count | phase (if available)
-        phase_str = f" | Phase: {phase}" if phase is not None else ""
-        message = f"{steps_per_sec:.1f} steps/sec | Frame: {frame_ms:.1f}ms | Agents: {agent_count} | Resources: {resource_count}{phase_str}"
-        # Use SIMULATION category to ensure visibility at EVENTS log level and above
-        logger.log("SIMULATION", message, step)
+        # Use structured builder instead of formatted string + parsing
+        builder_result = logger.build_periodic_summary(steps_per_sec, frame_ms, agent_count, resource_count, phase)
+        logger.emit_built_event(step, builder_result)
 
 
 def log_mode_switch(agent_id: int, old_mode: str, new_mode: str, context: str = "", step: Optional[int] = None) -> None:

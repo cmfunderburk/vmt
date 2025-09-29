@@ -1,0 +1,34 @@
+{"schema":1,"session_started":"2025-09-28T22:18:55","log_level":"VERBOSE","selected_format":"COMPACT"}
+{"ts_rel":0.019,"category":"MODE","step":-1,"event":"mode_transition","agent":2,"old_mode":"return_home","new_mode":"forage","context":"(deposited_goods), carrying: 1, target: (9, 14)"}
+{"ts_rel":0.246,"category":"TRADE","step":null,"event":"micro_delta_threshold","threshold":1e-05,"activated":true,"first_drop_delta":0.0}
+{"ts_rel":1.015,"category":"SIMULATION","step":50,"event":"periodic_summary","steps_per_sec":97.9,"frame_ms":10.2,"agents":20,"resources":155,"phase":1}
+{"ts_rel":1.942,"category":"SIMULATION","step":100,"event":"periodic_summary","steps_per_sec":111.2,"frame_ms":9.0,"agents":20,"resources":140,"phase":1}
+{"ts_rel":2.734,"category":"SIMULATION","step":150,"event":"periodic_summary","steps_per_sec":123.6,"frame_ms":8.1,"agents":20,"resources":145,"phase":1}
+{"ts_rel":3.623,"category":"SIMULATION","step":200,"event":"periodic_summary","steps_per_sec":121.9,"frame_ms":8.2,"agents":20,"resources":147,"phase":1}
+{"ts_rel":3.633,"category":"PHASE","step":201,"event":"phase_transition","phase":2,"turn":201,"description":"Only foraging enabled"}
+{"ts_rel":3.995,"category":"MODE_BATCH","step":-1,"event":"mode_batch","old_mode":"return_home","new_mode":"forage","agents":[15,18,7],"count":3}
+{"ts_rel":4.413,"category":"SIMULATION","step":250,"event":"periodic_summary","steps_per_sec":127.2,"frame_ms":7.9,"agents":20,"resources":141,"phase":2}
+{"ts_rel":5.213,"category":"SIMULATION","step":300,"event":"periodic_summary","steps_per_sec":127.0,"frame_ms":7.9,"agents":20,"resources":145,"phase":2}
+{"ts_rel":6.032,"category":"SIMULATION","step":350,"event":"periodic_summary","steps_per_sec":117.5,"frame_ms":8.5,"agents":20,"resources":156,"phase":2}
+{"ts_rel":6.83,"category":"SIMULATION","step":400,"event":"periodic_summary","steps_per_sec":126.9,"frame_ms":7.9,"agents":20,"resources":153,"phase":2}
+{"ts_rel":6.842,"category":"PHASE","step":401,"event":"phase_transition","phase":3,"turn":401,"description":"Only exchange enabled"}
+{"ts_rel":7.621,"category":"SIMULATION","step":450,"event":"periodic_summary","steps_per_sec":128.1,"frame_ms":7.8,"agents":20,"resources":225,"phase":3}
+{"ts_rel":7.668,"category":"MODE","step":-1,"event":"mode_transition","agent":2,"old_mode":"return_home","new_mode":"idle","context":"(force_deposit), carrying: 0, target: (9, 14)"}
+{"ts_rel":8.42,"category":"SIMULATION","step":500,"event":"periodic_summary","steps_per_sec":128.8,"frame_ms":7.8,"agents":20,"resources":225,"phase":3}
+{"ts_rel":9.221,"category":"SIMULATION","step":550,"event":"periodic_summary","steps_per_sec":128.5,"frame_ms":7.8,"agents":20,"resources":225,"phase":3}
+{"ts_rel":10.02,"category":"SIMULATION","step":600,"event":"periodic_summary","steps_per_sec":128.8,"frame_ms":7.8,"agents":20,"resources":225,"phase":3}
+{"ts_rel":10.036,"category":"PHASE","step":601,"event":"phase_transition","phase":4,"turn":601,"description":"Both disabled - agents should idle"}
+{"ts_rel":10.82,"category":"SIMULATION","step":650,"event":"periodic_summary","steps_per_sec":128.8,"frame_ms":7.8,"agents":20,"resources":225,"phase":4}
+{"ts_rel":10.836,"category":"PHASE","step":651,"event":"phase_transition","phase":5,"turn":651,"description":"Both enabled again"}
+{"ts_rel":10.837,"category":"MODE_BATCH","step":-1,"event":"mode_batch","old_mode":"return_home","new_mode":"idle","agents":[15,14,0,16,4,5,13,6,1,8,17,3,12,11,18,19,10,7,9,2],"count":20}
+{"ts_rel":10.837,"category":"MODE","step":-1,"event":"mode_transition","agent":4,"old_mode":"return_home","new_mode":"forage","context":"(deposited_goods), carrying: 334, target: (16, 16)"}
+{"ts_rel":11.623,"category":"SIMULATION","step":700,"event":"periodic_summary","steps_per_sec":128.3,"frame_ms":7.8,"agents":20,"resources":141,"phase":5}
+{"ts_rel":12.423,"category":"SIMULATION","step":750,"event":"periodic_summary","steps_per_sec":127.9,"frame_ms":7.8,"agents":20,"resources":152,"phase":5}
+{"ts_rel":13.223,"category":"SIMULATION","step":800,"event":"periodic_summary","steps_per_sec":128.1,"frame_ms":7.8,"agents":20,"resources":138,"phase":5}
+{"ts_rel":14.701,"category":"SIMULATION","step":850,"event":"periodic_summary","steps_per_sec":128.0,"frame_ms":7.8,"agents":20,"resources":136,"phase":5}
+{"ts_rel":14.715,"category":"PHASE","step":851,"event":"phase_transition","phase":6,"turn":851,"description":"Final disabled phase"}
+{"ts_rel":14.748,"category":"MODE_BATCH","step":-1,"event":"mode_batch","old_mode":"return_home","new_mode":"idle","agents":[6,12,13,17,10],"count":5}
+{"ts_rel":14.748,"category":"MODE_BATCH","step":-1,"event":"mode_batch","old_mode":"return_home","new_mode":"forage","agents":[11,8,2,9,4],"count":5}
+{"ts_rel":15.498,"category":"SIMULATION","step":900,"event":"periodic_summary","steps_per_sec":128.6,"frame_ms":7.8,"agents":20,"resources":225,"phase":6}
+{"ts_rel":15.499,"category":"TRADE","step":818,"event":"trade","raw":"Trade: A009 gives good1 to A011; receives good2 (\u0394+0.03)"}
+{"ts_rel":15.499,"category":"MODE_BATCH","step":-1,"event":"mode_batch","old_mode":"return_home","new_mode":"idle","agents":[15,5,11,4,8,0,14,1,2,18,9,19,3,7,16],"count":15}
