@@ -1,31 +1,19 @@
-"""Config Editor Tab - wrapper for LiveConfigEditor.
+"""Config Editor Tab - wrapper for ConfigEditor widget.
 
 Provides configuration editing capabilities as a tab component
 conforming to the AbstractTab interface.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# Add MANUAL_TESTS to path to import existing widgets
-manual_tests_path = Path(__file__).parent.parent.parent.parent.parent / "MANUAL_TESTS"
-sys.path.insert(0, str(manual_tests_path))
-
-# Debug path calculation
-print(f"[DEBUG ConfigEditorTab] __file__ = {__file__}")
-print(f"[DEBUG ConfigEditorTab] manual_tests_path = {manual_tests_path}")
-print(f"[DEBUG ConfigEditorTab] manual_tests_path exists = {manual_tests_path.exists()}")
-print(f"[DEBUG ConfigEditorTab] sys.path now includes: {str(manual_tests_path)}")
+from PyQt6.QtWidgets import QVBoxLayout, QLabel
 
 try:
-    from live_config_editor import LiveConfigEditor
+    from econsim.tools.widgets import ConfigEditor
     _config_editor_available = True
-    print(f"[DEBUG ConfigEditorTab] ✅ LiveConfigEditor imported successfully")
 except ImportError as e:
     _config_editor_available = False
-    LiveConfigEditor = None
-    print(f"[DEBUG ConfigEditorTab] ❌ LiveConfigEditor import failed: {e}")
+    ConfigEditor = None
+    print(f"[WARNING] ConfigEditor import failed: {e}")
 
 from .base_tab import AbstractTab
 
@@ -33,7 +21,7 @@ from .base_tab import AbstractTab
 class ConfigEditorTab(AbstractTab):  # pragma: no cover - GUI tab component
     """Configuration editor tab for the enhanced test launcher.
     
-    Wraps the LiveConfigEditor widget to provide tab-compatible interface
+    Wraps the ConfigEditor widget to provide tab-compatible interface
     with refresh and cleanup capabilities.
     """
     
@@ -42,17 +30,15 @@ class ConfigEditorTab(AbstractTab):  # pragma: no cover - GUI tab component
         self._tab_title = "⚙️ Configuration Editor"
         self._tab_id = "config_editor"
         
-        if _config_editor_available and LiveConfigEditor:
-            self.config_editor = LiveConfigEditor()
+        if _config_editor_available and ConfigEditor:
+            self.config_editor = ConfigEditor()
             
             # Create simple layout to contain the editor
-            from PyQt6.QtWidgets import QVBoxLayout
             layout = QVBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(self.config_editor)
         else:
-            # Fallback when LiveConfigEditor not available
-            from PyQt6.QtWidgets import QVBoxLayout, QLabel
+            # Fallback when ConfigEditor not available
             layout = QVBoxLayout(self)
             layout.addWidget(QLabel("Configuration Editor not available"))
             self.config_editor = None
@@ -68,9 +54,6 @@ class ConfigEditorTab(AbstractTab):  # pragma: no cover - GUI tab component
         """Clean up resources when tab is being destroyed."""
         if self.config_editor and hasattr(self.config_editor, 'cleanup'):
             self.config_editor.cleanup()
-        # Remove from sys.path to avoid pollution
-        if str(manual_tests_path) in sys.path:
-            sys.path.remove(str(manual_tests_path))
     
     def handle_message(self, message: str, data=None) -> None:
         """Handle inter-tab communication messages."""

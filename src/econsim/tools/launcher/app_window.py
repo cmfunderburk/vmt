@@ -31,7 +31,7 @@ try:
     from .comparison import ComparisonController
     from .executor import TestExecutor
     from .cards import TestCardWidget
-    from .tabs import TabManager, ConfigEditorTab, BatchRunnerTab, BookmarksTab, GalleryTab
+    from .tabs import TabManager, ConfigEditorTab, BatchRunnerTab, GalleryTab
     from .widgets import TestGalleryWidget
     from .style import PlatformStyler
     _launcher_modules_available = True
@@ -333,9 +333,6 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         from .tabs import CustomTestsTab
         custom_tests_tab = CustomTestsTab()
         self.tab_manager.register_tab(custom_tests_tab)
-        
-        bookmarks_tab = BookmarksTab()
-        self.tab_manager.register_tab(bookmarks_tab)
         
         # Wire up gallery signals
         if hasattr(self.gallery_widget, 'testLaunchRequested'):

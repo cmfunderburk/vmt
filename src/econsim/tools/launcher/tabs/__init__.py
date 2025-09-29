@@ -11,10 +11,9 @@ from .launcher_tabs import LauncherTabs, ComparisonTab, HistoryTab  # noqa: F401
 from .manager import TabManager  # noqa: F401
 from .config_editor_tab import ConfigEditorTab  # noqa: F401
 from .batch_runner_tab import BatchRunnerTab  # noqa: F401
-from .bookmarks_tab import BookmarksTab  # noqa: F401
 from .gallery_tab import GalleryTab  # noqa: F401
 
 __all__ = [
     "AbstractTab", "CustomTestsTab", "LauncherTabs", "ComparisonTab", "HistoryTab", 
-    "TabManager", "ConfigEditorTab", "BatchRunnerTab", "BookmarksTab", "GalleryTab"
+    "TabManager", "ConfigEditorTab", "BatchRunnerTab", "GalleryTab"
 ]

@@ -1,23 +1,19 @@
-"""Batch Runner Tab - wrapper for BatchTestRunner.
+"""Batch Runner Tab - wrapper for BatchRunner widget.
 
 Provides batch test execution capabilities as a tab component
 conforming to the AbstractTab interface.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# Add MANUAL_TESTS to path to import existing widgets
-manual_tests_path = Path(__file__).parent.parent.parent.parent.parent / "MANUAL_TESTS"
-sys.path.insert(0, str(manual_tests_path))
+from PyQt6.QtWidgets import QVBoxLayout, QLabel
 
 try:
-    from batch_test_runner import BatchTestRunner
+    from econsim.tools.widgets import BatchRunner
     _batch_runner_available = True
-except ImportError:
+except ImportError as e:
     _batch_runner_available = False
-    BatchTestRunner = None
+    BatchRunner = None
+    print(f"[WARNING] BatchRunner import failed: {e}")
 
 from .base_tab import AbstractTab
 
@@ -25,7 +21,7 @@ from .base_tab import AbstractTab
 class BatchRunnerTab(AbstractTab):  # pragma: no cover - GUI tab component
     """Batch test runner tab for the enhanced test launcher.
     
-    Wraps the BatchTestRunner widget to provide tab-compatible interface
+    Wraps the BatchRunner widget to provide tab-compatible interface
     with refresh and cleanup capabilities.
     """
     
@@ -34,17 +30,15 @@ class BatchRunnerTab(AbstractTab):  # pragma: no cover - GUI tab component
         self._tab_title = "🔄 Batch Runner"
         self._tab_id = "batch_runner"
         
-        if _batch_runner_available and BatchTestRunner:
-            self.batch_runner = BatchTestRunner()
+        if _batch_runner_available and BatchRunner:
+            self.batch_runner = BatchRunner()
             
             # Create simple layout to contain the runner
-            from PyQt6.QtWidgets import QVBoxLayout
             layout = QVBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(self.batch_runner)
         else:
-            # Fallback when BatchTestRunner not available
-            from PyQt6.QtWidgets import QVBoxLayout, QLabel
+            # Fallback when BatchRunner not available
             layout = QVBoxLayout(self)
             layout.addWidget(QLabel("Batch Runner not available"))
             self.batch_runner = None
