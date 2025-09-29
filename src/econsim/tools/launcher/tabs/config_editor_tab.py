@@ -9,15 +9,23 @@ import sys
 from pathlib import Path
 
 # Add MANUAL_TESTS to path to import existing widgets
-manual_tests_path = Path(__file__).parent.parent.parent.parent / "MANUAL_TESTS"
+manual_tests_path = Path(__file__).parent.parent.parent.parent.parent / "MANUAL_TESTS"
 sys.path.insert(0, str(manual_tests_path))
+
+# Debug path calculation
+print(f"[DEBUG ConfigEditorTab] __file__ = {__file__}")
+print(f"[DEBUG ConfigEditorTab] manual_tests_path = {manual_tests_path}")
+print(f"[DEBUG ConfigEditorTab] manual_tests_path exists = {manual_tests_path.exists()}")
+print(f"[DEBUG ConfigEditorTab] sys.path now includes: {str(manual_tests_path)}")
 
 try:
     from live_config_editor import LiveConfigEditor
     _config_editor_available = True
-except ImportError:
+    print(f"[DEBUG ConfigEditorTab] ✅ LiveConfigEditor imported successfully")
+except ImportError as e:
     _config_editor_available = False
     LiveConfigEditor = None
+    print(f"[DEBUG ConfigEditorTab] ❌ LiveConfigEditor import failed: {e}")
 
 from .base_tab import AbstractTab
 

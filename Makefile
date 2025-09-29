@@ -66,14 +66,14 @@ manual-tests:
 	fi
 
 launcher:
-	# Launch Enhanced Test Launcher with suppressed file logging (console output preserved).
+	# Launch New VMT Enhanced Test Launcher with modular architecture
 	# Launcher logs suppressed by default - set ECONSIM_LAUNCHER_SUPPRESS_LOGS=0 to re-enable.
 	@if [ -d "vmt-dev" ]; then \
-		echo "[launcher] Using virtual environment (launcher logs suppressed)."; \
-		. vmt-dev/bin/activate && cd MANUAL_TESTS && ECONSIM_LAUNCHER_SUPPRESS_LOGS=1 $(PYTHON) enhanced_test_launcher_v2.py; \
+		echo "[launcher] Using virtual environment (new launcher system)."; \
+		. vmt-dev/bin/activate && ECONSIM_LAUNCHER_SUPPRESS_LOGS=1 $(PYTHON) -m econsim.tools.launcher.runner; \
 	else \
-		echo "[launcher] Using system Python (launcher logs suppressed)."; \
-		cd MANUAL_TESTS && ECONSIM_LAUNCHER_SUPPRESS_LOGS=1 $(PYTHON) enhanced_test_launcher_v2.py; \
+		echo "[launcher] Using system Python (new launcher system)."; \
+		ECONSIM_LAUNCHER_SUPPRESS_LOGS=1 $(PYTHON) -m econsim.tools.launcher.runner; \
 	fi
 
 batch-tests:

@@ -19,6 +19,8 @@ except Exception:  # pragma: no cover
     QTabWidget = QWidget = QVBoxLayout = QLabel = QPushButton = QTextEdit = object  # type: ignore
     QTableWidget = QTableWidgetItem = QHBoxLayout = object  # type: ignore
 
+from .custom_tests_tab import CustomTestsTab
+
 
 class TabContent(Protocol):  # pragma: no cover - typing only
     """Protocol for tab content widgets."""
@@ -196,11 +198,15 @@ class LauncherTabs(QTabWidget):  # type: ignore[misc] # pragma: no cover - GUI c
             # Tab 1: Test Gallery
             self.addTab(self._gallery, "🖼️ Tests")  # type: ignore[attr-defined]
             
-            # Tab 2: Comparison
+            # Tab 2: Custom Tests
+            self._custom_tests_tab = CustomTestsTab()
+            self.addTab(self._custom_tests_tab, "🔧 Custom Tests")  # type: ignore[attr-defined]
+            
+            # Tab 3: Comparison
             self._comparison_tab = ComparisonTab(self._comparison, self._executor)
             self.addTab(self._comparison_tab, "⚖️ Comparison")  # type: ignore[attr-defined]
             
-            # Tab 3: History
+            # Tab 4: History
             self._history_tab = HistoryTab(self._executor)
             self.addTab(self._history_tab, "📝 History")  # type: ignore[attr-defined]
             
@@ -213,7 +219,9 @@ class LauncherTabs(QTabWidget):  # type: ignore[misc] # pragma: no cover - GUI c
         """Refresh tab content when switched."""
         try:
             current_widget = self.widget(index)  # type: ignore[attr-defined]
-            if hasattr(current_widget, 'refresh'):
+            if hasattr(current_widget, 'refresh_content'):
+                current_widget.refresh_content()
+            elif hasattr(current_widget, 'refresh'):
                 current_widget.refresh()
         except Exception:
             pass
@@ -221,6 +229,8 @@ class LauncherTabs(QTabWidget):  # type: ignore[misc] # pragma: no cover - GUI c
     def refresh_all(self) -> None:
         """Refresh all tab contents."""
         try:
+            if hasattr(self, '_custom_tests_tab') and self._custom_tests_tab:
+                self._custom_tests_tab.refresh_content()
             if self._comparison_tab:
                 self._comparison_tab.refresh()
             if self._history_tab:

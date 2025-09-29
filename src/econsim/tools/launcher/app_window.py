@@ -329,6 +329,11 @@ class VMTLauncherWindow(QMainWindow):  # pragma: no cover - GUI application wind
         batch_tab = BatchRunnerTab()
         self.tab_manager.register_tab(batch_tab)
         
+        # Add custom tests tab
+        from .tabs import CustomTestsTab
+        custom_tests_tab = CustomTestsTab()
+        self.tab_manager.register_tab(custom_tests_tab)
+        
         bookmarks_tab = BookmarksTab()
         self.tab_manager.register_tab(bookmarks_tab)
         

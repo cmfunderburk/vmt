@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 # Add MANUAL_TESTS to path to import existing widgets
-manual_tests_path = Path(__file__).parent.parent.parent.parent / "MANUAL_TESTS"
+manual_tests_path = Path(__file__).parent.parent.parent.parent.parent / "MANUAL_TESTS"
 sys.path.insert(0, str(manual_tests_path))
 
 try:

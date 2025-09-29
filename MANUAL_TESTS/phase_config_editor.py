@@ -12,23 +12,21 @@ Generates custom phase configurations for use with the manual test framework.
 
 import sys
 import os
-from typing import List, Tuple, Optional
+from typing import List, Optional
 
 # Add project root to path
 repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(repo_root, 'src'))
 
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QComboBox, QSpinBox, QTableWidget, QTableWidgetItem, QGroupBox,
-    QFormLayout, QMessageBox, QDialog, QDialogButtonBox, QTextEdit,
-    QHeaderView, QAbstractItemView, QFrame, QSplitter
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QComboBox, QSpinBox, QGroupBox,
+    QDialog, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from econsim.tools.launcher.framework.phase_manager import PhaseDefinition, PhaseBehavior, PhaseManager
-from econsim.tools.launcher.framework.test_configs import TestConfiguration
 
 
 class PhaseConfigRow(QWidget):
@@ -37,7 +35,7 @@ class PhaseConfigRow(QWidget):
     phaseChanged = pyqtSignal()
     removeRequested = pyqtSignal(int)  # Emit row index
     
-    def __init__(self, row_index: int, behavior: PhaseBehavior = None, duration: int = 100, parent=None):
+    def __init__(self, row_index: int, behavior: Optional[PhaseBehavior] = None, duration: int = 100, parent=None):
         super().__init__(parent)
         self.row_index = row_index
         self.setup_ui()
@@ -139,7 +137,7 @@ class PhaseConfigEditor(QWidget):
             "• Order: phases run in the sequence shown (use templates for quick setup)"
         )
         instructions.setWordWrap(True)
-        instructions.setStyleSheet("color: #666; margin: 10px 0; background: #f9f9f9; padding: 8px; border-left: 3px solid #007acc;")
+        self.instructions_label = instructions  # keep reference for dynamic theming
         layout.addWidget(instructions)
         
         # Phase list container
@@ -155,9 +153,8 @@ class PhaseConfigEditor(QWidget):
         # Summary section
         summary_group = QGroupBox("Phase Schedule Summary")
         summary_layout = QVBoxLayout(summary_group)
-        
+
         self.summary_label = QLabel()
-        self.summary_label.setStyleSheet("font-family: monospace; background: #f5f5f5; padding: 10px; border: 1px solid #ddd;")
         summary_layout.addWidget(self.summary_label)
         
         layout.addWidget(summary_group)
@@ -181,8 +178,76 @@ class PhaseConfigEditor(QWidget):
         layout.addWidget(templates_group)
         
         self.update_summary()
+        # Apply theme-aware styling after widgets created
+        self._apply_theme_styles()
+
+    # ---------------- Theme / Styling Helpers -----------------
+    def _apply_theme_styles(self):
+        """Apply dark or light theme styles to instruction & summary panels.
+
+        We avoid hard-coding for only one palette so the editor integrates with
+        both dark and light launcher themes. Lightness heuristic is simple and
+        intentionally side‑effect free (no RNG / no external state touches).
+        """
+        try:
+            pal = self.palette()
+            bg = pal.window().color()
+            r, g, b, _a = bg.getRgb()
+            # Perceived luminance (sRGB) – threshold ~160 is a decent divider
+            luminance = 0.299 * r + 0.587 * g + 0.114 * b
+            force_dark = os.environ.get("ECONSIM_FORCE_DARK", "0") == "1"
+            is_dark = force_dark or luminance < 160
+        except Exception:
+            # Fallback to dark to match main app default
+            is_dark = True
+
+        if is_dark:
+            instruction_style = (
+                "QLabel {"
+                " color: #d0d0d0;"
+                " margin: 10px 0;"
+                " background-color: #242628;"
+                " padding: 8px;"
+                " border-left: 3px solid #007acc;"
+                " border: 1px solid #3a3d40;"
+                " border-radius: 4px;"
+                " font-size: 12px;"
+                "}" )
+            summary_style = (
+                "QLabel {"
+                " font-family: monospace;"
+                " background: #1f2022;"
+                " color: #e0e0e0;"
+                " padding: 10px;"
+                " border: 1px solid #3a3d40;"
+                " border-radius: 4px;"
+                "}" )
+        else:
+            # Light theme (retain prior look but refined)
+            instruction_style = (
+                "QLabel {"
+                " color: #444;"
+                " margin: 10px 0;"
+                " background-color: #f9f9f9;"
+                " padding: 8px;"
+                " border-left: 3px solid #007acc;"
+                " border: 1px solid #dcdcdc;"
+                " border-radius: 4px;"
+                "}" )
+            summary_style = (
+                "QLabel {"
+                " font-family: monospace;"
+                " background: #f5f5f5;"
+                " color: #222;"
+                " padding: 10px;"
+                " border: 1px solid #d0d0d0;"
+                " border-radius: 4px;"
+                "}" )
+
+        self.instructions_label.setStyleSheet(instruction_style)
+        self.summary_label.setStyleSheet(summary_style)
         
-    def add_phase_row(self, behavior: PhaseBehavior = None, duration: int = 100) -> PhaseConfigRow:
+    def add_phase_row(self, behavior: Optional[PhaseBehavior] = None, duration: int = 100) -> PhaseConfigRow:
         """Add a new phase configuration row."""
         if behavior is None:
             behavior = PhaseBehavior.both_enabled()

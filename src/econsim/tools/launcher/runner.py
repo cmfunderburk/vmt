@@ -15,12 +15,8 @@ import sys
 import os
 import json
 
-from pathlib import Path
-
 from .style import PlatformStyler
 from .adapters import load_registry_from_monolith
-from .executor import TestExecutor
-from .comparison import ComparisonController
 
 
 def _parse_args(argv: Sequence[str]) -> dict:
@@ -78,20 +74,20 @@ def main(argv: List[str] | None = None, headless: bool | None = None) -> int:
     app = QApplication(sys.argv)
     PlatformStyler.configure_application(app)
 
-    # Phase 3 complete: construct LauncherWindow using new components
-    from .app_window import create_launcher_window
+    # Phase 3 complete: construct VMTLauncherWindow with all migrated functionality
+    from .app_window import VMTLauncherWindow
     
     if flags["headless"]:
         # In headless mode, just validate construction and exit
         try:
-            window = create_launcher_window(registry)
+            window = VMTLauncherWindow()
             return 0
         except Exception as e:
             print(f"Error creating launcher window: {e}")
             return 1
     else:
         # Normal GUI mode
-        window = create_launcher_window(registry)
+        window = VMTLauncherWindow()
         window.show()  # type: ignore[attr-defined]
         return app.exec()  # type: ignore[attr-defined]
 
