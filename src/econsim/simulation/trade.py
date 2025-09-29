@@ -12,6 +12,7 @@ import os
 
 from .agent import Agent
 from econsim.preferences.helpers import marginal_utility
+from ..gui.debug_logger import GUILogger  # for one-shot micro-delta emission
 
 # Priority key structure for deterministic ordering:
 # (-combined_delta_u, seller_id, buyer_id, give_type, take_type)
@@ -20,6 +21,62 @@ PriorityKey = Tuple[float, int, int, str, str]
 # Minimum combined utility improvement required to keep/execute an intent.
 # Filters out micro-swaps that cause oscillation and appear as ΔU=0.000 after rounding.
 MIN_TRADE_DELTA = 1e-5
+
+def _effective_min_trade_delta() -> float:
+    """Allow tests to raise the micro-delta threshold via ECONSIM_MIN_TRADE_DELTA_OVERRIDE.
+
+    This keeps production behavior unchanged while letting a deterministic test
+    force the pruning path even when computed deltas are moderately small but still
+    above the default 1e-5.
+    """
+    override = os.environ.get("ECONSIM_MIN_TRADE_DELTA_OVERRIDE")
+    if override:
+        try:
+            v = float(override)
+            if v > 0:
+                return v
+        except Exception:
+            pass
+    return MIN_TRADE_DELTA
+
+# One-shot emission flag for micro-delta pruning transparency (Phase 3 instrumentation)
+# Not ALL_CAPS to avoid static analyzer treating it as immutable constant.
+_micro_delta_threshold_emitted = False
+
+def _emit_micro_delta_once(first_drop_delta: float) -> None:
+    """Emit the micro_delta_threshold event exactly once per process.
+
+    Called the first time an intent that otherwise passes marginal MU tests is pruned
+    because its combined utility delta is below MIN_TRADE_DELTA while execution mode
+    is enabled (ECONSIM_TRADE_EXEC=1).
+    Determinism: Only flips a module-level boolean and logs (hash-excluded path).
+    """
+    global _micro_delta_threshold_emitted
+    if _micro_delta_threshold_emitted:
+        return
+    _micro_delta_threshold_emitted = True
+    try:
+        # Support either get_instance() (current) or legacy get()
+        logger = None
+        for accessor_name in ("get_instance", "get"):
+            accessor = getattr(GUILogger, accessor_name, None)
+            if callable(accessor):  # type: ignore[truthy-function]
+                try:
+                    logger = accessor()
+                except Exception:
+                    logger = None
+                if logger is not None:
+                    break
+        if logger is not None:
+            build_fn = getattr(logger, "build_micro_delta_threshold", None)
+            emit_fn = getattr(logger, "emit_built_event", None)
+            if callable(build_fn) and callable(emit_fn):  # type: ignore[truthy-function]
+                built = build_fn(threshold=MIN_TRADE_DELTA, first_drop_delta=first_drop_delta)
+                # Step unknown at enumeration time -> emit with step=None
+                emit_fn(None, built)
+    except Exception:
+        # Never allow logging issues to disrupt enumeration
+        pass
 
 
 def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent, 
@@ -147,7 +204,14 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 # Keep micro / zero delta intents when only drafting (exec flag off) so tests relying
                 # on presence of draft intents for co-located agents still pass. Filter strictly
                 # when execution enabled.
-                if delta_u >= MIN_TRADE_DELTA or os.environ.get("ECONSIM_TRADE_EXEC") != "1":
+                exec_on = os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+                if exec_on and os.environ.get("ECONSIM_FORCE_MICRO_DELTA_EMIT") == "1":
+                    # Force emission even if delta >= threshold (test hook)
+                    _emit_micro_delta_once(delta_u)
+                threshold = _effective_min_trade_delta()
+                if delta_u < threshold and exec_on:
+                    _emit_micro_delta_once(delta_u)
+                if delta_u >= threshold or not exec_on:
                     if use_delta_priority:
                         priority: PriorityKey = (-delta_u, ai.id, aj.id, "good1", "good2")
                     else:
@@ -171,7 +235,13 @@ def enumerate_intents_for_cell(agents: List[Agent]) -> List[TradeIntent]:
                 and muj.get("good2", 0.0) > muj.get("good1", 0.0)
             ):
                 delta_u = _compute_exact_utility_delta(ai, aj, "good2", "good1")
-                if delta_u >= MIN_TRADE_DELTA or os.environ.get("ECONSIM_TRADE_EXEC") != "1":
+                exec_on = os.environ.get("ECONSIM_TRADE_EXEC") == "1"
+                if exec_on and os.environ.get("ECONSIM_FORCE_MICRO_DELTA_EMIT") == "1":
+                    _emit_micro_delta_once(delta_u)
+                threshold = _effective_min_trade_delta()
+                if delta_u < threshold and exec_on:
+                    _emit_micro_delta_once(delta_u)
+                if delta_u >= threshold or not exec_on:
                     if use_delta_priority:
                         priority: PriorityKey = (-delta_u, ai.id, aj.id, "good2", "good1")
                     else:

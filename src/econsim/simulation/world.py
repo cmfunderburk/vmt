@@ -89,8 +89,7 @@ class Simulation:
         # Comprehensive debug logging for simulation steps
         log_comprehensive(f"=== SIMULATION STEP {step_num} START ===", step_num)
         
-        # Log step summary (filtered by log level in debug_logger)
-        log_comprehensive(f"Agents: {len(self.agents)}, Resources: {self.grid.resource_count()}, Decision Mode: {use_decision}", step_num)
+    # Removed legacy summary line (Agents/Resources/Decision Mode) as redundant with newer instrumentation
         
         forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
         hash_neutral = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"  # default early to avoid unbound

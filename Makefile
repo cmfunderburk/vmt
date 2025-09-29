@@ -56,26 +56,14 @@ manual-tests:
 	fi
 
 launcher:
-	# Launch VMT test launcher with ALL debug categories enabled in compact format
-	# Complete visibility into agent behavior, trades, economics, performance, and spatial activity
-	# Use ECONSIM_LOG_LEVEL=VERBOSE for even more detailed output
+	# Launch Enhanced Test Launcher with INTERNAL DEFAULT logging (now VERBOSE by default).
+	# To override, export e.g.: ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT make launcher
 	@if [ -d "vmt-dev" ]; then \
-		echo "Using virtual environment with FULL debug logging (all categories)..."; \
-		. vmt-dev/bin/activate && cd MANUAL_TESTS && \
-		ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT \
-		ECONSIM_DEBUG_AGENT_MODES=1 ECONSIM_DEBUG_TRADES=1 ECONSIM_DEBUG_ECONOMICS=1 \
-		ECONSIM_DEBUG_SIMULATION=1 ECONSIM_DEBUG_PHASES=1 ECONSIM_DEBUG_DECISIONS=1 \
-		ECONSIM_DEBUG_RESOURCES=1 ECONSIM_DEBUG_PERFORMANCE=1 ECONSIM_DEBUG_SPATIAL=1 \
-		ECONSIM_LOG_BUNDLE_TRADES=1 ECONSIM_LOG_EXPLANATIONS=1 \
-		$(PYTHON) enhanced_test_launcher_v2.py; \
+		echo "[launcher] Using virtual environment (no explicit log overrides)."; \
+		. vmt-dev/bin/activate && cd MANUAL_TESTS && $(PYTHON) enhanced_test_launcher_v2.py; \
 	else \
-		cd MANUAL_TESTS && \
-		ECONSIM_LOG_LEVEL=EVENTS ECONSIM_LOG_FORMAT=COMPACT \
-		ECONSIM_DEBUG_AGENT_MODES=1 ECONSIM_DEBUG_TRADES=1 ECONSIM_DEBUG_ECONOMICS=1 \
-		ECONSIM_DEBUG_SIMULATION=1 ECONSIM_DEBUG_PHASES=1 ECONSIM_DEBUG_DECISIONS=1 \
-		ECONSIM_DEBUG_RESOURCES=1 ECONSIM_DEBUG_PERFORMANCE=1 ECONSIM_DEBUG_SPATIAL=1 \
-		ECONSIM_LOG_BUNDLE_TRADES=1 ECONSIM_LOG_EXPLANATIONS=1 \
-		$(PYTHON) enhanced_test_launcher_v2.py; \
+		echo "[launcher] Using system Python (no explicit log overrides)."; \
+		cd MANUAL_TESTS && $(PYTHON) enhanced_test_launcher_v2.py; \
 	fi
 
 batch-tests:

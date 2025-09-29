@@ -20,7 +20,7 @@ import os
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List, Sequence, Iterable
 import threading
 from enum import Enum
 
@@ -136,7 +136,9 @@ class GUILogger:
             raise RuntimeError("GUILogger is a singleton. Use get_instance() instead.")
         
         # Parse environment configuration
-        level_str = os.environ.get("ECONSIM_LOG_LEVEL", "EVENTS").upper()
+        # Default elevated to VERBOSE so a fresh run (no env var set) surfaces
+        # all available debug events in both compact and structured logs.
+        level_str = os.environ.get("ECONSIM_LOG_LEVEL", "VERBOSE").upper()
         format_str = os.environ.get("ECONSIM_LOG_FORMAT", "COMPACT").upper()
         
         try:
@@ -177,6 +179,10 @@ class GUILogger:
         self.log_filename: Optional[str] = None
         self.log_path: Optional[Path] = None
         self._log_initialized = False
+        self._step = None  # Initialize step variable for future use
+        # Testing aide: recent structured payload ring (not part of determinism state)
+        self._structured_ring: list[dict[str, Any]] = []  # type: ignore[attr-defined]
+        self._structured_ring_capacity = 200  # type: ignore[attr-defined]
     
     @classmethod
     def get_instance(cls) -> "GUILogger":
@@ -186,6 +192,16 @@ class GUILogger:
                 if cls._instance is None:
                     cls._instance = cls()
         return cls._instance
+
+    # Backward compatibility: legacy call sites referenced GUILogger.inst()
+    # Provide a thin alias so older scheduler / respawn modules keep working.
+    @classmethod
+    def inst(cls) -> "GUILogger":  # pragma: no cover - trivial alias
+        return cls.get_instance()
+
+    # Some very old code may have treated 'inst' as an attribute; expose a
+    # descriptor-style attribute for defensive compatibility (harmless if unused).
+    inst_ref = property(lambda cls: GUILogger.get_instance())  # type: ignore
     
 
     def _initialize_log_file(self) -> None:
@@ -234,12 +250,24 @@ class GUILogger:
     
     def _should_log_category(self, category: str) -> bool:
         """Check if a message category should be logged at current level."""
+        # Normalize legacy/extended category aliases
+        original_category = category
+        if category == "TRADES":  # builder uses plural, core filters expect singular
+            category = "TRADE"
+        elif category == "PERFORMANCE":  # treat as PERF for filtering purposes
+            category = "PERF"
         # Use enhanced configuration if available
         if _has_log_config:
             try:
                 from .log_config import get_log_config
                 config = get_log_config()
-                return config.should_log_category(category)
+                # Pass normalized; if config relies on original raw category ensure fallback
+                if hasattr(config, 'should_log_category'):
+                    try:
+                        return bool(config.should_log_category(category)) or bool(config.should_log_category(original_category))  # type: ignore[attr-defined]
+                    except Exception:
+                        return config.should_log_category(category)
+                return True
             except Exception:  # pragma: no cover
                 pass  # Fall back to original logic
                 
@@ -248,27 +276,23 @@ class GUILogger:
             # In verbose mode, log everything except when COMPACT format filters some noise
             return True
         elif self.log_level == LogLevel.PERIODIC:
-            return category in ["CRITICAL", "ERROR", "WARNING", "PHASE", "TRADE", "UTILITY", "MODE", "PERIODIC_PERF", "PERIODIC_SIM", "PERF", "SIMULATION"]
+            return category in [
+                "CRITICAL", "ERROR", "WARNING",
+                "PHASE", "TRADE", "UTILITY", "MODE",
+                "PERIODIC_PERF", "PERIODIC_SIM", "PERF", "SIMULATION",
+                # Newly introduced categories (Phase 3) - permit periodic visibility
+                "PAIRING", "STAGNATION"
+            ]
         elif self.log_level == LogLevel.EVENTS:
-            return category in ["CRITICAL", "ERROR", "WARNING", "PHASE", "TRADE", "UTILITY", "MODE", "SIMULATION"]
+            return category in [
+                "CRITICAL", "ERROR", "WARNING",
+                "PHASE", "TRADE", "UTILITY", "MODE", "SIMULATION",
+                # Show partner search + stagnation triggers at EVENTS (they are rare/educational)
+                "PAIRING", "STAGNATION"
+            ]
         elif self.log_level == LogLevel.CRITICAL:
             return category in ["CRITICAL", "ERROR", "WARNING", "PHASE"]
         return False
-    
-    def _buffer_trade(self, message: str, step: Optional[int]) -> None:
-        """Buffer trade messages for potential aggregation."""
-        if step is None:
-            return
-            
-        # Flush previous step's trades if we've moved to a new step
-        if step != self._last_trade_step and self._last_trade_step >= 0:
-            self._flush_trade_buffer()
-        
-        # Add to current step's buffer
-        if step not in self._trade_buffer:
-            self._trade_buffer[step] = []
-        self._trade_buffer[step].append(message)
-        self._last_trade_step = step
 
     def _buffer_agent_transition(self, agent_id: str, old_mode: str, new_mode: str, context: str, step: Optional[int]) -> None:
         """Buffer agent transitions for potential batching and deduplication."""
@@ -337,6 +361,21 @@ class GUILogger:
                         self._write_to_file(aggregated)
 
         self._trade_buffer.clear()
+
+    def _buffer_trade(self, message: str, step: Optional[int]) -> None:
+        """Buffer individual trade lines for same-step aggregation (compact only).
+
+        Structured log still receives per-trade payloads when the buffer flushes;
+        this method only delays compact human-readable emission so multiple trades
+        in a single step become a single summarized line.
+        """
+        if step is None:
+            step = -1
+        # If we've advanced to a new step, flush the previous one first
+        if step != self._last_trade_step and self._last_trade_step >= 0:
+            self._flush_trade_buffer()
+        self._trade_buffer.setdefault(step, []).append(message)
+        self._last_trade_step = step
 
     def _flush_transition_buffer(self) -> None:
         """Flush buffered agent transitions, batching similar ones for compact output.
@@ -520,6 +559,15 @@ class GUILogger:
                 with open(self.structured_log_path, 'a', encoding='utf-8') as sf:  # type: ignore[attr-defined]
                     sf.write(structured_line)
                     sf.flush()
+                # Attempt to parse and append to ring buffer (best effort)
+                try:
+                    obj = json.loads(structured_line)
+                    if isinstance(obj, dict):  # type: ignore[truthy-bool]
+                        self._structured_ring.append(obj)  # type: ignore[attr-defined]
+                        if len(self._structured_ring) > self._structured_ring_capacity:  # type: ignore[attr-defined]
+                            self._structured_ring.pop(0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -544,6 +592,379 @@ class GUILogger:
         if category in ("PERF", "PERIODIC_PERF"):
             return self._parse_perf(message)
         return {"event": category.lower(), "raw": message}
+
+    # ---------------- Phase 3 Event Builder Helpers -----------------
+    # Each returns (compact_line: str, structured_payload: Dict[str, Any], category: str)
+
+    def build_perf_spike(self, step: int, time_ms: float, rolling_mean_ms: float, agents: int, resources: int, phase: Optional[int]) -> tuple[str, Dict[str, Any], str]:
+        # Canonical category token (was PERFORMANCE, now PERF to match filtering & avoid normalization)
+        category = "PERF"
+        phase_part = f" phase={phase}" if phase is not None else ""
+        compact = f"PERF_SPIKE: step={step} time={time_ms:.1f}ms mean={rolling_mean_ms:.1f}ms agents={agents} resources={resources}{phase_part}"
+        payload: Dict[str, Any] = {
+            "event": "perf_spike",
+            "step": step,
+            "time_ms": round(time_ms, 3),
+            "rolling_mean_ms": round(rolling_mean_ms, 3),
+            "agents": agents,
+            "resources": resources,
+        }
+        if phase is not None:
+            payload["phase"] = phase
+        return compact, payload, category
+
+    def build_micro_delta_threshold(self, threshold: float, first_drop_delta: float | None = None) -> tuple[str, Dict[str, Any], str]:
+        category = "TRADE"
+        delta_fragment = f" first_drop_delta={first_drop_delta:.6g}" if isinstance(first_drop_delta, (int, float)) else ""
+        compact = f"TI: micro_delta_threshold={threshold:g}{delta_fragment} (activating prune)"
+        payload: Dict[str, Any] = {
+            "event": "micro_delta_threshold",
+            "threshold": threshold,
+            "activated": True,
+        }
+        if isinstance(first_drop_delta, (int, float)):
+            payload["first_drop_delta"] = first_drop_delta
+        return compact, payload, category
+
+    def build_config_update(self, changes: Dict[str, Any]) -> tuple[str, Dict[str, Any], str]:
+        category = "SIMULATION"
+        level_fragment = ""
+        added_fragment = ""
+        removed_fragment = ""
+        explanations_fragment = ""
+
+        level_val = changes.get("level")
+        if isinstance(level_val, dict):  # type: ignore[truthy-bool]
+            old_v = level_val.get("old")  # type: ignore[attr-defined]
+            new_v = level_val.get("new")  # type: ignore[attr-defined]
+            if isinstance(old_v, str) and isinstance(new_v, str):
+                level_fragment = f"level={old_v}→{new_v}"
+
+        added_raw = changes.get("added_categories")
+        removed_raw = changes.get("removed_categories")
+        if isinstance(added_raw, list):  # type: ignore[truthy-bool]
+            added = [a for a in added_raw if isinstance(a, str)]  # type: ignore[misc]
+            if added:
+                added_fragment = f"add={{{{ {','.join(added)} }}}}"
+        if isinstance(removed_raw, list):  # type: ignore[truthy-bool]
+            removed = [r for r in removed_raw if isinstance(r, str)]  # type: ignore[misc]
+            if removed:
+                removed_fragment = f"remove={{{{ {','.join(removed)} }}}}"
+
+        explanations_val = changes.get("explanations")
+        if isinstance(explanations_val, dict):  # type: ignore[truthy-bool]
+            new_state = explanations_val.get("new")  # type: ignore[attr-defined]
+            if isinstance(new_state, bool):
+                explanations_fragment = f"explanations={'on' if new_state else 'off'}"
+
+        parts = [p for p in [level_fragment, added_fragment, removed_fragment, explanations_fragment] if p]
+        compact = "CFG: " + " ".join(parts) if parts else "CFG: (no_op)"
+        payload: Dict[str, Any] = {"event": "config_update", "changes": changes}
+        return compact, payload, category
+
+    # --- Dynamic Config Update Emission ---------------------------------
+    def set_logging_config(
+        self,
+        *,
+        level: Optional[str] = None,
+        add_categories: Optional[Iterable[str]] = None,
+        remove_categories: Optional[Iterable[str]] = None,
+        explanations: Optional[bool] = None,
+        emit: bool = True,
+    ) -> None:
+        """Dynamically adjust logging configuration and emit structured diff.
+
+        Args:
+            level: New log level name (if provided).
+            add_categories: Categories to add to ALWAYS-ALLOW set (future extension placeholder).
+            remove_categories: Categories to remove (future extension placeholder).
+            explanations: Toggle verbose explanation overlay flag (placeholder; stored on instance).
+            emit: If False, apply without emitting config_update (used for bootstrap).
+
+        This method is append-only and safe: unknown categories ignored, mutations idempotent.
+        """
+        from .debug_logger import LogLevel  # circular safe (same module) but ensures name resolution
+        self._step = 0  # Reset step to 0 when logging config is set
+        changes: Dict[str, Any] = {}
+        if level is not None:
+            old_level = self.log_level.value
+            try:
+                new_level_enum = LogLevel(level.upper())
+                if new_level_enum.value != old_level:
+                    self.log_level = new_level_enum
+                    changes["level"] = {"old": old_level, "new": self.log_level.value}
+            except Exception:
+                pass
+        # Category management (placeholders: categories list not yet first-class; kept for forward compatibility)
+        added_cats: list[str] = []
+        removed_cats: list[str] = []
+        if add_categories:
+            for c in add_categories:
+                if c:
+                    added_cats.append(c)
+        if remove_categories:
+            for c in remove_categories:
+                if c:
+                    removed_cats.append(c)
+        if added_cats:
+            changes["added_categories"] = added_cats
+        if removed_cats:
+            changes["removed_categories"] = removed_cats
+        if explanations is not None:
+            prev = getattr(self, "_explanations_enabled", False)
+            if explanations != prev:
+                setattr(self, "_explanations_enabled", explanations)
+                changes["explanations"] = {"old": prev, "new": explanations}
+                if emit and changes:
+                    builder_tuple = self.build_config_update(changes)
+                    self.emit_built_event(None, builder_tuple)
+
+    def build_partner_search(
+        self,
+        agent_id: int,
+        scanned: int,
+        eligible: int,
+        chosen_id: int,
+        method: str,
+        cooldown_global: int,
+        cooldown_partner: int,
+    ) -> tuple[str, Dict[str, Any], str]:
+        """Partner search summary (successful selection).
+
+        Returns:
+            tuple(compact_line, structured_payload, category)
+        """
+        category = "PAIRING"
+        compact = (
+            f"PS: A{agent_id:03d} scanned={scanned} eligible={eligible} "
+            f"chosen=A{chosen_id:03d} method={method} cooldowns(g={cooldown_global},p={cooldown_partner})"
+        )
+        payload: Dict[str, Any] = {
+            "event": "partner_search",
+            "agent": agent_id,
+            "scanned": scanned,
+            "eligible": eligible,
+            "chosen": chosen_id,
+            "method": method,
+            "cooldowns": {"global": cooldown_global, "partner": cooldown_partner},
+        }
+        return compact, payload, category
+
+    def build_partner_reject(
+        self,
+        agent_id: int,
+        candidate_id: int,
+        reason: str,
+        sampled: bool,
+    ) -> tuple[str, Dict[str, Any], str]:
+        """Partner rejection sample (only emitted when sampled)."""
+        category = "PAIRING"
+        compact = (
+            f"PSR: A{agent_id:03d} reject=A{candidate_id:03d} reason={reason}" + (" sampled" if sampled else "")
+        )
+        payload: Dict[str, Any] = {
+            "event": "partner_reject",
+            "agent": agent_id,
+            "candidate": candidate_id,
+            "reason": reason,
+            "sampled": sampled,
+        }
+        return compact, payload, category
+
+    def build_trade_intent_funnel(
+        self,
+        drafted: int,
+        pruned_micro: int,
+        pruned_nonpositive: int,
+        executed: int,
+        max_delta_u: float,
+    ) -> tuple[str, Dict[str, Any], str]:
+        """Trade intent enumeration funnel summary for a step."""
+        category = "TRADE"
+        compact = (
+            f"TI: drafted={drafted} pruned_micro={pruned_micro} pruned_nonpositive={pruned_nonpositive} "
+            f"executed={executed} maxΔU={max_delta_u:.3f}"
+        )
+        payload: Dict[str, Any] = {
+            "event": "trade_intent_funnel",
+            "drafted": drafted,
+            "pruned_micro": pruned_micro,
+            "pruned_nonpositive": pruned_nonpositive,
+            "executed": executed,
+            "max_delta_u": round(max_delta_u, 6),
+        }
+        return compact, payload, category
+
+    def build_trade_intent_none(self, cause: str) -> tuple[str, Dict[str, Any], str]:
+        category = "TRADE"
+        compact = f"TI: none ({cause})"
+        payload: Dict[str, Any] = {"event": "trade_intent_none", "cause": cause}
+        return compact, payload, category
+
+    def build_trade_intent_none_executed(self, reason: str, drafted: int) -> tuple[str, Dict[str, Any], str]:
+        category = "TRADE"
+        compact = f"TI: none_executed reason={reason} drafted={drafted}"
+        payload: Dict[str, Any] = {
+            "event": "trade_intent_none_executed",
+            "reason": reason,
+            "drafted": drafted,
+        }
+        return compact, payload, category
+
+    def build_stagnation_trigger(
+        self,
+        agent_id: int,
+        threshold: int,
+        last_improve_step: int,
+        action: str,
+        deposit: bool,
+    ) -> tuple[str, Dict[str, Any], str]:
+        category = "STAGNATION"
+        deposit_fragment = " deposit" if deposit else ""
+        compact = (
+            f"STAG: A{agent_id:03d} threshold={threshold} last_improve={last_improve_step} "
+            f"action={action}{deposit_fragment}"
+        )
+        payload: Dict[str, Any] = {
+            "event": "stagnation_trigger",
+            "agent": agent_id,
+            "threshold": threshold,
+            "last_improve": last_improve_step,
+            "action": action,
+            "deposit": deposit,
+        }
+        return compact, payload, category
+
+    def build_selection_sample(
+        self,
+        agent_id: int,
+        k: float,
+        candidates: Sequence[Dict[str, Any]],
+        top_n: int = 3,
+    ) -> tuple[str, Dict[str, Any], str]:
+        """Selection ranking sample.
+
+        Args:
+            agent_id: Agent sampled.
+            k: distance scaling factor.
+            candidates: iterable of candidate dicts with keys described in plan.
+            top_n: truncate candidate count in compact line (structured keeps all).
+        """
+        category = "DECISIONS"
+        shown: List[Dict[str, Any]] = list(candidates)[:top_n]  # type: ignore[arg-type]
+        frag_parts: List[str] = []
+        for c in shown:
+            ctype = c.get("type")  # type: ignore[assignment]
+            d = c.get("d")  # type: ignore[assignment]
+            du = c.get("delta_u")  # type: ignore[assignment]
+            dud = c.get("delta_u_discounted")  # type: ignore[assignment]
+            if ctype == "RESOURCE":
+                pos = c.get("pos")  # type: ignore[assignment]
+                if isinstance(pos, (list, tuple)) and len(pos) == 2 and isinstance(du, (int, float)) and isinstance(dud, (int, float)):  # type: ignore[arg-type]
+                    frag = f"R@({pos[0]},{pos[1]}) d={d} ΔU={du:.2f} ΔU'={dud:.2f}"
+                else:
+                    frag = f"R d={d}"
+            elif ctype == "TRADE":
+                partner = c.get("partner")  # type: ignore[assignment]
+                if isinstance(partner, int) and isinstance(du, (int, float)) and isinstance(dud, (int, float)):
+                    frag = f"TRADE(A{partner:03d}) d={d} ΔU={du:.2f} ΔU'={dud:.2f}"
+                elif isinstance(partner, int):
+                    frag = f"TRADE(A{partner:03d}) d={d}"
+                else:
+                    frag = f"TRADE d={d}"
+            else:
+                frag = "?"
+            frag_parts.append(frag)
+        cand_compact = ", ".join(frag_parts)
+        compact = f"USAMP: A{agent_id:03d} k={k:g} cand=[{cand_compact}]"
+        payload: Dict[str, Any] = {
+            "event": "selection_sample",
+            "agent": agent_id,
+            "k": k,
+            "candidates": list(candidates),  # preserve provided order & detail
+        }
+        return compact, payload, category
+
+    def build_respawn_cycle(
+        self,
+        step: int,
+        deficit: int,
+        target_density: float,
+        planned: int,
+        placed: int,
+        remaining: int,
+    ) -> tuple[str, Dict[str, Any], str]:
+        category = "RESOURCES"
+        compact = (
+            f"RESP: step={step} deficit={deficit} target_density={target_density:g} "
+            f"plan={planned} placed={placed} remaining={remaining}"
+        )
+        payload: Dict[str, Any] = {
+            "event": "respawn_cycle",
+            "step": step,
+            "deficit": deficit,
+            "target_density": target_density,
+            "planned": planned,
+            "placed": placed,
+            "remaining": remaining,
+        }
+        return compact, payload, category
+
+    def build_respawn_skipped(self, step: int, reason: str) -> tuple[str, Dict[str, Any], str]:
+        category = "RESOURCES"
+        compact = f"RESP: step={step} skipped ({reason})"
+        payload: Dict[str, Any] = {
+            "event": "respawn_skipped",
+            "step": step,
+            "reason": reason,
+        }
+        return compact, payload, category
+
+    def build_target_churn(
+        self,
+        window: int,
+        retarget_events: int,
+        distinct_agents: int,
+        top_agent_id: int,
+        top_agent_events: int,
+    ) -> tuple[str, Dict[str, Any], str]:
+        category = "DECISIONS"
+        compact = (
+            f"CHURN: window={window} retarget_events={retarget_events} distinct_agents={distinct_agents} "
+            f"top_agent=A{top_agent_id:03d} count={top_agent_events}"
+        )
+        payload: Dict[str, Any] = {
+            "event": "target_churn",
+            "window": window,
+            "retarget_events": retarget_events,
+            "distinct_agents": distinct_agents,
+            "top_agent_id": top_agent_id,
+            "top_agent_events": top_agent_events,
+        }
+        return compact, payload, category
+
+    def build_overlay_state(
+        self,
+        grid: bool,
+        ids: bool,
+        arrows: bool,
+        trades: bool,
+        highlight: bool,
+    ) -> tuple[str, Dict[str, Any], str]:
+        category = "SIMULATION"
+        compact = (
+            f"OVL: grid={'on' if grid else 'off'} ids={'on' if ids else 'off'} arrows={'on' if arrows else 'off'} "
+            f"trades={'on' if trades else 'off'} highlight={'on' if highlight else 'off'}"
+        )
+        payload: Dict[str, Any] = {
+            "event": "overlay_state",
+            "grid": grid,
+            "ids": ids,
+            "arrows": arrows,
+            "trades": trades,
+            "highlight": highlight,
+        }
+        return compact, payload, category
     
     def _format_simulation_time(self, step: Optional[int] = None) -> str:
         """Format elapsed wall clock time since simulation start.
@@ -873,11 +1294,42 @@ class GUILogger:
             self._write_to_file(formatted_message)  # JSON in primary log too (unchanged behavior if selected)
             self._write_structured_line(formatted_message)
     
+    def emit_built_event(self, step: Optional[int], builder_result: tuple[str, Dict[str, Any], str]) -> None:
+        """Emit a pre-built (compact, structured) event tuple.
+
+        Always writes structured side-channel; compact path respects category filtering.
+        Safe no-op if finalized or category disabled.
+        """
+        if self.is_finalized():
+            return
+        try:
+            compact_line, payload, category = builder_result
+        except Exception:
+            return
+        # Structured output first (unconditional for enabled category)
+        try:
+            structured_line = self._emit_structured(category, step, payload)
+            self._write_structured_line(structured_line)
+        except Exception:
+            pass
+        # Compact emission (category gating inside log())
+        try:
+            self.log(category, compact_line, step)
+        except Exception:
+            pass
+
     def log_agent_mode(self, agent_id: int, old_mode: str, new_mode: str, reason: str = "", step: Optional[int] = None) -> None:
         """Log agent mode transitions."""
         reason_str = f" ({reason})" if reason else ""
         message = f"Agent {agent_id} mode: {old_mode} -> {new_mode}{reason_str}"
         self.log("AGENT_MODE", message, step)
+    
+    # ---------------- Testing Helpers ----------------
+    def recent_structured_events(self) -> list[dict[str, Any]]:
+        try:
+            return list(self._structured_ring)  # type: ignore[attr-defined]
+        except Exception:
+            return []
     
     def finalize_session(self) -> None:
         """Write session end marker and prevent further logging."""
@@ -1100,14 +1552,18 @@ def log_comprehensive(message: str, step: Optional[int] = None) -> None:
         
         # Use PERIODIC_SIM for step summaries when in compact format or periodic mode
         if step is not None and "Agents:" in message and "Resources:" in message:
-            if logger.log_format == LogFormat.COMPACT or logger.log_level == LogLevel.PERIODIC:
-                # Log every 25th step summary in compact/periodic modes
-                if step % 25 == 0:
-                    category = "PERIODIC_SIM"
-                else:
-                    return  # Skip intermediate step summaries
+            # In VERBOSE level we emit every summary (no throttling) regardless of format.
+            if logger.log_level == LogLevel.VERBOSE:
+                category = "SIMULATION"
             else:
-                category = "SIMULATION"  # Log all summaries in verbose mode
+                # Throttle summaries for non-VERBOSE modes or when compact readability matters
+                if logger.log_format == LogFormat.COMPACT or logger.log_level == LogLevel.PERIODIC:
+                    if step % 25 == 0:
+                        category = "PERIODIC_SIM"
+                    else:
+                        return
+                else:
+                    category = "SIMULATION"
         else:
             category = "SIMULATION"
             

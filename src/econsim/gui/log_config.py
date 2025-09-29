@@ -40,7 +40,8 @@ class LogConfig:
     """Runtime configuration for the debug logging system."""
     
     # Core settings
-    level: LogLevel = LogLevel.EVENTS
+    # Default elevated to VERBOSE so full educational / diagnostic context is available
+    level: LogLevel = LogLevel.VERBOSE
     format: LogFormat = LogFormat.COMPACT
     
     # Category filtering
@@ -68,7 +69,8 @@ class LogConfig:
         config = cls()
         
         # Parse log level
-        level_str = os.environ.get("ECONSIM_LOG_LEVEL", "EVENTS").upper()
+        # Default to VERBOSE (previously EVENTS) for richer default insight; callers can still override via env
+        level_str = os.environ.get("ECONSIM_LOG_LEVEL", "VERBOSE").upper()
         try:
             config.level = LogLevel(level_str)
         except ValueError:

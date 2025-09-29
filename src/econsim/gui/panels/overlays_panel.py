@@ -12,6 +12,7 @@ No heavy logic; each toggle sets the corresponding boolean.
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QCheckBox
+from typing import Any
 
 from ..overlay_state import OverlayState
 
@@ -54,14 +55,38 @@ class OverlaysPanel(QWidget):  # pragma: no cover (simple wiring; behavior teste
 
     def _on_grid(self, checked: bool) -> None:
         self._state.show_grid = bool(checked)
+        self._emit_overlay_state()
 
     def _on_ids(self, checked: bool) -> None:
         self._state.show_agent_ids = bool(checked)
+        self._emit_overlay_state()
 
     def _on_arrow(self, checked: bool) -> None:
         self._state.show_target_arrow = bool(checked)
+        self._emit_overlay_state()
 
     def _on_homes(self, checked: bool) -> None:
         self._state.show_home_labels = bool(checked)
+        self._emit_overlay_state()
+
+    def _emit_overlay_state(self) -> None:
+        try:
+            from ..debug_logger import get_gui_logger  # type: ignore
+            logger: Any = get_gui_logger()
+        except Exception:  # pragma: no cover
+            logger = None
+        if logger is None:
+            return
+        try:
+            builder = logger.build_overlay_state(
+                grid=self._state.show_grid,
+                ids=self._state.show_agent_ids,
+                arrows=self._state.show_target_arrow,
+                trades=self._state.show_trade_lines if hasattr(self._state, 'show_trade_lines') else True,
+                highlight=True,  # highlight proxies home labels + arrows emphasis
+            )
+            logger.emit_built_event(step=None, builder_result=builder)
+        except Exception:  # pragma: no cover
+            pass
 
 __all__ = ["OverlaysPanel"]
