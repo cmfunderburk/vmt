@@ -32,6 +32,12 @@ class BaseManualTest(QWidget):
         self.phase = 1
         self.ext_rng = random.Random(789)  # External RNG for legacy compatibility
         
+        # Turn rate tracking for speed display
+        from time import perf_counter
+        self.turn_rate_start_time = perf_counter()
+        self.turn_rate_start_turn = 0
+        self.current_turn_rate = 0.0  # Actual turns/second
+        
         # Setup common components
         self.setup_ui()
         self.setup_debug_orchestrator() 
@@ -115,9 +121,12 @@ class BaseManualTest(QWidget):
             # Create simulation using factory
             self.simulation = SimulationFactory.create_simulation(self.config)
             
-            # Create pygame widget and replace placeholder
+            # Create pygame widget in RENDER-ONLY mode (test framework drives simulation)
             from econsim.gui.embedded_pygame import EmbeddedPygameWidget
-            self.pygame_widget = EmbeddedPygameWidget(simulation=self.simulation)
+            self.pygame_widget = EmbeddedPygameWidget(
+                simulation=self.simulation,
+                drive_simulation=False  # Render only - framework drives simulation
+            )
             self.pygame_widget.setFixedSize(self.config.viewport_size, self.config.viewport_size)
             
             # Replace placeholder in layout
@@ -126,6 +135,12 @@ class BaseManualTest(QWidget):
             # Reset counters
             self.current_turn = 0
             self.phase = 1
+            
+            # Reset turn rate tracking
+            from time import perf_counter
+            self.turn_rate_start_time = perf_counter()
+            self.turn_rate_start_turn = 0
+            self.current_turn_rate = 0.0
             
             # Update UI
             self.test_layout.control_panel.start_button.setText("Test Running...")
@@ -160,9 +175,30 @@ class BaseManualTest(QWidget):
         """Execute one simulation step and handle phase transitions."""
         if not self.simulation:
             return
+        
+        # Check if test is complete BEFORE processing next turn
+        total_turns = self.get_total_turns()
+        if self.current_turn >= total_turns:
+            # Test already complete, stop test timer (pygame continues rendering)
+            if self.step_timer.isActive():
+                self.step_timer.stop()
+                print(f"⏹️  Test timer stopped - test complete at {total_turns} turns")
+            return
             
         # Increment turn counter
         self.current_turn += 1
+        
+        # Calculate actual turn rate (updated every 10 turns for smoothness)
+        if self.current_turn % 10 == 0:
+            from time import perf_counter
+            current_time = perf_counter()
+            elapsed = current_time - self.turn_rate_start_time
+            if elapsed > 0:
+                turns_elapsed = self.current_turn - self.turn_rate_start_turn
+                self.current_turn_rate = turns_elapsed / elapsed
+                # Reset tracking window
+                self.turn_rate_start_time = current_time
+                self.turn_rate_start_turn = self.current_turn
         
         # Check for phase transitions (implemented by subclasses)
         self.check_phase_transition()
@@ -233,8 +269,9 @@ class BaseManualTest(QWidget):
                 
                 log_spatial(f"Agent clustering - Center: ({center_x:.1f}, {center_y:.1f}) | Avg distance from center: {avg_distance_from_center:.1f} | Avg inter-agent distance: {avg_inter_distance:.1f}", self.current_turn)
         
-        # Stop at turn 900
-        if self.current_turn >= 900:
+        # Check if we just completed the final turn
+        total_turns = self.get_total_turns()
+        if self.current_turn >= total_turns:
             self.step_timer.stop()
             
             # Finalize debug logging to prevent noise during cleanup
@@ -246,9 +283,9 @@ class BaseManualTest(QWidget):
                 print(f"⚠️  Could not finalize debug logging: {e}")
             
             self.test_layout.control_panel.start_button.setText("Test Completed!")
-            self.test_layout.control_panel.status_text.setText("🎉 Test completed! All 900 turns executed with phase transitions.")
+            self.test_layout.control_panel.status_text.setText(f"🎉 Test completed! All {total_turns} turns executed with phase transitions.")
             print("=" * 60)
-            print("🎉 TEST COMPLETED SUCCESSFULLY!")
+            print(f"🎉 TEST COMPLETED SUCCESSFULLY! ({total_turns} turns)")
             print("All phases executed. Check the behavior observations above.")
             print("=" * 60)
             
@@ -286,6 +323,10 @@ class BaseManualTest(QWidget):
     def check_phase_transition(self):
         """Check if we need to transition to a new phase. Override in subclasses."""
         pass
+    
+    def get_total_turns(self) -> int:
+        """Get the total number of turns for this test. Override in subclasses."""
+        return 900  # Default for legacy tests
         
     def update_display(self):
         """Update the UI display with current simulation state."""
@@ -295,23 +336,32 @@ class BaseManualTest(QWidget):
         agent_count = len(self.simulation.agents)
         resource_count = len(list(self.simulation.grid.iter_resources()))
         
-        # Update control panel
+        # Update control panel with turn rate
         self.test_layout.control_panel.update_display(
             turn=self.current_turn,
             phase=self.phase,
             agent_count=agent_count,
             resource_count=resource_count,
-            phase_manager=getattr(self, 'phase_manager', None)
+            phase_manager=getattr(self, 'phase_manager', None),
+            turn_rate=self.current_turn_rate
         )
         
     def on_speed_changed(self, index):
         """Handle speed selection change."""
-        if hasattr(self, 'step_timer') and self.step_timer.isActive():
-            # Update running timer
-            from .test_utils import get_timer_interval
-            self.step_timer.setInterval(get_timer_interval(index))
+        from .test_utils import get_timer_interval
         
-        # Update status display
+        speed_names = ["1 turn/sec", "3 turns/sec", "10 turns/sec", "20 turns/sec", "UNLIMITED (as fast as possible)"]
+        interval = get_timer_interval(index)
+        
+        if hasattr(self, 'step_timer') and self.step_timer.isActive():
+            # Update running timer interval
+            self.step_timer.setInterval(interval)
+            if interval == 0:
+                print(f"⏱️  Speed changed to: UNLIMITED - running as fast as possible!")
+            else:
+                print(f"⏱️  Speed changed to: {speed_names[index]} (interval: {interval}ms)")
+        
+        # Update status display to reflect new speed
         self.update_display()
 
 
@@ -331,6 +381,10 @@ class StandardPhaseTest(BaseManualTest):
         transition = self.phase_manager.check_transition(self.current_turn, self.phase)
         if transition:
             self.phase = transition.new_phase
+    
+    def get_total_turns(self) -> int:
+        """Get the total number of turns from phase manager."""
+        return self.phase_manager.get_total_turns()
 
 
 class CustomPhaseTest(BaseManualTest): 

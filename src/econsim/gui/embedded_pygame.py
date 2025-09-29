@@ -43,6 +43,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         simulation: _SimulationProto | None = None,
         *,
         decision_mode: bool | None = None,
+        drive_simulation: bool = True,
     ) -> None:
         super().__init__(parent)
         # Optional injected simulation (Gate 3). Avoid hard dependency to keep
@@ -51,6 +52,10 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self._simulation: _SimulationProto | None = simulation
         self._sim_rng = None  # set in first tick if simulation provided
         self.controller: "SimulationController | None" = None
+        
+        # Control whether widget drives simulation or only renders
+        # When False, widget is render-only (simulation driven externally)
+        self._drive_simulation = drive_simulation
         
         # Get viewport size from simulation config, fallback to 320x320
         viewport_size = 320
@@ -186,8 +191,8 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             _pg_guard_initted = _pg_guard.get_init()
         except Exception:  # pragma: no cover - guard path
             _pg_guard_initted = False
-        # Step simulation first (if present) using a lazily-created RNG.
-        if self._simulation is not None:
+        # Step simulation first (if present AND widget drives it) using a lazily-created RNG.
+        if self._simulation is not None and self._drive_simulation:
             import random
 
             if self._sim_rng is None:

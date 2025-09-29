@@ -54,15 +54,20 @@ class ControlPanel(QWidget):
         
         self.speed_combo = QComboBox()
         self.speed_combo.addItems([
-            "1 turn/second",
-            "3 turns/second", 
-            "10 turns/second",
-            "20 turns/second",
-            "Unlimited"
+            "🐌 1 turn/second",
+            "🚶 3 turns/second", 
+            "🏃 10 turns/second",
+            "⚡ 20 turns/second",
+            "🚀 Unlimited"
         ])
         self.speed_combo.setCurrentIndex(0)  # Default to 1 turn/second
         speed_layout.addWidget(self.speed_combo)
         layout.addLayout(speed_layout)
+        
+        # Current speed indicator
+        self.speed_indicator = QLabel("⏱️  Speed: 1 turn/sec")
+        self.speed_indicator.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        layout.addWidget(self.speed_indicator)
         
         # Start button
         self.start_button = QPushButton("Start Test")
@@ -78,9 +83,19 @@ class ControlPanel(QWidget):
         self.setLayout(layout)
         self.setFixedWidth(350)
         
-    def update_display(self, turn: int, phase: int, agent_count: int, resource_count: int, phase_manager=None):
+    def update_display(self, turn: int, phase: int, agent_count: int, resource_count: int, phase_manager=None, turn_rate: float = 0.0):
         """Update all status displays."""
         self.turn_label.setText(f"Turn: {turn}")
+        
+        # Update speed indicator
+        speed_index = self.speed_combo.currentIndex()
+        if speed_index == 4 and turn_rate > 0:
+            # Unlimited speed - show actual rate
+            self.speed_indicator.setText(f"⏱️  Speed: {turn_rate:.0f} turns/sec")
+        else:
+            # Fixed speed - show nominal rate
+            speed_names = ["1 turn/sec", "3 turns/sec", "10 turns/sec", "20 turns/sec", "UNLIMITED"]
+            self.speed_indicator.setText(f"⏱️  Speed: {speed_names[speed_index]}")
         
         # Get phase description from phase manager if available
         if phase_manager and hasattr(phase_manager, 'get_phase_description'):
@@ -120,9 +135,14 @@ class ControlPanel(QWidget):
             status = f"Ready to start {total_turns}-turn test (~{format_duration(duration)})..."
         elif turn < total_turns:
             remaining = total_turns - turn
-            interval_s = get_timer_interval(self.speed_combo.currentIndex()) / 1000
-            est_seconds = remaining * interval_s
-            status = f"Running... {remaining} turns remaining (~{format_duration(est_seconds)})"
+            interval_ms = get_timer_interval(self.speed_combo.currentIndex())
+            if interval_ms == 0:
+                # Unlimited speed - don't show time estimate
+                status = f"Running... {remaining} turns remaining (unlimited speed)"
+            else:
+                interval_s = interval_ms / 1000
+                est_seconds = remaining * interval_s
+                status = f"Running... {remaining} turns remaining (~{format_duration(est_seconds)})"
         else:
             status = "Test completed!"
         

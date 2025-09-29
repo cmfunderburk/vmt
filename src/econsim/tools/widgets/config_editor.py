@@ -1193,6 +1193,29 @@ class ConfigEditor(QWidget):
                 
     def generate_test_code(self, config: TestConfiguration) -> str:
         """Generate executable test code for the configuration."""
+        # Check if there are custom phases
+        custom_phases = getattr(config, 'custom_phases', None)
+        
+        # Generate custom phases code if present
+        if custom_phases:
+            phases_import = "from econsim.tools.launcher.framework.phase_manager import PhaseDefinition\n"
+            phases_code = "# Custom phase configuration\nCUSTOM_PHASES = [\n"
+            for phase in custom_phases:
+                phases_code += f"    PhaseDefinition(\n"
+                phases_code += f"        number={phase.number},\n"
+                phases_code += f"        turn_start={phase.turn_start},\n"
+                phases_code += f"        turn_end={phase.turn_end},\n"
+                phases_code += f"        description=\"{phase.description}\",\n"
+                phases_code += f"        forage_enabled={phase.forage_enabled},\n"
+                phases_code += f"        trade_enabled={phase.trade_enabled}\n"
+                phases_code += f"    ),\n"
+            phases_code += "]\n\n"
+            custom_phases_param = ",\n    custom_phases=CUSTOM_PHASES"
+        else:
+            phases_import = ""
+            phases_code = ""
+            custom_phases_param = ""
+        
         code = f'''#!/usr/bin/env python3
 """
 Custom Generated Test: {config.name}
@@ -1214,8 +1237,8 @@ from PyQt6.QtWidgets import QApplication
 sys.path.insert(0, str(project_root / "src"))
 from econsim.tools.launcher.framework.base_test import StandardPhaseTest
 from econsim.tools.launcher.framework.test_configs import TestConfiguration
-
-# Custom test configuration
+{phases_import}
+{phases_code}# Custom test configuration
 CUSTOM_CONFIG = TestConfiguration(
     id={config.id},
     name="{config.name}",
@@ -1226,7 +1249,7 @@ CUSTOM_CONFIG = TestConfiguration(
     perception_radius={config.perception_radius},
     distance_scaling_factor={getattr(config, 'distance_scaling_factor', 0.0)},
     preference_mix="{config.preference_mix}",
-    seed={config.seed}
+    seed={config.seed}{custom_phases_param}
 )
 
 class CustomTest(StandardPhaseTest):
