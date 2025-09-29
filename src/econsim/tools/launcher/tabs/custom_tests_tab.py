@@ -44,7 +44,9 @@ class CustomTestsTab(AbstractTab):  # pragma: no cover - GUI component extracted
         """Get custom tests directory (always in project)."""
         # Always use project-local custom tests directory  
         # This keeps user-created tests with the project for easy access and version control choice
-        project_root = Path(__file__).parent.parent.parent.parent.parent
+        # This file is at: src/econsim/tools/launcher/tabs/custom_tests_tab.py
+        # So we need 6 parent calls to get to project root
+        project_root = Path(__file__).parent.parent.parent.parent.parent.parent
         return project_root / "MANUAL_TESTS" / "custom_tests"
         
     def setup_ui(self):

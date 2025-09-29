@@ -14,51 +14,54 @@ This launches the comprehensive VMT Enhanced Test Launcher with:
 - Visual test gallery with 7 educational scenarios
 - Side-by-side original vs framework comparison
 - Live configuration editor
-- Batch test runner integration  
-- Bookmark manager for favorite configurations
+- Batch test runner integration
 - Custom test creation and management
 
-### Alternative Interfaces
+### Standalone Widget Access
+
+Individual widgets can be run standalone for focused workflows:
 
 ```bash
-# Batch test runner (sequential execution)
-make batch-tests
+# Config editor (create and modify test configurations)
+python MANUAL_TESTS/live_config_editor.py
 
-# Bookmark manager (organize configurations) 
-make bookmarks
-
-# Basic GUI with start menu
-make manual-tests
+# Batch runner (sequential test execution)
+python MANUAL_TESTS/batch_test_runner.py
 ```
 
 ## Main Tools
 
-### Enhanced Test Launcher (`enhanced_test_launcher_v2.py`)
-The primary interface providing:
+### Enhanced Test Launcher (New Modular Architecture)
+Located at `src/econsim/tools/launcher/app_window.py`, providing:
 - **Test Gallery**: Visual cards for all 7 test scenarios
 - **Comparison Mode**: Launch original or framework versions
-- **Live Editor**: Real-time configuration modification
-- **Integration**: Direct access to batch runner and bookmarks
+- **Config Editor Tab**: Real-time configuration modification
+- **Batch Runner Tab**: Sequential test execution
+- **Custom Tests Tab**: User-generated test management
 
-### Batch Test Runner (`batch_test_runner.py`)
-Professional sequential test execution with:
+### Reusable Widgets (`src/econsim/tools/widgets/`)
+GUI components available as both standalone apps and integrated tabs:
+
+**Config Editor** (`widgets/config_editor.py`)
+- Interactive parameter adjustment with live validation
+- Configuration presets and templates
+- Custom test generation and export
+- Phase configuration support
+- *Standalone wrapper*: `MANUAL_TESTS/live_config_editor.py`
+
+**Batch Runner** (`widgets/batch_runner.py`)
+- Professional sequential test execution
 - Progress tracking and time estimates
-- Configurable delays between tests
-- Comprehensive logging and results summary
+- Pause/Resume capabilities
+- Detailed execution logs and results
+- *Standalone wrapper*: `MANUAL_TESTS/batch_test_runner.py`
 
-### Bookmark Manager (`test_bookmarks.py`)
-Organize and quick-launch favorite configurations:
-- Save test configurations with custom names
-- Categorize bookmarks with tags
-- Search and filter bookmark collections
-- Direct launch from bookmark list
-
-### Live Config Editor (`live_config_editor.py`)
-Real-time configuration modification:
-- Interactive parameter adjustment
-- Live preview of changes
-- Save custom configurations
-- Export to standalone test files
+### Phase Config Editor (`phase_config_editor.py`)
+GUI dialog for creating custom phase schedules:
+- Configure phase behavior (forage, exchange, both, or idle)
+- Set phase durations
+- Define phase sequences
+- *Note*: Will be migrated to `src/econsim/tools/widgets/dialogs/` in future refactoring
 
 ## Test Scenarios
 
@@ -118,27 +121,46 @@ make perf  # Runs synthetic + widget performance tests
 
 ## File Organization
 
+### Current Structure (Post-Refactoring)
+
 ```
-MANUAL_TESTS/
-├── README.md                    # Basic usage guide
-├── LAUNCHER_GUIDE.md           # This comprehensive guide
-├── enhanced_test_launcher_v2.py # Main launcher
-├── batch_test_runner.py        # Batch execution
-├── test_bookmarks.py           # Bookmark manager
-├── live_config_editor.py       # Config editor  
-├── phase_config_editor.py      # Phase editor
-├── test_start_menu.py          # Basic GUI
-├── test_utils.py               # Shared utilities
-├── test_1.py ... test_7.py     # Core scenarios
-├── config_presets.json         # User presets
-├── custom_tests/               # User custom tests
-└── examples/                   # Optional examples
+MANUAL_TESTS/                         # Educational test files
+├── README.md                         # Basic usage guide
+├── LAUNCHER_GUIDE.md                 # This comprehensive guide
+├── live_config_editor.py             # Wrapper → src/econsim/tools/widgets/config_editor.py
+├── batch_test_runner.py              # Wrapper → src/econsim/tools/widgets/batch_runner.py
+├── phase_config_editor.py            # Phase editor dialog (TODO: migrate to widgets/dialogs/)
+├── test_1.py ... test_7.py           # Core educational scenarios
+├── config_presets.json               # Configuration presets
+├── custom_tests/                     # User-generated custom tests
+└── examples/                         # Phase configuration examples
     ├── example_custom_phases.py
     ├── phase_examples_demo.py
     ├── test_custom_phases.py
     ├── test_framework_validation.py
     └── test_improved_phases.py
+
+src/econsim/tools/                    # Production tool modules
+├── launcher/                         # Main launcher application
+│   ├── app_window.py                # Enhanced Test Launcher window
+│   ├── tabs/                        # Tab components
+│   ├── framework/                   # Test framework
+│   └── ...
+└── widgets/                          # Reusable GUI widgets
+    ├── __init__.py
+    ├── config_editor.py             # Configuration editor widget
+    └── batch_runner.py              # Batch test runner widget
 ```
+
+### Architecture Notes
+
+The widgets have been properly migrated to `src/econsim/tools/widgets/` for:
+- ✅ Proper architectural separation (tools vs tests)
+- ✅ Clean imports without path manipulation
+- ✅ Reusability across different applications
+- ✅ Maintainability with single source of truth
+
+Compatibility wrappers in `MANUAL_TESTS/` allow standalone execution and preserve existing workflows.
 
 ## Educational Context
 
