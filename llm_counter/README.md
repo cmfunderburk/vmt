@@ -79,7 +79,7 @@ The tool includes:
 
 The tool excludes:
 - Binary files and large files (>1MB)
-- Cache directories (`__pycache__`, `.pytest_cache`)
+- Cache directories (`__pycache__`, `.pytest_cache`, `.mypy_cache`)
 - Virtual environments (`vmt-dev`, `node_modules`)
 - Log files in `launcher_logs/` and `gui_logs/`
 - Git metadata (`.git/`)

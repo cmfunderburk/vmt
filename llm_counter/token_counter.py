@@ -81,7 +81,8 @@ class VMTTokenCounter:
         
         self.exclude_patterns = [
             "__pycache__", ".git", ".pytest_cache", "node_modules",
-            "*.pyc", "*.pyo", "vmt-dev", "launcher_logs", "gui_logs"
+            "*.pyc", "*.pyo", "vmt-dev", "launcher_logs", "gui_logs",
+            ".mypy_cache"
         ]
     
     def should_include_file(self, file_path: Path) -> bool:

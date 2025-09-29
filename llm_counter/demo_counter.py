@@ -32,7 +32,7 @@ class SimpleTokenCounter:
         
         self.exclude_dirs = {
             '__pycache__', '.git', '.pytest_cache', 'node_modules',
-            'vmt-dev', 'launcher_logs', 'gui_logs', '.vscode'
+            'vmt-dev', 'launcher_logs', 'gui_logs', '.vscode', '.mypy_cache'
         }
     
     def should_include_file(self, file_path):
