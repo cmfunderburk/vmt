@@ -293,39 +293,43 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                 logger = get_gui_logger()
                 log_path = logger.get_structured_log_path()
                 
+                formatted_lines: list[str] = []
                 if log_path is not None and log_path.exists():
                     # Read the latest structured log content (JSON Lines format)
-                    
                     with open(log_path, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
-                    
+
                     # Process each JSON line and format for display
-                    formatted_lines: list[str] = []
                     for line in lines:
                         line = line.strip()
                         if line:
                             try:
                                 event = json.loads(line)
-                                formatted_line = logger.format_structured_event_for_display(event)
-                                formatted_lines.append(formatted_line)
+                                formatted_lines.append(logger.format_structured_event_for_display(event))
                             except json.JSONDecodeError:
-                                # Skip malformed lines
                                 continue
-                    
-                    # Keep only the most recent entries
-                    if len(formatted_lines) > self._max_entries:
-                        formatted_lines = formatted_lines[-self._max_entries:]
-                    
-                    # Update the debug display with formatted content
-                    dbg_text = '\n'.join(formatted_lines)
-                    self._debug_display.setPlainText(dbg_text)
-                    
-                    # Auto-scroll to bottom to show latest entries
-                    cur = self._debug_display.textCursor()
-                    cur.movePosition(cur.MoveOperation.End)
-                    self._debug_display.setTextCursor(cur)
-                    self._debug_display.ensureCursorVisible()
-                    
+                else:
+                    # Fallback to in-memory ring buffer when file has not been flushed yet
+                    for event in logger.recent_structured_events():
+                        try:
+                            formatted_lines.append(logger.format_structured_event_for_display(event))
+                        except Exception:
+                            continue
+
+                # Keep only the most recent entries
+                if len(formatted_lines) > self._max_entries:
+                    formatted_lines = formatted_lines[-self._max_entries:]
+
+                # Update the debug display with formatted content
+                dbg_text = '\n'.join(formatted_lines)
+                self._debug_display.setPlainText(dbg_text)
+                
+                # Auto-scroll to bottom to show latest entries
+                cur = self._debug_display.textCursor()
+                cur.movePosition(cur.MoveOperation.End)
+                self._debug_display.setTextCursor(cur)
+                self._debug_display.ensureCursorVisible()
+                
             except Exception as e:
                 # Fallback to show error if log reading fails
                 error_text = f"Debug log error: {str(e)}\nFallback: Reading from structured log files..."

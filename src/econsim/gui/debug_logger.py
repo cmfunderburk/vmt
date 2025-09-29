@@ -18,6 +18,7 @@ Logging Levels:
 
 import os
 import json
+import atexit
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any, Dict, List, Sequence, Iterable
@@ -174,6 +175,9 @@ class GUILogger:
         # Testing aide: recent structured payload ring (not part of determinism state)
         self._structured_ring: list[dict[str, Any]] = []  # type: ignore[attr-defined]
         self._structured_ring_capacity = 200  # type: ignore[attr-defined]
+        self._structured_buffer: list[str] = []
+        self._structured_buffer_flushed = False
+        self._atexit_registered = False
     
     @classmethod
     def get_instance(cls) -> "GUILogger":
@@ -214,18 +218,20 @@ class GUILogger:
         self.log_filename = f"{timestamp} GUI.jsonl"
         self.log_path = self.structured_log_path
 
-        # Write structured metadata record (first JSON line)
-        try:
-            meta: Dict[str, Any] = {
-                "schema": 1,
-                "session_started": now.isoformat(timespec='seconds'),
-                "log_level": self.log_level.value,
-                "selected_format": "STRUCTURED_ONLY",
-            }
-            with open(self.structured_log_path, 'w', encoding='utf-8') as sf:  # type: ignore[attr-defined]
-                sf.write(json.dumps(meta, separators=(",", ":")) + "\n")
-        except Exception:
-            pass
+        # Ensure buffered writes flush on interpreter exit as a last resort
+        if not self._atexit_registered:
+            atexit.register(self._flush_buffer_on_exit)
+            self._atexit_registered = True
+
+        # Queue structured metadata record (first JSON line)
+        meta: Dict[str, Any] = {
+            "schema": 1,
+            "session_started": now.isoformat(timespec='seconds'),
+            "log_level": self.log_level.value,
+            "selected_format": "STRUCTURED_ONLY",
+        }
+        meta_line = json.dumps(meta, separators=(",", ":")) + "\n"
+        self._structured_buffer.append(meta_line)
 
         self._log_initialized = True
     
@@ -508,9 +514,8 @@ class GUILogger:
             self._initialize_log_file()
         with self._lock:
             try:
-                with open(self.structured_log_path, 'a', encoding='utf-8') as sf:  # type: ignore[attr-defined]
-                    sf.write(structured_line)
-                    sf.flush()
+                self._structured_buffer.append(structured_line)
+                self._structured_buffer_flushed = False
                 # Attempt to parse and append to ring buffer (best effort)
                 try:
                     obj = json.loads(structured_line)
@@ -522,6 +527,29 @@ class GUILogger:
                     pass
             except Exception:
                 pass
+
+    def _flush_structured_buffer_to_disk(self) -> None:
+        """Persist buffered structured log lines to disk."""
+        if not self._log_initialized or getattr(self, "structured_log_path", None) is None:
+            return
+        if self._structured_buffer_flushed:
+            return
+        with self._lock:
+            if not self._structured_buffer:
+                return
+            try:
+                with open(self.structured_log_path, 'w', encoding='utf-8') as sf:  # type: ignore[attr-defined]
+                    sf.writelines(self._structured_buffer)
+                self._structured_buffer_flushed = True
+            except Exception:
+                pass
+
+    def _flush_buffer_on_exit(self) -> None:
+        """Flush buffered logs when the interpreter exits."""
+        try:
+            self._flush_structured_buffer_to_disk()
+        except Exception:
+            pass
 
     def format_structured_event_for_display(self, event: Dict[str, Any]) -> str:
         """Convert structured event to human-readable format for GUI display."""
@@ -1331,7 +1359,8 @@ class GUILogger:
             }
             structured = self._emit_structured("SESSION", None, payload)
             self._write_structured_line(structured)
-        
+            self._flush_structured_buffer_to_disk()
+
         # Mark logger as finalized to prevent further logging
         self._finalized = True
     
