@@ -24,7 +24,7 @@ Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups
 Use builders in `gui/debug_logger.py`; never raw print. Flags: `ECONSIM_LOG_LEVEL`, `ECONSIM_LOG_FORMAT`, `ECONSIM_LOG_CATEGORIES`, `ECONSIM_LOG_EXPLANATIONS=1`, `ECONSIM_LOG_DECISION_REASONING=1`.
 
 ### 7. Launcher / Workflows
-Primary: `make launcher` (TestRunner + scenario registry). Alternate legacy: `make dev` (maintenance only). Programmatic: `Simulation.from_config(SimConfig(...))`. Add scenarios/tests via `MANUAL_TESTS/framework/test_configs.py` registry (no one‑off scripts). Perf check: `make perf`. Full tests: `pytest -q`.
+Primary: `make launcher` (Enhanced TestRunner with PyQt6 GUI). Framework tests via `src/econsim/tools/launcher/` with config registry at `framework/test_configs.py`. Fallback: `make dev` (basic GUI). Programmatic: `Simulation.from_config(SimConfig(...))`. Perf check: `make perf`. Full tests: `pytest -q`. Never create standalone scripts; extend registry or use existing test harnesses.
 
 ### 8. Performance Guardrails
 Per step O(n) (n = agents + resources). Overlay & logging overhead <2%. Avoid per‑frame allocations (reuse surfaces, fonts). Maintain FPS floor ≥30 (CI) / target ~60. Keep intent enumeration linear in co‑located agents.
@@ -52,7 +52,13 @@ sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ### 14. Commit Message Pattern
 Imperative WHAT + WHY (+ optional PERF/DET). Example: `agent: cache distance map cutting selection O(n)→O(1) (hash stable)`.
 
-### 15. When Unsure
-Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale.
+### 15. TestRunner Framework Architecture
+Modern launcher under `src/econsim/tools/launcher/` replaces subprocess-based testing. Key components: `TestRegistry` loads from `framework/test_configs.py` (7 educational scenarios), `TestRunner` provides programmatic test execution, `app_window.py` is the main GUI. Pattern: `TestConfiguration` dataclass → `SimulationFactory.create()` → GUI test window. Add tests via config registry, not hardcoded file mappings.
 
-Expand via `README.md`, `src/econsim/simulation/README.md`, and `docs/` for deeper context.
+### 16. Educational Test Structure
+All 7 tests follow `StandardPhaseTest` pattern: config-driven setup → 6 educational phases (Observation, Resource Competition, etc.) → GUI controls for respawn/trade features. Test files in `MANUAL_TESTS/` are thin wrappers; business logic in framework. Never bypass the config registry for new educational content.
+
+### 17. When Unsure
+Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
+
+Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.

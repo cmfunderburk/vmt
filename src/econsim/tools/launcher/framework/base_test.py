@@ -8,39 +8,6 @@ import sys
 import os
 import random
 
-# ---------------------------------------------------------------------------
-# Window sizing configuration (screen-percentage based like main launcher)
-# ---------------------------------------------------------------------------
-DEFAULT_TEST_WINDOW_WIDTH_SCALE = 0.80   # 80% of available screen width
-DEFAULT_TEST_WINDOW_HEIGHT_SCALE = 0.50  # 50% of available screen height
-
-def _calculate_optimal_manual_test_window_size(viewport_size: int, control_panel_width: int, padding: int) -> tuple[int, int]:
-    """Compute an appropriate window size for manual tests based on screen size.
-
-    Falls back to a safe minimum if screen information is unavailable (e.g. offscreen CI).
-    Ensures the viewport + control panel fit without horizontal scroll bars.
-    """
-    try:
-        from PyQt6.QtWidgets import QApplication  # type: ignore
-        screen = QApplication.primaryScreen()  # type: ignore[attr-defined]
-        if screen:
-            available = screen.availableGeometry()  # type: ignore[attr-defined]
-            screen_w = available.width()  # type: ignore[attr-defined]
-            screen_h = available.height()  # type: ignore[attr-defined]
-            w = int(screen_w * DEFAULT_TEST_WINDOW_WIDTH_SCALE)
-            h = int(screen_h * DEFAULT_TEST_WINDOW_HEIGHT_SCALE)
-            # Ensure content fits (viewport + control panel + padding)
-            min_w = viewport_size + control_panel_width + padding
-            min_h = max(viewport_size + padding, 600)
-            # Apply soft caps to avoid enormous windows on ultra-wide displays
-            w = max(min_w, min(w, 1800))
-            h = max(min_h, min(h, 1200))
-            return w, h
-    except Exception:
-        pass
-    # Fallback conservative size (fits common 600px viewport + 300px panel)
-    return viewport_size + control_panel_width + padding, max(viewport_size + padding, 700)
-
 # Add src to Python path  
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
 
@@ -77,18 +44,10 @@ class BaseManualTest(QWidget):
             print("🚀 Batch mode detected - Will auto-start after GUI is shown")
         
     def setup_ui(self):
-        """Create standardized layout (viewport + control panel) using screen-percentage sizing.
-
-        Default sizing derives from screen dimensions (40% width, 50% height) while ensuring
-        the viewport and control panel fit (content-based minimum). This mirrors the launcher
-        strategy and avoids excessive horizontal whitespace on large displays.
-        """
+        """Create standardized layout (viewport + control panel; debug panel removed)."""
         self.setWindowTitle(f"Manual Test {self.config.id}: {self.config.name}")
-        vp = getattr(self.config, 'viewport_size', 600)
-        control_w = 300  # Must match ControlPanel.setFixedWidth
-        padding = 40
-        win_w, win_h = _calculate_optimal_manual_test_window_size(vp, control_w, padding)
-        self.setGeometry(100, 100, win_w, win_h)
+        # Narrower width now that the debug panel is removed
+        self.setGeometry(100, 100, 900, 700)
         
         # Create main layout using TestLayout component
         self.test_layout = TestLayout(self.config)

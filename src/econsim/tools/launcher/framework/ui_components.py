@@ -76,8 +76,7 @@ class ControlPanel(QWidget):
         layout.addWidget(self.status_text)
         
         self.setLayout(layout)
-        # Slightly narrower to reclaim horizontal space after debug panel removal
-        self.setFixedWidth(300)
+        self.setFixedWidth(350)
         
     def update_display(self, turn: int, phase: int, agent_count: int, resource_count: int, phase_manager=None):
         """Update all status displays."""
@@ -136,9 +135,6 @@ class TestLayout(QHBoxLayout):
     def __init__(self, test_config: TestConfiguration):
         super().__init__()
         self.config = test_config
-        # Tighten margins & spacing to reduce outer whitespace
-        self.setContentsMargins(0, 0, 0, 0)
-        self.setSpacing(12)
 
         # Pygame viewport placeholder (left now)
         self.pygame_placeholder = QLabel("Pygame viewport will appear here when test starts")

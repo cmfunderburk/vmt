@@ -1,5 +1,0 @@
-{
-  "legacy": {"frames": 125.0, "duration_s": 2.0006534329986607, "avg_fps": 62.479586888092314},
-  "new_gui": {"frames": 125.0, "duration_s": 2.000149079001858, "avg_fps": 62.49534162842463},
-  "delta_fps_pct": 0.025
-}
