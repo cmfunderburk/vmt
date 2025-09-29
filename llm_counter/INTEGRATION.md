@@ -38,23 +38,33 @@ pip install -r requirements.txt
 ./setup.sh
 ```
 
-### Adding to VMT Makefile (maybe later)
+## Makefile Integration
 
-You could add token analysis to the main VMT Makefile:
+The token analysis is integrated into the VMT Makefile for easy access:
+
+```bash
+# Generate token analysis report (recommended)
+make token
+```
+
+This command:
+- Automatically uses the virtual environment if available
+- Runs the token analysis and generates the markdown report
+- Saves the report to `llm_counter/vmt_token_report.md`
+- Provides clear status messages and completion confirmation
+
+### Additional Makefile Targets (Future)
+
+You could extend the Makefile with additional token analysis commands:
 
 ```makefile
 token-analysis:
-	@echo "🔍 Running token analysis..."
+	@echo "🔍 Running basic token analysis..."
 	cd llm_counter && python3 demo_counter.py
 
 token-analysis-full:
 	@echo "🔍 Running detailed token analysis..."
 	cd llm_counter && python3 token_counter.py --format table
-
-token-report:
-	@echo "📄 Generating token analysis report..."
-	cd llm_counter && python3 generate_report.py
-	@echo "Report saved to llm_counter/vmt_token_report.md"
 ```
 
 ## Files Overview

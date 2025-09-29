@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test-unit perf manual-tests launcher enhanced-tests batch-tests bookmarks test tests clean venv
+.PHONY: install dev lint format type test-unit perf manual-tests launcher enhanced-tests batch-tests bookmarks test tests clean venv token
 
 # Create canonical development virtual environment (vmt-dev) and install deps
 .PHONY: venv
@@ -44,6 +44,16 @@ perf:
 	@echo ""
 	@echo "=== Widget Performance Test ==="
 	$(PYTHON) scripts/perf_stub.py --mode widget --duration 3 --json
+
+token:
+	# Generate VMT repository token analysis report
+	@echo "📄 Generating token analysis report..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && cd llm_counter && $(PYTHON) generate_report.py; \
+	else \
+		cd llm_counter && $(PYTHON) generate_report.py; \
+	fi
+	@echo "✅ Report saved to llm_counter/vmt_token_report.md"
 
 manual-tests:
 	# Launch comprehensive manual GUI tests for unified target selection

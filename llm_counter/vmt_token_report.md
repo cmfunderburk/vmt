@@ -1,12 +1,12 @@
 # VMT Repository Token Analysis Report
 
-*Generated on 2025-09-29 12:27:24*
+*Generated on 2025-09-29 12:43:19*
 
 ## 📊 Executive Summary
 
 | Metric | Value |
 |--------|--------|
-| **Total Tokens** | 337.8K tokens |
+| **Total Tokens** | 337.9K tokens |
 | **Total Files** | 973 files |
 | **Repository Size** | 52.5 MB |
 | **Average Tokens/File** | 347 tokens |
@@ -15,13 +15,13 @@
 
 | File Type | Token Count | Percentage | Files |
 |-----------|-------------|------------|-------|
-| Python | 146.2K | 43.3% | 226 |
-| Markdown | 97.9K | 29.0% | 61 |
-| JSON | 90.0K | 26.7% | 673 |
+| Python | 145.8K | 43.2% | 226 |
+| Markdown | 98.3K | 29.1% | 62 |
+| JSON | 90.0K | 26.6% | 673 |
 | Build/Meta | 2.8K | 0.8% | 3 |
 | Shell | 430 | 0.1% | 2 |
 | TOML | 215 | 0.1% | 1 |
-| Text | 128 | 0.0% | 6 |
+| Text | 125 | 0.0% | 5 |
 | YAML | 111 | 0.0% | 1 |
 
 ## 🔥 Top 10 Largest Files
@@ -52,10 +52,10 @@
 
 ### Recommendations
 
-- **Full Repository**: 337.8K tokens requires chunking for any LLM
+- **Full Repository**: 337.9K tokens requires chunking for any LLM
 - **Focused Analysis**: Select 25-40% of files for single-context analysis
 - **Code Reviews**: Use token counts to prioritize which files to include
-- **Documentation**: 29.0% of tokens are documentation
+- **Documentation**: 29.1% of tokens are documentation
 
 ## 📈 Analysis Metadata
 
