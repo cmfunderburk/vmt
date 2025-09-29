@@ -575,6 +575,7 @@ class Agent:
         enable_foraging: bool,
         enable_trade: bool,
         distance_scaling_factor: float,
+        step: int,
     ) -> tuple[str, object] | None:
         """Compute and record best unified task.
 
@@ -588,6 +589,12 @@ class Agent:
             return None
         best_choice: tuple[str, object] | None = None
         best_score: float = -1.0
+
+        # Initialize partner search tracking (for instrumentation)
+        scanned_count = 0
+        eligible_count = 0
+        rejected_partners = []
+        chosen_partner_id = None
 
         # Helper: consider candidate with deterministic tie-break
         def _maybe_commit(kind: str, payload: dict) -> None:
@@ -641,12 +648,19 @@ class Agent:
                 epsilon_lift=True,
                 include_missing_two_goods=True,
             )
+            
             for other in nearby_agents:
+                scanned_count += 1
+                
                 if other.id == self.id:
+                    rejected_partners.append((other.id, "self"))
                     continue
-                # Skip if already paired via older bilateral path (will be handled elsewhere)
+                # Skip if already paired via older bilateral path (will be handled elsewhere)  
                 if getattr(other, 'trade_partner_id', None) is not None or getattr(self, 'trade_partner_id', None) is not None:
+                    rejected_partners.append((other.id, "already_paired"))
                     continue
+                
+                eligible_count += 1
                 other_mu = _mu(
                     other.preference,
                     other.carrying,
@@ -671,16 +685,59 @@ class Agent:
                     if combined > best_partner_delta:
                         best_partner_delta = combined
                 if best_partner_delta <= 0.0:
+                    rejected_partners.append((other.id, "negative_utility"))
                     continue
                 dist = abs(other.x - self.x) + abs(other.y - self.y)
                 discounted = best_partner_delta / (1.0 + distance_scaling_factor * (dist * dist))
+                
+                # Track if this partner gets chosen
+                old_best = best_choice
                 _maybe_commit("partner", {
                     "partner_id": other.id,
                     "delta_u": best_partner_delta,
                     "discounted": discounted,
                     "dist": dist,
                 })
+                # Check if this partner was chosen
+                if best_choice != old_best and best_choice is not None and best_choice[0] == "partner":
+                    chosen_partner_id = other.id
 
+        # Emit partner search instrumentation (every step for debugging)
+        if enable_trade and nearby_agents and scanned_count > 0:
+            # Log every step to debug missing partner search events
+            import os
+            sample_period = int(os.environ.get("ECONSIM_PARTNER_SEARCH_SAMPLE_PERIOD", "1"))
+            
+            if step % sample_period == 0:
+                try:
+                    from ..gui.debug_logger import get_gui_logger
+                    logger = get_gui_logger()
+                    
+                    # Emit partner search event if someone was chosen
+                    if chosen_partner_id is not None:
+                        builder_result = logger.build_partner_search(
+                            agent_id=self.id,
+                            scanned=scanned_count,
+                            eligible=eligible_count,
+                            chosen_id=chosen_partner_id,
+                            method="unified_selection",
+                            cooldown_global=0,  # TODO: Track actual cooldowns if implemented
+                            cooldown_partner=0
+                        )
+                        logger.emit_built_event(step, builder_result)
+                    
+                    # Sample some rejections for analysis (limit to avoid spam)
+                    for partner_id, reason in rejected_partners[:3]:  # Only log first 3 rejections
+                        builder_result = logger.build_partner_reject(
+                            agent_id=self.id,
+                            candidate_id=partner_id,
+                            reason=reason,
+                            sampled=True
+                        )
+                        logger.emit_built_event(step, builder_result)
+                except Exception:
+                    pass  # Don't break simulation if logging fails
+                    
         self.current_unified_task = best_choice
         return best_choice
 

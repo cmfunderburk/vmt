@@ -104,7 +104,7 @@ class Simulation:
         if use_decision and forage_enabled and (not unified_disabled) and (exec_enabled or explicit_unified):
             # Unified selection (Option 1): evaluate resource vs partner for all agents before movement.
             unified_mode_active = True
-            self._unified_selection_pass(rng, foraged_ids)
+            self._unified_selection_pass(rng, foraged_ids, step_num)
         elif use_decision and forage_enabled:
             for agent in self.agents:
                 try:
@@ -192,6 +192,33 @@ class Simulation:
                     else:
                         intents.extend(enumerate_intents_for_cell(coloc_agents))
             self.trade_intents = intents
+            
+            # Emit trade intent funnel instrumentation
+            if intents:  # Only log when there are intents to analyze
+                try:
+                    from ..gui.debug_logger import get_gui_logger
+                    logger = get_gui_logger()
+                    
+                    drafted_count = len(intents)
+                    max_delta = max((intent.delta_utility for intent in intents), default=0.0)
+                    
+                    # For now, we'll track basic metrics. Future enhancement: 
+                    # modify enumerate_intents_for_cell to return pruning counts
+                    pruned_micro = 0  # TODO: Need to modify enumeration to track this
+                    pruned_nonpositive = 0  # TODO: Need to modify enumeration to track this
+                    executed_count = 1 if exec_enabled else 0  # Will be updated after execution
+                    
+                    builder_result = logger.build_trade_intent_funnel(
+                        drafted=drafted_count,
+                        pruned_micro=pruned_micro,
+                        pruned_nonpositive=pruned_nonpositive,
+                        executed=executed_count,
+                        max_delta_u=max_delta
+                    )
+                    logger.emit_built_event(step_num, builder_result)
+                except Exception:
+                    pass  # Don't break simulation if logging fails
+            
             executed: TradeIntent | None = None
             if exec_enabled and intents:
                 # Optional hash parity mode: if ECONSIM_TRADE_HASH_NEUTRAL=1 we restore inventories after metrics.
@@ -639,7 +666,7 @@ class Simulation:
         return True
 
     # --- Unified Selection Internal Helpers --------------------
-    def _unified_selection_pass(self, rng: random.Random, foraged_ids: set[int]) -> None:
+    def _unified_selection_pass(self, rng: random.Random, foraged_ids: set[int], step: int) -> None:
         """Unified selection pass using spatial index + distance-discounted utility.
 
         Replaces earlier heuristic dual-path chooser. Maintains O(n) build +
@@ -689,6 +716,7 @@ class Simulation:
                 enable_foraging=forage_enabled,
                 enable_trade=trade_enabled,
                 distance_scaling_factor=k,
+                step=step,
             )
             if choice is None:
                 # No unified target found - try Leontief prospecting 
