@@ -1,0 +1,4 @@
+{"schema":1,"session_started":"2025-09-28T21:53:36","log_level":"VERBOSE","selected_format":"COMPACT"}
+{"ts_rel":0.0,"category":"TRADE","step":null,"event":"micro_delta_threshold","threshold":1e-05,"activated":true,"first_drop_delta":0.0}
+{"ts_rel":0.148,"category":"TRADE","step":null,"event":"micro_delta_threshold","threshold":1e-05,"activated":true,"first_drop_delta":27.715014788250414}
+{"ts_rel":0.153,"category":"TRADE","step":null,"event":"micro_delta_threshold","threshold":1e-05,"activated":true,"first_drop_delta":27.715014788250414}

@@ -588,19 +588,11 @@ class Agent:
             return None
         best_choice: tuple[str, object] | None = None
         best_score: float = -1.0
-        # Debug candidate snapshot (non-serialized, observational only)
-        # Captures ranking inputs for periodic sampling logs. Maintains evaluation order:
-        # resources first (0 or 1) then partner candidates in traversal order.
-        __cand_debug: list[dict[str, object]] = []
 
         # Helper: consider candidate with deterministic tie-break
-        def _maybe_commit(kind: str, payload: dict[str, object]) -> None:
+        def _maybe_commit(kind: str, payload: dict) -> None:
             nonlocal best_choice, best_score
-            score_obj = payload.get("discounted", -1.0)
-            try:
-                score = float(score_obj)  # type: ignore[arg-type]
-            except Exception:
-                score = -1.0
+            score = payload.get("discounted", -1.0)
             if score < 0:
                 return
             if best_choice is None:
@@ -613,7 +605,7 @@ class Agent:
             elif abs(score - best_score) <= 1e-15:
                 # Deterministic tie-break: resources by (x,y); partners by partner_id
                 if kind == "resource" and best_choice[0] == "resource":
-                    cx, cy = payload["pos"]  # type: ignore[index]
+                    cx, cy = payload["pos"]
                     bx, by = best_choice[1]["pos"]  # type: ignore[index]
                     if (cx, cy) < (bx, by):
                         best_choice = (kind, payload)
@@ -622,8 +614,8 @@ class Agent:
                         best_choice = (kind, payload)
                 else:
                     # Mixed types: prefer higher raw (undiscounted) ΔU; if still tie, choose lexicographically by kind
-                    raw_new = float(payload.get("delta_u", 0.0))  # type: ignore[arg-type]
-                    raw_old = float(best_choice[1].get("delta_u", 0.0))  # type: ignore[index]
+                    raw_new = payload.get("delta_u", 0.0)
+                    raw_old = best_choice[1].get("delta_u", 0.0)  # type: ignore[index]
                     if raw_new > raw_old + 1e-15:
                         best_choice = (kind, payload)
                     elif abs(raw_new - raw_old) <= 1e-15 and kind < best_choice[0]:
@@ -635,14 +627,6 @@ class Agent:
             if pos is not None and delta_u > 0.0:
                 dist = abs(pos[0] - self.x) + abs(pos[1] - self.y)
                 discounted = delta_u / (1.0 + distance_scaling_factor * (dist * dist))
-                # Append resource candidate snapshot (uppercase TYPE for logger builder expectation)
-                __cand_debug.append({
-                    "type": "RESOURCE",
-                    "pos": (pos[0], pos[1]),
-                    "d": dist,
-                    "delta_u": float(delta_u),
-                    "delta_u_discounted": float(discounted),
-                })
                 _maybe_commit("resource", {"pos": pos, "delta_u": delta_u, "discounted": discounted, "dist": dist})
 
         # Partner candidates (conservative estimate): scan nearby_agents list (already radius filtered by caller ideally)
@@ -690,14 +674,6 @@ class Agent:
                     continue
                 dist = abs(other.x - self.x) + abs(other.y - self.y)
                 discounted = best_partner_delta / (1.0 + distance_scaling_factor * (dist * dist))
-                # Record partner candidate debug entry
-                __cand_debug.append({
-                    "type": "TRADE",
-                    "partner": other.id,
-                    "d": dist,
-                    "delta_u": float(best_partner_delta),
-                    "delta_u_discounted": float(discounted),
-                })
                 _maybe_commit("partner", {
                     "partner_id": other.id,
                     "delta_u": best_partner_delta,
@@ -706,12 +682,6 @@ class Agent:
                 })
 
         self.current_unified_task = best_choice
-        # Expose snapshot for external sampler (world._unified_selection_pass)
-        try:
-            self._last_unified_candidates = __cand_debug  # type: ignore[attr-defined]
-        except Exception:
-            # Defensive: never let logging helper crash selection
-            pass
         return best_choice
 
     # --- Serialization (Optional Future Use) ----------------------

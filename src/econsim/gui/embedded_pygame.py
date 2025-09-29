@@ -248,11 +248,16 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 pass
         now = perf_counter()
         if now - self._fps_last_report >= 1.0:
-            # Gate legacy diagnostic FPS print behind explicit env flag to avoid log spam in normal runs.
+            # Use structured performance logging instead of print statements
             import os as _os_dbg
             if _os_dbg.environ.get("ECONSIM_DEBUG_FPS") == "1":
                 fps = self._frame / (now - self._start)
-                print(f"[FPS] Frames={self._frame} AvgFPS={fps:.1f}")
+                from .debug_logger import log_performance_analysis
+                # Estimate step time and render time (simplified for FPS reporting)
+                step_time = 1.0 / fps if fps > 0 else 0.0
+                agent_count = len(getattr(self._simulation, 'agents', []))
+                resource_count = 0  # Simplified: avoid complex grid iteration for FPS logging
+                log_performance_analysis(fps, step_time, 0.0, agent_count, resource_count)
             self._fps_last_report = now
 
     def _update_scene(self) -> None:

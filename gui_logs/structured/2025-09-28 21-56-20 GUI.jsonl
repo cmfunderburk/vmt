@@ -1,0 +1,2 @@
+{"schema":1,"session_started":"2025-09-28T21:56:20","log_level":"VERBOSE","selected_format":"COMPACT"}
+{"ts_rel":0.0,"category":"TRADE","step":null,"event":"micro_delta_threshold","threshold":1e-05,"activated":true,"first_drop_delta":8.889860660015792e-10}

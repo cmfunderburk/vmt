@@ -174,7 +174,6 @@ class BaseManualTest(QWidget):
         
         # Log periodic status and economic metrics
         if self.current_turn % 50 == 0:
-            print(f"DEBUG: Periodic logging triggered at turn {self.current_turn}")
             agent_count = len(self.simulation.agents)
             resource_count = len(list(self.simulation.grid.iter_resources()))
             
@@ -190,7 +189,6 @@ class BaseManualTest(QWidget):
             
             from econsim.gui.debug_logger import log_periodic_summary, log_economics
             log_periodic_summary(steps_per_sec, frame_ms, agent_count, resource_count, self.phase, self.current_turn)
-            print(f"DEBUG: log_periodic_summary called successfully")
             
             # Resource flow analysis
             resource_by_type = {"good1": 0, "good2": 0}
@@ -207,9 +205,7 @@ class BaseManualTest(QWidget):
                 for res_type, count in agent.home_inventory.items():
                     total_home_inventory[res_type] = total_home_inventory.get(res_type, 0) + count
             
-            print(f"DEBUG: About to call log_economics")
             log_economics(f"Resource distribution - Grid: good1={resource_by_type['good1']}, good2={resource_by_type['good2']} | Carrying: good1={total_carrying['good1']}, good2={total_carrying['good2']} | Home: good1={total_home_inventory['good1']}, good2={total_home_inventory['good2']}", self.current_turn)
-            print(f"DEBUG: log_economics called successfully")
             
             # Spatial analytics
             from econsim.gui.debug_logger import log_spatial
@@ -234,9 +230,9 @@ class BaseManualTest(QWidget):
                 
                 avg_inter_distance = sum(inter_distances) / len(inter_distances) if inter_distances else 0
                 
-                print(f"DEBUG: About to call log_spatial")
                 log_spatial(f"Agent clustering - Center: ({center_x:.1f}, {center_y:.1f}) | Avg distance from center: {avg_distance_from_center:.1f} | Avg inter-agent distance: {avg_inter_distance:.1f}", self.current_turn)
-                print(f"DEBUG: log_spatial called successfully")        # Stop at turn 900
+        
+        # Stop at turn 900
         if self.current_turn >= 900:
             self.step_timer.stop()
             

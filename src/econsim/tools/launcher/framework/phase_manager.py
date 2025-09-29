@@ -186,6 +186,7 @@ class PhaseManager:
                 os.environ['ECONSIM_TRADE_EXEC'] = '1' if phase_def.trade_enabled else '0'
                 
                 # Log transition using centralized debug logger
+                # Use structured logging for phase transitions
                 try:
                     # Add src to Python path if needed
                     import sys
@@ -197,8 +198,8 @@ class PhaseManager:
                     from econsim.gui.debug_logger import log_phase_transition
                     log_phase_transition(phase_num, current_turn, phase_def.description)
                 except ImportError:
-                    # Fallback if debug logger not available
-                    print(f"PHASE TRANSITION: {current_phase} -> {phase_num} at turn {current_turn}")
+                    # Silently skip logging if debug logger not available (structured logging only)
+                    pass
                 
                 return PhaseTransition(
                     new_phase=phase_num,
