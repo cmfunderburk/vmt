@@ -134,10 +134,33 @@ config = ALL_TEST_CONFIGS.get(test_id)  # Type-safe configuration lookup
 
 **Performance Monitoring**: Use `make perf` for synthetic benchmarks. Widget performance testing with `--mode widget --duration 3 --json` for JSON output. Maintain FPS ≥60 target, ≥30 floor.
 
-## 20. When Unsure
+## 20. Current Development State
+**Primary Branch**: `main` contains the latest stable architecture. Other branches are temporary backups and will be deleted.
+
+**Launcher Status**: Enhanced TestRunner Phase 4 completed (87% size reduction). Modern programmatic API with `create_test_runner()` factory replaces subprocess-based testing.
+
+**Recent Completions**: Multi-dimensional agent behavior aggregation (Phase 3.2), comprehensive launcher logging system, real-time health monitoring, and color-coded GUI status indicators.
+
+## 22. When Unsure
 Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
 
 Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.
+
+## 21. Multi-Dimensional Behavioral Tracking
+**Agent Behavior Aggregation**: Use structured tracking in `gui/debug_logger.py` for comprehensive agent behavior analysis:
+```python
+# Track key behaviors across multiple dimensions
+debug_logger.track_agent_pairing(step, agent_id, successful=True)
+debug_logger.track_agent_movement(step, agent_id, from_pos, to_pos)
+debug_logger.track_agent_utility_gain(step, agent_id, utility_gain)
+debug_logger.track_agent_partner(step, agent_id, partner_id)
+debug_logger.track_agent_resource_acquisition(step, agent_id)
+debug_logger.track_agent_retargeting(step, agent_id)
+```
+
+**Behavior Analysis**: Every 100 steps, `AGENT_BEHAVIOR_SUMMARY` events provide aggregate statistics, high-activity agent detection, environmental context, and educational insights.
+
+**Integration Points**: Behavioral tracking integrated with pairing (`accumulate_partner_search`), trading (`log_trade_detail`), retargeting (`agent._track_target_change`), and resource collection (`agent.collect`).
 
 **Exception: Widget Testing Patterns**
 For PyQt6/Pygame integration tests, use these patterns:

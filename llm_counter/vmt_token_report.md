@@ -1,22 +1,22 @@
 # VMT Repository Token Analysis Report
 
-*Generated on 2025-09-29 20:35:19*
+*Generated on 2025-09-29 23:32:44*
 
 ## 📊 Executive Summary
 
 | Metric | Value |
 |--------|--------|
-| **Total Tokens** | 209.9K tokens |
-| **Total Files** | 278 files |
-| **Repository Size** | 1.6 MB |
-| **Average Tokens/File** | 755 tokens |
+| **Total Tokens** | 220.2K tokens |
+| **Total Files** | 287 files |
+| **Repository Size** | 1.7 MB |
+| **Average Tokens/File** | 767 tokens |
 
 ## 📄 File Type Breakdown
 
 | File Type | Token Count | Percentage | Files |
 |-----------|-------------|------------|-------|
-| Python | 148.6K | 70.8% | 229 |
-| Markdown | 56.6K | 27.0% | 35 |
+| Python | 148.7K | 67.5% | 229 |
+| Markdown | 66.8K | 30.3% | 44 |
 | Build/Meta | 2.8K | 1.3% | 3 |
 | JSON | 1.1K | 0.5% | 2 |
 | Shell | 430 | 0.2% | 2 |
@@ -30,9 +30,9 @@
 |------|--------|------|
 | `src/econsim/gui/debug_logger.py` | 11.4K | 0.1 MB |
 | `tmp_plans/CURRENT/unified_refactor_plan.md` | 8.4K | 0.0 MB |
-| `src/econsim/simulation/world.py` | 5.9K | 0.1 MB |
+| `src/econsim/simulation/world.py` | 5.8K | 0.1 MB |
 | `README.md` | 5.5K | 0.0 MB |
-| `src/econsim/simulation/agent.py` | 5.2K | 0.0 MB |
+| `src/econsim/simulation/agent.py` | 5.1K | 0.0 MB |
 | `src/econsim/gui/embedded_pygame.py` | 5.1K | 0.0 MB |
 | `src/econsim/tools/widgets/config_editor.py` | 4.7K | 0.1 MB |
 | `src/econsim/tools/launcher/app_window.py` | 4.2K | 0.0 MB |
@@ -46,22 +46,22 @@
 
 | Model | Context Window | VMT Coverage |
 |-------|---------------|--------------|
-| GPT-4 | ~128K tokens | 61.0% |
-| Claude 3 | ~200K tokens | 95.3% |
-| Claude 3.5 Sonnet | ~200K tokens | 95.3% |
+| GPT-4 | ~128K tokens | 58.1% |
+| Claude 3 | ~200K tokens | 90.8% |
+| Claude 3.5 Sonnet | ~200K tokens | 90.8% |
 
 ### Recommendations
 
-- **Full Repository**: 209.9K tokens requires chunking for any LLM
+- **Full Repository**: 220.2K tokens requires chunking for any LLM
 - **Focused Analysis**: Select 25-40% of files for single-context analysis
 - **Code Reviews**: Use token counts to prioritize which files to include
-- **Documentation**: 27.0% of tokens are documentation
+- **Documentation**: 30.3% of tokens are documentation
 
 ## 📈 Analysis Metadata
 
 - **Analysis Tool**: VMT Token Counter (demo version)
 - **Tokenization**: Simple estimation (~1.3 tokens/word)
-- **Files Processed**: 278 code files
+- **Files Processed**: 287 code files
 - **Excluded**: Binary files, caches, logs, virtual environments
 - **Repository**: VMT EconSim Platform
 
