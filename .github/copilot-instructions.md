@@ -1,7 +1,19 @@
 ## VMT EconSim AI Coding Agent Instructions
 **VMT**: Educational microeconomic simulation platform with deterministic spatial agents, PyQt6/Pygame rendering, and feature-gated bilateral exchange system.
 
-**Critical Goal**: Maintain determinism, ~60-62 FPS performance, and educational clarity. If changes affect ordering, hashing, or per-step complexity, STOP and add/adjust tests first.
+**Critical Goal**: Maintain determinism and educational clarity. If changes affect ordering, hashing, or per-step complexity, STOP and add/adjust tests first.
+
+**🚧 ACTIVE REFACTOR**: Currently refactoring `simulation/` and `debug_logger` to cleanly separate simulation logic from debugging responsibilities. Before making changes to these areas, coordinate with ongoing work to avoid conflicts.
+
+## Quick Reference
+```bash
+make venv && source vmt-dev/bin/activate  # Setup
+make launcher      # Primary development (7 educational scenarios)
+make dev          # Fallback basic GUI  
+pytest -q         # Full test suite (210+ tests)
+make perf         # Performance validation
+make token        # Generate LLM token analysis
+```
 
 ## Architecture Overview
 - **Single-threaded**: PyQt6 `QTimer(16ms)` drives simulation → rendering pipeline
@@ -15,9 +27,9 @@
 ```bash
 make venv && source vmt-dev/bin/activate  # Setup
 make launcher      # Primary development (7 educational scenarios)
-make dev          # Fallback basic GUI  
+make dev          # Fallback basic GUI (DEPRECATED - will be removed)
 pytest -q         # Full test suite (210+ tests)
-make perf         # Performance validation
+make perf         # Performance validation (DEPRECATED - scheduled for update)
 ```
 
 **Factory Construction Pattern** (preferred):
@@ -33,8 +45,8 @@ cfg = SimConfig(
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ```
 
-## 2. Immutable Frame Pipeline
-`QTimer(16ms)` → `Simulation.step(ext_rng, use_decision)` → `EmbeddedPygameWidget._update_scene()` → `paintEvent()`. No extra timers/threads/sleeps. Never recreate the single Pygame surface; no per‑pixel Python loops.
+## 2. Single-threaded Step Pipeline
+`QTimer` → `Simulation.step(ext_rng, use_decision)` → `EmbeddedPygameWidget._update_scene()` → `paintEvent()`. No extra timers/threads/sleeps. Performance focus: simulation steps per second, not frame rate. Never recreate the single Pygame surface; no per‑pixel Python loops.
 
 ## 3. Determinism Invariants (DO NOT VIOLATE)
 1. Resource iteration only via `Grid.iter_resources_sorted()`.
@@ -45,6 +57,8 @@ sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 
 ## 4. Core Edit Surface (no ad‑hoc clones)
 `simulation/world.py`, `simulation/agent.py`, `simulation/grid.py`, `simulation/trade.py`, `simulation/config.py`, `simulation/metrics.py`, `simulation/respawn.py`, `simulation/snapshot.py`, `preferences/factory.py`, `gui/embedded_pygame.py`, `gui/simulation_controller.py`, launcher under `tools/launcher/`. Extend here; keep schema append‑only.
+
+**⚠️ REFACTOR NOTE**: `simulation/` and `debug_logger` modules are currently being refactored to separate simulation logic from debugging. Coordinate changes in these areas to avoid merge conflicts.
 
 ## 5. Unified Selection Algorithm
 Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups vs (flagged) trade intents in O(agents + visible resources). Use existing spatial index; never introduce quadratic scans. Filter out non‑positive base ΔU early. Preserve tie‑break key ordering.
@@ -61,7 +75,7 @@ Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups
 Use builders in `gui/debug_logger.py`; never raw print. Flags: `ECONSIM_LOG_LEVEL`, `ECONSIM_LOG_FORMAT`, `ECONSIM_LOG_CATEGORIES`, `ECONSIM_LOG_EXPLANATIONS=1`, `ECONSIM_LOG_DECISION_REASONING=1`.
 
 ## 8. Performance Guardrails
-Per step O(n) (n = agents + resources). Overlay & logging overhead <2%. Avoid per‑frame allocations (reuse surfaces, fonts). Maintain FPS floor ≥30 (CI) / target ~60. Keep intent enumeration linear in co‑located agents.
+Per step O(n) (n = agents + resources). Overlay & logging overhead <2%. Avoid per‑frame allocations (reuse surfaces, fonts). Focus: simulation steps per second (canonical performance test coming soon). Keep intent enumeration linear in co‑located agents.
 
 ## 9. Metrics & Hash
 Determinism hash excludes trade/debug metrics. Adding a metric? Either exclude from hash or update reference expectations + tests. Do not mutate inventories in hash-neutral debug modes unless flag explicitly set.
@@ -81,7 +95,7 @@ sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ```
 
 ## 13. Safe Extension Checklist
-1. Tests: `pytest -q` all green. 2. Perf: `make perf` within FPS expectations. 3. No unordered iteration added. 4. Tie-break & ordering untouched (or tests updated). 5. Metrics hash unaffected (or expectations updated). 6. Docs + this file updated for any new flag/param. 7. Logging uses structured system.
+1. Tests: `pytest -q` all green. 2. Perf: Simulation steps per second within expectations (canonical test coming soon). 3. No unordered iteration added. 4. Tie-break & ordering untouched (or tests updated). 5. Metrics hash unaffected (or expectations updated). 6. Docs + this file updated for any new flag/param. 7. Logging uses structured system.
 
 ## 14. Commit Message Pattern
 Imperative WHAT + WHY (+ optional PERF/DET). Example: `agent: cache distance map cutting selection O(n)→O(1) (hash stable)`.
@@ -132,7 +146,7 @@ config = ALL_TEST_CONFIGS.get(test_id)  # Type-safe configuration lookup
 ## 19. Token Management & Performance
 **LLM Token Counter**: Use `make token` to generate comprehensive token analysis reports. Output in `llm_counter/vmt_token_report.md` tracks codebase size and complexity for LLM context optimization.
 
-**Performance Monitoring**: Use `make perf` for synthetic benchmarks. Widget performance testing with `--mode widget --duration 3 --json` for JSON output. Maintain FPS ≥60 target, ≥30 floor.
+**Performance Monitoring**: Use `make perf` for synthetic benchmarks (DEPRECATED - scheduled for update). Widget performance testing with `--mode widget --duration 3 --json` for JSON output. Focus: simulation steps per second, not rendering framerate.
 
 ## 20. Current Development State
 **Primary Branch**: `main` contains the latest stable architecture. Other branches are temporary backups and will be deleted.
