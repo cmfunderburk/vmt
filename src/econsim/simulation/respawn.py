@@ -1,25 +1,23 @@
-"""Resource respawn scheduler (introduced Gate 5, factory-attached in Gate 6).
+"""Deterministic resource density maintenance system.
 
-Maintains a target *density* of resources using a deterministic RNG. The
-scheduler replenishes consumed resources to maintain the target count at
-configurable intervals (controlled by simulation stepping logic).
+Maintains target resource density by replenishing consumed resources using
+deterministic RNG. Integrates with simulation factory pattern for configurable
+resource regeneration across economic scenarios.
 
-Algorithm Summary:
-1. Compute ``target_count = floor(target_density * total_cells)``.
-2. If current count < target, compute deficit.
-3. Spawn enough new resources in empty cells to restore target count.
-4. Randomly assign resource types (A or B) with equal probability.
+Algorithm:
+1. Calculate target count from density × total cells
+2. Determine deficit between target and current resources  
+3. Spawn resources in randomly selected empty cells
+4. Assign resource types (A/B) with equal probability
 
 Capabilities:
-* Deterministic replenishment using seeded RNG
-* Maintains exact target density after consumption
-* Random distribution of both position and resource type
-* Interval-based respawn controlled by simulation step logic
+* Deterministic replenishment preserving simulation reproducibility
+* Configurable density targets and spawn rate limiting
+* Uniform spatial distribution across grid
+* Integration with simulation stepping intervals
 
-Example: 10x10 grid (100 cells), density 0.25 (25 resources target)
-- Turn 1: 25 resources, agents collect 4 → 21 remain
-- Turn 2: 21 resources, agents collect 4 → 17 remain  
-- Turn 3: 17 resources, agents collect 4 → 13 remain, then respawn adds 12 → 25 total
+Example: 10×10 grid, 0.25 density targets 25 resources. After consumption
+drops count to 13, respawn adds 12 to restore target density.
 """
 from __future__ import annotations
 
@@ -33,23 +31,23 @@ from .grid import Grid
 
 @dataclass(slots=True)
 class RespawnScheduler:
-    """Maintain a target density of resources by replenishing consumed resources.
-
-    Parameters
-    ----------
-    target_density : float
-        Desired fraction (0..1] of cells containing a resource.
-    max_spawn_per_tick : int
-        Hard cap for how many resources can be spawned in a single tick.
-    respawn_rate : float
-        Fraction (0..1] of the current deficit we attempt to fill each tick.
+    """Deterministic resource density scheduler with configurable spawn limits.
+    
+    Maintains target resource density through deficit-based replenishment,
+    ensuring reproducible behavior via seeded RNG integration.
+    
+    Args:
+        target_density: Desired fraction (0..1] of cells containing a resource
+        max_spawn_per_tick: Maximum resources spawned per step (rate limiting)
+        respawn_rate: Fraction (0..1] of deficit addressed each step
     """
 
     target_density: float
     max_spawn_per_tick: int
     respawn_rate: float  # fraction of deficit addressed each tick (0..1]
 
-    def __post_init__(self) -> None:  # pragma: no cover (simple validation)
+    def __post_init__(self) -> None:
+        """Validate configuration parameters for scheduler initialization."""
         if self.max_spawn_per_tick < 0:
             raise ValueError("max_spawn_per_tick must be >=0")
         if not (self.target_density >= 0.0):
@@ -58,10 +56,15 @@ class RespawnScheduler:
             raise ValueError("respawn_rate must be >=0")
 
     def step(self, grid: Grid, rng: random.Random, *, step_index: int) -> int:  # noqa: ARG002
-        """Spawn resources, moving the grid toward the target density.
-
-        Deterministic with respect to the provided RNG and the existing grid
-        state. Returns the number of newly spawned resources for this tick.
+        """Execute one respawn cycle, spawning resources toward target density.
+        
+        Args:
+            grid: Grid to spawn resources on
+            rng: Deterministic RNG for reproducible placement
+            step_index: Current simulation step (unused but kept for interface)
+            
+        Returns:
+            Number of resources spawned this step
         """
         # Fast exits on disabled / degenerate configurations
         if self.max_spawn_per_tick == 0:
@@ -92,11 +95,8 @@ class RespawnScheduler:
         if to_spawn <= 0:
             return 0
 
-        # Enumerate ALL empty cells (row-major) then shuffle for a uniform selection over the entire grid.
-        # Previous prefix+shuffle approach biased toward top-left when deficit small (early break).
-        # Complexity: O(#empties). With typical grids (<= 64x64) and modest densities this is acceptable and
-        # remains linear in grid cells (still within performance guardrails). If future scalability requires
-        # optimization we can re‑introduce a stratified sampling method behind a feature flag.
+        # Enumerate all empty cells then shuffle for uniform distribution.
+        # O(empty_cells) complexity acceptable for typical grid sizes (≤64×64).
         occupied = getattr(grid, "_resources", {})
         if current >= total_cells:  # grid full
             return 0

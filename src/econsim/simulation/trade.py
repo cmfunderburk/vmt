@@ -1,8 +1,12 @@
-"""Trade intent structures (Gate Bilateral1 Phase 2 - Draft Enumeration).
+"""Bilateral trading system with intent enumeration and execution.
 
-Feature-flagged via environment variable `ECONSIM_TRADE_DRAFT=1`.
-No state mutation or economic effect here; provides deterministic intent list
-for future execution logic.
+Implements marginal utility-based trade intent generation and execution for
+co-located agents. Features deterministic priority ordering, individual
+rationality constraints, and comprehensive utility tracking.
+
+Feature-flagged via environment variables:
+* ECONSIM_TRADE_DRAFT=1: Enable intent enumeration
+* ECONSIM_TRADE_EXEC=1: Enable trade execution with inventory mutations
 """
 from __future__ import annotations
 
@@ -23,11 +27,10 @@ PriorityKey = Tuple[float, int, int, str, str]
 MIN_TRADE_DELTA = 1e-5
 
 def _effective_min_trade_delta() -> float:
-    """Allow tests to raise the micro-delta threshold via ECONSIM_MIN_TRADE_DELTA_OVERRIDE.
-
-    This keeps production behavior unchanged while letting a deterministic test
-    force the pruning path even when computed deltas are moderately small but still
-    above the default 1e-5.
+    """Get effective minimum trade delta threshold with optional test override.
+    
+    Returns configurable threshold via ECONSIM_MIN_TRADE_DELTA_OVERRIDE for
+    testing, otherwise returns default MIN_TRADE_DELTA (1e-5).
     """
     override = os.environ.get("ECONSIM_MIN_TRADE_DELTA_OVERRIDE")
     if override:
@@ -39,17 +42,16 @@ def _effective_min_trade_delta() -> float:
             pass
     return MIN_TRADE_DELTA
 
-# One-shot emission flag for micro-delta pruning transparency (Phase 3 instrumentation)
+# One-shot emission flag for micro-delta pruning transparency
 # Not ALL_CAPS to avoid static analyzer treating it as immutable constant.
 _micro_delta_threshold_emitted = False
 
 def _emit_micro_delta_once(first_drop_delta: float) -> None:
-    """Emit the micro_delta_threshold event exactly once per process.
+    """Emit micro-delta threshold event once per process for debugging transparency.
 
-    Called the first time an intent that otherwise passes marginal MU tests is pruned
-    because its combined utility delta is below MIN_TRADE_DELTA while execution mode
-    is enabled (ECONSIM_TRADE_EXEC=1).
-    Determinism: Only flips a module-level boolean and logs (hash-excluded path).
+    Called when an intent passing marginal utility tests is pruned due to
+    combined utility delta below MIN_TRADE_DELTA during execution mode.
+    Deterministic: Only flips boolean flag and logs (hash-excluded).
     """
     global _micro_delta_threshold_emitted
     if _micro_delta_threshold_emitted:
@@ -141,13 +143,26 @@ def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent,
 
 @dataclass(slots=True)
 class TradeIntent:
+    """Bilateral trade intent with deterministic priority ordering.
+    
+    Represents a potential 1-unit resource exchange between two agents
+    with calculated utility improvement and priority for execution order.
+    
+    Attributes:
+        seller_id: Agent giving the resource
+        buyer_id: Agent receiving the resource  
+        give_type: Resource type being given (good1/good2)
+        take_type: Resource type being received (good1/good2)
+        quantity: Units to trade (currently always 1)
+        priority: Deterministic ordering key (-delta_u, seller_id, buyer_id, give_type, take_type)
+        delta_utility: Combined utility improvement for both agents
+    """
     seller_id: int
     buyer_id: int
     give_type: str
     take_type: str
     quantity: int
     priority: PriorityKey
-    # New (Gate Bilateral2 Phase 1): combined utility delta (buyer+seller) if executed (placeholder until integrated)
     delta_utility: float = 0.0
 
     def as_tuple(self) -> Tuple[int, int, str, str, int, PriorityKey]:
@@ -163,6 +178,18 @@ class TradeIntent:
 
 @dataclass(slots=True)
 class TradeEnumerationStats:
+    """Statistics tracking for trade intent enumeration process.
+    
+    Tracks the filtering pipeline from initial marginal utility matches
+    through utility delta pruning to final executable intents.
+    
+    Attributes:
+        drafted: Total intents passing initial marginal utility tests
+        pruned_micro: Intents pruned for utility delta below threshold
+        pruned_nonpositive: Intents pruned for zero/negative utility delta
+        kept: Final intents retained for potential execution
+        max_delta_u: Highest utility delta among all intents
+    """
     drafted: int = 0
     pruned_micro: int = 0
     pruned_nonpositive: int = 0
@@ -173,14 +200,22 @@ class TradeEnumerationStats:
 def enumerate_intents_for_cell(
     agents: List[Agent], stats: Optional[TradeEnumerationStats] = None
 ) -> List[TradeIntent]:
-    """Generate trade intents among co-located agents.
+    """Generate bilateral trade intents among co-located agents.
 
-    Phase 3 rule (marginal utility test): For each unordered pair (i,j) compute marginal utility
-    dictionaries MU_i, MU_j over aggregated bundles (carrying+home). Produce intent (i gives g1, j gives g2)
-    iff MU_i[g2] > MU_i[g1] AND MU_j[g1] > MU_j[g2] and each agent holds at least 1 unit (in carrying)
-    of the good it would give. Likewise test the opposite direction. Quantity fixed at 1.
-
-    Deterministic: no RNG; ordering enforced via priority tuple.
+    Uses marginal utility test: for each agent pair (i,j), create intent 
+    (i gives good1, j gives good2) if MU_i[good2] > MU_i[good1] AND 
+    MU_j[good1] > MU_j[good2] and both agents have required carrying inventory.
+    
+    Enforces individual rationality by computing exact utility deltas and
+    rejecting trades where either agent loses utility. Applies micro-delta
+    threshold to prevent oscillation from tiny utility improvements.
+    
+    Args:
+        agents: Co-located agents to consider for trading
+        stats: Optional statistics tracking object
+        
+    Returns:
+        Priority-sorted list of viable trade intents
     """
     out: List[TradeIntent] = []
     n = len(agents)
@@ -303,16 +338,21 @@ __all__ = ["TradeIntent", "TradeEnumerationStats", "enumerate_intents_for_cell"]
 
 
 def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Agent], step: Optional[int] = None) -> Optional[TradeIntent]:
-    """Execute the first viable intent (already priority-sorted) if inventories allow.
+    """Execute first viable trade intent with inventory mutations and logging.
 
-    Viability rules (Phase 3 minimal):
-    - Seller must have at least 1 unit of give_type in carrying.
-    - Buyer must have at least 1 unit of take_type in carrying.
-    - Swap: seller give_type -1, buyer +1; buyer take_type -1, seller +1.
-    - Home inventory untouched (carrying-only invariant).
+    Viability requires both agents have required resources in carrying inventory.
+    Executes 1-unit bilateral swap: seller loses give_type, gains take_type;
+    buyer loses take_type, gains give_type. Only modifies carrying inventory.
+    
+    Logs utility changes and trade details for both participants.
 
-    Returns the executed intent or None if none applied. Does not mutate the intents list.
-    Deterministic: linear scan in given order.
+    Args:
+        intents: Priority-sorted trade intents to attempt
+        agents_by_id: Agent lookup dictionary
+        step: Current simulation step for logging
+        
+    Returns:
+        Executed intent or None if no viable trades found
     """
     for intent in intents:
         seller = agents_by_id.get(intent.seller_id)

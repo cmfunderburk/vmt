@@ -1,19 +1,11 @@
-"""Simulation configuration (Gate 6 integrated; evolved from Gate 5 draft).
+"""Simulation configuration and factory integration.
 
-Acts as the authoritative parameter bundle for constructing a
-deterministic simulation. Factory method `Simulation.from_config` consumes
-this dataclass to attach respawn / metrics hooks and seed internal RNG state.
+Provides authoritative parameter bundle for deterministic simulation construction.
+The `Simulation.from_config` factory method consumes this configuration to
+initialize simulation state, attach optional hooks, and seed RNG systems.
 
-Fields:
-* ``grid_size``: (width, height)
-* ``initial_resources``: iterable of (x,y[,type]) tuples
-* ``perception_radius``: decision scan radius (mirrors constant; may be unified later)
-* ``respawn_target_density``: desired occupancy fraction (0..1]
-* ``respawn_rate``: fraction of deficit addressed per tick
-* ``max_spawn_per_tick``: cap on newly spawned resources each tick
-* ``seed``: base RNG seed (drives deterministic respawn & future stochastic systems)
-
-Includes enable flags for respawn / metrics; overlay toggle remains a GUI concern.
+Supports comprehensive parameter validation and serves as the single source
+of truth for simulation behavioral configuration.
 """
 from __future__ import annotations
 
@@ -25,25 +17,41 @@ ResourceEntry = Union[tuple[int, int], tuple[int, int, str]]
 
 @dataclass(slots=True)
 class SimConfig:
+    """Comprehensive simulation configuration with validation and factory integration.
+    
+    Defines all parameters for deterministic simulation construction including
+    core simulation settings, behavioral flags, algorithm tuning, and GUI integration.
+    
+    Attributes:
+        grid_size: Grid dimensions as (width, height)
+        initial_resources: Resource placement as (x, y) or (x, y, type) tuples
+        perception_radius: Agent decision scan radius (Manhattan distance)
+        respawn_target_density: Target resource density fraction (0..1]
+        respawn_rate: Fraction of resource deficit addressed per step (0..1] 
+        max_spawn_per_tick: Maximum resources spawned per step (rate limiting)
+        seed: Base RNG seed for deterministic behavior
+        enable_respawn: Enable automatic resource regeneration
+        enable_metrics: Enable metrics collection and determinism hashing
+        viewport_size: GUI viewport dimension in pixels (320-800)
+        distance_scaling_factor: Utility distance discount factor k in ΔU/(1+k*d²)
+    """
     grid_size: tuple[int, int]
     initial_resources: Sequence[ResourceEntry]
     perception_radius: int = 8
     respawn_target_density: float = 0.25
-    respawn_rate: float = 0.25  # Default to 25% (partial replenishment) - now GUI configurable
-    max_spawn_per_tick: int = 100  # High enough to handle full deficit respawn
+    respawn_rate: float = 0.25  # Partial replenishment default (GUI configurable)
+    max_spawn_per_tick: int = 100  # Sufficient for full deficit handling
     seed: int = 0
     enable_respawn: bool = True
     enable_metrics: bool = True
     viewport_size: int = 320
-    # Unified selection distance discount scaling factor (k) used in
-    # ΔU_base / (1 + k * distance^2). Range constrained in validate().
-    distance_scaling_factor: float = 0.0
+    distance_scaling_factor: float = 0.0  # No distance penalty default
 
     def validate(self) -> None:
-        """Perform lightweight invariant checks (Gate 6 integration).
-
-        Keeps validation minimal to avoid premature rigidity; expands in later gates
-        if configuration surface grows.
+        """Validate configuration parameters for simulation construction.
+        
+        Ensures all parameters are within acceptable ranges and constraints
+        required for deterministic simulation behavior.
         """
         gw, gh = self.grid_size
         if gw <= 0 or gh <= 0:
@@ -58,7 +66,7 @@ class SimConfig:
             raise ValueError("max_spawn_per_tick must be non-negative")
         if not (0.0 <= self.distance_scaling_factor <= 10.0):
             raise ValueError("distance_scaling_factor must be within [0,10]")
-        # Boolean flags implicitly validated; could add type checks if untrusted sources used.
+        # Boolean flags validated implicitly by type system
 
 
 __all__ = ["SimConfig", "ResourceEntry"]

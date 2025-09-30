@@ -1,19 +1,18 @@
-"""Metrics collection (introduced Gate 5, integrated via factory in Gate 6).
+"""Per-step simulation metrics and bilateral trading analytics.
 
-Captures per-step aggregate inventory & resource counts and maintains a
-determinism hash that is sensitive to agent ordering, positions, carried
-and home goods, and resource layout. The hash provides a lightweight
-regression sentinel for any change in step ordering or selection logic.
+Collects aggregate inventory counts and maintains a determinism hash for
+regression testing. Also tracks bilateral trading statistics including
+per-agent trade histories and utility gains.
 
 Capabilities:
-* Append structured per-step aggregate records (access via ``records()``)
-* Streaming SHA256 updated each step with canonical serialization
-* Determinism tests rely on hash parity across identical seeds
+* Streaming SHA256 hash sensitive to agent state and resource layout
+* Per-step aggregate records (inventory totals, resource counts)  
+* Bilateral trade tracking with rolling per-agent histories
+* Utility gain aggregation and fairness metrics
 
-Deferred / Not Yet Included:
-* Per-agent utility logging (will pair with future visualization)
-* Derived economic indicators (e.g., inequality metrics)
-* Selective metric enable/disable granularity beyond global ``enabled`` flag
+Future Enhancements:
+* Derived economic indicators and inequality metrics
+* Granular metric enable/disable controls
 """
 from __future__ import annotations
 
@@ -27,35 +26,39 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @dataclass(slots=True)
 class MetricsCollector:
-    """Collect per-step metrics and build a determinism hash.
-
-    Hash goal: any divergence in agent positions, inventories, resource layout,
-    or step ordering produces different digest. Implementation uses a streaming
-    SHA256 updated with a canonical serialization each step.
+    """Dual-purpose metrics collector for determinism verification and trading analytics.
+    
+    Maintains a streaming SHA256 hash for regression testing and tracks bilateral
+    trading statistics including per-agent histories and utility measurements.
     """
 
     enabled: bool = True
+    
+    # Trading metrics (hash-excluded for determinism stability):
     trade_intents_generated: int = 0
     trades_executed: int = 0
-    # Bilateral2 Phase 1 additions (hash-excluded):
     realized_utility_gain_total: float = 0.0
     trade_ticks: int = 0
     no_trade_ticks: int = 0
     last_executed_trade: dict[str, object] | None = None  # {seller,buyer,give,take,delta_utility,step}
-    fairness_round: int = 0  # Phase 3: increments per executed trade (advisory, hash-excluded)
-    # Per-agent trade history (last 5 trades per agent, hash-excluded):
-    agent_trade_histories: Dict[int, List[Dict[str, Any]]] = field(default_factory=lambda: {})
+    fairness_round: int = 0  # Increments per executed trade (advisory metric)
+    agent_trade_histories: Dict[int, List[Dict[str, Any]]] = field(default_factory=lambda: {})  # Rolling history (last 5 trades per agent)
+    
+    # Determinism tracking (hash-included):
     _records: List[Dict[str, Any]] = field(default_factory=lambda: [])
     _hash: Any | None = field(default=None, init=False, repr=False)  # sha256 object
 
-    def __post_init__(self) -> None:  # pragma: no cover - simple init
+    def __post_init__(self) -> None:
+        """Initialize SHA256 hash for determinism tracking."""
         self._hash = hashlib.sha256()
 
     def _update_hash(self, payload: str) -> None:
+        """Update determinism hash with canonical simulation state."""
         if self._hash is not None:
             self._hash.update(payload.encode())
 
-    def record(self, step: int, sim: "Simulation") -> None:  # pragma: no cover (exercised indirectly)
+    def record(self, step: int, sim: "Simulation") -> None:
+        """Record per-step metrics and update determinism hash."""
         if not self.enabled or self._hash is None:
             return
 
@@ -110,21 +113,22 @@ class MetricsCollector:
         self._update_hash(payload)
 
     def determinism_hash(self) -> str:
+        """Return current SHA256 hash digest for regression testing."""
         if self._hash is None:
             return ""
         return self._hash.hexdigest()
 
-    def records(self) -> Iterable[Dict[str, Any]]:  # lightweight accessor
+    def records(self) -> Iterable[Dict[str, Any]]:
+        """Return immutable view of per-step aggregate records."""
         return tuple(self._records)
 
     def record_bilateral_trade(self, step: int, agent1_id: int, agent2_id: int, 
                                agent1_give: str, agent1_take: str, 
                                agent1_delta_u: float, agent2_delta_u: float) -> None:
-        """Record bilateral trade history only (no counter increments).
-
-        Maintains per-agent rolling history (last 5) and updates ``last_executed_trade``.
-        Hash-excluded. Global counters (``trades_executed``, ``trade_ticks``, ``fairness_round``)
-        are updated by ``register_executed_trade`` to avoid double counting.
+        """Record trade in per-agent histories without updating global counters.
+        
+        Maintains rolling history (last 5 trades) per agent and updates last_executed_trade.
+        Called by register_executed_trade to avoid double-counting.
         """
         # Create trade records for both agents
         trade_record_1: Dict[str, Any] = {
@@ -174,23 +178,18 @@ class MetricsCollector:
                                 agent1_delta_u: float, agent2_delta_u: float,
                                 realized_utility_gain: float | None = None,
                                 hash_neutral: bool = False) -> None:
-        """Single entry point for an executed trade.
-
-        Responsibilities:
-        * Increment global counters exactly once per executed trade
-        * Update realized utility gain total (approx) if provided
-        * Increment fairness_round (advisory metric)
-        * Delegate to ``record_bilateral_trade`` for histories / last_executed_trade
-        * Optionally ignore realized utility gain when ``hash_neutral`` debug mode active
-
-        Parameters
-        -----------
-        step: simulation step index
-        agent1_id / agent2_id: participants (agent1 corresponds to seller in current model)
-        agent1_give / agent1_take: resource types (strings)
-        agent1_delta_u / agent2_delta_u: approximate utility deltas (buyer approximated currently)
-        realized_utility_gain: optional explicit realized utility delta to aggregate (fallback to agent1_delta_u if None)
-        hash_neutral: when True, skips realized_utility aggregation (debug parity aid)
+        """Register completed bilateral trade with full metrics tracking.
+        
+        Updates global counters, utility totals, and delegates to record_bilateral_trade
+        for per-agent history tracking. Single entry point prevents double-counting.
+        
+        Args:
+            step: Current simulation step
+            agent1_id, agent2_id: Trading partners (agent1 = seller in current model)
+            agent1_give, agent1_take: Resource types exchanged
+            agent1_delta_u, agent2_delta_u: Utility changes for each agent
+            realized_utility_gain: Optional explicit utility gain (defaults to agent1_delta_u)
+            hash_neutral: Skip utility aggregation for determinism debugging
         """
         # Counters
         self.trades_executed += 1

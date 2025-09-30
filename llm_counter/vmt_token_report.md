@@ -1,34 +1,33 @@
 # VMT Repository Token Analysis Report
 
-*Generated on 2025-09-29 20:04:02*
+*Generated on 2025-09-29 20:35:19*
 
 ## 📊 Executive Summary
 
 | Metric | Value |
 |--------|--------|
-| **Total Tokens** | 1.4M tokens |
-| **Total Files** | 277 files |
-| **Repository Size** | 9.2 MB |
-| **Average Tokens/File** | 4902 tokens |
+| **Total Tokens** | 209.9K tokens |
+| **Total Files** | 278 files |
+| **Repository Size** | 1.6 MB |
+| **Average Tokens/File** | 755 tokens |
 
 ## 📄 File Type Breakdown
 
 | File Type | Token Count | Percentage | Files |
 |-----------|-------------|------------|-------|
-| Markdown | 1.2M | 88.7% | 34 |
-| Python | 148.6K | 10.9% | 229 |
-| Build/Meta | 2.8K | 0.2% | 3 |
-| JSON | 1.1K | 0.1% | 2 |
-| Shell | 430 | 0.0% | 2 |
-| TOML | 215 | 0.0% | 1 |
-| Text | 125 | 0.0% | 5 |
-| YAML | 111 | 0.0% | 1 |
+| Python | 148.6K | 70.8% | 229 |
+| Markdown | 56.6K | 27.0% | 35 |
+| Build/Meta | 2.8K | 1.3% | 3 |
+| JSON | 1.1K | 0.5% | 2 |
+| Shell | 430 | 0.2% | 2 |
+| TOML | 215 | 0.1% | 1 |
+| YAML | 111 | 0.1% | 1 |
+| Text | 72 | 0.0% | 5 |
 
 ## 🔥 Top 10 Largest Files
 
 | File | Tokens | Size |
 |------|--------|------|
-| `tmp_plans/CURRENT/CRITICAL/docstring_review_catalog.md` | 1.2M | 7.6 MB |
 | `src/econsim/gui/debug_logger.py` | 11.4K | 0.1 MB |
 | `tmp_plans/CURRENT/unified_refactor_plan.md` | 8.4K | 0.0 MB |
 | `src/econsim/simulation/world.py` | 5.9K | 0.1 MB |
@@ -38,6 +37,7 @@
 | `src/econsim/tools/widgets/config_editor.py` | 4.7K | 0.1 MB |
 | `src/econsim/tools/launcher/app_window.py` | 4.2K | 0.0 MB |
 | `tmp_plans/CURRENT/debug_log_refactor.md` | 4.1K | 0.0 MB |
+| `src/econsim/gui/simulation_controller.py` | 3.1K | 0.0 MB |
 
 
 ## 🤖 LLM Context Analysis
@@ -46,22 +46,22 @@
 
 | Model | Context Window | VMT Coverage |
 |-------|---------------|--------------|
-| GPT-4 | ~128K tokens | 9.4% |
-| Claude 3 | ~200K tokens | 14.7% |
-| Claude 3.5 Sonnet | ~200K tokens | 14.7% |
+| GPT-4 | ~128K tokens | 61.0% |
+| Claude 3 | ~200K tokens | 95.3% |
+| Claude 3.5 Sonnet | ~200K tokens | 95.3% |
 
 ### Recommendations
 
-- **Full Repository**: 1.4M tokens requires chunking for any LLM
+- **Full Repository**: 209.9K tokens requires chunking for any LLM
 - **Focused Analysis**: Select 25-40% of files for single-context analysis
 - **Code Reviews**: Use token counts to prioritize which files to include
-- **Documentation**: 88.7% of tokens are documentation
+- **Documentation**: 27.0% of tokens are documentation
 
 ## 📈 Analysis Metadata
 
 - **Analysis Tool**: VMT Token Counter (demo version)
 - **Tokenization**: Simple estimation (~1.3 tokens/word)
-- **Files Processed**: 277 code files
+- **Files Processed**: 278 code files
 - **Excluded**: Binary files, caches, logs, virtual environments
 - **Repository**: VMT EconSim Platform
 

@@ -1,9 +1,12 @@
-"""Simulation snapshot & replay utilities (established Gate 5, unchanged in Gate 6).
+"""Deterministic simulation state serialization for testing and replay.
 
-Provides a minimal, deterministic serialization of simulation state to
-support replay / hash verification tests. Metrics hash itself is not
-stored; recomputation during replay should yield identical digests for
-the same number of steps when dynamics are deterministic.
+Provides minimal, reproducible serialization of simulation state to support
+regression testing and hash verification. Captures essential simulation state
+(agents, grid, step count) while excluding non-deterministic components like
+metrics collectors and respawn schedulers.
+
+Restoration guarantees identical simulation dynamics when combined with
+identical configuration and RNG seeds, enabling precise regression testing.
 """
 from __future__ import annotations
 
@@ -18,16 +21,36 @@ from econsim.preferences.factory import PreferenceFactory
 
 @dataclass(slots=True)
 class Snapshot:
+    """Deterministic simulation state snapshot for testing and replay.
+    
+    Captures essential simulation state including agent positions, inventories,
+    preferences, grid resources, and step count. Excludes non-deterministic
+    components (metrics, respawn schedulers) to ensure reproducible restoration.
+    
+    Attributes:
+        step: Current simulation step count
+        grid: Serialized grid state with resource positions/types
+        agents: List of serialized agent states with full inventory data
+    """
     step: int
     grid: Dict[str, Any]
     agents: List[Dict[str, Any]]
 
-    def serialize(self) -> dict[str, Any]:  # pragma: no cover (thin wrapper)
+    def serialize(self) -> dict[str, Any]:
+        """Export snapshot to JSON-serializable dictionary."""
         return {"step": self.step, "grid": self.grid, "agents": self.agents}
 
     @staticmethod
     def from_sim(sim: Simulation) -> "Snapshot":
-        # Use existing serialize helpers for grid & agents
+        """Create snapshot from current simulation state.
+        
+        Args:
+            sim: Active simulation to capture
+            
+        Returns:
+            Snapshot containing essential simulation state
+        """
+        # Capture grid and agent states using existing serialization
         grid_data = sim.grid.serialize()
         agents_data: List[Dict[str, Any]] = []
         for a in sim.agents:
@@ -47,7 +70,15 @@ class Snapshot:
 
     @staticmethod
     def restore(data: dict[str, Any]) -> Simulation:
-        # Rebuild grid
+        """Restore simulation from snapshot data.
+        
+        Args:
+            data: Serialized snapshot data dictionary
+            
+        Returns:
+            Simulation with restored state (excludes metrics/respawn components)
+        """
+        # Rebuild grid and agents from serialized data
         grid = Grid.deserialize(data["grid"])  # type: ignore[arg-type]
         agents_payload = data.get("agents", [])
         agents: list[Agent] = []
@@ -57,10 +88,9 @@ class Snapshot:
             if isinstance(home, (list, tuple)) and len(home) == 2:  # type: ignore[arg-type]
                 hx = int(home[0])  # type: ignore[index]
                 hy = int(home[1])  # type: ignore[index]
-            else:  # fallback: use current position
+            else:  # fallback: use current position as home
                 hx = int(payload["x"])
                 hy = int(payload["y"])
-            # Get sprite type with fallback
             sprite_type = payload.get("sprite_type", "agent_explorer")
             a = Agent(
                 id=int(payload["id"]),
@@ -78,20 +108,32 @@ class Snapshot:
                 a.home_inventory[k] = int(v)
             agents.append(a)
         sim = Simulation(grid=grid, agents=agents, config=None)
-        # Note: metrics collector / respawn scheduler intentionally not auto-restored
-        # (tests attach them if needed for hash reproduction)
-        # Step counter restored for informational parity
+        # Exclude metrics/respawn components for deterministic reproduction
         sim._steps = int(data.get("step", 0))  # type: ignore[attr-defined]
         return sim
 
 
 def take_snapshot(sim: Simulation) -> Snapshot:
-    """Public helper to create a Snapshot (convenience wrapper)."""
+    """Create snapshot from active simulation state.
+    
+    Args:
+        sim: Simulation to capture
+        
+    Returns:
+        Snapshot containing essential state for reproduction
+    """
     return Snapshot.from_sim(sim)
 
 
 def restore_snapshot(snapshot: Snapshot) -> Simulation:
-    """Public helper to restore a Simulation from an existing Snapshot."""
+    """Restore simulation from snapshot with deterministic guarantees.
+    
+    Args:
+        snapshot: Previously captured simulation snapshot
+        
+    Returns:
+        Simulation with restored state ready for continued execution
+    """
     return Snapshot.restore(snapshot.serialize())
 
 

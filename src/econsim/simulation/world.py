@@ -1,22 +1,20 @@
-"""Simulation coordinator (Gates 3–6 implemented).
+"""Simulation coordinator orchestrating agent and grid progression.
 
-Orchestrates per-tick progression across agents & grid. Supports two
-paths: legacy random walk (for baseline / regression comparison) and
-deterministic decision mode (greedy 1-step target pursuit using
-preference-driven ΔU scoring). Optional hooks enable resource respawn
-and metrics collection when attached.
+Manages per-tick simulation steps with support for deterministic decision-making,
+bilateral trading, unified target selection, and spatial optimization. Maintains
+single-threaded execution with optional resource respawn and metrics collection.
 
-Decision Mode Sequence:
-1. For each agent (list order confers contest priority): target selection
-2. Single-cell movement toward target
-3. Resource collection & potential retarget if race lost
-4. Deposit at home if returning
-5. Respawn hook → Metrics hook → step counter increment
+Execution Modes:
+* Deterministic: Unified target selection with distance-discounted utility
+* Legacy: Random walk movement for regression comparison
+* Trading: Feature-flagged bilateral exchange with intent enumeration
 
-Deferred:
-* Multi-phase (pipeline) ordering strategies
-* Agent interaction (trading, negotiation)
-* Parallel / batched stepping (single-thread invariant maintained)
+Step Sequence:
+1. Agent target selection (resource vs trading partner)
+2. Movement toward targets with spatial collision handling
+3. Resource collection and trade intent enumeration/execution
+4. Home deposit logic and mode transitions
+5. Respawn and metrics hooks
 """
 
 from __future__ import annotations
@@ -53,6 +51,12 @@ def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMod
 
 @dataclass(slots=True)
 class Simulation:
+    """Core simulation engine coordinating agents, grid, and economic interactions.
+    
+    Manages deterministic stepping with configurable behavioral systems including
+    resource foraging, bilateral trading, and spatial agent interactions.
+    Provides factory construction and runtime configuration capabilities.
+    """
     grid: Grid
     agents: list[Agent]
     _steps: int = 0
@@ -61,7 +65,7 @@ class Simulation:
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
     _respawn_interval: int | None = 5       # New: how frequently to invoke respawn (5 => every 5 steps, None/<=0 => disabled)
-    # Draft trade intents (Phase 2 feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
+    # Draft trade intents (feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
     trade_intents: list[TradeIntent] | None = None
     # Last executed trade cell highlight bookkeeping (GUI render hint; purely observational)
@@ -69,20 +73,21 @@ class Simulation:
     # Performance tracking for debug logging
     _step_times: list[float] = field(default_factory=list)
 
-    def __post_init__(self) -> None:  # pragma: no cover (simple init)
+    def __post_init__(self) -> None:
+        """Initialize internal RNG from config seed if available."""
         if self.config is not None and self._rng is None:
             seed = getattr(self.config, "seed", 0)
             self._rng = _random.Random(int(seed))
 
     def step(self, rng: random.Random, *, use_decision: bool = False) -> None:
-        """Advance simulation by one tick.
+        """Advance simulation by one step.
 
-        Parameters:
-            rng: external RNG for legacy random movement path (retained for regression comparability).
-            use_decision: deterministic decision logic toggle.
+        REFACTOR REQUIRED: This method is 450+ lines and should be decomposed into
+        smaller, focused methods for maintainability and testability.
 
-        Internal `_rng` powers respawn / metrics hooks (if present) and remains distinct to keep
-        external API stable for existing test scaffolds.
+        Args:
+            rng: External RNG for legacy random movement mode
+            use_decision: Enable deterministic decision-making and trading
         """
         # Performance tracking
         import time
@@ -475,14 +480,15 @@ class Simulation:
     def steps(self) -> int:
         return self._steps
 
-    def serialize(self) -> dict[str, Any]:  # pragma: no cover (future use)
+    def serialize(self) -> dict[str, Any]:
+        """Export simulation state to JSON-serializable dict."""
         return {
             "grid": self.grid.serialize(),
             "agents": [a.serialize() for a in self.agents],
             "steps": self._steps,
         }
 
-    # --- Factory (Gate 6) -------------------------------------------------
+    # --- Factory Constructor -----------------------------------------------
     @classmethod
     def from_config(
         cls,
@@ -491,27 +497,15 @@ class Simulation:
         *,
         agent_positions: list[tuple[int, int]] | None = None,
     ) -> "Simulation":
-        """Construct a Simulation from a SimConfig.
-
-        Parameters
-        ----------
-        config : SimConfig
-            Configuration instance (validated here).
-        preference_factory : callable | None
-            Callable returning a Preference instance per agent (signature: (agent_index) -> Preference).
-            If None, uses a default Cobb-Douglas (alpha=0.5) if available, else raises.
-        agent_positions : list[(x,y)] | None
-            Explicit spawn coordinates; if None, agents list derived implicitly from distinct
-            home positions of size len(...) not yet specified (Gate 6 keeps existing manual agent creation
-            outside; this factory currently focuses on hooks + grid construction). For now, if None, creates
-            zero agents (callers may extend in later gate revisions). This keeps scope minimal and avoids
-            assumptions about desired agent count at factory call sites during incremental adoption.
-
-        Notes
-        -----
-        * Keeps deterministic seeding via config.seed.
-        * Attaches respawn & metrics hooks only if enable flags True.
-        * Leaves perception radius un-applied (agents still reference existing constant) — unification deferred.
+        """Create simulation from configuration with optional agent positions.
+        
+        Args:
+            config: SimConfig instance with validated parameters
+            preference_factory: Optional callable returning Preference per agent
+            agent_positions: Optional explicit spawn coordinates
+            
+        Returns:
+            Configured simulation with attached hooks based on config flags
         """
         config.validate()
 
@@ -580,14 +574,11 @@ class Simulation:
             self._respawn_interval = int(interval)
 
     def _handle_bilateral_exchange_movement(self, agent: "Agent", rng: random.Random) -> None:
-        """Handle sophisticated movement logic for bilateral exchange mode.
+        """Handle agent movement and pairing logic for bilateral trading mode.
         
-        Implements tiered decision process:
-        1. Check for nearby agents within perception radius
-        2. If multiple agents found, select closest with tiebreak rules
-        3. If exactly one agent found, pair up and path to meeting point
-        4. If no agents found, move randomly
-        5. Handle trading when co-located
+        REFACTOR REQUIRED: This method is 140+ lines and handles multiple concerns
+        (stagnation tracking, partner search, movement, trading). Should be decomposed
+        into focused helper methods for better maintainability.
         """
         # Utility stagnation tracking: compare current utility to last improvement baseline.
         # We use carrying bundle only; if first time (baseline 0) set immediately.
@@ -762,11 +753,11 @@ class Simulation:
 
     # --- Unified Selection Internal Helpers --------------------
     def _unified_selection_pass(self, rng: random.Random, foraged_ids: set[int], step: int) -> None:
-        """Unified selection pass using spatial index + distance-discounted utility.
-
-        Replaces earlier heuristic dual-path chooser. Maintains O(n) build +
-        O(candidates) query via AgentSpatialGrid. Still honors forced deposit
-        cycles and existing pairing states.
+        """Execute unified target selection with spatial indexing and distance scaling.
+        
+        REFACTOR REQUIRED: This method is 280+ lines and handles spatial indexing,
+        target selection, reservation tracking, and instrumentation. Should be
+        decomposed into focused helper methods for better testability.
         """
         from .constants import default_PERCEPTION_RADIUS
         from .agent import AgentMode

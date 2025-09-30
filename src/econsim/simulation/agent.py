@@ -1,21 +1,20 @@
-"""Agent abstraction (Gate 4+ decision capable).
+"""Economic agent with decision-making, resource collection, and bilateral trading.
 
-Represents a mobile economic actor collecting typed resources under a
-preference function. Maintains distinct *carrying* vs *home* inventories
-and mode-driven behavior (FORAGE, RETURN_HOME, IDLE). Decision mode uses
-greedy 1-step movement toward the highest scored resource target within
-a perception radius, applying epsilon bootstrap to avoid zero-product
-stalls for multiplicative utilities.
+Mobile economic actor that collects typed resources based on preference functions.
+Maintains separate carrying and home inventories with mode-driven behavior 
+(FORAGE, RETURN_HOME, IDLE, MOVE_TO_PARTNER). Uses unified target selection 
+with distance-discounted utility for both resources and trading partners.
 
-Capabilities:
-* Deterministic target selection (tie-break: −ΔU, distance, x, y)
-* Inventory deposit on home arrival
-* Mode transitions (forage ↔ return_home ↔ idle)
+Core Features:
+* Deterministic target selection with configurable distance scaling
+* Bilateral exchange with partner pairing and meeting points
+* Epsilon-bootstrapped utility for zero-bundle edge cases
+* Mode transitions with structured debug logging
 
-Deferred:
-* Multi-agent trading / interaction rules
-* Production / consumption cycles
-* Path planning beyond greedy 1-step heuristic
+Architecture:
+* Factory construction via SimConfig
+* Deterministic tie-breaking: (-ΔU, distance, x, y)
+* O(n) per-step complexity with spatial indexing
 """
 
 from __future__ import annotations
@@ -41,10 +40,10 @@ class AgentMode(str, Enum):  # str for readable serialization/debug
     MOVE_TO_PARTNER = "move_to_partner"
 
 
-# Perception radius (Manhattan) for decision logic (Gate 4 constant)
+# Manhattan distance perception radius for resource detection
 PERCEPTION_RADIUS = 8
 
-# Resource type -> inventory good mapping (centralized constant)
+# A→good1, B→good2
 RESOURCE_TYPE_TO_GOOD = {
     "A": "good1",
     "B": "good2",
@@ -53,6 +52,12 @@ RESOURCE_TYPE_TO_GOOD = {
 
 @dataclass(slots=True)
 class Agent:
+    """Economic agent with resource collection and bilateral trading capabilities.
+    
+    Maintains dual inventory system (carrying + home) and supports multiple
+    behavioral modes including resource foraging and partner-based trading.
+    Uses unified target selection with distance-discounted utility scoring.
+    """
     id: int
     x: int
     y: int
@@ -86,14 +91,14 @@ class Agent:
     _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
     
     def _track_target_change(self, new_target: Position | None, step: int) -> None:
-        """Track target changes for churn analysis."""
+        """Track target changes for behavioral churn analysis."""
         if new_target != self.target:
             self._recent_retargets.append(step)
             # Keep only recent retargets (last 100 steps)
             if len(self._recent_retargets) > 100:
                 self._recent_retargets = self._recent_retargets[-100:]
             
-            # Phase 3.2: Track retargeting behavior for behavior aggregation
+            # Track retargeting for behavioral analysis
             try:
                 from ..gui.debug_logger import get_gui_logger
                 logger = get_gui_logger()
@@ -102,11 +107,12 @@ class Agent:
                 pass  # Don't break simulation if logging fails
     # Unified target selection metadata (resource vs partner) for GUI/testing
     current_unified_task: tuple[str, object] | None = field(default=None, init=False, repr=False)
-    # Unified selection commitment (placeholder richer structure):
+    # Unified selection commitment tracking:
     unified_commitment: dict[str, object] = field(default_factory=dict, init=False, repr=False)
     unified_commitment_started: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        """Initialize derived fields and backward compatibility aliases."""
         # If home not explicitly set, default to spawn coords
         if self.home_x is None:
             self.home_x = self.x
@@ -139,8 +145,8 @@ class Agent:
     # --- Movement --------------------------------------------------
     def move_random(
         self, grid: Grid, rng: random.Random
-    ) -> None:  # placeholder until decision logic (Phase P3)
-        """Move at most one step in 4-neighborhood (or stay). Deterministic under provided RNG."""
+    ) -> None:
+        """Move one step randomly in 4-neighborhood or stay put."""
         moves = [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]
         dx, dy = rng.choice(moves)
         nx, ny = self.x + dx, self.y + dy
@@ -149,14 +155,13 @@ class Agent:
 
     # --- Resource Interaction -------------------------------------
     def collect(self, grid: Grid, step: int = -1) -> bool:
-        """Collect typed resource at current cell if present.
-
-        Mapping policy (Gate 4 Phase P2 groundwork):
-        - Resource type 'A' -> inventory['good1']
-        - Resource type 'B' -> inventory['good2']
-        - Any other type -> ignored for now (future extension)
-
-        Returns True if a recognized resource was collected, else False.
+        """Collect resource at current position if foraging enabled.
+        
+        Maps resource types: A→good1, B→good2. Tracks acquisition for 
+        behavioral logging when step >= 0.
+        
+        Returns:
+            True if resource collected, False otherwise.
         """
         import os  # Import here to avoid circular import issues
         
@@ -170,7 +175,7 @@ class Agent:
             return False
         if rtype == "A":
             self.carrying["good1"] += 1
-            # Phase 3.2: Track resource acquisition behavior
+            # Track acquisition for behavioral analysis
             if step >= 0:
                 try:
                     from ..gui.debug_logger import get_gui_logger
@@ -181,7 +186,7 @@ class Agent:
             return True
         if rtype == "B":
             self.carrying["good2"] += 1
-            # Phase 3.2: Track resource acquisition behavior
+            # Track acquisition for behavioral analysis
             if step >= 0:
                 try:
                     from ..gui.debug_logger import get_gui_logger
@@ -190,7 +195,7 @@ class Agent:
                 except Exception:
                     pass  # Don't break simulation if logging fails
             return True
-        # Unknown type: silently ignore (placeholder policy)
+        # Unknown resource type ignored
         return False
 
     # --- Home / Deposit Logic ------------------------------------
@@ -201,7 +206,7 @@ class Agent:
         return sum(self.carrying.values())
     
     def current_utility(self) -> float:
-        """Calculate current utility from carrying + home inventory."""
+        """Calculate current utility from total wealth (carrying + home inventory)."""
         from .constants import EPSILON_UTILITY
         raw_bundle = self._current_bundle()
         # Apply epsilon augmentation for consistent evaluation
@@ -232,14 +237,14 @@ class Agent:
         return moved
 
     def maybe_deposit(self) -> None:
-        """Deposit goods when returning home with proper behavioral transitions.
+        """Deposit carried goods at home and transition to appropriate mode.
         
         Behavioral transitions after deposit:
-        - Both forage + exchange enabled: withdraw goods and continue active behavior
-        - Only forage enabled: continue foraging (no withdrawal from home inventory)  
+        - Both forage + exchange enabled: withdraw goods and continue foraging
+        - Only forage enabled: continue foraging (keep goods at home)
         - Only exchange enabled: withdraw goods for trading
         - Neither enabled: idle at home
-        - force_deposit_once override: always deposit and idle (stagnation recovery)
+        - force_deposit_once override: deposit and idle (stagnation recovery)
         """
         if self.mode == AgentMode.RETURN_HOME and self.at_home():
             import os
@@ -290,7 +295,7 @@ class Agent:
                 self._set_mode(AgentMode.IDLE, "trade_ready")
                 self.target = None
 
-    # --- Decision Logic (Phase P3) -------------------------------
+    # --- Decision Logic -------------------------------------------
     def _manhattan(self, x1: int, y1: int, x2: int, y2: int) -> int:
         return abs(x1 - x2) + abs(y1 - y2)
 
@@ -302,16 +307,15 @@ class Agent:
         return total_good1, total_good2
 
     def select_target(self, grid: Grid) -> None:
-        """Select a resource target or update mode per decision rules.
-
-        Logic (simplified for initial implementation):
-        - If mode is RETURN_HOME: keep target at home (unless already there).
-        - If mode is IDLE: remain idle if foraging disabled; else attempt to find positive ΔU.
-        - If mode is FORAGE: scan resources within PERCEPTION_RADIUS.
-        - Compute ΔU = U(bundle+δ) - U(bundle). Score = ΔU / (dist + 1e-9).
-        - Tie-break: higher ΔU, then shorter dist, then lexicographic (x,y).
-        - If no positive ΔU and carrying goods: switch to RETURN_HOME.
-          If no carrying goods: switch to IDLE.
+        """Select movement target based on current mode and available resources.
+        
+        RETURN_HOME: Target home position
+        MOVE_TO_PARTNER: Target meeting point  
+        IDLE: Stay idle if foraging disabled
+        FORAGE: Find highest utility resource within perception radius
+        
+        Falls back to Leontief prospecting if no positive ΔU resources found.
+        Transitions to RETURN_HOME when carrying goods but no targets available.
         """
         import os  # Import here to avoid circular import issues
         
@@ -585,7 +589,7 @@ class Agent:
             else:  # same cell already (shouldn't happen due to earlier check)
                 pass
             
-            # Phase 3.2: Track movement behavior
+            # Track movement for behavioral analysis
             new_pos = (self.x, self.y)
             if new_pos != old_pos:
                 try:
@@ -612,7 +616,7 @@ class Agent:
         self.maybe_deposit()
         return bool(collected)
 
-    # --- Unified Target Selection (Scaffold) --------------------
+    # --- Unified Target Selection --------------------------------
     def select_unified_target(
         self,
         grid: Grid,
@@ -623,12 +627,14 @@ class Agent:
         distance_scaling_factor: float,
         step: int,
     ) -> tuple[str, object] | None:
-        """Compute and record best unified task.
-
-        This is a non-final scaffold: currently only evaluates resource candidates
-        using existing `compute_best_resource_candidate` logic when foraging enabled.
-        Trade partner scoring + distance-discounted utility integration will be
-        added in the next phase.
+        """Unified target selection with distance-discounted utility scoring.
+        
+        Evaluates both resource and trading partner candidates, applying
+        distance scaling factor k where score = ΔU / (1 + k*d²).
+        Uses deterministic tie-breaking for reproducible behavior.
+        
+        Returns:
+            ("resource", metadata) or ("partner", metadata) or None
         """
         # Skip if forced deposit cycle active
         if self.force_deposit_once:
@@ -795,8 +801,8 @@ class Agent:
     def pos(self) -> Position:
         return (self.x, self.y)
 
-    # Aggregated inventory (carrying + home) without mutation (future trade / analytics helper)
     def total_inventory(self) -> dict[str, int]:
+        """Return combined carrying + home inventory without mutation."""
         if not self.carrying and not self.home_inventory:
             return {}
         # Copy home first, then overlay carrying counts
@@ -900,12 +906,10 @@ class Agent:
             self.y += 1 if dy > 0 else -1
 
     def attempt_trade_with_partner(self, other_agent: "Agent", metrics_collector: Any = None, current_step: int = 0) -> bool:
-        """(Deprecated execution path) Movement pairing no longer executes trades.
-
-        The unified trade execution pipeline now lives exclusively in intent enumeration
-        + `execute_single_intent`. This method is retained only to maintain pairing flow
-        and returns False (no trade executed) so movement code can continue without
-        performing a swap here.
+        """Deprecated trade execution path - no longer executes trades.
+        
+        Trade execution now handled by unified intent enumeration pipeline.
+        Returns False to maintain pairing flow compatibility.
         """
         return False
 

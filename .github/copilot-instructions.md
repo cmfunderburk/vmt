@@ -105,7 +105,9 @@ sim.step(ext_rng, use_decision=True)
 
 **Fixture Isolation**: Use `@pytest.fixture(autouse=True)` in `tests/conftest.py` to clear trade/forage flags between tests. All environment flags must be reset or tests will interfere. Critical flags: `ECONSIM_TRADE_*`, `ECONSIM_FORAGE_ENABLED`.
 
-**Mock Patterns**: For launcher tests, mock PyQt6 availability with `patch('module._qt_available', True)`. Use `TestConfiguration` mocks with proper `.id`, `.name` attributes.
+**Mock Patterns**: For launcher tests, mock PyQt6 availability with `patch('src.econsim.tools.launcher.test_runner._qt_available', True)`. Use `TestConfiguration` mocks with proper `.id`, `.name` attributes.
+
+**Widget Testing**: For EmbeddedPygameWidget tests, use module-scoped QApplication fixtures. Process events with timeouts and verify frame advancement: `getattr(widget, "_frame", 0) > 0`.
 
 ## 18. Programmatic API Patterns
 **TestRunner Integration**: Prefer programmatic execution over subprocess launching:
@@ -113,6 +115,14 @@ sim.step(ext_rng, use_decision=True)
 from econsim.tools.launcher.test_runner import create_test_runner
 runner = create_test_runner()  # ~0.004s initialization
 runner.run_by_id(1, "framework")  # Direct framework instantiation
+status = runner.get_status()  # Monitor health and availability
+health = runner.get_health_check()  # Comprehensive diagnostics
+```
+
+**TestConfiguration Registry**: Use config registry instead of hardcoded file mappings:
+```python
+from econsim.tools.launcher.framework.test_configs import ALL_TEST_CONFIGS
+config = ALL_TEST_CONFIGS.get(test_id)  # Type-safe configuration lookup
 ```
 
 **Structured Logging**: Use dedicated launcher logging system in `launcher_logs/` separate from simulation logs. Never use raw `print()` - use builders from `gui/debug_logger.py` or launcher logger.
@@ -128,3 +138,11 @@ runner.run_by_id(1, "framework")  # Direct framework instantiation
 Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
 
 Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.
+
+**Exception: Widget Testing Patterns**
+For PyQt6/Pygame integration tests, use these patterns:
+- Headless setup: `os.environ["QT_QPA_PLATFORM"] = "offscreen"` + `os.environ["SDL_VIDEODRIVER"] = "dummy"`
+- QApplication reuse: `app = QApplication.instance() or QApplication([])` 
+- Frame verification: `getattr(widget, "_frame", 0) > 0` for animation progress
+- Event processing: `app.processEvents()` + small sleeps for timer advancement
+- Widget lifecycle: Always call `widget.close()` and `app.processEvents()` for cleanup
