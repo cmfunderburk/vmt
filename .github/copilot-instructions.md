@@ -10,9 +10,10 @@
 make venv && source vmt-dev/bin/activate  # Setup
 make launcher      # Primary development (7 educational scenarios)
 make dev          # Fallback basic GUI  
-pytest -q         # Full test suite (210+ tests)
+pytest -q         # Full test suite (320+ tests)
 make perf         # Performance validation
 make token        # Generate LLM token analysis
+make phase0-capture # Refactor baseline capture
 ```
 
 ## Architecture Overview
@@ -28,8 +29,9 @@ make token        # Generate LLM token analysis
 make venv && source vmt-dev/bin/activate  # Setup
 make launcher      # Primary development (7 educational scenarios)
 make dev          # Fallback basic GUI (DEPRECATED - will be removed)
-pytest -q         # Full test suite (210+ tests)
-make perf         # Performance validation (DEPRECATED - scheduled for update)
+pytest -q         # Full test suite (320+ tests)
+make perf         # Performance validation
+make phase0-capture # Refactor baseline capture and validation
 ```
 
 **Factory Construction Pattern** (preferred):
@@ -161,7 +163,7 @@ config = ALL_TEST_CONFIGS.get(test_id)  # Type-safe configuration lookup
 
 **Recent Completions**: Multi-dimensional agent behavior aggregation (Phase 3.2), comprehensive launcher logging system, real-time health monitoring, and color-coded GUI status indicators.
 
-## 22. When Unsure
+## 24. When Unsure
 Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
 
 Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.
@@ -189,3 +191,17 @@ For PyQt6/Pygame integration tests, use these patterns:
 - Frame verification: `getattr(widget, "_frame", 0) > 0` for animation progress
 - Event processing: `app.processEvents()` + small sleeps for timer advancement
 - Widget lifecycle: Always call `widget.close()` and `app.processEvents()` for cleanup
+
+## 22. Python Environment & Dependencies
+**Virtual Environment**: Always use the `vmt-dev/` virtual environment created by `make venv`. The Makefile automatically detects and activates this environment for all development commands. Never install dependencies globally or use other virtual environments for development work.
+
+**Dependencies**: Requires Python >=3.11, PyQt6 >=6.5.0, pygame >=2.5.0, numpy >=1.24.0. All dev dependencies (pytest, black, ruff, mypy) included in `[project.optional-dependencies]` section.
+
+**Environment Detection**: Makefile uses conditional logic `if [ -d "vmt-dev" ]` to automatically activate the virtual environment for all commands. Manual activation: `source vmt-dev/bin/activate`.
+
+## 23. Performance Baseline & Refactor Validation
+**Baseline Capture**: Use `make phase0-capture` for comprehensive refactor validation baseline. Captures performance across all 7 educational scenarios, determinism hashes, and runs safety net tests. Essential before any major architectural changes.
+
+**Performance Test**: `tests/performance/baseline_capture.py` provides headless simulation performance testing with configurable step counts. Current baseline: ~989.9 steps/sec mean performance across scenarios.
+
+**Determinism Validation**: `tests/performance/determinism_capture.py` captures state hashes for refactor validation. Critical for maintaining educational reproducibility.

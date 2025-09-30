@@ -42,11 +42,32 @@ from .trade import (  # type: ignore
 )
 import os
 
+# Observer system imports (Phase 1.3: Observer Foundation)
+from ..observability.registry import ObserverRegistry
+from ..observability.events import AgentModeChangeEvent
 
-def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
-    """Log agent mode transitions for debugging."""
-    from ..gui.debug_logger import log_agent_mode
-    log_agent_mode(agent.id, old_mode.value, new_mode.value, reason)
+
+def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "", 
+                          observer_registry: Optional[ObserverRegistry] = None, step: int = 0) -> None:
+    """Log agent mode transitions using observer system (Phase 1.3: Breaking circular dependency)."""
+    if observer_registry and observer_registry.has_observers():
+        # Use new observer-based event system
+        event = AgentModeChangeEvent.create(
+            step=step,
+            agent_id=agent.id,
+            old_mode=old_mode.value,
+            new_mode=new_mode.value,
+            reason=reason
+        )
+        observer_registry.notify(event)
+    else:
+        # Fallback to legacy logging system for backward compatibility
+        try:
+            from ..gui.debug_logger import log_agent_mode
+            log_agent_mode(agent.id, old_mode.value, new_mode.value, reason)
+        except ImportError:
+            # Graceful degradation if GUI logging not available
+            pass
 
 
 @dataclass(slots=True)
@@ -72,6 +93,8 @@ class Simulation:
     _last_trade_highlight: tuple[int,int,int] | None = None  # (x,y,expire_step)
     # Performance tracking for debug logging
     _step_times: list[float] = field(default_factory=list)
+    # Observer system integration (Phase 1.3: Observer Foundation)  
+    _observer_registry: ObserverRegistry = field(default_factory=ObserverRegistry)
 
     def __post_init__(self) -> None:
         """Initialize internal RNG from config seed if available."""
@@ -178,7 +201,7 @@ class Simulation:
 
                     # In bilateral exchange mode (IDLE), use tiered movement logic
                     if agent.mode == AgentMode.IDLE:
-                        self._handle_bilateral_exchange_movement(agent, rng)
+                        self._handle_bilateral_exchange_movement(agent, rng, step_num)
                     # Any other mode (should be rare here) just perform decision step for safety
         else:  # legacy randomness path (foraging always implicit here if enabled)
             for agent in self.agents:
@@ -464,6 +487,10 @@ class Simulation:
             pass  # Don't break simulation if logging fails
         
         self._steps += 1
+        
+        # Notify observers of step completion (Phase 1.3: Observer Foundation)
+        self._observer_registry.flush_step(step_num)
+        
         # Expire highlight if past its lifetime
         if self._last_trade_highlight is not None:
             # Only need expiry for maintenance; coordinates consumed by renderer.
@@ -573,12 +600,17 @@ class Simulation:
         else:
             self._respawn_interval = int(interval)
 
-    def _handle_bilateral_exchange_movement(self, agent: "Agent", rng: random.Random) -> None:
+    def _handle_bilateral_exchange_movement(self, agent: "Agent", rng: random.Random, step: int = 0) -> None:
         """Handle agent movement and pairing logic for bilateral trading mode.
         
         REFACTOR REQUIRED: This method is 140+ lines and handles multiple concerns
         (stagnation tracking, partner search, movement, trading). Should be decomposed
         into focused helper methods for better maintainability.
+        
+        Args:
+            agent: Agent to handle movement for
+            rng: Random number generator
+            step: Current simulation step number (for observer events)
         """
         # Utility stagnation tracking: compare current utility to last improvement baseline.
         # We use carrying bundle only; if first time (baseline 0) set immediately.
@@ -641,7 +673,8 @@ class Simulation:
                 else:
                     agent.clear_trade_partner()
             agent.force_deposit_once = True
-            _debug_log_mode_change(agent, agent.mode, AgentMode.RETURN_HOME, "stagnation")
+            _debug_log_mode_change(agent, agent.mode, AgentMode.RETURN_HOME, "stagnation", 
+                                  observer_registry=self._observer_registry, step=step)
             agent.mode = AgentMode.RETURN_HOME
             agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
             # Reset counters so we don't repeatedly trigger before deposit occurs
@@ -929,11 +962,13 @@ class Simulation:
                 a.pair_with_agent(partner)
                 # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
                 from .agent import AgentMode
-                _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
+                _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", 
+                                      observer_registry=self._observer_registry, step=step)
                 a.mode = AgentMode.MOVE_TO_PARTNER
                 a._track_target_change(a.meeting_point, step)
                 a.target = a.meeting_point
-                _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
+                _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", 
+                                      observer_registry=self._observer_registry, step=step)
                 partner.mode = AgentMode.MOVE_TO_PARTNER
                 partner._track_target_change(partner.meeting_point, step)
                 partner.target = partner.meeting_point

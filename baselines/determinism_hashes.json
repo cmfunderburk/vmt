@@ -1,0 +1,112 @@
+{
+  "timestamp": "2025-09-30T18:49:29",
+  "python_version": "3.12.3",
+  "validation_steps": 500,
+  "scenarios": [
+    {
+      "scenario_id": 1,
+      "scenario_name": "Baseline Unified Target Selection",
+      "seed": 12345,
+      "steps_executed": 500,
+      "agent_count": 20,
+      "resource_count": 120,
+      "determinism_hash": "0a128aa6bd9088e3",
+      "simulation_state_summary": {
+        "total_agents": 20,
+        "total_resources": 120,
+        "final_step": 500,
+        "agent_positions_hash": 8976754624165294660
+      }
+    },
+    {
+      "scenario_id": 2,
+      "scenario_name": "Sparse Long-Range",
+      "seed": 67890,
+      "steps_executed": 500,
+      "agent_count": 10,
+      "resource_count": 201,
+      "determinism_hash": "16828baa36b2c2bd",
+      "simulation_state_summary": {
+        "total_agents": 10,
+        "total_resources": 201,
+        "final_step": 500,
+        "agent_positions_hash": -5789735055714808613
+      }
+    },
+    {
+      "scenario_id": 3,
+      "scenario_name": "High Density Local",
+      "seed": 11111,
+      "steps_executed": 500,
+      "agent_count": 30,
+      "resource_count": 20,
+      "determinism_hash": "f2589a8d5f2882f1",
+      "simulation_state_summary": {
+        "total_agents": 30,
+        "total_resources": 20,
+        "final_step": 500,
+        "agent_positions_hash": -296887706818570304
+      }
+    },
+    {
+      "scenario_id": 4,
+      "scenario_name": "Large World Global",
+      "seed": 22222,
+      "steps_executed": 500,
+      "agent_count": 15,
+      "resource_count": 133,
+      "determinism_hash": "7354a92e189a9ac4",
+      "simulation_state_summary": {
+        "total_agents": 15,
+        "total_resources": 133,
+        "final_step": 500,
+        "agent_positions_hash": 2765181040902498680
+      }
+    },
+    {
+      "scenario_id": 5,
+      "scenario_name": "Pure Cobb-Douglas",
+      "seed": 44444,
+      "steps_executed": 500,
+      "agent_count": 25,
+      "resource_count": 126,
+      "determinism_hash": "45a652b122815fee",
+      "simulation_state_summary": {
+        "total_agents": 25,
+        "total_resources": 126,
+        "final_step": 500,
+        "agent_positions_hash": 3533365746844169751
+      }
+    },
+    {
+      "scenario_id": 6,
+      "scenario_name": "Pure Leontief",
+      "seed": 66666,
+      "steps_executed": 500,
+      "agent_count": 25,
+      "resource_count": 90,
+      "determinism_hash": "1d030f2b45cb428b",
+      "simulation_state_summary": {
+        "total_agents": 25,
+        "total_resources": 90,
+        "final_step": 500,
+        "agent_positions_hash": 4403167550515429778
+      }
+    },
+    {
+      "scenario_id": 7,
+      "scenario_name": "Pure Perfect Substitutes",
+      "seed": 88888,
+      "steps_executed": 500,
+      "agent_count": 25,
+      "resource_count": 176,
+      "determinism_hash": "997dafe21c72d5b0",
+      "simulation_state_summary": {
+        "total_agents": 25,
+        "total_resources": 176,
+        "final_step": 500,
+        "agent_positions_hash": 8345090228079574950
+      }
+    }
+  ]
+}

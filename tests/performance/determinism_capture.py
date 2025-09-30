@@ -112,9 +112,9 @@ class DeterminismCapture:
                         for res_type, count in sorted(agent.home_inventory.items()):
                             state_data.append(f"home_{agent.id}_{res_type}_{count}")
                 
-                # Resource positions
-                for resource in simulation.grid.iter_resources_sorted():
-                    state_data.append(f"resource_{resource.x}_{resource.y}_{resource.resource_type}")
+                # Resource positions (grid resources - static)
+                for x, y, rtype in simulation.grid.iter_resources_sorted():  # Correct tuple unpacking
+                    state_data.append(f"resource_{x}_{y}_{rtype}")  # Use tuple elements directly
                 
                 # Create hash from sorted state
                 state_str = "|".join(sorted(state_data))
