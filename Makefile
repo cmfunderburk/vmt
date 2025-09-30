@@ -39,11 +39,56 @@ test-unit:
 	pytest -q
 
 perf:
-	@echo "=== Synthetic Performance Test ==="
-	$(PYTHON) scripts/perf_stub.py
+	@echo "🚀 VMT EconSim Comprehensive Performance Baseline"
+	@echo "Running all 7 educational scenarios headless for simulation performance..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && $(PYTHON) tests/performance/baseline_capture.py --steps 1000 --warmup 100; \
+	else \
+		$(PYTHON) tests/performance/baseline_capture.py --steps 1000 --warmup 100; \
+	fi
+
+# Phase 0 Refactor Baseline Capture
+.PHONY: baseline-capture phase0-capture
+baseline-capture: phase0-capture
+
+phase0-capture:
+	@echo "📊 Phase 0: Comprehensive Baseline Capture for Refactor Validation"
+	@echo "This captures performance baselines, determinism hashes, and safety net validation"
+	@echo "Required before starting the unified refactor implementation"
 	@echo ""
-	@echo "=== Widget Performance Test ==="
-	$(PYTHON) scripts/perf_stub.py --mode widget --duration 3 --json
+	@mkdir -p baselines
+	@echo "1/4 Running performance baseline across all 7 educational scenarios..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && $(PYTHON) tests/performance/baseline_capture.py --output baselines/performance_baseline.json; \
+	else \
+		$(PYTHON) tests/performance/baseline_capture.py --output baselines/performance_baseline.json; \
+	fi
+	@echo "2/4 Capturing determinism hashes for refactor validation..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && $(PYTHON) tests/performance/determinism_capture.py --output baselines/determinism_hashes.json; \
+	else \
+		$(PYTHON) tests/performance/determinism_capture.py --output baselines/determinism_hashes.json; \
+	fi
+	@echo "3/4 Running refactor safety net tests..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && pytest tests/integration/test_refactor_safeguards.py -v; \
+	else \
+		pytest tests/integration/test_refactor_safeguards.py -v; \
+	fi
+	@echo "4/4 Running full test suite for baseline validation..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && pytest -q; \
+	else \
+		pytest -q; \
+	fi
+	@echo ""
+	@echo "✅ Phase 0 Baseline Capture Complete!"
+	@echo "📁 Performance baseline: baselines/performance_baseline.json"
+	@echo "📁 Determinism hashes: baselines/determinism_hashes.json"
+	@echo "🔒 All safety nets validated"
+	@echo ""
+	@echo "Ready to proceed with unified refactor implementation."
+	@echo "See tmp_plans/CURRENT/CRITICAL/UNIFIED_REFACTOR_PLAN.md for Phase 1 details."
 
 token:
 	# Generate VMT repository token analysis report
