@@ -103,11 +103,28 @@ ext_rng = random.Random(999)
 sim.step(ext_rng, use_decision=True)
 ```
 
-**Fixture Isolation**: Use `@pytest.fixture(autouse=True)` in `tests/conftest.py` to clear trade/forage flags between tests. All environment flags must be reset or tests will interfere.
+**Fixture Isolation**: Use `@pytest.fixture(autouse=True)` in `tests/conftest.py` to clear trade/forage flags between tests. All environment flags must be reset or tests will interfere. Critical flags: `ECONSIM_TRADE_*`, `ECONSIM_FORAGE_ENABLED`.
 
 **Mock Patterns**: For launcher tests, mock PyQt6 availability with `patch('module._qt_available', True)`. Use `TestConfiguration` mocks with proper `.id`, `.name` attributes.
 
-## 18. When Unsure
+## 18. Programmatic API Patterns
+**TestRunner Integration**: Prefer programmatic execution over subprocess launching:
+```python
+from econsim.tools.launcher.test_runner import create_test_runner
+runner = create_test_runner()  # ~0.004s initialization
+runner.run_by_id(1, "framework")  # Direct framework instantiation
+```
+
+**Structured Logging**: Use dedicated launcher logging system in `launcher_logs/` separate from simulation logs. Never use raw `print()` - use builders from `gui/debug_logger.py` or launcher logger.
+
+**Development Dependencies**: Requires Python >=3.11, PyQt6 >=6.5.0, pygame >=2.5.0, numpy >=1.24.0. Use `make venv` for canonical environment setup with all dev dependencies.
+
+## 19. Token Management & Performance
+**LLM Token Counter**: Use `make token` to generate comprehensive token analysis reports. Output in `llm_counter/vmt_token_report.md` tracks codebase size and complexity for LLM context optimization.
+
+**Performance Monitoring**: Use `make perf` for synthetic benchmarks. Widget performance testing with `--mode widget --duration 3 --json` for JSON output. Maintain FPS ≥60 target, ≥30 floor.
+
+## 20. When Unsure
 Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
 
 Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.
