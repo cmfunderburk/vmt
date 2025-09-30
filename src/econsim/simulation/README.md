@@ -7,6 +7,60 @@ Deterministic environment and agent orchestration layer. Responsible for advanci
 - Determinism invariants: ordered agent iteration, stable resource ordering (`Grid.iter_resources_sorted` / `serialize()`), tie-breaking for target selection, separated RNG streams.
 - Single-threaded; called from GUI QTimer or manual stepping via controller.
 
+## Step Decomposition (Phase 2)
+The former monolithic `Simulation.step()` (≈400 lines) has been decomposed into focused handlers executed by a `StepExecutor`:
+
+```
+Simulation.step() -> StepContext -> StepExecutor.execute_step()
+  Handlers (ordered):
+    1. MovementHandler      # movement + foraging + mode transitions
+    2. CollectionHandler    # legacy explicit collection + decision diff metrics
+    3. TradingHandler       # (when enabled) intent enumeration + optional execution
+    4. MetricsHandler       # step timing, spike detection, steps/sec estimate
+    5. RespawnHandler       # resource replenishment & density tracking
+```
+
+### Components
+| Component | Responsibility | Determinism Notes |
+|-----------|----------------|-------------------|
+| `StepContext` | Immutable per-step inputs (simulation ref, step number, external RNG, feature flags, observer registry) | No side-effects; not hashed |
+| `StepExecutor` | Sequentially invokes handlers, aggregates metrics, measures per-handler execution time | Preserves handler ordering; stable iteration |
+| `BaseStepHandler` | Timing wrapper + exception isolation | Exceptions are trapped; failure does not alter ordering |
+
+### Metrics & Hash Update Order
+Determinism hash (`MetricsCollector.record`) is invoked after all handlers complete but *before* the step counter increments. This preserves the historical interpretation of step numbers in hash payloads (hash includes `step = current_step_number`).
+
+### Transient Cross-Handler State
+A few ephemeral attributes on `Simulation` support coordination without mutating shared structures:
+- `_transient_foraged_ids`: Set of agent IDs that collected during movement/collection pass (used to gate trade intents). Deleted post-flush each step.
+- `pre_step_resource_count`: Snapshot for collection diff metrics.
+- `last_step_metrics`: Aggregated handler metrics (debug/testing only, excluded from hash).
+
+### Handler Design Guidelines
+- Single responsibility (movement vs collection vs trading, etc.).
+- Return only structured metrics (no direct mutation of unrelated subsystems).
+- Emit observer events instead of directly updating GUI or logging.
+- Avoid quadratic scans: resource & agent pairing limited to localized structures.
+- Do not introduce additional RNG draws; always reuse provided external RNG for legacy movement only; internal `_rng` remains reserved for future systems.
+
+### Performance Guardrails
+- Per-handler time is captured (`handler_timings` in ms). Movement dominates typical steps; others are sub-millisecond.
+- Performance tests now focus on absolute per-tick delta (added overhead ceiling) rather than fragile relative percentages on very small baselines.
+- Movement handler average per-step budget: ≤ 3 ms (asserted in perf test). Additional per-tick overhead cap currently 1.5 ms over baseline scenario.
+
+### Trading Determinism
+- Intent enumeration ordering must remain stable (co-location index build order + tie-break key).
+- Only one trade may execute per step when execution flag enabled.
+- Hash-neutral trade mode (if enabled) restores pre-trade inventories to keep determinism hashes stable during exploratory debugging.
+
+### Observer Integration
+Current coverage: All mode transitions routed via `AgentModeChangeEvent`. Future events planned:
+- `ResourceCollectionEvent`
+- `TradeExecutionEvent`
+- `AgentMovementEvent`
+
+A helper will centralize remaining direct `agent.mode =` sites to ensure 100% event coverage.
+
 ## File Inventory
 ### `config.py`
 Defines `SimConfig` dataclass (seed, grid size, perception radius, respawn parameters, preference selection, metrics enable flag, viewport size). Used by factories / tests to standardize simulation construction.
@@ -37,15 +91,10 @@ Grid model storing resources.
   - Bounds checking utilities.
 
 ### `world.py`
-`Simulation` dataclass orchestrating full step pipeline.
-- Fields: grid, agents list, internal step counter, config, internal RNG, respawn scheduler, metrics collector, trade intents, last trade highlight.
-- `step(rng, use_decision)`: Core per-tick logic:
-  1. Decision or legacy movement / foraging.
-  2. Optional bilateral exchange intent enumeration + single execution.
-  3. Metrics & respawn hooks.
-  4. Step counter increment (implicitly via metrics structure usage).
-- Trade integration: builds co-location index per tick, enumerates intents, executes one (priority ordering), updates metrics via `MetricsCollector.register_executed_trade`.
-- Foraging/trade gating based on environment variables.
+`Simulation` dataclass orchestrating full step pipeline via `StepExecutor` and handlers (see decomposition section). Maintains RNG separation, transient step state, observer registry, metrics collector, and optional respawn scheduler.
+
+### `execution/`
+Step decomposition framework (context, result, executor, handlers). Each handler file focuses on a single phase of the step.
 
 ### `trade.py`
 Bilateral trade primitives.
@@ -72,14 +121,20 @@ Serialization for persistence / replay.
 - Functions to capture and restore simulation state (agents, grid, inventories) while respecting append-only field ordering for hash parity.
 - Facilitates regression tests (hash equality across runs) and future save/load UX.
 
-### `agent.py` (covered above) & `__init__.py`
-`__init__` exposes convenient imports (e.g., `Simulation`, `Agent`).
+## Testing & Quality Gates
+- Determinism: Hash equality tests ensure no ordering or serialization drift. RNG draw count parity test verifies no silent randomness additions.
+- Performance: Per-tick delta and movement budget enforced in `test_perf_overhead` (post-decomposition form).
+- Handler Metrics: `last_step_metrics['handler_timings']` provides ms timings for quick profiling.
+- Observer Coverage: Mode change events validated; future events will expand coverage of collection/trade actions.
 
-## Refactor Targets
-- Extract decision movement logic into strategy object for easier testing.
-- Normalize trade delta utility computation (currently approximates buyer delta).
-- Introduce profiling hooks (timing per phase) behind debug flag.
+## Future Refactor Targets
+- Centralize remaining direct `agent.mode` assignments behind an event-emitting helper.
+- Introduce dedicated events: collection, trade execution, movement decision.
+- Expand metrics handler with rolling variance & optional structured export (without entering hash path).
+- Add configuration-driven handler enabling/disabling for educational scenarios.
 
-## Testing Notes
-- Determinism test suite relies on stable hash: avoid reordering agents/resources, altering tie-break keys, or changing serialization format without updating reference hashes.
-- Performance tests assert overlay rendering under 2% overhead and maintain FPS floor.
+## Change Log (Phase 2 Highlights)
+- Added step execution framework + handlers (movement, collection, trading, metrics, respawn).
+- Reintroduced determinism hash update in orchestration after decomposition.
+- Added RNG call count parity test.
+- Adjusted performance test philosophy (absolute per-tick overhead vs fragile relative % on ultra-fast baselines).

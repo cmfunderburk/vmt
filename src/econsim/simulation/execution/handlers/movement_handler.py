@@ -81,7 +81,13 @@ class MovementHandler(BaseStepHandler):
             # Legacy random movement mode
             agents_moved = self._handle_legacy_random_movement(context)
         
-        return StepResult.with_metrics(
+        # Store transient foraged IDs for TradingHandler gating (cleared end-of-step)
+        try:
+            context.simulation._transient_foraged_ids = set(foraged_ids)  # noqa: SLF001
+        except Exception:
+            pass
+
+        result = StepResult.with_metrics(
             self.handler_name,
             agents_moved=agents_moved,
             mode_changes=mode_changes,
@@ -89,6 +95,8 @@ class MovementHandler(BaseStepHandler):
             movement_mode="unified" if (use_decision and forage_enabled and not unified_disabled) else
                          "decision" if use_decision else "legacy_random"
         )
+        return result
+
     
     def _unified_selection_pass(self, context: StepContext) -> tuple[int, Set[int]]:
         """Execute unified selection pass for resource vs partner targeting."""
@@ -188,3 +196,5 @@ class MovementHandler(BaseStepHandler):
                 reason=reason
             )
             context.observer_registry.notify(event)
+
+    # NOTE: execute override removed; transient assignment handled inside _execute_impl

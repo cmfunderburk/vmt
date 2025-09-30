@@ -74,21 +74,25 @@ class CollectionHandler(BaseStepHandler):
                 collecting_agents.add(agent.id)
                 self._notify_collection_event(context, agent)
         
+        # Provide transient foraged IDs too (legacy path) for trading gating consistency
+        try:
+            context.simulation._transient_foraged_ids = set(collecting_agents)  # noqa: SLF001
+        except Exception:
+            pass
         return total_collected, collecting_agents
     
     def _track_decision_mode_collection(self, context: StepContext) -> tuple[int, Set[int]]:
         """Track collection metrics for decision mode (collection integrated in step_decision)."""
-        # In decision mode, collection happens inside agent.step_decision() calls
-        # This handler provides metrics tracking and observer events
-        
-        # We can estimate collection by checking resource changes or agent inventories
-        # For now, return empty metrics since collection tracking is complex to extract
-        # from the integrated step_decision process
-        
-        # TODO: Add proper collection event tracking when agent.collect() calls are
-        # routed through observer system in future integration
-        
-        return 0, set()
+        # Estimate based on pre-step snapshot vs current resource count.
+        sim = context.simulation
+        baseline = sim.pre_step_resource_count
+        if baseline is None:
+            return 0, set()
+        current = sim.grid.resource_count()
+        diff = baseline - current
+        if diff < 0:
+            diff = 0  # Ignore anomaly (should not happen before respawn)
+        return diff, set()
     
     def _notify_collection_event(self, context: StepContext, agent: Agent) -> None:
         """Notify observer system of resource collection events."""

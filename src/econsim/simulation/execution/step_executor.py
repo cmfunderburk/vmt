@@ -44,53 +44,30 @@ class StepExecutor:
     
     def execute_step(self, context: StepContext) -> Dict[str, Any]:
         """Execute all handlers for the current simulation step.
-        
-        Handlers are executed in the order provided during initialization.
-        Results are aggregated and returned for metrics collection.
-        
-        Args:
-            context: Immutable step context with simulation state
-            
-        Returns:
-            Aggregated metrics from all handler executions
+
+        Returns a flat metrics dict. Caller owns any higher-level aggregation
+        or logging. Keeping a simple structure avoids adding a wrapper object
+        that could affect determinism hashing if mistakenly serialized.
         """
         step_start = time.perf_counter()
-        aggregated_metrics = {}
+        aggregated: Dict[str, Any] = {}
         total_events = 0
-        handler_timings = {}
-        
+        handler_timings: Dict[str, float] = {}
+
         for handler in self.handlers:
-            try:
-                result = handler.execute(context)
-                
-                # Aggregate handler metrics
-                if result.metrics:
-                    handler_metrics = {f"{result.handler_name}_{k}": v 
-                                     for k, v in result.metrics.items()}
-                    aggregated_metrics.update(handler_metrics)
-                
-                # Track handler performance
-                handler_timings[result.handler_name] = result.execution_time_ms
-                total_events += result.events_count
-                
-            except Exception as e:
-                # Isolate handler failures - log error but continue execution
-                handler_name = getattr(handler, 'handler_name', handler.__class__.__name__)
-                print(f"Handler {handler_name} failed during step {context.step_number}: {e}")
-                
-                # Record failure in metrics
-                aggregated_metrics[f"{handler_name}_error"] = str(e)
-        
-        # Add overall step timing
-        total_step_time = (time.perf_counter() - step_start) * 1000
-        
-        return {
-            **aggregated_metrics,
-            "total_step_time_ms": total_step_time,
-            "total_events_generated": total_events,
-            "handler_timings": handler_timings,
-            "handlers_executed": len(self.handlers)
-        }
+            result = handler.execute(context)
+            # Prefix metrics with handler name to avoid collisions
+            if result.metrics:
+                for k, v in result.metrics.items():
+                    aggregated[f"{result.handler_name}_{k}"] = v
+            handler_timings[result.handler_name] = result.execution_time_ms
+            total_events += result.events_count
+
+        aggregated["total_events_generated"] = total_events
+        aggregated["handler_timings"] = handler_timings
+        aggregated["handlers_executed"] = len(self.handlers)
+        aggregated["total_step_time_ms"] = (time.perf_counter() - step_start) * 1000
+        return aggregated
     
     def get_handler_names(self) -> List[str]:
         """Get names of all registered handlers for debugging."""
