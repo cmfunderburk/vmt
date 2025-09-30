@@ -93,7 +93,7 @@ High-level inventory of public modules, classes, and primary methods/functions. 
 ---
 ## Environment / Feature Flags (Referenced APIs)
 - `ECONSIM_FORAGE_ENABLED` – toggles foraging behavior.
-- `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC`, `ECONSIM_TRADE_GUI_INFO`, `ECONSIM_TRADE_PRIORITY_DELTA`, `ECONSIM_TRADE_HASH_NEUTRAL`, `ECONSIM_DEBUG_TRADE_PARITY` – trade system behavior, ordering, neutrality.
+- `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC`, `ECONSIM_TRADE_GUI_INFO`, `ECONSIM_TRADE_PRIORITY_DELTA`, `ECONSIM_DEBUG_TRADE_PARITY` – trade system behavior, ordering, debug logging.
 - `ECONSIM_LEGACY_RANDOM` – legacy random walk mode selector.
 - `ECONSIM_DEBUG_FPS` – optional FPS console logging.
 - `ECONSIM_HEADLESS_RENDER` – fast bypass of drawing in CI.

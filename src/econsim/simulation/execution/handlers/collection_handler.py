@@ -96,19 +96,25 @@ class CollectionHandler(BaseStepHandler):
     
     def _notify_collection_event(self, context: StepContext, agent: Agent) -> None:
         """Notify observer system of resource collection events."""
-        # TODO: Implement ResourceCollectionEvent when defined in observability system
-        # For now, this is a placeholder for future observer integration
+        from ....observability.events import ResourceCollectionEvent
         
-        # Example of what this will look like:
-        # from ....observability.events import ResourceCollectionEvent
-        # 
-        # if context.observer_registry.has_observers():
-        #     event = ResourceCollectionEvent.create(
-        #         step=context.step_number,
-        #         agent_id=agent.id,
-        #         resource_position=(agent.x, agent.y),
-        #         resource_type="unknown",  # Would need to track from grid.take_resource_type
-        #     )
-        #     context.observer_registry.notify(event)
-        
-        pass
+        if context.observer_registry.has_observers():
+            # Get the resource type at agent's current position
+            resource_type = "unknown"
+            try:
+                # Try to get resource type from grid at agent position
+                grid_resource = context.simulation.grid.get_resource_at(agent.x, agent.y)
+                if grid_resource:
+                    resource_type = grid_resource.resource_type
+            except Exception:
+                pass  # Keep default "unknown" if we can't determine type
+                
+            event = ResourceCollectionEvent.create(
+                step=context.step_number,
+                agent_id=agent.id,
+                x=agent.x,
+                y=agent.y,
+                resource_type=resource_type,
+                amount_collected=1  # Default assumption
+            )
+            context.observer_registry.notify(event)

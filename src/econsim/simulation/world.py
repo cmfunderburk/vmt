@@ -372,9 +372,8 @@ class Simulation:
                 else:
                     agent.clear_trade_partner()
             agent.force_deposit_once = True
-            _debug_log_mode_change(agent, agent.mode, AgentMode.RETURN_HOME, "stagnation", 
-                                  observer_registry=self._observer_registry, step=step)
-            agent.mode = AgentMode.RETURN_HOME
+            from .agent_mode_utils import set_agent_mode
+            set_agent_mode(agent, AgentMode.RETURN_HOME, "stagnation", step, self._observer_registry)
             agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
             # Reset counters so we don't repeatedly trigger before deposit occurs
             agent.trade_stagnation_steps = 0
@@ -661,14 +660,11 @@ class Simulation:
                 a.pair_with_agent(partner)
                 # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
                 from .agent import AgentMode
-                _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", 
-                                      observer_registry=self._observer_registry, step=step)
-                a.mode = AgentMode.MOVE_TO_PARTNER
+                from .agent_mode_utils import set_agent_mode
+                set_agent_mode(a, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step, self._observer_registry)
                 a._track_target_change(a.meeting_point, step)
                 a.target = a.meeting_point
-                _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", 
-                                      observer_registry=self._observer_registry, step=step)
-                partner.mode = AgentMode.MOVE_TO_PARTNER
+                set_agent_mode(partner, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step, self._observer_registry)
                 partner._track_target_change(partner.meeting_point, step)
                 partner.target = partner.meeting_point
                 # Initial convergence step

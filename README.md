@@ -104,7 +104,7 @@ Current Mechanics:
 * Intent Fields: seller, buyer, give_type, take_type, delta_utility (approx combined marginal lift), priority tuple.
 * Metrics (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round`.
 * Inspector / Event Log: last executed trade summary (cleared on disable).
-* Hash Neutral Debug: `ECONSIM_TRADE_HASH_NEUTRAL=1` restores carrying inventories post-hash for parity exploration (not default).
+* Economic Coherence: Trade execution has real consequences - inventory changes persist and affect subsequent behavior.
 
 Determinism Safeguards:
 * Feature off (default) → simulation identical to pre-trade build.
@@ -271,7 +271,7 @@ Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist
 | Intent | Proposed single-unit swap between two co-located agents (fields: seller, buyer, give_type, take_type, delta_utility, priority tuple). Enumeration hash‑excluded. |
 | Priority Tuple | Ordering key (flagged): `(-delta_utility, seller_id, buyer_id, give_type, take_type)`; reorders only (multiset invariant). |
 | fairness_round | Advisory counter incremented each executed trade (hash-excluded) indicating progression of exchanges. |
-| Hash Neutral Mode | Debug flag `ECONSIM_TRADE_HASH_NEUTRAL=1` restoring carrying inventories post-hash to explore parity; not enabled in normal runs. |
+| Economic Coherence | Trade execution produces real inventory changes that persist and influence subsequent agent decisions and utility calculations. |
 | Agent Mode Debug | Debug flag `ECONSIM_DEBUG_AGENT_MODES=1` logging agent mode transitions (idle↔forage↔return_home↔move_to_partner) to console for behavioral debugging. |
 | Carrying Inventory | Goods presently held (mutable during execution). Included in current determinism hash (pending redesign). |
 | Home Inventory | Goods deposited at agent home; immutable during trading; part of lifetime wealth/utility. |
@@ -312,7 +312,7 @@ Added:
 * **fairness_round Metric**: Advisory progression counter.
 * **Executed Trade Highlight**: Pulsing cell outline for 12 steps.
 * **Partner Connection Lines**: Cyan lines between paired agents (overlay toggle).
-* **Hash Neutral Debug Mode**: `ECONSIM_TRADE_HASH_NEUTRAL=1` to restore carrying inventories after metrics hash for parity diagnostics.
+* **Economic Coherence**: Trade execution produces real inventory changes with lasting behavioral consequences.
 * **Selected Agent Highlight**: Light green border synced with Agent Inspector.
 
 Removed / Updated:

@@ -87,6 +87,10 @@ class TradingHandler(BaseStepHandler):
 			agents_by_id: Dict[int, Agent] = {a.id: a for a in sim.agents}
 			executed = execute_single_intent(intents, agents_by_id, context.step_number)
 
+			# Emit trade execution event for observer system
+			if executed is not None:
+				self._notify_trade_execution_event(context, executed)
+
 			# Highlight (for renderer) – 12 step lifetime consistent with legacy
 			if executed is not None:
 				seller_agent = agents_by_id.get(executed.seller_id)
@@ -187,6 +191,40 @@ class TradingHandler(BaseStepHandler):
 					a.clear_trade_partner()
 				except Exception:
 					pass
+
+	def _notify_trade_execution_event(self, context: StepContext, executed_intent) -> None:
+		"""Emit trade execution event to observer system."""
+		from ....observability.events import TradeExecutionEvent
+		
+		if context.observer_registry.has_observers():
+			# Calculate utility changes (approximation for now)
+			seller_delta_u = getattr(executed_intent, "delta_utility", 0.0)
+			buyer_delta_u = seller_delta_u  # Legacy parity approximation
+			
+			# Get trade location if available
+			trade_x, trade_y = -1, -1
+			try:
+				# Try to get seller agent position as trade location
+				sim = context.simulation
+				agents_by_id = {a.id: a for a in sim.agents}
+				seller_agent = agents_by_id.get(executed_intent.seller_id)
+				if seller_agent:
+					trade_x, trade_y = seller_agent.x, seller_agent.y
+			except Exception:
+				pass  # Keep default -1, -1
+			
+			event = TradeExecutionEvent.create(
+				step=context.step_number,
+				seller_id=executed_intent.seller_id,
+				buyer_id=executed_intent.buyer_id,
+				give_type=executed_intent.give_type,
+				take_type=executed_intent.take_type,
+				delta_u_seller=seller_delta_u,
+				delta_u_buyer=buyer_delta_u,
+				trade_location_x=trade_x,
+				trade_location_y=trade_y
+			)
+			context.observer_registry.notify(event)
 
 	def _cleanup_pairings(self, sim, executed: TradeIntent | None) -> None:
 		try:

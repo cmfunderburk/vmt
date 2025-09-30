@@ -118,17 +118,13 @@ class MovementHandler(BaseStepHandler):
                 
                 if not agent.at_home():
                     if agent.mode != AgentMode.RETURN_HOME:
-                        old_mode = agent.mode
-                        agent.mode = AgentMode.RETURN_HOME
-                        self._notify_mode_change(context, agent, old_mode, AgentMode.RETURN_HOME, "no_forage_return_home")
+                        self._set_agent_mode(context, agent, AgentMode.RETURN_HOME, "no_forage_return_home")
                         mode_changes += 1
                 else:
                     # Already at home, deposit and idle
                     agent.maybe_deposit()
                     if agent.mode != AgentMode.IDLE:
-                        old_mode = agent.mode
-                        agent.mode = AgentMode.IDLE
-                        self._notify_mode_change(context, agent, old_mode, AgentMode.IDLE, "no_forage_idle")
+                        self._set_agent_mode(context, agent, AgentMode.IDLE, "no_forage_idle")
                         mode_changes += 1
                 
                 # Execute movement step
@@ -136,32 +132,27 @@ class MovementHandler(BaseStepHandler):
         else:
             # Exchange enabled but foraging disabled
             for agent in context.simulation.agents:
-                old_mode = agent.mode
                 
                 # Transition FORAGE agents to IDLE when foraging disabled
                 if agent.mode == AgentMode.FORAGE and not context.feature_flags.forage_enabled:
-                    agent.mode = AgentMode.IDLE
+                    self._set_agent_mode(context, agent, AgentMode.IDLE, "forage_disabled")
                     agent.target = None
-                    self._notify_mode_change(context, agent, old_mode, AgentMode.IDLE, "forage_disabled")
                     mode_changes += 1
                 
                 # Handle home inventory withdrawal for trading
                 if agent.at_home() and sum(agent.home_inventory.values()) > 0:
                     agent.withdraw_all()
                     if agent.mode != AgentMode.IDLE:
-                        agent.mode = AgentMode.IDLE
+                        self._set_agent_mode(context, agent, AgentMode.IDLE, "withdraw_for_trade")
                         agent.target = None
-                        if old_mode != agent.mode:
-                            self._notify_mode_change(context, agent, old_mode, AgentMode.IDLE, "withdraw_for_trade")
-                            mode_changes += 1
+                        mode_changes += 1
                 
                 # Handle RETURN_HOME agents in exchange mode
                 if agent.mode == AgentMode.RETURN_HOME:
                     if not getattr(agent, "force_deposit_once", False):
                         # Convert to IDLE for exchange search (legacy behavior)
-                        agent.mode = AgentMode.IDLE
+                        self._set_agent_mode(context, agent, AgentMode.IDLE, "exchange_mode")
                         agent.target = None
-                        self._notify_mode_change(context, agent, AgentMode.RETURN_HOME, AgentMode.IDLE, "exchange_mode")
                         mode_changes += 1
                     else:
                         # Preserve forced deposit
@@ -183,8 +174,20 @@ class MovementHandler(BaseStepHandler):
             agent.move_random(context.simulation.grid, context.ext_rng)
         return len(context.simulation.agents)
     
+    def _set_agent_mode(self, context: StepContext, agent: Agent, new_mode: AgentMode, reason: str) -> None:
+        """Set agent mode using centralized utility with observer events."""
+        from ...agent_mode_utils import set_agent_mode
+        
+        set_agent_mode(
+            agent=agent,
+            new_mode=new_mode,
+            reason=reason,
+            step=context.step_number,
+            observer_registry=context.observer_registry
+        )
+    
     def _notify_mode_change(self, context: StepContext, agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str) -> None:
-        """Notify observer system of agent mode changes."""
+        """DEPRECATED: Use _set_agent_mode instead."""
         from ...observability.events import AgentModeChangeEvent
         
         if context.observer_registry.has_observers():
