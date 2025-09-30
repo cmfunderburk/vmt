@@ -95,6 +95,8 @@ class Simulation:
     _step_times: list[float] = field(default_factory=list)
     # Observer system integration (Phase 1.3: Observer Foundation)  
     _observer_registry: ObserverRegistry = field(default_factory=ObserverRegistry)
+    # Step execution system (Phase 2: Step Decomposition)
+    _step_executor: Any = field(default=None)
 
     def __post_init__(self) -> None:
         """Initialize internal RNG from config seed if available."""
@@ -103,27 +105,69 @@ class Simulation:
             self._rng = _random.Random(int(seed))
 
     def step(self, rng: random.Random, *, use_decision: bool = False) -> None:
-        """Advance simulation by one step.
+        """Advance simulation by one step using decomposed handler system.
 
-        REFACTOR REQUIRED: This method is 450+ lines and should be decomposed into
-        smaller, focused methods for maintainability and testability.
+        Orchestrates step execution through focused handlers while maintaining
+        deterministic behavior and performance characteristics.
 
         Args:
             rng: External RNG for legacy random movement mode
             use_decision: Enable deterministic decision-making and trading
         """
-        # Performance tracking
-        import time
-        import os
-        from ..gui.debug_logger import log_comprehensive, log_simulation, log_performance
-
-        step_start = time.perf_counter()
+        # Initialize step executor on first use
+        if self._step_executor is None:
+            self._initialize_step_executor()
+        
+        # Create step context for handlers
+        from .features import SimulationFeatures
+        from .execution import StepContext
+        
         step_num = self._steps + 1
-
-        # Comprehensive debug logging for simulation steps
-        log_comprehensive(f"=== SIMULATION STEP {step_num} START ===", step_num)
-
-    # Removed legacy summary line (Agents/Resources/Decision Mode) as redundant with newer instrumentation
+        feature_flags = SimulationFeatures.from_environment()
+        
+        context = StepContext(
+            simulation=self,
+            step_number=step_num,
+            ext_rng=rng,
+            feature_flags=feature_flags,
+            observer_registry=self._observer_registry
+        )
+        
+        # Execute step through handler system
+        step_result = self._step_executor.execute_step(context)
+        
+        # Update step counter and finalize
+        self._steps += 1
+        
+        # Log performance if enabled
+        if 'step_executor_time' in step_result.performance_data:
+            import os
+            if os.environ.get("ECONSIM_DEBUG_FPS") == "1":
+                exec_time = step_result.performance_data['step_executor_time']
+                print(f"Step {step_num} execution time: {exec_time:.4f}s")
+    
+    def _initialize_step_executor(self) -> None:
+        """Initialize the step executor with ordered handlers.
+        
+        Handler order is critical for deterministic behavior.
+        Do not reorder without updating validation tests.
+        """
+        from .execution import StepExecutor
+        from .execution.handlers.movement_handler import MovementHandler
+        from .execution.handlers.collection_handler import CollectionHandler
+        from .execution.handlers.trading_handler import TradingHandler
+        from .execution.handlers.metrics_handler import MetricsHandler
+        from .execution.handlers.respawn_handler import RespawnHandler
+        
+        handlers = [
+            MovementHandler(),      # Agent movement and mode transitions
+            CollectionHandler(),    # Resource collection events
+            TradingHandler(),      # Bilateral trading system
+            MetricsHandler(),      # Performance and behavioral metrics
+            RespawnHandler(),      # Resource respawn cycles
+        ]
+        
+        self._step_executor = StepExecutor(handlers)
 
         forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
         hash_neutral = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"  # default early to avoid unbound

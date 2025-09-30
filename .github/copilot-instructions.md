@@ -3,7 +3,7 @@
 
 **Critical Goal**: Maintain determinism and educational clarity. If changes affect ordering, hashing, or per-step complexity, STOP and add/adjust tests first.
 
-**🚧 ACTIVE REFACTOR**: Major `simulation/` and `debug_logger` refactoring planned in `tmp_plans/CURRENT/CRITICAL/UNIFIED_REFACTOR_PLAN.md`. Focus: decompose monolithic `Simulation.step()` (450+ lines) and break circular simulation→GUI dependencies via observer pattern. Before making changes to these areas, coordinate with the 4-phase refactor plan to avoid conflicts.
+**🎯 REFACTOR STATUS**: Phase 1 Observer Foundation COMPLETE (✅ Jan 2025). Circular simulation→GUI dependency BROKEN via observer pattern. New `src/econsim/observability/` module operational with backward compatibility. Ready for Phase 2 (Step Decomposition). See `tmp_plans/CURRENT/CRITICAL/PHASE_1_COMPLETE.md` for details.
 
 ## Quick Reference
 ```bash
@@ -60,7 +60,7 @@ sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ## 4. Core Edit Surface (no ad‑hoc clones)
 `simulation/world.py`, `simulation/agent.py`, `simulation/grid.py`, `simulation/trade.py`, `simulation/config.py`, `simulation/metrics.py`, `simulation/respawn.py`, `simulation/snapshot.py`, `preferences/factory.py`, `gui/embedded_pygame.py`, `gui/simulation_controller.py`, launcher under `tools/launcher/`. Extend here; keep schema append‑only.
 
-**⚠️ REFACTOR NOTE**: `simulation/` and `debug_logger` modules are currently being refactored to separate simulation logic from debugging. Coordinate changes in these areas to avoid merge conflicts.
+**⚠️ NEW OBSERVABILITY MODULE**: Use `src/econsim/observability/` for all event-driven logging. Legacy `debug_logger` maintains compatibility via adapter pattern. Agent mode changes integrated with observer system; extend via event types in `observability/events.py`.
 
 ## 5. Unified Selection Algorithm
 Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups vs (flagged) trade intents in O(agents + visible resources). Use existing spatial index; never introduce quadratic scans. Filter out non‑positive base ΔU early. Preserve tie‑break key ordering.
@@ -75,6 +75,24 @@ Distance‑discounted utility: ΔU' = ΔU / (1 + k·d²). Ranks resource pickups
 
 ## 7. Structured Debug Logging
 Use builders in `gui/debug_logger.py`; never raw print. Flags: `ECONSIM_LOG_LEVEL`, `ECONSIM_LOG_FORMAT`, `ECONSIM_LOG_CATEGORIES`, `ECONSIM_LOG_EXPLANATIONS=1`, `ECONSIM_LOG_DECISION_REASONING=1`.
+
+## 7.1 New Observability System (Phase 1 Complete)
+**Observer Pattern**: Use `src/econsim/observability/` for event-driven logging without circular dependencies:
+```python
+from econsim.observability.events import AgentModeChangeEvent
+from econsim.observability.observers import BaseObserver
+
+# Create events
+event = AgentModeChangeEvent.create(
+    step=step, agent_id=agent.id, old_mode="FORAGE", new_mode="RETURN_HOME", reason="stagnation"
+)
+
+# Register observers in simulation
+simulation._observer_registry.register(observer)
+simulation._observer_registry.notify(event)  # Thread-safe with exception handling
+```
+
+**Event Types Available**: `AgentModeChangeEvent` (4/24 mode changes integrated). Future: `ResourceCollectionEvent`, `TradeExecutionEvent`. **Legacy Compatibility**: Existing `debug_logger` API maintained via adapter pattern in `observability/legacy_adapter.py`.
 
 ## 8. Performance Guardrails
 Per step O(n) (n = agents + resources). Overlay & logging overhead <2%. Avoid per‑frame allocations (reuse surfaces, fonts). Focus: simulation steps per second (canonical performance test coming soon). Keep intent enumeration linear in co‑located agents.
@@ -125,6 +143,26 @@ sim.step(ext_rng, use_decision=True)
 
 **Widget Testing**: For EmbeddedPygameWidget tests, use module-scoped QApplication fixtures. Process events with timeouts and verify frame advancement: `getattr(widget, "_frame", 0) > 0`.
 
+**Observability Testing**: Use the observability system for event validation:
+```python
+from econsim.observability.observers import BaseObserver
+from econsim.observability.events import AgentModeChangeEvent
+
+class TestObserver(BaseObserver):
+    def __init__(self):
+        super().__init__()
+        self.events = []
+    
+    def notify(self, event):
+        self.events.append(event)
+
+# In tests
+observer = TestObserver()  
+sim._observer_registry.register(observer)
+sim.step(ext_rng, use_decision=True)
+assert any(isinstance(e, AgentModeChangeEvent) for e in observer.events)
+```
+
 ## 18. Programmatic API Patterns
 **TestRunner Integration**: Prefer programmatic execution over subprocess launching:
 ```python
@@ -159,11 +197,24 @@ config = ALL_TEST_CONFIGS.get(test_id)  # Type-safe configuration lookup
 
 **Launcher Status**: Enhanced TestRunner Phase 4 COMPLETED (100%, 87% size reduction). Modern programmatic API with `create_test_runner()` factory fully replaces subprocess-based testing. Ready for Phase 5 console script implementation or Gate 6 integration work.
 
-**Major Refactor Planned**: `tmp_plans/CURRENT/CRITICAL/UNIFIED_REFACTOR_PLAN.md` outlines 4-phase plan to decompose monolithic simulation components, break circular dependencies via observer pattern, and centralize environment flag management. Phase 0 (baseline capture) COMPLETED - see `PHASE_0_COMPLETE.md`. Ready for Phase 1 (Observer Foundation).
+**Major Refactor Progress**: Phase 1 Observer Foundation COMPLETE (Jan 2025) with circular dependency broken. Observer pattern operational, backward compatibility maintained. Next: Phase 2 (Step Decomposition) to break down monolithic `Simulation.step()`. Status tracked in `tmp_plans/CURRENT/CRITICAL/PHASE_1_COMPLETE.md`.
 
 **Recent Completions**: Multi-dimensional agent behavior aggregation (Phase 3.2), comprehensive launcher logging system, real-time health monitoring, and color-coded GUI status indicators.
 
-## 24. When Unsure
+## 24. Current Development Status & Next Steps
+**Phase 1 Complete**: Observer foundation is fully operational. All tests pass, performance improved +0.6%, and backward compatibility maintained. The circular simulation→GUI dependency has been broken.
+
+**Ready for Phase 2**: Step decomposition of monolithic `Simulation.step()` method. Focus areas:
+- Route remaining 20+ direct mode assignments through observer system
+- Break down 1056-line step method into focused handlers  
+- Add events for resource collection, trading, and movement
+- Maintain deterministic behavior throughout decomposition
+
+**Integration Status**: 4/24 agent mode changes use observer system. Remaining direct assignments (e.g., `agent.mode = AgentMode.FORAGE`) need wrapper calls for full observer integration.
+
+**Architecture Ready**: Observer registry, event system, configuration consolidation, and legacy adapters all functional. Phase 2 can proceed safely with existing infrastructure.
+
+## 25. When Unsure
 Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
 
 Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.
@@ -202,6 +253,11 @@ For PyQt6/Pygame integration tests, use these patterns:
 ## 23. Performance Baseline & Refactor Validation
 **Baseline Capture**: Use `make phase0-capture` for comprehensive refactor validation baseline. Captures performance across all 7 educational scenarios, determinism hashes, and runs safety net tests. Essential before any major architectural changes.
 
-**Performance Test**: `tests/performance/baseline_capture.py` provides headless simulation performance testing with configurable step counts. Current baseline: ~989.9 steps/sec mean performance across scenarios.
+**Performance Test**: `tests/performance/baseline_capture.py` provides headless simulation performance testing with configurable step counts. Current baseline: ~995.9 steps/sec mean performance across scenarios (+0.6% improvement from observer system optimization).
 
 **Determinism Validation**: `tests/performance/determinism_capture.py` captures state hashes for refactor validation. Critical for maintaining educational reproducibility.
+
+## 25. When Unsure
+Add / extend a determinism or perf test instead of guessing. If change spans decision + trade layers, isolate in one commit with explicit rationale. For launcher changes, validate with `pytest tests/unit/launcher/`.
+
+Expand via `README.md`, `src/econsim/simulation/README.md`, `docs/launcher_architecture.md`, and the config registry for deeper context.
