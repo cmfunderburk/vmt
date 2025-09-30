@@ -92,6 +92,14 @@ class Agent:
             # Keep only recent retargets (last 100 steps)
             if len(self._recent_retargets) > 100:
                 self._recent_retargets = self._recent_retargets[-100:]
+            
+            # Phase 3.2: Track retargeting behavior for behavior aggregation
+            try:
+                from ..gui.debug_logger import get_gui_logger
+                logger = get_gui_logger()
+                logger.track_agent_retargeting(step, self.id)
+            except Exception:
+                pass  # Don't break simulation if logging fails
     # Unified target selection metadata (resource vs partner) for GUI/testing
     current_unified_task: tuple[str, object] | None = field(default=None, init=False, repr=False)
     # Unified selection commitment (placeholder richer structure):
@@ -140,7 +148,7 @@ class Agent:
             self.x, self.y = nx, ny
 
     # --- Resource Interaction -------------------------------------
-    def collect(self, grid: Grid) -> bool:
+    def collect(self, grid: Grid, step: int = -1) -> bool:
         """Collect typed resource at current cell if present.
 
         Mapping policy (Gate 4 Phase P2 groundwork):
@@ -162,9 +170,25 @@ class Agent:
             return False
         if rtype == "A":
             self.carrying["good1"] += 1
+            # Phase 3.2: Track resource acquisition behavior
+            if step >= 0:
+                try:
+                    from ..gui.debug_logger import get_gui_logger
+                    logger = get_gui_logger()
+                    logger.track_agent_resource_acquisition(step, self.id)
+                except Exception:
+                    pass  # Don't break simulation if logging fails
             return True
         if rtype == "B":
             self.carrying["good2"] += 1
+            # Phase 3.2: Track resource acquisition behavior
+            if step >= 0:
+                try:
+                    from ..gui.debug_logger import get_gui_logger
+                    logger = get_gui_logger()
+                    logger.track_agent_resource_acquisition(step, self.id)
+                except Exception:
+                    pass  # Don't break simulation if logging fails
             return True
         # Unknown type: silently ignore (placeholder policy)
         return False
@@ -549,6 +573,7 @@ class Agent:
             self.select_target(grid)
         # Movement toward target
         if self.target is not None and (self.x, self.y) != self.target:
+            old_pos = (self.x, self.y)
             tx, ty = self.target
             dx = tx - self.x
             dy = ty - self.y
@@ -559,6 +584,16 @@ class Agent:
                 self.y += 1 if dy > 0 else -1
             else:  # same cell already (shouldn't happen due to earlier check)
                 pass
+            
+            # Phase 3.2: Track movement behavior
+            new_pos = (self.x, self.y)
+            if new_pos != old_pos:
+                try:
+                    from ..gui.debug_logger import get_gui_logger
+                    logger = get_gui_logger()
+                    logger.track_agent_movement(0, self.id, old_pos, new_pos)  # step will be updated by caller
+                except Exception:
+                    pass  # Don't break simulation if logging fails
         # Interactions
         collected = self.collect(grid)
         if collected:

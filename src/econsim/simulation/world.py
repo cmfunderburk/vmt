@@ -179,7 +179,7 @@ class Simulation:
             for agent in self.agents:
                 agent.move_random(self.grid, rng)
             for agent in self.agents:
-                agent.collect(self.grid)
+                agent.collect(self.grid)  # Legacy path - no step context
         # Draft trade intent enumeration (feature flag; no state mutation)
         if draft_enabled or exec_enabled:  # enumeration only when a trade feature flag is active
             intents: List[TradeIntent] = []
@@ -887,7 +887,7 @@ class Simulation:
                 a.target = pos
                 a.mode = AgentMode.FORAGE
                 # Immediate attempt collect if already on cell
-                collected = a.collect(self.grid)
+                collected = a.collect(self.grid, step)
                 if collected:
                     foraged_ids.add(a.id)
                     a._track_target_change(None, step)
@@ -909,7 +909,7 @@ class Simulation:
                             a.y += 1 if dy > 0 else -1
                         # Collect if arrived
                         if a.target is not None and (a.x, a.y) == a.target and self.grid.has_resource(a.x, a.y):
-                            if a.collect(self.grid):
+                            if a.collect(self.grid, step):
                                 foraged_ids.add(a.id)
                                 a.target = None
                                 # After collecting, check if should return home

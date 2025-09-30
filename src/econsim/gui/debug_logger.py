@@ -156,6 +156,23 @@ class GUILogger:
         self._pairing_current_step = -1
         self._pairing_stats_cache: dict[str, Any] = {}  # For anomaly detection
         
+        # Phase 3.1: Correlation ID and Causal Chain tracking
+        self._correlation_counter = 0
+        self._active_chains: Dict[str, Dict[str, Any]] = {}  # correlation_id -> chain_data
+        self._agent_to_correlation: Dict[tuple[int, int], str] = {}  # (agent1, agent2) -> correlation_id
+        
+        # Phase 3.2: Multi-Dimensional Agent Behavior Aggregation
+        self._behavior_window_size = 100  # Steps to aggregate over
+        self._behavior_current_step = -1
+        self._agent_behavior_data: Dict[int, Dict[str, Any]] = {}  # agent_id -> behavioral metrics
+        self._behavior_flush_interval = 100  # Flush every N steps
+        self._last_behavior_flush = -1
+        
+        # Phase 3.4: Intra-Step Event Clustering
+        self._clustering_current_step = -1
+        self._clustering_buffer: Dict[str, List[Dict[str, Any]]] = {}  # category -> [events]
+        self._successful_pairings_buffer: List[Dict[str, Any]] = []  # Preserve individual successful pairings
+        
         # Always use project-local logs directory
         # Logs stay in the project for development convenience and are excluded via .gitignore
         self.logs_dir = Path(__file__).parent.parent.parent.parent / "gui_logs"
@@ -949,13 +966,43 @@ class GUILogger:
                 cooldown_partner=0,
                 rejected_partners=rejected_partners,
             )
-            self.emit_built_event(step, builder_result)
+            
+            # Phase 3.1: Start causal chain for successful pairings
+            if chosen_id >= 0:  # Successful pairing
+                correlation_id = self.generate_correlation_id(agent_id, chosen_id, step)
+                self.start_causal_chain(correlation_id, step, (agent_id, chosen_id))
+                self.add_to_causal_chain(
+                    correlation_id, 
+                    "pairing_success", 
+                    0.0,  # ts_offset
+                    agent_pair=[agent_id, chosen_id],
+                    scan_count=scanned,
+                    eligible_count=eligible
+                )
+                # Add correlation_id to the payload before emitting
+                builder_result = (
+                    builder_result[0],  # compact
+                    {**builder_result[1], "correlation_id": correlation_id},  # payload with correlation_id
+                    builder_result[2]   # category
+                )
+            
+            # Phase 3.4: Use clustering for failed pairings, emit successful ones individually
+            self.emit_or_cluster_pairing_event(step, builder_result)
             
             # Track in accumulator for record keeping
             if chosen_id >= 0:
                 self._pairing_accumulator["successful_pairings"].append(search_data)
             else:
                 self._pairing_accumulator["anomalies"].append(search_data)
+        
+        # Phase 3.2: Track agent behavior for all search attempts
+        if chosen_id >= 0:
+            # Successful pairing
+            self.track_agent_pairing(step, agent_id, successful=True)
+            self.track_agent_partner(step, agent_id, chosen_id)
+        else:
+            # Failed pairing
+            self.track_agent_pairing(step, agent_id, successful=False)
     
     def _should_log_pairing_individually(self, search_data: dict[str, Any]) -> bool:
         """Determine if a PAIRING event should be logged individually."""
@@ -1043,6 +1090,14 @@ class GUILogger:
         
         self.emit_built_event(step, builder_result)
         
+        # Phase 3.2: Check if we should flush behavior data
+        if self.should_flush_behavior_data(step):
+            self.flush_agent_behavior_summaries(step)
+        
+        # Phase 3.4: Flush any remaining clustered events for this step
+        if self._clustering_current_step == step:
+            self._flush_clustered_step()
+        
         # Clear accumulator
         self._pairing_accumulator = {}
     
@@ -1080,6 +1135,345 @@ class GUILogger:
         
         return compact, payload, category
 
+    # Phase 3.1: Correlation ID and Causal Chain Methods
+    
+    def generate_correlation_id(self, agent1: int, agent2: int, step: int) -> str:
+        """Generate a correlation ID for a bilateral exchange sequence."""
+        self._correlation_counter += 1
+        return f"bex_{agent1}_{agent2}_step{step}_{self._correlation_counter}"
+    
+    def start_causal_chain(self, correlation_id: str, step: int, agent_pair: tuple[int, int]) -> None:
+        """Start tracking a causal chain for bilateral exchange analysis."""
+        self._active_chains[correlation_id] = {
+            "step": step,
+            "agent_pair": agent_pair,
+            "sequence": [],
+            "start_time": 0.0,
+            "outcome": "pending",
+            "educational_note": ""
+        }
+        # Track agent pair to correlation mapping
+        self._agent_to_correlation[agent_pair] = correlation_id
+    
+    def add_to_causal_chain(
+        self, 
+        correlation_id: str, 
+        event: str, 
+        ts_offset: float, 
+        **kwargs: Any
+    ) -> None:
+        """Add an event to an active causal chain."""
+        if correlation_id in self._active_chains:
+            event_data = {
+                "event": event,
+                "ts_offset": ts_offset,
+                **kwargs
+            }
+            self._active_chains[correlation_id]["sequence"].append(event_data)
+    
+    def finalize_causal_chain(
+        self, 
+        correlation_id: str, 
+        outcome: str, 
+        educational_note: str = ""
+    ) -> None:
+        """Complete and emit a causal chain event."""
+        if correlation_id not in self._active_chains:
+            return
+            
+        chain_data = self._active_chains[correlation_id]
+        chain_data["outcome"] = outcome
+        chain_data["educational_note"] = educational_note
+        
+        # Build the causal chain event
+        compact = (
+            f"CAUSAL_CHAIN: {correlation_id} outcome={outcome} "
+            f"agents={chain_data['agent_pair']} events={len(chain_data['sequence'])}"
+        )
+        
+        payload = {
+            "event": "bilateral_exchange_sequence",
+            "correlation_id": correlation_id,
+            "step": chain_data["step"],
+            "sequence": chain_data["sequence"],
+            "outcome": outcome,
+            "educational_note": educational_note
+        }
+        
+        # Emit the causal chain event
+        try:
+            builder_result = (compact, payload, "CAUSAL_CHAIN")
+            self.emit_built_event(chain_data["step"], builder_result)
+        except Exception:
+            pass  # Don't break simulation if logging fails
+        
+        # Clean up
+        agent_pair = chain_data["agent_pair"]
+        if agent_pair in self._agent_to_correlation:
+            del self._agent_to_correlation[agent_pair]
+        del self._active_chains[correlation_id]
+    
+    def get_correlation_for_agents(self, agent1: int, agent2: int) -> Optional[str]:
+        """Get existing correlation ID for agent pair (either order)."""
+        return (self._agent_to_correlation.get((agent1, agent2)) or 
+                self._agent_to_correlation.get((agent2, agent1)))
+    
+    # Phase 3.2: Multi-Dimensional Agent Behavior Aggregation
+    def _init_agent_behavior_data(self, agent_id: int):
+        """Initialize behavioral tracking for an agent"""
+        if agent_id not in self._agent_behavior_data:
+            self._agent_behavior_data[agent_id] = {
+                "pairing_count": 0,
+                "successful_trades": 0,
+                "failed_trades": 0,
+                "movement_distance": 0.0,
+                "utility_gains": [],
+                "mode_changes": 0,
+                "resource_acquisitions": 0,
+                "partner_diversity": set(),  # Track unique trading partners
+                "retarget_events": 0,
+                "last_position": None
+            }
+    
+    def track_agent_pairing(self, step: int, agent_id: int, successful: bool = False):
+        """Track pairing behavior for behavior aggregation"""
+        self._init_agent_behavior_data(agent_id)
+        self._agent_behavior_data[agent_id]["pairing_count"] += 1
+        if successful:
+            self._agent_behavior_data[agent_id]["successful_trades"] += 1
+        else:
+            self._agent_behavior_data[agent_id]["failed_trades"] += 1
+    
+    def track_agent_movement(self, step: int, agent_id: int, from_pos: tuple[int, int], to_pos: tuple[int, int]):
+        """Track movement behavior for behavior aggregation"""
+        self._init_agent_behavior_data(agent_id)
+        distance = ((to_pos[0] - from_pos[0])**2 + (to_pos[1] - from_pos[1])**2)**0.5
+        self._agent_behavior_data[agent_id]["movement_distance"] += distance
+        self._agent_behavior_data[agent_id]["last_position"] = to_pos
+    
+    def track_agent_utility_gain(self, step: int, agent_id: int, utility_gain: float):
+        """Track utility gains for behavior aggregation"""
+        self._init_agent_behavior_data(agent_id)
+        self._agent_behavior_data[agent_id]["utility_gains"].append(utility_gain)
+    
+    def track_agent_partner(self, step: int, agent_id: int, partner_id: int):
+        """Track trading partner diversity"""
+        self._init_agent_behavior_data(agent_id)
+        self._agent_behavior_data[agent_id]["partner_diversity"].add(partner_id)
+    
+    def track_agent_resource_acquisition(self, step: int, agent_id: int):
+        """Track resource acquisition events"""
+        self._init_agent_behavior_data(agent_id)
+        self._agent_behavior_data[agent_id]["resource_acquisitions"] += 1
+    
+    def track_agent_retargeting(self, step: int, agent_id: int):
+        """Track retargeting behavior"""
+        self._init_agent_behavior_data(agent_id)
+        self._agent_behavior_data[agent_id]["retarget_events"] += 1
+    
+    def should_flush_behavior_data(self, step: int) -> bool:
+        """Check if behavior data should be flushed"""
+        return (step - self._last_behavior_flush >= self._behavior_flush_interval) and step > 0
+    
+    def flush_agent_behavior_summaries(self, step: int):
+        """Flush accumulated agent behavior data as AGENT_BEHAVIOR_SUMMARY events"""
+        if not self._agent_behavior_data:
+            return
+        
+        # Calculate aggregate statistics
+        total_agents = len(self._agent_behavior_data)
+        high_activity_agents = []
+        typical_behavior = {
+            "avg_pairings": 0.0,
+            "avg_successful_trades": 0.0,
+            "avg_movement_distance": 0.0,
+            "avg_utility_gain": 0.0,
+            "avg_partner_diversity": 0.0
+        }
+        
+        # Collect metrics and identify high-activity agents
+        pairing_counts = []
+        successful_trades = []
+        movement_distances = []
+        all_utility_gains = []
+        partner_diversities = []
+        
+        for agent_id, behavior_data in self._agent_behavior_data.items():
+            pairing_count = behavior_data["pairing_count"]
+            successful_count = behavior_data["successful_trades"]
+            movement_dist = behavior_data["movement_distance"]
+            utility_gains = behavior_data["utility_gains"]
+            partner_count = len(behavior_data["partner_diversity"])
+            
+            pairing_counts.append(pairing_count)
+            successful_trades.append(successful_count)
+            movement_distances.append(movement_dist)
+            all_utility_gains.extend(utility_gains)
+            partner_diversities.append(partner_count)
+            
+            # Identify high-activity agents (top 10% by pairing count)
+            if pairing_count > 0:
+                high_activity_agents.append((agent_id, pairing_count, successful_count, partner_count))
+        
+        # Calculate typical behavior statistics
+        if pairing_counts:
+            typical_behavior["avg_pairings"] = sum(pairing_counts) / len(pairing_counts)
+        if successful_trades:
+            typical_behavior["avg_successful_trades"] = sum(successful_trades) / len(successful_trades)
+        if movement_distances:
+            typical_behavior["avg_movement_distance"] = sum(movement_distances) / len(movement_distances)
+        if all_utility_gains:
+            typical_behavior["avg_utility_gain"] = sum(all_utility_gains) / len(all_utility_gains)
+        if partner_diversities:
+            typical_behavior["avg_partner_diversity"] = sum(partner_diversities) / len(partner_diversities)
+        
+        # Sort and take top 10% for high activity
+        high_activity_agents.sort(key=lambda x: x[1], reverse=True)
+        top_count = max(1, len(high_activity_agents) // 10)
+        top_high_activity = high_activity_agents[:top_count]
+        
+        # Build compact summary
+        total_pairings = sum(pairing_counts)
+        total_successful = sum(successful_trades)
+        success_rate = (total_successful / total_pairings * 100) if total_pairings > 0 else 0
+        
+        compact = f"Agents: {total_agents}, Pairings: {total_pairings}, Success: {success_rate:.1f}%, High-Activity: {len(top_high_activity)}"
+        
+        # Create full payload
+        payload = {
+            "step_range": f"{self._last_behavior_flush + 1}-{step}",
+            "total_agents": total_agents,
+            "total_pairings": total_pairings,
+            "total_successful_trades": total_successful,
+            "success_rate_percent": round(success_rate, 2),
+            "typical_behavior": typical_behavior,
+            "high_activity_agents": [
+                {
+                    "agent_id": agent_id,
+                    "pairing_count": pairing_count,
+                    "successful_trades": successful_count,
+                    "partner_diversity": partner_count,
+                    "activity_multiplier": round(pairing_count / typical_behavior["avg_pairings"], 2) if typical_behavior["avg_pairings"] > 0 else 0
+                }
+                for agent_id, pairing_count, successful_count, partner_count in top_high_activity
+            ],
+            "environmental_context": {
+                "total_movement": sum(movement_distances),
+                "total_utility_gained": sum(all_utility_gains),
+                "avg_partner_diversity": typical_behavior["avg_partner_diversity"]
+            },
+            "educational_note": f"Behavioral analysis over {step - self._last_behavior_flush} steps showing agent activity patterns and trading effectiveness"
+        }
+        
+        # Emit the behavior summary
+        builder_result = (compact, payload, "AGENT_BEHAVIOR_SUMMARY")
+        self.emit_built_event(step, builder_result)
+        
+        # Reset behavior data for next window
+        self._agent_behavior_data.clear()
+        self._last_behavior_flush = step
+
+    # Phase 3.4: Intra-Step Event Clustering
+    def should_cluster_pairing_event(self, step: int, pairing_data: Dict[str, Any]) -> bool:
+        """Determine if a PAIRING event should be clustered or kept individual."""
+        # Always preserve successful pairings individually (needed for correlation tracking)
+        chosen_id = pairing_data.get("cho", pairing_data.get("chosen_id", -1))
+        if chosen_id >= 0:
+            return False
+        
+        # Always preserve anomalous scan counts individually (educational value)
+        scan_count = pairing_data.get("scan", pairing_data.get("scanned", 0))
+        if self._is_scan_count_anomaly(scan_count):
+            return False
+            
+        # Cluster failed pairings with normal scan counts
+        return True
+
+    def accumulate_clustered_event(self, step: int, category: str, event_data: Dict[str, Any]) -> None:
+        """Accumulate events for clustering by step and category."""
+        # Check if we need to flush previous step
+        if self._clustering_current_step != step and self._clustering_current_step >= 0:
+            self._flush_clustered_step()
+        
+        self._clustering_current_step = step
+        
+        # Initialize category buffer if needed
+        if category not in self._clustering_buffer:
+            self._clustering_buffer[category] = []
+        
+        # Add event to clustering buffer
+        self._clustering_buffer[category].append(event_data)
+
+    def emit_or_cluster_pairing_event(self, step: int, builder_result: tuple[str, Dict[str, Any], str]) -> None:
+        """Either emit PAIRING event individually or accumulate for clustering."""
+        compact, payload, category = builder_result
+        
+        # Check if this should be clustered
+        if category == "PAIRING" and self.should_cluster_pairing_event(step, payload):
+            # Add to clustering buffer
+            self.accumulate_clustered_event(step, "PAIRING_FAILED", payload)
+        else:
+            # Emit individually (successful pairings, anomalies, etc.)
+            self.emit_built_event(step, builder_result)
+
+    def _flush_clustered_step(self) -> None:
+        """Flush accumulated clustered events as batch events."""
+        if not self._clustering_buffer:
+            return
+        
+        step = self._clustering_current_step
+        
+        # Process PAIRING_FAILED events into PAIRING_BATCH
+        if "PAIRING_FAILED" in self._clustering_buffer:
+            failed_pairings = self._clustering_buffer["PAIRING_FAILED"]
+            if failed_pairings:
+                batch_result = self._build_pairing_batch_event(step, failed_pairings)
+                self.emit_built_event(step, batch_result)
+        
+        # Clear clustering buffer
+        self._clustering_buffer.clear()
+
+    def _build_pairing_batch_event(self, step: int, failed_pairings: List[Dict[str, Any]]) -> tuple[str, Dict[str, Any], str]:
+        """Build a PAIRING_BATCH event from multiple failed pairing attempts."""
+        count = len(failed_pairings)
+        
+        # Aggregate statistics using correct field names from PAIRING events
+        agent_ids = [p.get("a", p.get("agent_id", 0)) for p in failed_pairings]
+        scan_counts = [p.get("scan", p.get("scanned", 0)) for p in failed_pairings]  
+        eligible_counts = [p.get("elig", p.get("eligible", 0)) for p in failed_pairings]
+        
+        # Calculate aggregated rejection reasons
+        rejection_counts = {}
+        total_rejections = 0
+        for pairing in failed_pairings:
+            rejected_partners = pairing.get("rej", pairing.get("rejected_partners", []))
+            for partner_data in rejected_partners:
+                reason = partner_data.get("r", "unknown")
+                rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
+                total_rejections += 1
+        
+        # Build compact summary
+        compact = f"PAIRING_BATCH: step={step} failed={count} agents=[{min(agent_ids)}-{max(agent_ids)}] total_rej={total_rejections}"
+        
+        # Build detailed payload 
+        payload = {
+            "event": "failed_pairing_batch",
+            "step": step,
+            "failed_count": count,
+            "agent_ids": sorted(agent_ids),
+            "aggregate_stats": {
+                "total_scan": sum(scan_counts),
+                "avg_scan": sum(scan_counts) / len(scan_counts) if scan_counts else 0,
+                "total_eligible": sum(eligible_counts),
+                "avg_eligible": sum(eligible_counts) / len(eligible_counts) if eligible_counts else 0,
+            },
+            "rejection_breakdown": rejection_counts,
+            "total_rejections": total_rejections,
+            "educational_note": f"Batch of {count} failed pairing attempts showing common rejection patterns"
+        }
+        
+        return compact, payload, "PAIRING_BATCH"
+
     def build_trade_intent_funnel(
         self,
         drafted: int,
@@ -1087,6 +1481,7 @@ class GUILogger:
         pruned_nonpositive: int,
         executed: int,
         max_delta_u: float,
+        agent_pairs: Optional[list[tuple[int, int]]] = None,
     ) -> tuple[str, Dict[str, Any], str]:
         """Trade intent enumeration funnel summary for a step."""
         category = "TRADE"
@@ -1102,6 +1497,46 @@ class GUILogger:
             "executed": executed,
             "max_delta_u": round(max_delta_u, 6),
         }
+        
+        # Phase 3.1: Continue causal chains for failed trade executions
+        if agent_pairs and executed == 0:  # Failed to execute any trades
+            for agent1, agent2 in agent_pairs:
+                correlation_id = self.get_correlation_for_agents(agent1, agent2)
+                if correlation_id:
+                    self.add_to_causal_chain(
+                        correlation_id,
+                        "trade_intent_draft", 
+                        0.0,  # ts_offset
+                        agent_give=agent1,
+                        agent_take=agent2,
+                        max_delta_u=max_delta_u
+                    )
+                    
+                    # Determine failure reason
+                    if pruned_nonpositive > 0:
+                        reason = "nonpositive_utility" 
+                        educational_note = "Demonstrates utility calculation vs execution reality - theoretical gains may not materialize"
+                    elif pruned_micro > 0:
+                        reason = "micro_delta_threshold"
+                        educational_note = "Shows how small utility gains are filtered to prevent noise trades"
+                    else:
+                        reason = "unknown"
+                        educational_note = "Trade intent created but not executed"
+                        
+                    self.add_to_causal_chain(
+                        correlation_id,
+                        "trade_execution_result",
+                        0.015,  # small offset
+                        success=False,
+                        reason=reason
+                    )
+                    
+                    self.finalize_causal_chain(
+                        correlation_id,
+                        "failed_exchange",
+                        educational_note
+                    )
+        
         return compact, payload, category
 
     def build_trade_intent_none(self, cause: str) -> tuple[str, Dict[str, Any], str]:
@@ -1715,7 +2150,35 @@ def log_trade_detail(agent1_id: int, resource1: str, agent2_id: int, resource2: 
     if os.environ.get("ECONSIM_DEBUG_TRADES") == "1":
         utility_str = f" (Δ{utility_change:+.2f})" if utility_change is not None else ""
         message = f"Trade: {format_agent_id(agent1_id)} gives {resource1} to {format_agent_id(agent2_id)}; receives {resource2}{utility_str}"
-        get_gui_logger().log("TRADE", message, step)
+        
+        # Phase 3.1: Continue causal chain if correlation exists
+        logger = get_gui_logger()
+        correlation_id = logger.get_correlation_for_agents(agent1_id, agent2_id)
+        if correlation_id:
+            logger.add_to_causal_chain(
+                correlation_id,
+                "trade_execution_result",
+                0.0,  # ts_offset - would need actual timing
+                success=True,
+                agent_give=agent1_id,
+                agent_take=agent2_id,
+                goods=[resource1, resource2],
+                utility_change=utility_change
+            )
+            logger.finalize_causal_chain(
+                correlation_id,
+                "successful_exchange",
+                "Demonstrates successful bilateral trade with mutual utility gain"
+            )
+        
+        # Phase 3.2: Track utility gains for behavior aggregation
+        if utility_change is not None and step is not None:
+            # Assuming equal utility gain for both agents (could be refined with actual per-agent gains)
+            half_utility = utility_change / 2.0
+            logger.track_agent_utility_gain(step, agent1_id, half_utility)
+            logger.track_agent_utility_gain(step, agent2_id, half_utility)
+        
+        logger.log("TRADE", message, step)
 
 
 def log_enhanced_trade(agent1_id: int, resource1: str, agent1_utility_gain: float,
@@ -1724,6 +2187,12 @@ def log_enhanced_trade(agent1_id: int, resource1: str, agent1_utility_gain: floa
     """Log trade with educational explanations."""
     if os.environ.get("ECONSIM_DEBUG_TRADES") == "1":
         message = f"Trade: {format_agent_id(agent1_id)}↔{format_agent_id(agent2_id)} {resource1}→{resource2} (Δ{agent1_utility_gain:+.2f}, Δ{agent2_utility_gain:+.2f})"
+        
+        # Phase 3.2: Track individual utility gains for behavior aggregation
+        if step is not None:
+            logger = get_gui_logger()
+            logger.track_agent_utility_gain(step, agent1_id, agent1_utility_gain)
+            logger.track_agent_utility_gain(step, agent2_id, agent2_utility_gain)
         
         # Add educational explanation if enabled
         if _has_educational_logging:
