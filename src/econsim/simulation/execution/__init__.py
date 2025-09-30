@@ -30,10 +30,16 @@ from .result import StepResult
 from .step_executor import StepExecutor
 from .handlers import StepHandler, BaseStepHandler
 
+# Import concrete handlers
+from .handlers.movement_handler import MovementHandler
+from .handlers.collection_handler import CollectionHandler
+
 __all__ = [
     'StepExecutor',
     'StepContext', 
     'StepResult',
     'StepHandler',
-    'BaseStepHandler'
+    'BaseStepHandler',
+    'MovementHandler',
+    'CollectionHandler'
 ]
