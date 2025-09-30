@@ -54,8 +54,10 @@
    ```
 
 3. **Golden Log Capture**
+   - Use launcher/testrunner system with full logging enabled (all flags)
+   - Capture comprehensive debug output across all 7 educational test scenarios  
    ```bash
-   ECONSIM_DEBUG_AGENT_MODES=1 ECONSIM_DEBUG_TRADES=1 python scripts/golden_log_capture.py
+   python src/econsim/tools/launcher/golden_log_capture.py --all-scenarios --full-logging
    ```
 
 4. **Safety Net Tests**

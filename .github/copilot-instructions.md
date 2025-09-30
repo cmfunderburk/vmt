@@ -3,7 +3,7 @@
 
 **Critical Goal**: Maintain determinism and educational clarity. If changes affect ordering, hashing, or per-step complexity, STOP and add/adjust tests first.
 
-**🚧 ACTIVE REFACTOR**: Currently refactoring `simulation/` and `debug_logger` to cleanly separate simulation logic from debugging responsibilities. Before making changes to these areas, coordinate with ongoing work to avoid conflicts.
+**🚧 ACTIVE REFACTOR**: Major `simulation/` and `debug_logger` refactoring planned in `tmp_plans/CURRENT/CRITICAL/UNIFIED_REFACTOR_PLAN.md`. Focus: decompose monolithic `Simulation.step()` (450+ lines) and break circular simulation→GUI dependencies via observer pattern. Before making changes to these areas, coordinate with the 4-phase refactor plan to avoid conflicts.
 
 ## Quick Reference
 ```bash
@@ -143,15 +143,21 @@ config = ALL_TEST_CONFIGS.get(test_id)  # Type-safe configuration lookup
 
 **Development Dependencies**: Requires Python >=3.11, PyQt6 >=6.5.0, pygame >=2.5.0, numpy >=1.24.0. Use `make venv` for canonical environment setup with all dev dependencies.
 
+**Python Environment Setup**: Always use the `vmt-dev/` virtual environment created by `make venv`. The Makefile automatically detects and activates this environment for all development commands. Never install dependencies globally or use other virtual environments for development work.
+
 ## 19. Token Management & Performance
 **LLM Token Counter**: Use `make token` to generate comprehensive token analysis reports. Output in `llm_counter/vmt_token_report.md` tracks codebase size and complexity for LLM context optimization.
 
 **Performance Monitoring**: Use `make perf` for synthetic benchmarks (DEPRECATED - scheduled for update). Widget performance testing with `--mode widget --duration 3 --json` for JSON output. Focus: simulation steps per second, not rendering framerate.
 
+**Alternative Test Entry Points**: Beyond `make launcher`, also available: `make manual-tests` (legacy test start menu), `make batch-tests` (sequential execution with progress tracking), `make bookmarks` (bookmark manager for configurations). All use the `vmt-dev/` environment automatically.
+
 ## 20. Current Development State
 **Primary Branch**: `main` contains the latest stable architecture. Other branches are temporary backups and will be deleted.
 
-**Launcher Status**: Enhanced TestRunner Phase 4 completed (87% size reduction). Modern programmatic API with `create_test_runner()` factory replaces subprocess-based testing.
+**Launcher Status**: Enhanced TestRunner Phase 4 COMPLETED (100%, 87% size reduction). Modern programmatic API with `create_test_runner()` factory fully replaces subprocess-based testing. Ready for Phase 5 console script implementation or Gate 6 integration work.
+
+**Major Refactor Planned**: `tmp_plans/CURRENT/CRITICAL/UNIFIED_REFACTOR_PLAN.md` outlines 4-phase plan to decompose monolithic simulation components, break circular dependencies via observer pattern, and centralize environment flag management. Phase 0 (baseline capture) should be completed before any simulation core changes.
 
 **Recent Completions**: Multi-dimensional agent behavior aggregation (Phase 3.2), comprehensive launcher logging system, real-time health monitoring, and color-coded GUI status indicators.
 
