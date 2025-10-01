@@ -3,18 +3,21 @@
 
 **Date**: October 1, 2025  
 **Phase**: B (GUI System Consolidation) from Legacy Deprecation Plan  
-**Timeline**: 2-4 weeks  
-**Risk Level**: Medium  
+**Timeline**: DEFERRED - Requires Additional Analysis  
+**Risk Level**: Medium-High  
 
 ---
 
 ## Overview
 
+**PHASE B DEFERRAL NOTICE**: Upon completion of Phase A legacy cleanup, a more rigorous analysis is required before proceeding with GUI consolidation. The enhanced MainWindow system requires thorough evaluation to determine what functionality should be preserved from the minimal bootstrap fallback before removal.
+
 The GUI system currently operates with dual paths: an enhanced MainWindow system and a legacy minimal bootstrap fallback. This review analyzes the 5 identified GUI flag usages and provides detailed migration steps to establish the enhanced GUI as the single canonical interface.
 
 **Current State**: Dual GUI system with `ECONSIM_NEW_GUI` flag controlling which interface loads  
-**Target State**: Single enhanced MainWindow system with all legacy bootstrap code removed  
-**Expected Benefits**: Simplified maintenance, consistent user experience, performance optimization
+**Target State**: Single enhanced MainWindow system with all legacy bootstrap code removed (DEFERRED)  
+**Expected Benefits**: Simplified maintenance, consistent user experience, performance optimization  
+**Deferral Reason**: Need comprehensive feature analysis and integration planning before removal
 
 ---
 
@@ -343,21 +346,41 @@ def migrate_gui_consolidation():
 
 ---
 
-## Next Actions
+## Deferral Plan and Alternative Options
 
-### This Week
-1. [ ] Run enhanced GUI compatibility validation
-2. [ ] Performance benchmark current enhanced GUI system
-3. [ ] Create migration scripts for low-risk components
+### Phase B Deferral Justification
+After successful completion of Phase A, it has become clear that GUI consolidation requires more rigorous analysis than initially planned. Key concerns:
 
-### Next Week
-1. [ ] Execute Usage 3,4,5 migrations (low risk)
-2. [ ] Test consolidated system with updated documentation
-3. [ ] Prepare Usage 2 migration (function removal)
+1. **Feature Completeness Analysis**: Need systematic audit of minimal bootstrap features
+2. **Integration Complexity**: Enhanced GUI may not have full feature parity
+3. **Performance Considerations**: Minimal bootstrap may serve critical performance use cases
+4. **Risk Assessment**: Higher complexity than anticipated for "medium risk" phase
 
-### Following Weeks
-1. [ ] Execute Usage 2 and Usage 1 migrations
-2. [ ] Comprehensive system validation  
-3. [ ] Performance optimization if needed
+### Recommended Pre-Consolidation Analysis
+1. **Feature Audit**: Complete inventory of minimal bootstrap vs. enhanced GUI capabilities
+2. **Performance Benchmarking**: Quantitative analysis of startup times, memory usage, rendering performance
+3. **Use Case Analysis**: Document when/why minimal bootstrap is preferred
+4. **Integration Planning**: Design plan for incorporating essential minimal bootstrap features into enhanced GUI
+5. **Migration Strategy Refinement**: More detailed technical approach based on audit findings
 
-**Recommendation**: Proceed with low-risk migrations first (Week 2) to build confidence before tackling the higher-risk main entry point consolidation.
+### Alternative Phase Sequencing Options
+
+#### Option 1: Proceed to Phase C (GUILogger Removal)
+- **Rationale**: Phase C targets a specific deprecated component with clear boundaries
+- **Benefits**: Continues momentum from Phase A success, addresses technical debt
+- **Risks**: May create complications for later GUI consolidation
+- **Timeline**: 2-3 weeks (more focused scope than GUI consolidation)
+
+#### Option 2: Enhanced Pre-Analysis Phase (Phase B-1)
+- **Rationale**: Conduct thorough GUI system analysis before consolidation
+- **Benefits**: Reduces risk for actual consolidation, better planning
+- **Timeline**: 1-2 weeks analysis + 2-4 weeks implementation
+- **Deliverables**: Feature audit, performance benchmarks, integration plan
+
+#### Option 3: Parallel Approach
+- **Rationale**: Begin Phase C while conducting Phase B analysis
+- **Benefits**: Maintains development momentum, parallel progress
+- **Risks**: Resource allocation complexity, potential conflicts
+- **Timeline**: Overlapping 3-4 week timeframe
+
+**Recommendation**: **Proceed with Option 1 (Phase C)** to maintain momentum while deferring GUI consolidation for more thorough analysis.

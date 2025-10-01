@@ -103,24 +103,35 @@ This represents significant technical debt that can be systematically eliminated
 - [ ] Update README to remove legacy random movement references
 - [ ] Update AI coding instructions to reflect canonical architecture
 
-### Phase B: GUI System Consolidation (Medium Risk)
-**Timeline**: 2-4 weeks after Phase A  
-**Objective**: Establish enhanced GUI as single canonical interface
+### Phase B: GUI System Consolidation (DEFERRED)
+**Timeline**: DEFERRED - Requires comprehensive analysis  
+**Objective**: Establish enhanced GUI as single canonical interface  
+**Status**: **DEFERRED after Phase A completion**
 
-#### B.1: Legacy Bootstrap Removal
+**Deferral Rationale**: 
+Following Phase A success, analysis revealed that GUI consolidation requires more rigorous review than initially estimated. The dual GUI system (enhanced MainWindow vs. minimal bootstrap) needs thorough feature parity analysis and integration planning before safe removal.
+
+**Required Pre-Work**:
+- [ ] Complete feature audit of minimal bootstrap vs. enhanced GUI capabilities
+- [ ] Performance benchmarking and optimization analysis
+- [ ] Integration strategy for essential minimal bootstrap features
+- [ ] Risk assessment refinement based on technical analysis
+
+#### B.1: Legacy Bootstrap Removal (DEFERRED)
 - [ ] Remove `ECONSIM_NEW_GUI` flag and conditional logic
 - [ ] Make `MainWindow` the default and only GUI path
 - [ ] Update Makefile `dev` target to use enhanced GUI exclusively
 - [ ] Remove minimal bootstrap fallback code
 
-#### B.2: GUI Component Integration
+#### B.2: GUI Component Integration (DEFERRED)
 - [ ] Ensure all educational features work in enhanced GUI
 - [ ] Migration testing for any remaining legacy GUI users
 - [ ] Performance optimization for enhanced GUI path
 
-### Phase C: GUILogger Elimination (High Risk)
-**Timeline**: 4-8 weeks after Phase B  
-**Objective**: Complete migration to observer pattern with legacy compatibility removal
+### Phase C: GUILogger Elimination (High Risk) - PRIORITY CANDIDATE
+**Timeline**: 2-4 weeks (can proceed without Phase B)  
+**Objective**: Complete migration to observer pattern with legacy compatibility removal  
+**Status**: **Primary candidate for next phase** following Phase B deferral
 
 #### C.1: Usage Analysis and Migration
 - [ ] Audit all GUILogger usage across codebase (40+ files)
@@ -229,14 +240,19 @@ registry.notify(AgentModeChangeEvent.create(...))
 
 ## Implementation Timeline
 
-| Phase | Duration | Key Deliverables | Risk Level |
-|-------|----------|------------------|------------|
-| **A: Immediate Cleanup** | 1-2 weeks | Flag removal, test cleanup, docs | LOW |
-| **B: GUI Consolidation** | 2-4 weeks | Single GUI path, enhanced features | MEDIUM |  
-| **C: GUILogger Elimination** | 4-8 weeks | Observer-only system, performance gains | HIGH |
-| **Validation & Polish** | 1-2 weeks | Testing, documentation, performance | LOW |
+| Phase | Duration | Key Deliverables | Risk Level | Status |
+|-------|----------|------------------|------------|---------|
+| **A: Immediate Cleanup** | 1-2 weeks | Flag removal, test cleanup, docs | LOW | ✅ **COMPLETE** |
+| **B: GUI Consolidation** | DEFERRED | Single GUI path, enhanced features | MEDIUM-HIGH | 🔄 **DEFERRED** |  
+| **C: GUILogger Elimination** | 2-4 weeks | Observer-only system, performance gains | HIGH | 🎯 **NEXT PRIORITY** |
+| **Validation & Polish** | 1-2 weeks | Testing, documentation, performance | LOW | ⏸️ **PENDING** |
 
-**Total Timeline**: 8-16 weeks for complete legacy system elimination
+**Updated Timeline**: 
+- **Phase A**: ✅ Complete (1 week actual)
+- **Phase B**: 🔄 Deferred pending comprehensive analysis
+- **Phase C**: 🎯 Ready to proceed (estimated 2-4 weeks)
+
+**Total Revised Timeline**: 3-6 weeks for prioritized legacy elimination (Phase A complete + Phase C)
 
 ---
 
