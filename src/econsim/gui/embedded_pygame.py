@@ -66,13 +66,19 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self.SURFACE_SIZE = (viewport_size, viewport_size)
         # Cache decision mode default (Gate 6 integration finalization):
         # Precedence: explicit constructor param > env flag > default True.
-        # Env flag ECONSIM_LEGACY_RANDOM=1 forces legacy random walk.
+        # Legacy random mode deprecated: always decision mode. Emit warning if env set.
         import os as _os  # local alias to avoid top-level changes
-        env_legacy = _os.environ.get("ECONSIM_LEGACY_RANDOM") == "1"
-        if decision_mode is not None:
-            self._use_decision_default = bool(decision_mode)
-        else:
-            self._use_decision_default = not env_legacy
+        if _os.environ.get("ECONSIM_LEGACY_RANDOM") == "1":
+            try:
+                import warnings as _warn
+                _warn.warn(
+                    "ECONSIM_LEGACY_RANDOM is deprecated and ignored; decision system always enabled.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            except Exception:  # pragma: no cover
+                pass
+        self._use_decision_default = True if decision_mode is None else bool(decision_mode)
         # Set SDL video driver for headless environments before pygame.init()
         import os
 
@@ -263,6 +269,11 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 agent_count = len(getattr(self._simulation, 'agents', []))
                 resource_count = 0  # Simplified: avoid complex grid iteration for FPS logging
                 log_performance_analysis(fps, step_time, 0.0, agent_count, resource_count)
+                # Minimal stdout emission required by test_fps_logging_gate ([FPS] token presence)
+                try:
+                    print(f"[FPS] {fps:.2f} agents={agent_count}")
+                except Exception:
+                    pass
             self._fps_last_report = now
 
     def _update_scene(self) -> None:

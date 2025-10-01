@@ -176,8 +176,7 @@ class MetricsCollector:
     def register_executed_trade(self, *, step: int, agent1_id: int, agent2_id: int,
                                 agent1_give: str, agent1_take: str,
                                 agent1_delta_u: float, agent2_delta_u: float,
-                                realized_utility_gain: float | None = None,
-                                hash_neutral: bool = False) -> None:
+                                realized_utility_gain: float | None = None) -> None:
         """Register completed bilateral trade with full metrics tracking.
         
         Updates global counters, utility totals, and delegates to record_bilateral_trade
@@ -189,7 +188,6 @@ class MetricsCollector:
             agent1_give, agent1_take: Resource types exchanged
             agent1_delta_u, agent2_delta_u: Utility changes for each agent
             realized_utility_gain: Optional explicit utility gain (defaults to agent1_delta_u)
-            hash_neutral: Skip utility aggregation for determinism debugging
         """
         # Counters
         self.trades_executed += 1
@@ -199,15 +197,14 @@ class MetricsCollector:
             self.fairness_round += 1
         except Exception:  # pragma: no cover - defensive
             pass
-        # Realized utility (approx) unless suppressed
-        if not hash_neutral:
-            try:
-                gain = realized_utility_gain
-                if gain is None:
-                    gain = float(agent1_delta_u)
-                self.realized_utility_gain_total += float(gain)
-            except Exception:  # pragma: no cover
-                pass
+        # Realized utility aggregation (always enabled for economic coherence)
+        try:
+            gain = realized_utility_gain
+            if gain is None:
+                gain = float(agent1_delta_u)
+            self.realized_utility_gain_total += float(gain)
+        except Exception:  # pragma: no cover
+            pass
         # Delegate to history recorder (no counters inside)
         self.record_bilateral_trade(
             step=step,

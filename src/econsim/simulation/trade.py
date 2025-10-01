@@ -368,8 +368,7 @@ def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Ag
         seller_utility_before = seller.current_utility()
         buyer_utility_before = buyer.current_utility()
         
-        # Perform swap (normal execution). Hash neutrality (if desired) is handled by restoration
-        # logic in Simulation.step when ECONSIM_TRADE_HASH_NEUTRAL=1.
+        # Perform swap (economic coherence - trade has real consequences)
         seller.carrying[intent.give_type] -= 1
         buyer.carrying[intent.give_type] = buyer.carrying.get(intent.give_type, 0) + 1
         buyer.carrying[intent.take_type] -= 1

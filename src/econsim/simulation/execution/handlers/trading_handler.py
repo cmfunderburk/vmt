@@ -7,7 +7,7 @@ Determinism invariants preserved:
  - Co-location map built in agent list order → dict preserves insertion order
  - Intents enumeration order matches legacy logic
  - ≤1 trade executed per step (best intent chosen inside execute_single_intent)
- - Hash-neutral parity mode restores inventories (ECONSIM_TRADE_HASH_NEUTRAL=1)
+ - Economic coherence: trades have real inventory consequences
 
 Cross-handler data:
  - Movement/Collection populate simulation._transient_foraged_ids (optional set)
@@ -77,13 +77,8 @@ class TradingHandler(BaseStepHandler):
 		sim.trade_intents = intents  # store for GUI / observability
 
 		executed: TradeIntent | None = None
-		parity_snapshot = None
-		hash_neutral = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"
 
 		if exec_enabled and intents:
-			if hash_neutral:
-				parity_snapshot = [(a.id, dict(a.carrying)) for a in sim.agents]
-
 			agents_by_id: Dict[int, Agent] = {a.id: a for a in sim.agents}
 			executed = execute_single_intent(intents, agents_by_id, context.step_number)
 
@@ -119,7 +114,6 @@ class TradingHandler(BaseStepHandler):
 							agent1_delta_u=seller_delta_u,
 							agent2_delta_u=buyer_delta_u,
 							realized_utility_gain=seller_delta_u,
-							hash_neutral=hash_neutral,
 						)
 					else:
 						mc.no_trade_ticks += 1  # type: ignore[attr-defined]
@@ -143,15 +137,6 @@ class TradingHandler(BaseStepHandler):
 				print("[PARITY_EXEC_SNAP]" + _json.dumps(snap))
 			except Exception:
 				pass
-
-		# Hash-neutral restoration (after metrics & debug)
-		if parity_snapshot is not None:
-			id_map = {a.id: a for a in sim.agents}
-			for aid, carry in parity_snapshot:
-				agent = id_map.get(aid)
-				if agent is not None:
-					agent.carrying.clear()
-					agent.carrying.update(carry)
 
 		# Pairing cleanup for stale sessions
 		self._cleanup_pairings(sim, executed)

@@ -65,8 +65,19 @@ class SimulationFeatures:
         Returns:
             SimulationFeatures with settings from environment
         """
-        # Legacy random movement (disable decision system)
-        legacy_random_movement = os.environ.get("ECONSIM_LEGACY_RANDOM", "0") == "1"
+        # Legacy random movement DEPRECATED: always False (decision/unified system mandatory)
+        legacy_env = os.environ.get("ECONSIM_LEGACY_RANDOM")
+        if legacy_env == "1":
+            try:
+                import warnings as _warn
+                _warn.warn(
+                    "ECONSIM_LEGACY_RANDOM is deprecated and ignored; decision system always enabled.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            except Exception:  # pragma: no cover - defensive
+                pass
+        legacy_random_movement = False
         
         # Resource collection (default enabled, explicit disable with =0)
         forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") != "0"
@@ -93,7 +104,8 @@ class SimulationFeatures:
         Returns:
             True if decision system should be used for agent behavior
         """
-        return not self.legacy_random_movement
+        # Legacy mode deprecated: always True
+        return True
 
     def is_trading_enabled(self) -> bool:
         """Check if any trading functionality is enabled.
@@ -125,10 +137,6 @@ class SimulationFeatures:
             )
             
         # Warn if both legacy and modern systems might conflict
-        if self.legacy_random_movement and (self.trade_draft_enabled or self.trade_execution_enabled):
-            warnings.append(
-                "Legacy random movement enabled with trading features. "
-                "Trading may not work as expected in legacy mode."
-            )
+        # Legacy random movement removed: no mixed-mode warning needed
             
         return warnings

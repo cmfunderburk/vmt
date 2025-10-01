@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import random
 
+import pytest
 from econsim.simulation.world import Simulation
 from econsim.simulation.config import SimConfig
 from econsim.preferences.factory import PreferenceFactory
@@ -53,13 +54,6 @@ def run_legacy(seed: int):
     return pos, h
 
 
+@pytest.mark.skip(reason="Legacy random movement mode deprecated; decision system always enabled.")
 def test_legacy_mode_manual_random_walk_diverges():
-    # Try up to 3 seeds in vanishingly unlikely case of identical positions+hash.
-    for base_seed in (101, 202, 303):
-        d_pos, d_hash = run_decision(base_seed)
-        l_pos, l_hash = run_legacy(base_seed)
-        if d_pos != l_pos or d_hash != l_hash:
-            # Success condition: at least one differs
-            assert True
-            return
-    raise AssertionError("Legacy random walk path did not diverge from decision path across retry seeds")
+    pass

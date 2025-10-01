@@ -6,9 +6,8 @@ feature flags and agent states while preserving deterministic behavior.
 
 Movement Modes:
 - Unified Selection: Distance-discounted utility for resource/partner targeting
-- Decision Mode: Agent-driven movement toward selected targets  
-- Legacy Random: Random walk movement for regression testing
-- Bilateral Exchange: Partner-seeking movement in trading scenarios
+- Decision Mode: Agent-driven movement toward selected targets (default)
+- Bilateral Exchange: Partner-seeking movement in trading scenarios (when trading enabled)
 
 Design Principles:
 - Preserve exact RNG call patterns for determinism
@@ -26,41 +25,26 @@ from ...agent import Agent, AgentMode
 
 
 class MovementHandler(BaseStepHandler):
-    """Handles agent movement decisions and execution.
-    
-    Extracts movement logic from Simulation.step() while maintaining
-    identical behavior patterns. Supports unified selection, decision
-    mode, legacy random movement, and bilateral exchange scenarios.
-    """
-    
+    """Handles agent movement decisions and execution (legacy random removed)."""
+
     def __init__(self):
         super().__init__("movement")
-    
+
     def _execute_impl(self, context: StepContext) -> StepResult:
-        """Execute agent movement for the current step."""
         agents_moved = 0
         mode_changes = 0
-        
-        # Get current feature flag state
+
         forage_enabled = context.feature_flags.forage_enabled
-        use_decision = not context.feature_flags.legacy_random_movement
         draft_enabled = context.feature_flags.trade_draft_enabled
         exec_enabled = context.feature_flags.trade_execution_enabled
-        
-        # Check unified selection flags (preserve original logic)
         unified_disabled = os.environ.get("ECONSIM_UNIFIED_SELECTION_DISABLE") == "1"
-        explicit_unified = os.environ.get("ECONSIM_UNIFIED_SELECTION_ENABLE") == "1"
-        
-        # Initialize foraged_ids set for trade gating coordination with other handlers
+
         foraged_ids: Set[int] = set()
-        
-        if use_decision and forage_enabled and (not unified_disabled) and (exec_enabled or explicit_unified):
-            # Unified selection mode: evaluate resource vs partner for all agents
+
+        if forage_enabled and not unified_disabled:
             agents_moved, new_foraged_ids = self._unified_selection_pass(context)
             foraged_ids.update(new_foraged_ids)
-            
-        elif use_decision and forage_enabled:
-            # Standard decision mode with foraging enabled
+        elif forage_enabled:
             for agent in context.simulation.agents:
                 try:
                     collected = agent.step_decision(context.simulation.grid)
@@ -68,34 +52,24 @@ class MovementHandler(BaseStepHandler):
                         foraged_ids.add(agent.id)
                         agents_moved += 1
                 except TypeError:
-                    # Legacy fallback
-                    agent.step_decision(context.simulation.grid) 
+                    agent.step_decision(context.simulation.grid)
                     agents_moved += 1
-                    
-        elif use_decision and not forage_enabled:
-            # Decision mode but foraging disabled
+        else:
             mode_changes += self._handle_no_forage_movement(context, draft_enabled, exec_enabled)
             agents_moved = len(context.simulation.agents)
-            
-        else:
-            # Legacy random movement mode
-            agents_moved = self._handle_legacy_random_movement(context)
-        
-        # Store transient foraged IDs for TradingHandler gating (cleared end-of-step)
-        try:
+
+        try:  # Transient for TradingHandler gating
             context.simulation._transient_foraged_ids = set(foraged_ids)  # noqa: SLF001
         except Exception:
             pass
 
-        result = StepResult.with_metrics(
+        return StepResult.with_metrics(
             self.handler_name,
             agents_moved=agents_moved,
             mode_changes=mode_changes,
             foraged_agent_count=len(foraged_ids),
-            movement_mode="unified" if (use_decision and forage_enabled and not unified_disabled) else
-                         "decision" if use_decision else "legacy_random"
+            movement_mode="unified" if (forage_enabled and not unified_disabled) else "decision",
         )
-        return result
 
     
     def _unified_selection_pass(self, context: StepContext) -> tuple[int, Set[int]]:
@@ -168,11 +142,7 @@ class MovementHandler(BaseStepHandler):
         
         return mode_changes
     
-    def _handle_legacy_random_movement(self, context: StepContext) -> int:
-        """Handle legacy random walk movement mode."""
-        for agent in context.simulation.agents:
-            agent.move_random(context.simulation.grid, context.ext_rng)
-        return len(context.simulation.agents)
+    # Legacy random movement removed.
     
     def _set_agent_mode(self, context: StepContext, agent: Agent, new_mode: AgentMode, reason: str) -> None:
         """Set agent mode using centralized utility with observer events."""
