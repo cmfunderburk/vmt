@@ -169,7 +169,8 @@ class MovementHandler(BaseStepHandler):
             new_mode=new_mode,
             reason=reason,
             step=context.step_number,
-            observer_registry=context.observer_registry
+            observer_registry=context.observer_registry,
+            event_buffer=context.event_buffer
         )
     
     def _notify_mode_change(self, context: StepContext, agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str) -> None:
