@@ -34,18 +34,5 @@ def set_agent_mode(agent: 'Agent', new_mode: 'AgentMode', reason: str = "",
         step: Current step number
         observer_registry: Observer registry for event emission (optional)
     """
-    from ...observability.events import AgentModeChangeEvent
-    
-    old_mode = agent.mode
-    agent.mode = new_mode
-    
-    # Emit observer event if registry is available
-    if observer_registry and observer_registry.has_observers():
-        event = AgentModeChangeEvent.create(
-            step=step,
-            agent_id=agent.id,
-            old_mode=old_mode.value,
-            new_mode=new_mode.value,
-            reason=reason
-        )
-        observer_registry.notify(event)
+    # Use the agent's centralized _set_mode() helper to ensure consistent event emission
+    agent._set_mode(new_mode, reason, observer_registry, step)

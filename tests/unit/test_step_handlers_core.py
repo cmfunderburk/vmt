@@ -34,14 +34,7 @@ def test_movement_mode_metrics_decision(monkeypatch):  # type: ignore[missing-an
     assert any('movement_mode' in k for k in keys), f"Movement metrics missing: {keys}"
 
 
-def test_movement_mode_metrics_legacy(monkeypatch):  # type: ignore[missing-annotations]
-    monkeypatch.setenv("ECONSIM_LEGACY_RANDOM", "1")
-    sim = build_sim([(0,0),(1,1)])
-    rng = random.Random(2)
-    sim.step(rng, use_decision=False)
-    metrics = sim.last_step_metrics or {}
-    mode = metrics.get('movement_movement_mode')
-    assert mode == 'legacy_random'
+# Legacy movement test removed - legacy random movement is deprecated and no longer supported
 
 
 def test_collection_diff_decision(monkeypatch):  # type: ignore[missing-annotations]

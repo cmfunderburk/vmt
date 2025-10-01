@@ -106,6 +106,17 @@ class AgentModeChangeEvent(SimulationEvent):
             reason=reason
         )
 
+    def to_dict(self) -> dict[str, int | str]:
+        """Convert event to dictionary for serialization."""
+        return {
+            'type': 'agent_mode_change',
+            'step': self.step,
+            'agent_id': self.agent_id,
+            'old_mode': self.old_mode,
+            'new_mode': self.new_mode,
+            'reason': self.reason
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class ResourceCollectionEvent(SimulationEvent):

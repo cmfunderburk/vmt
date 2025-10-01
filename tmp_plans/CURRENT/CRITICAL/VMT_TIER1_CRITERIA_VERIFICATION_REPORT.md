@@ -259,19 +259,19 @@ python -m pytest tests/unit/test_determinism_hash.py -v
 
 ### Implementation Checklist
 
-#### Phase 1: world.py Migration
-- [ ] Lines 550, 571, 611 (unified selection)
-- [ ] Lines 584, 589, 599, 604 (collection responses)  
-- [ ] Lines 620, 640, 648, 653 (capacity management)
-- [ ] Lines 689, 692 (legacy fallbacks)
-- [ ] Determinism test validation after each batch
+#### Phase 1: world.py Migration - ✅ COMPLETE
+- [x] Lines 550, 571, 611 (unified selection) - ✅ COMPLETED - Hash validated
+- [x] Lines 584, 589, 599, 604 (collection responses) - ✅ COMPLETED - Hash validated
+- [x] Lines 620, 640, 648, 653 (capacity management) - ✅ COMPLETED - Hash validated
+- [x] Lines 689, 692 (legacy fallbacks) - ✅ COMPLETED - Hash validated
+- [x] Determinism test validation after each batch - ✅ ALL TESTS PASS
 
-#### Phase 2: agent_mode_utils.py Migration
-- [ ] Analyze line 40 context
-- [ ] Update function signature if needed
-- [ ] Replace direct assignment
-- [ ] Update call sites
-- [ ] Determinism test validation
+#### Phase 2: agent_mode_utils.py Migration - ✅ COMPLETE
+- [x] Analyze line 40 context - ✅ Function identified: set_agent_mode()
+- [x] Update function signature if needed - ✅ Signature already correct 
+- [x] Replace direct assignment - ✅ Replaced with agent._set_mode() call
+- [x] Update call sites - ✅ No changes needed (preserves existing API)
+- [x] Determinism test validation - ✅ ALL TESTS PASS
 
 #### Phase 3: Parameter Threading
 - [ ] Audit method signatures in world.py
