@@ -47,12 +47,20 @@ class MovementHandler(BaseStepHandler):
         elif forage_enabled:
             for agent in context.simulation.agents:
                 try:
-                    collected = agent.step_decision(context.simulation.grid)
+                    collected = agent.step_decision(
+                        context.simulation.grid, 
+                        context.observer_registry, 
+                        context.step_number
+                    )
                     if collected:
                         foraged_ids.add(agent.id)
                         agents_moved += 1
                 except TypeError:
-                    agent.step_decision(context.simulation.grid)
+                    agent.step_decision(
+                        context.simulation.grid, 
+                        context.observer_registry, 
+                        context.step_number
+                    )
                     agents_moved += 1
         else:
             mode_changes += self._handle_no_forage_movement(context, draft_enabled, exec_enabled)
@@ -102,7 +110,11 @@ class MovementHandler(BaseStepHandler):
                         mode_changes += 1
                 
                 # Execute movement step
-                agent.step_decision(context.simulation.grid)
+                agent.step_decision(
+                    context.simulation.grid, 
+                    context.observer_registry, 
+                    context.step_number
+                )
         else:
             # Exchange enabled but foraging disabled
             for agent in context.simulation.agents:
@@ -131,7 +143,11 @@ class MovementHandler(BaseStepHandler):
                     else:
                         # Preserve forced deposit
                         try:
-                            agent.step_decision(context.simulation.grid)
+                            agent.step_decision(
+                                context.simulation.grid, 
+                                context.observer_registry, 
+                                context.step_number
+                            )
                         except Exception:
                             pass
                         continue

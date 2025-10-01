@@ -517,9 +517,10 @@ class Simulation:
         agents_by_id = {a.id: a for a in self.agents}
         for a in self.agents:
             if a.force_deposit_once:
-                a.mode = AgentMode.RETURN_HOME
+                from .agent_mode_utils import set_agent_mode
+                set_agent_mode(a, AgentMode.RETURN_HOME, "force_deposit_stagnation", step, self._observer_registry)
                 a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
-                a.maybe_deposit()
+                a.maybe_deposit(self._observer_registry, step)
                 continue
             if getattr(a, 'trade_partner_id', None) is not None:
                 # Already paired; movement handled in post-pass
@@ -631,7 +632,7 @@ class Simulation:
                             a.y += 1 if dy > 0 else -1
                         # Collect if arrived
                         if a.target is not None and (a.x, a.y) == a.target and self.grid.has_resource(a.x, a.y):
-                            if a.collect(self.grid, step):
+                            if a.collect(self.grid, step, self._observer_registry):
                                 foraged_ids.add(a.id)
                                 a.target = None
                                 # After collecting, check if should return home

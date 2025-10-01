@@ -68,11 +68,12 @@ class CollectionHandler(BaseStepHandler):
         # after the movement phase has completed
         for agent in context.simulation.agents:
             # Use step context for behavioral tracking  
-            collected = agent.collect(context.simulation.grid, context.step_number)
+            collected = agent.collect(context.simulation.grid, context.step_number, context.observer_registry)
             if collected:
                 total_collected += 1
                 collecting_agents.add(agent.id)
-                self._notify_collection_event(context, agent)
+                # Note: ResourceCollectionEvent is now emitted directly from agent.collect()
+                # self._notify_collection_event(context, agent)  # No longer needed
         
         # Provide transient foraged IDs too (legacy path) for trading gating consistency
         try:

@@ -164,6 +164,17 @@ class ResourceCollectionEvent(SimulationEvent):
             resource_type=resource_type,
             amount_collected=amount_collected
         )
+    
+    def to_dict(self) -> dict[str, int | str]:
+        """Convert event to dictionary for serialization."""
+        return {
+            'type': 'resource_collection',
+            'step': self.step,
+            'agent_id': self.agent_id,
+            'x': self.x,
+            'y': self.y,
+            'resource_type': self.resource_type
+        }
 
 
 @dataclass(frozen=True, slots=True)

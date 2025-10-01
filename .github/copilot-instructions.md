@@ -1,7 +1,7 @@
-## VMT EconSim – AI Agent Quick Guide
-Mission: Educational micro‑economic spatial simulation (PyQt6 + Pygame) where determinism and pedagogical clarity are absolute. Economic coherence > technical parity—trades must have real consequences, not ghost transactions. If a change alters ordering, RNG call counts, tie‑breaks, or per‑step complexity, pause and add/update tests before merging.
+## VMT EconSim – AI Coding Agent Guide (Concise)
+Mission: Deterministic educational micro‑economics simulation (PyQt6 + Pygame). Absolute rule: economic coherence > cosmetic determinism. Never add ghost/rollback logic to “preserve hashes.” If you change ordering, RNG draws, tie‑breaks, or asymptotic step cost—stop and add/update tests first.
 
-Architecture: Single thread. PyQt6 QTimer(16ms) → `Simulation.step(ext_rng, use_decision)` → handler pipeline → Pygame surface blit → Qt paint. Core modules under `src/econsim/simulation/`; GUI/launcher under `src/econsim/gui/` + `src/econsim/tools/launcher/`. Step decomposition via `StepExecutor` and handlers in `simulation/execution/`.
+Core flow (single thread): PyQt6 QTimer (≈16ms) → `Simulation.step(ext_rng, use_decision)` → `StepExecutor` → ordered handlers → Pygame blit → Qt paint. Core code: `src/econsim/simulation/`; GUI + launcher: `src/econsim/gui/`, `src/econsim/tools/launcher/`.
 
 Canonical construction:
 ```python
@@ -11,38 +11,35 @@ cfg = SimConfig(grid_size=(12,12), seed=123, enable_respawn=True, enable_metrics
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ```
 
-Determinism invariants (DO NOT break): (1) Resources only via `Grid.iter_resources_sorted()`; (2) Selection tie key `(-ΔU, distance, x, y)`; trade tie key `(-ΔU, seller_id, buyer_id, give_type, take_type)`; (3) Preserve original agent list order inside a step; (4) External RNG passed into `step` distinct from internal `_rng`; do not add or reorder draws; (5) ≤1 trade executed per step when enabled.
+Determinism invariants (DO NOT break):
+1. Resources only via `Grid.iter_resources_sorted()` / stable serialization
+2. Selection tie key `(-ΔU, distance, x, y)`; trade tie key `(-ΔU, seller_id, buyer_id, give_type, take_type)`
+3. Preserve original agent list order every step
+4. External RNG passed to `step` separate from internal `_rng` (no extra / reordered draws)
+5. ≤ 1 trade executed per step when execution enabled
 
-Handler pipeline (Phase 2): `StepExecutor` runs 5 ordered handlers: MovementHandler → CollectionHandler → TradingHandler → MetricsHandler → RespawnHandler. Each returns structured metrics; no cross-handler side effects. DO NOT add logic back to `Simulation.step()`—place it in/behind appropriate handler.
+Handler pipeline (Phase 2 complete): Movement → Collection → Trading → Metrics → Respawn. Put new per‑step logic in a handler (inherit `BaseStepHandler`), not back into `Simulation.step()`.
 
-Selection algorithm: Distance‑discounted utility ΔU' = ΔU / (1 + k·d²) ranking resources and trade intents in O(agents + visible resources). Never introduce quadratic partner scans; reject non‑positive ΔU early.
+Selection / decision system: Distance‑discounted utility `ΔU' = ΔU / (1 + k*d^2)`; reject non‑positive ΔU early. Complexity must remain O(agents + visible_resources); avoid quadratic partner scans.
 
-Feature flags (env): Movement fallback `ECONSIM_LEGACY_RANDOM=1`; Foraging off `ECONSIM_FORAGE_ENABLED=0`; Trading draft/exec `ECONSIM_TRADE_DRAFT=1`, `ECONSIM_TRADE_EXEC=1`; Headless render `ECONSIM_HEADLESS_RENDER=1`; Debug modes: `ECONSIM_DEBUG_AGENT_MODES=1`, `ECONSIM_DEBUG_FPS=1`.
+Feature flags (env): `ECONSIM_LEGACY_RANDOM=1` (fallback movement), `ECONSIM_FORAGE_ENABLED=0`, `ECONSIM_TRADE_DRAFT=1`, `ECONSIM_TRADE_EXEC=1`, `ECONSIM_HEADLESS_RENDER=1`, debug: `ECONSIM_DEBUG_AGENT_MODES=1`, `ECONSIM_DEBUG_FPS=1`.
 
-Observability & logging: Use event system `src/econsim/observability/` (Phase 1 complete). Add new event types in `observability/events.py`; notify via registry—never direct GUI calls from simulation. Legacy `debug_logger` kept via adapter; avoid raw prints.
+Events & observability: Emit events via `observability/events.py`; never call GUI directly from simulation. Add collection/trade/mode events rather than inline prints. Keep logging overhead <2%.
 
-Performance guardrails: Keep per step O(n). Avoid new per‑frame allocations; reuse surfaces & fonts. Logging overhead must stay <~2%. Run `make perf` after impactful changes. Handler timing monitored; movement budget ≤3ms.
+Performance guardrails: Per‑step O(n). Movement handler budget ≤3ms typical. Avoid new large per‑frame allocations or hidden loops. Run `make perf` after impactful changes.
 
-Schema/hash rules: Append‑only for dataclasses, snapshot records, trade tuples. Determinism hash excludes debug/trade metrics; altering hash demands updated baseline (`baselines/determinism_hashes.json`).
+Hash & schema rules: Dataclasses / snapshot / trade tuples are append‑only. Determinism hash excludes debug & trade metrics; if legitimate behavioral change alters hash, refresh `baselines/determinism_hashes.json` with rationale.
 
-**CRITICAL: Economic coherence over hash parity.** Test suite validates authentic micro-economic behavior (real trade consequences, inventory persistence, behavioral impact). NO artificial state restoration or ghost transactions. Use `test_trade_economic_coherence.py` as model for trade-related testing.
+Testing workflow: `make venv && source vmt-dev/bin/activate` then `pytest -q`. Headless GUI: set `QT_QPA_PLATFORM=offscreen` and `SDL_VIDEODRIVER=dummy`. Always construct sims with `Simulation.from_config` in tests.
 
-Testing workflow: `make venv && source vmt-dev/bin/activate`; run `pytest -q`. Headless GUI tests require: `QT_QPA_PLATFORM=offscreen`, `SDL_VIDEODRIVER=dummy`. Always build simulations through `Simulation.from_config` in tests for reproducibility.
+Launcher / scenarios: `make launcher` (canonical). Programmatic test runner: `from econsim.tools.launcher.test_runner import create_test_runner`. Add scenarios via `tools/launcher/framework/test_configs.py` registry.
 
-Launcher/TestRunner: Use `make launcher` for interactive educational scenarios; programmatic API via `from econsim.tools.launcher.test_runner import create_test_runner`. Add new scenario via config registry (`framework/test_configs.py`), not ad‑hoc scripts.
+Safe extension checklist: tests green; perf within baseline; no new unordered iterations; tie keys unchanged; RNG draw count stable; new metrics either excluded from hash or baseline updated; events (not silent state mutation) for new mode changes; economic coherence preserved.
 
-Safe extension checklist: (a) Tests green; (b) Perf within baseline; (c) No unordered iterations added; (d) Tie keys unchanged; (e) RNG call count stable; (f) New metrics either excluded from or integrated into hash + updated baseline; (g) Events emitted (not direct state mutation) for new mode changes; (h) **Economic coherence preserved** (trades have real consequences, behavioral authenticity maintained).
+Common pitfalls: resorting agents mid‑step; iterating unsorted resource containers; multiple trades per step; silent RNG draws; quadratic partner scans; per‑frame big object creation; modifying inventories from rendering/observer code; adding parity hacks that undo real trades.
 
-Common pitfalls: Resorting agents mid step, iterating raw resource dicts, multiple trades per step, silent RNG draws, quadratic partner searches, allocating big objects per frame, modifying inventories in rendering/observer code, **creating artificial parity mechanisms that undermine economic authenticity**.
+Where to look first: `simulation/world.py` (orchestration), `simulation/execution/step_executor.py`, handlers under `simulation/execution/handlers/`, `simulation/agent.py`, `simulation/grid.py`, `observability/events.py`, `simulation/trade.py` (enumeration + execution), `metrics.py` (hash + trade metrics).
 
-Handler development: Inherit from `BaseStepHandler` in `simulation/execution/handlers/protocol.py`. Return structured metrics only; emit events for state changes; preserve deterministic ordering. See `MovementHandler`, `CollectionHandler` as examples.
+When unsure: add a focused determinism or perf test instead of speculative refactor. Commit messages: concise WHAT + WHY (e.g. `selection: prune zero ΔU early (perf +1.2%, hash stable)`).
 
-Add events: Wrap any future `agent.mode = ...` inside an event creator (Phase 2 goal is full coverage). Future event targets: resource collection, trade execution, movement decisions.
-
-Key files to study first: `simulation/world.py` (step pipeline), `simulation/execution/step_executor.py` (handler orchestration), `simulation/agent.py` (behavior + mode), `simulation/grid.py` (resource ordering), `observability/events.py` (extensible event types), `tools/launcher/framework/test_configs.py` (scenario definitions).
-
-When unsure: Prefer adding a focused determinism or perf test over speculative refactor. Keep commits logically atomic with WHY in message (e.g., `selection: prune zero ΔU early (perf +1.2%, hash stable)`).
-
-More depth: See `README.md`, `src/econsim/simulation/README.md`, and `docs/launcher_architecture.md`.
-
-**Current Priority (Phase 2 Completion):** Complete handler implementation in `simulation/execution/handlers/` (trading, metrics, respawn). Enable full delegation in `Simulation.step()`. Preserve exact RNG patterns and ordering. Target: reduce `Simulation.step()` from 402 lines to <100 lines orchestration. Validate economic coherence, not hash parity.
+Current refinement focus: broaden event coverage (collection/trade execution), metrics fidelity, scaling perf validation, determinism baseline refresh tied to respawn cadence updates.

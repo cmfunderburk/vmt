@@ -23,12 +23,15 @@ import random
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, TYPE_CHECKING
 
 from econsim.preferences.base import Preference
 
 from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS
 from .grid import Grid
+
+if TYPE_CHECKING:
+    from ..observability.registry import ObserverRegistry
 
 Position = tuple[int, int]
 
@@ -136,11 +139,33 @@ class Agent:
             context = f"({reason}), {context}"
         log_mode_switch(self.id, old_mode.value, new_mode.value, context)
 
-    def _set_mode(self, new_mode: AgentMode, reason: str = "") -> None:
-        """Set agent mode with debug logging."""
-        if new_mode != self.mode:
-            self._debug_log_mode_change(self.mode, new_mode, reason)
-            self.mode = new_mode
+    def _set_mode(self, new_mode: AgentMode, reason: str = "", observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
+        """
+        Centralized mode setter that emits AgentModeChangeEvent.
+        
+        Args:
+            new_mode: Target AgentMode
+            reason: Brief description for analytics (e.g., "resource_found", "returned_home")
+            observer_registry: Event registry (optional, for testing)
+            step_number: Current step for event context
+        """
+        if self.mode == new_mode:
+            return  # No-op if mode unchanged
+            
+        old_mode = self.mode
+        self._debug_log_mode_change(old_mode, new_mode, reason)
+        self.mode = new_mode
+        
+        if observer_registry:
+            from econsim.observability.events import AgentModeChangeEvent
+            event = AgentModeChangeEvent.create(
+                step=step_number,
+                agent_id=self.id,
+                old_mode=old_mode.value,
+                new_mode=new_mode.value,
+                reason=reason
+            )
+            observer_registry.notify(event)
 
     # --- Movement --------------------------------------------------
     def move_random(
@@ -154,11 +179,16 @@ class Agent:
             self.x, self.y = nx, ny
 
     # --- Resource Interaction -------------------------------------
-    def collect(self, grid: Grid, step: int = -1) -> bool:
+    def collect(self, grid: Grid, step: int = -1, observer_registry: Optional['ObserverRegistry'] = None) -> bool:
         """Collect resource at current position if foraging enabled.
         
         Maps resource types: A→good1, B→good2. Tracks acquisition for 
         behavioral logging when step >= 0.
+        
+        Args:
+            grid: Grid for resource access
+            step: Current step number for logging and events
+            observer_registry: Event registry for resource collection events
         
         Returns:
             True if resource collected, False otherwise.
@@ -183,6 +213,19 @@ class Agent:
                     logger.track_agent_resource_acquisition(step, self.id)
                 except Exception:
                     pass  # Don't break simulation if logging fails
+            
+            # Emit resource collection event
+            if observer_registry:
+                from econsim.observability.events import ResourceCollectionEvent
+                event = ResourceCollectionEvent.create(
+                    step=step if step >= 0 else 0,
+                    agent_id=self.id,
+                    x=self.x,
+                    y=self.y,
+                    resource_type=rtype,
+                    amount_collected=1
+                )
+                observer_registry.notify(event)
             return True
         if rtype == "B":
             self.carrying["good2"] += 1
@@ -194,6 +237,19 @@ class Agent:
                     logger.track_agent_resource_acquisition(step, self.id)
                 except Exception:
                     pass  # Don't break simulation if logging fails
+            
+            # Emit resource collection event
+            if observer_registry:
+                from econsim.observability.events import ResourceCollectionEvent
+                event = ResourceCollectionEvent.create(
+                    step=step if step >= 0 else 0,
+                    agent_id=self.id,
+                    x=self.x,
+                    y=self.y,
+                    resource_type=rtype,
+                    amount_collected=1
+                )
+                observer_registry.notify(event)
             return True
         # Unknown resource type ignored
         return False
@@ -236,7 +292,7 @@ class Agent:
                 moved = True
         return moved
 
-    def maybe_deposit(self) -> None:
+    def maybe_deposit(self, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
         """Deposit carried goods at home and transition to appropriate mode.
         
         Behavioral transitions after deposit:
@@ -245,6 +301,10 @@ class Agent:
         - Only exchange enabled: withdraw goods for trading
         - Neither enabled: idle at home
         - force_deposit_once override: deposit and idle (stagnation recovery)
+        
+        Args:
+            observer_registry: Event registry for mode change notifications
+            step_number: Current step for event context
         """
         if self.mode == AgentMode.RETURN_HOME and self.at_home():
             import os
@@ -259,40 +319,45 @@ class Agent:
                 any_deposited = self.deposit()
                 if any_deposited:
                     self.force_deposit_once = False
-                self._set_mode(AgentMode.IDLE, "force_deposit")
+                self._set_mode(AgentMode.IDLE, "force_deposit", observer_registry, step_number)
             else:
                 # Normal deposit logic based on enabled behaviors
                 any_deposited = self.deposit()
                 if any_deposited:
                     if forage_enabled and exchange_enabled:
                         self.withdraw_all()
-                        self._set_mode(AgentMode.FORAGE, "deposited_goods")
+                        self._set_mode(AgentMode.FORAGE, "deposited_goods", observer_registry, step_number)
                     elif forage_enabled and not exchange_enabled:
-                        self._set_mode(AgentMode.FORAGE, "deposited_goods")
+                        self._set_mode(AgentMode.FORAGE, "deposited_goods", observer_registry, step_number)
                     elif not forage_enabled and exchange_enabled:
                         self.withdraw_all()
-                        self._set_mode(AgentMode.IDLE, "deposited_goods")
+                        self._set_mode(AgentMode.IDLE, "deposited_goods", observer_registry, step_number)
                     else:
-                        self._set_mode(AgentMode.IDLE, "deposited_goods")
+                        self._set_mode(AgentMode.IDLE, "deposited_goods", observer_registry, step_number)
                 else:
                     # No goods to deposit - transition to appropriate mode
                     if forage_enabled:
-                        self._set_mode(AgentMode.FORAGE, "phase_change")
+                        self._set_mode(AgentMode.FORAGE, "phase_change", observer_registry, step_number)
                     elif exchange_enabled:
                         self.withdraw_all()
-                        self._set_mode(AgentMode.IDLE, "phase_change")
+                        self._set_mode(AgentMode.IDLE, "phase_change", observer_registry, step_number)
                     else:
-                        self._set_mode(AgentMode.IDLE, "phase_change")
+                        self._set_mode(AgentMode.IDLE, "phase_change", observer_registry, step_number)
                 self.target = None
             return
 
-    def maybe_withdraw_for_trading(self) -> None:
-        """Withdraw home inventory when at home for bilateral exchange mode.""" 
+    def maybe_withdraw_for_trading(self, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
+        """Withdraw home inventory when at home for bilateral exchange mode.
+        
+        Args:
+            observer_registry: Event registry for mode change notifications
+            step_number: Current step for event context
+        """ 
         if self.mode == AgentMode.RETURN_HOME and self.at_home():
             any_withdrawn = self.withdraw_all()
             if any_withdrawn:
                 # Transition to IDLE mode - will move randomly to find trading partners
-                self._set_mode(AgentMode.IDLE, "trade_ready")
+                self._set_mode(AgentMode.IDLE, "trade_ready", observer_registry, step_number)
                 self.target = None
 
     # --- Decision Logic -------------------------------------------
@@ -306,13 +371,18 @@ class Agent:
         total_good2 = float(self.carrying["good2"] + self.home_inventory["good2"])
         return total_good1, total_good2
 
-    def select_target(self, grid: Grid) -> None:
+    def select_target(self, grid: Grid, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
         """Select movement target based on current mode and available resources.
         
         RETURN_HOME: Target home position
         MOVE_TO_PARTNER: Target meeting point  
         IDLE: Stay idle if foraging disabled
         FORAGE: Find highest utility resource within perception radius
+        
+        Args:
+            grid: Grid for resource access and spatial queries
+            observer_registry: Event registry for mode change notifications
+            step_number: Current step for event context
         
         Falls back to Leontief prospecting if no positive ΔU resources found.
         Transitions to RETURN_HOME when carrying goods but no targets available.
@@ -347,16 +417,16 @@ class Agent:
             prospect_target = self._try_leontief_prospecting(grid, raw_bundle)
             if prospect_target is not None:
                 self.target = prospect_target
-                self._set_mode(AgentMode.FORAGE, "prospecting")
+                self._set_mode(AgentMode.FORAGE, "prospecting", observer_registry, step_number)
             elif self.carrying_total() > 0:
-                self._set_mode(AgentMode.RETURN_HOME, "no_targets")
+                self._set_mode(AgentMode.RETURN_HOME, "no_targets", observer_registry, step_number)
                 self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
             else:
-                self._set_mode(AgentMode.IDLE, "no_targets")
+                self._set_mode(AgentMode.IDLE, "no_targets", observer_registry, step_number)
                 self.target = None
         else:
             self.target = best_meta
-            self._set_mode(AgentMode.FORAGE, "resource_found")
+            self._set_mode(AgentMode.FORAGE, "resource_found", observer_registry, step_number)
 
     # --- Unified / Shared Candidate Computation -----------------
     def compute_best_resource_candidate(self, grid: Grid) -> tuple[Position | None, float, tuple[float,int,int,int] | None]:
@@ -565,16 +635,21 @@ class Agent:
                 return rtype
         return None
 
-    def step_decision(self, grid: Grid) -> bool:
+    def step_decision(self, grid: Grid, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> bool:
         """Perform one decision+movement+interaction step (without RNG).
 
         Returns True if the agent actively foraged (collected a resource this tick),
         False otherwise. This return value is advisory and ignored by existing
         callers that do not capture it (backward compatible).
+        
+        Args:
+            grid: Grid for resource access and spatial queries
+            observer_registry: Event registry for mode change notifications
+            step_number: Current step for event context
         """
         # Select/refresh target if none or mode requires it
         if self.target is None or self.mode not in (AgentMode.FORAGE, AgentMode.MOVE_TO_PARTNER):
-            self.select_target(grid)
+            self.select_target(grid, observer_registry, step_number)
         # Movement toward target
         if self.target is not None and (self.x, self.y) != self.target:
             old_pos = (self.x, self.y)
@@ -599,7 +674,7 @@ class Agent:
                 except Exception:
                     pass  # Don't break simulation if logging fails
         # Interactions
-        collected = self.collect(grid)
+        collected = self.collect(grid, step_number, observer_registry)
         if collected:
             # Clear target so reselection occurs next tick
             self.target = None
@@ -611,9 +686,9 @@ class Agent:
                 and not grid.has_resource(self.x, self.y)
             ):
                 self.target = None
-                self.select_target(grid)
+                self.select_target(grid, observer_registry, step_number)
         # Deposit if arriving home
-        self.maybe_deposit()
+        self.maybe_deposit(observer_registry, step_number)
         return bool(collected)
 
     # --- Unified Target Selection --------------------------------
