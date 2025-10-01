@@ -34,7 +34,7 @@ def test_competition_single_resource_resolution():
     # Step until first resource collected
     collected_tick = None
     for tick in range(10):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         a_collected = (a1.carrying["good1"] + a1.carrying["good2"]) > 0
         b_collected = (a2.carrying["good1"] + a2.carrying["good2"]) > 0
         if a_collected or b_collected:
@@ -50,7 +50,7 @@ def test_competition_single_resource_resolution():
 
     # Advance a few more ticks so loser retargets toward remaining resource (5,5)
     for _ in range(12):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         if sim.grid.resource_count() == 0:
             break
 

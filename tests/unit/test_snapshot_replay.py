@@ -38,7 +38,7 @@ def test_snapshot_replay_hash_prefix_preserved():
     rng = random.Random(999)
     forward_hashes: list[str] = []
     for _ in range(steps):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
         forward_hashes.append(sim.metrics_collector.determinism_hash())  # type: ignore[assignment]
 
     # Restore and replay
@@ -49,6 +49,6 @@ def test_snapshot_replay_hash_prefix_preserved():
     rng2 = random.Random(999)
     replay_hashes: list[str] = []
     for _ in range(steps):
-        sim2.step(rng2, use_decision=False)
+        sim2.step(rng2)
         replay_hashes.append(sim2.metrics_collector.determinism_hash())  # type: ignore[assignment]
     assert replay_hashes == forward_hashes

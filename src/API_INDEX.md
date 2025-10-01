@@ -48,7 +48,7 @@ High-level inventory of public modules, classes, and primary methods/functions. 
 - `Snapshot` / snapshot helpers
   - Capture & restore: (serialize/deserialize pattern; see file)
 - `Simulation`
-  - Core: `step(rng, use_decision=False)`
+  - Core: `step(rng)`
   - Construction: `from_config(cfg, preference_factory, agent_positions=None)`
   - Control: `set_respawn_interval(interval)`
   - Accessors: `steps`, `serialize()` (future), internal bilateral helpers

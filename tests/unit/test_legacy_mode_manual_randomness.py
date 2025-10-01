@@ -36,7 +36,7 @@ def run_decision(seed: int):
     sim = build_sim(seed)
     rng = random.Random(seed)
     for _ in range(STEPS):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
     agent = sim.agents[0]
     pos = (agent.x, agent.y)
     h = sim.metrics_collector.determinism_hash()
@@ -47,7 +47,7 @@ def run_legacy(seed: int):
     sim = build_sim(seed)
     rng = random.Random(seed)
     for _ in range(STEPS):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
     agent = sim.agents[0]
     pos = (agent.x, agent.y)
     h = sim.metrics_collector.determinism_hash()

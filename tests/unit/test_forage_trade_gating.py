@@ -118,7 +118,7 @@ def test_gui_checkboxes_toggle(monkeypatch):  # type: ignore[no-untyped-def]
     # Place a resource and step in decision mode to ensure no collection occurs when disabled
     sim.grid.add_resource(0,0,'A')
     before_present = sim.grid.has_resource(0,0)
-    sim.step(random.Random(1), use_decision=True)
+    sim.step(random.Random(1))
     after_present = sim.grid.has_resource(0,0)
     # Resource should remain because foraging logic skipped
     assert before_present and after_present

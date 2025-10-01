@@ -177,7 +177,7 @@ class SimulationController:
         """
         steps = max(1, count)
         for _ in range(steps):
-            self.simulation.step(self._manual_rng, use_decision=self._use_decision_mode)
+            self.simulation.step(self._manual_rng)
             self._record_step_timestamp()
         # Reset scheduling anchor so an immediate auto step does not fire right after manual stepping.
         self._last_auto_step_time = None

@@ -24,7 +24,7 @@ def run_hash():
     import random
     rng = random.Random(999)
     for _ in range(10):
-        c.simulation.step(rng, use_decision=True)
+        c.simulation.step(rng)
     return c.simulation.metrics_collector.determinism_hash()
 
 if __name__ == "__main__":

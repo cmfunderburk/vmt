@@ -39,7 +39,7 @@ def test_overlay_renders_with_intents(monkeypatch) -> None:  # type: ignore[miss
     # Prevent movement
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
     rng = random.Random(2)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     assert sim.trade_intents is not None and len(sim.trade_intents) > 0
     # Minimal pygame surface/font setup (off-screen)
     pygame.init()
@@ -68,7 +68,7 @@ def test_overlay_noop_without_flag(monkeypatch) -> None:  # type: ignore[missing
     sim.agents[1].carrying['good2'] = 1
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
     rng = random.Random(4)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     # Intents enumerated only when flag set; thus trade_intents should be empty or None
     assert not sim.trade_intents
     pygame.init()

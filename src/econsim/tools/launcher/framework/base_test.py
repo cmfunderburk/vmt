@@ -204,7 +204,7 @@ class BaseManualTest(QWidget):
         self.check_phase_transition()
         
         # Execute simulation step
-        self.simulation.step(self.ext_rng, use_decision=True)
+        self.simulation.step(self.ext_rng)
         
         # Update display
         self.update_display()

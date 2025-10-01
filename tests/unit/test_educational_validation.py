@@ -68,7 +68,7 @@ def test_educational_scenario_diverse_preferences():
         
         # Step simulation to generate trades
         rng = random.Random(123)
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         
         # Validate educational metrics
         intents_count = controller.active_intents_count()
@@ -153,7 +153,7 @@ def test_enhanced_visualization_performance():
         
         # Generate some trade intents
         rng = random.Random(200)
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         
         # Time the enhanced visualization
         start_time = time.time()

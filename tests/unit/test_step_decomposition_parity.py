@@ -10,13 +10,13 @@ from econsim.simulation.world import Simulation
 from econsim.simulation.config import SimConfig
 
 # Feature flag matrices (subset to keep runtime reasonable)
-FLAG_MATRIX: List[Tuple[int,int,int,int]] = [
-    # (legacy_random, forage_enabled, trade_draft, trade_exec)
-    (0, 1, 0, 0),  # decision + forage only
-    (0, 1, 1, 0),  # decision + forage + draft
-    (0, 1, 1, 1),  # decision + forage + draft+exec
-    (0, 0, 1, 1),  # decision no forage trading
-    (1, 1, 0, 0),  # legacy random
+# Legacy random removed - only testing decision system variations
+FLAG_MATRIX: List[Tuple[int,int,int]] = [
+    # (forage_enabled, trade_draft, trade_exec)
+    (1, 0, 0),  # decision + forage only
+    (1, 1, 0),  # decision + forage + draft
+    (1, 1, 1),  # decision + forage + draft+exec
+    (0, 1, 1),  # decision no forage trading
 ]
 
 AGENT_POSITIONS = [(0,0),(2,2),(4,1),(1,4)]
@@ -65,17 +65,16 @@ class CountingRNG(random.Random):
         self.calls += 1
         super().shuffle(x)
 
-def run_scenario(flags: Tuple[int,int,int,int], steps: int = 25) -> Tuple[str, int]:
-    legacy, forage, draft, exec_ = flags
-    # Set environment
-    os.environ['ECONSIM_LEGACY_RANDOM'] = str(legacy)
+def run_scenario(flags: Tuple[int,int,int], steps: int = 25) -> Tuple[str, int]:
+    forage, draft, exec_ = flags
+    # Set environment (legacy random removed - decision system always enabled)
     os.environ['ECONSIM_FORAGE_ENABLED'] = str(forage)
     os.environ['ECONSIM_TRADE_DRAFT'] = str(draft)
     os.environ['ECONSIM_TRADE_EXEC'] = str(exec_)
     sim = build_sim(seed=123)
     rng = CountingRNG(999)
     for _ in range(steps):
-        sim.step(rng, use_decision=(legacy == 0))
+        sim.step(rng)  # decision system always enabled
     h = sim.metrics_collector.determinism_hash() if sim.metrics_collector else ""
     return h, rng.calls
 
@@ -84,8 +83,8 @@ def run_scenario(flags: Tuple[int,int,int,int], steps: int = 25) -> Tuple[str, i
 def test_step_decomposition_does_not_inflate_rng_calls(flags):  # type: ignore[missing-annotations]
     # Baseline run (fresh environment) repeated twice to assert identical RNG call counts
     h1, calls1 = run_scenario(flags)
-    # Reset any side effects
-    for var in ["ECONSIM_LEGACY_RANDOM","ECONSIM_FORAGE_ENABLED","ECONSIM_TRADE_DRAFT","ECONSIM_TRADE_EXEC"]:
+    # Reset any side effects (legacy random removed)
+    for var in ["ECONSIM_FORAGE_ENABLED","ECONSIM_TRADE_DRAFT","ECONSIM_TRADE_EXEC"]:
         os.environ.pop(var, None)
     h2, calls2 = run_scenario(flags)
     assert calls1 == calls2, f"RNG call count drifted for flags {flags}: {calls1} vs {calls2}"

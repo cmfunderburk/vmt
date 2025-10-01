@@ -27,7 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class _SimulationProto(Protocol):  # pragma: no cover - typing helper only
-    def step(self, rng: random.Random, *, use_decision: bool = False) -> None: ...
+    def step(self, rng: random.Random) -> None: ...
 
 
 _pygame_init_count = 0  # module-level ref count to avoid quitting while other widgets alive
@@ -42,7 +42,6 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         parent: QWidget | None = None,
         simulation: _SimulationProto | None = None,
         *,
-        decision_mode: bool | None = None,
         drive_simulation: bool = True,
     ) -> None:
         super().__init__(parent)
@@ -64,21 +63,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             if config is not None:
                 viewport_size = getattr(config, 'viewport_size', 320)
         self.SURFACE_SIZE = (viewport_size, viewport_size)
-        # Cache decision mode default (Gate 6 integration finalization):
-        # Precedence: explicit constructor param > env flag > default True.
-        # Legacy random mode deprecated: always decision mode. Emit warning if env set.
-        import os as _os  # local alias to avoid top-level changes
-        if _os.environ.get("ECONSIM_LEGACY_RANDOM") == "1":
-            try:
-                import warnings as _warn
-                _warn.warn(
-                    "ECONSIM_LEGACY_RANDOM is deprecated and ignored; decision system always enabled.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-            except Exception:  # pragma: no cover
-                pass
-        self._use_decision_default = True if decision_mode is None else bool(decision_mode)
+        # Decision system is always enabled (legacy mode removed)
         # Set SDL video driver for headless environments before pygame.init()
         import os
 
@@ -234,7 +219,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                         do_step = True
                 if do_step:
                     try:
-                        self._simulation.step(self._sim_rng, use_decision=self._use_decision_default)
+                        self._simulation.step(self._sim_rng)
                         if controller is not None:
                             try:
                                 controller._record_step_timestamp()  # type: ignore[attr-defined]

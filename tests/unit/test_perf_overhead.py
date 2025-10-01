@@ -42,7 +42,7 @@ def _run(sim: Simulation) -> float:
     rng = random.Random(999)
     start = time.perf_counter()
     for _ in range(TICKS):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
     return time.perf_counter() - start
 
 
@@ -64,7 +64,7 @@ def test_dynamic_systems_overhead():
     movement_samples_ms: list[float] = []
     rng = random.Random(1234)
     for _ in range(sample_steps):
-        enhanced.step(rng, use_decision=False)
+        enhanced.step(rng)
         mts = enhanced.last_step_metrics or {}
         timings = mts.get('handler_timings', {})
         mv_ms = timings.get('movement')  # already in milliseconds (execution_time_ms)

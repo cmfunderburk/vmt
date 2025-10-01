@@ -52,11 +52,11 @@ class TestSimulationStepAPI:
         ext_rng = random.Random(999)
         
         # Test basic step call
-        result = basic_simulation.step(ext_rng, use_decision=True)
+        result = basic_simulation.step(ext_rng)
         assert result is None  # step() should not return anything
         
         # Test step with decision disabled
-        result = basic_simulation.step(ext_rng, use_decision=False)
+        result = basic_simulation.step(ext_rng)
         assert result is None
     
     def test_step_determinism_invariant(self, basic_simulation):
@@ -78,8 +78,8 @@ class TestSimulationStepAPI:
         
         # Execute identical step sequences
         for _ in range(10):
-            sim1.step(ext_rng1, use_decision=True)
-            sim2.step(ext_rng2, use_decision=True)
+            sim1.step(ext_rng1)
+            sim2.step(ext_rng2)
         
         # Compare agent positions (basic determinism check)
         assert len(sim1.agents) == len(sim2.agents)
@@ -96,7 +96,7 @@ class TestSimulationStepAPI:
         
         # Should not crash
         for _ in range(5):
-            basic_simulation.step(ext_rng, use_decision=True)
+            basic_simulation.step(ext_rng)
     
     def test_step_agent_count_stability(self, basic_simulation):
         """Verify agent count remains stable during normal execution."""
@@ -105,7 +105,7 @@ class TestSimulationStepAPI:
         
         # Run multiple steps
         for _ in range(20):
-            basic_simulation.step(ext_rng, use_decision=True)
+            basic_simulation.step(ext_rng)
         
         # Agent count should remain the same (no spawning/despawning)
         assert len(basic_simulation.agents) == initial_agent_count
@@ -139,7 +139,7 @@ class TestEducationalScenarioIntegrity:
         
         # Execute several steps without crashing
         for step in range(50):
-            simulation.step(ext_rng, use_decision=True)
+            simulation.step(ext_rng)
             
             # Sanity checks
             assert len(simulation.agents) == initial_agent_count
@@ -203,7 +203,7 @@ class TestTradingSystemSafeguards:
             
             # Should execute without trading
             for _ in range(10):
-                simulation.step(ext_rng, use_decision=True)
+                simulation.step(ext_rng)
                 
         finally:
             # Cleanup
@@ -230,7 +230,7 @@ class TestTradingSystemSafeguards:
             
             # Should execute with trade enumeration but no execution
             for _ in range(15):
-                simulation.step(ext_rng, use_decision=True)
+                simulation.step(ext_rng)
                 
         finally:
             # Cleanup
@@ -256,7 +256,7 @@ class TestMetricsSystemSafeguards:
         
         # Execute steps and verify metrics collection doesn't crash
         for _ in range(20):
-            simulation.step(ext_rng, use_decision=True)
+            simulation.step(ext_rng)
         
         # Basic metrics should be available
         if hasattr(simulation, 'metrics_collector'):
@@ -277,7 +277,7 @@ class TestMetricsSystemSafeguards:
         
         # Should work without metrics
         for _ in range(20):
-            simulation.step(ext_rng, use_decision=True)
+            simulation.step(ext_rng)
 
 
 @pytest.mark.integration
@@ -296,7 +296,7 @@ class TestRefactorValidationSuite:
             
             # Execute meaningful number of steps
             for _ in range(100):
-                simulation.step(ext_rng, use_decision=True)
+                simulation.step(ext_rng)
             
             # Basic validation
             assert len(simulation.agents) == config.agent_count
@@ -323,7 +323,7 @@ class TestRefactorValidationSuite:
         ext_rng = random.Random(111)
         
         # Should execute regardless of flags
-        simulation.step(ext_rng, use_decision=True)
+        simulation.step(ext_rng)
         
         # Cleanup (conftest.py should handle this, but be explicit)
         os.environ.pop('ECONSIM_TRADE_DRAFT', None)

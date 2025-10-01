@@ -39,7 +39,7 @@ def test_decision_step_throughput_floor():
     # Use an independent deterministic RNG; internal RNG determinism is exercised elsewhere.
     rng = random.Random(12345)
     for _ in range(steps):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
     elapsed = time.perf_counter() - start
     # Floor: must exceed 4000 steps/sec => elapsed < 1s for 4000 steps
     assert elapsed < 1.0, (

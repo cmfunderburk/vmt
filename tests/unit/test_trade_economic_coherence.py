@@ -67,7 +67,7 @@ class TestTradeEconomicCoherence:
         inventory_changes_detected = False
         
         for step_num in range(20):  # Run enough steps for potential trades
-            sim.step(rng, use_decision=True)
+            sim.step(rng)
             
             # Check if any trade intents were generated
             if hasattr(sim, 'trade_intents') and sim.trade_intents:
@@ -142,7 +142,7 @@ class TestTradeEconomicCoherence:
             agent_behaviors.append(step_state)
             
             # Execute step
-            sim.step(rng, use_decision=True)
+            sim.step(rng)
         
         # Validate that agents show behavioral adaptation
         # (Exact behavior depends on utility functions and resource distribution)
@@ -190,7 +190,7 @@ class TestTradeEconomicCoherence:
         trade_metrics_timeline = []
         
         for step_num in range(15):
-            sim.step(rng, use_decision=True)
+            sim.step(rng)
             
             if sim.metrics_collector:
                 metrics = {
@@ -252,7 +252,7 @@ class TestTradeEconomicCoherence:
             }
             
             for step_num in range(10):
-                sim.step(rng, use_decision=True)
+                sim.step(rng)
             
             # Record final economic state
             for agent in sim.agents:
@@ -308,7 +308,7 @@ class TestTradeEconomicCoherence:
         rng1 = random.Random(55555)
         
         for _ in range(12):
-            sim_no_trade.step(rng1, use_decision=True)
+            sim_no_trade.step(rng1)
         
         # Run with trading enabled
         os.environ["ECONSIM_TRADE_EXEC"] = "1"
@@ -317,7 +317,7 @@ class TestTradeEconomicCoherence:
         rng2 = random.Random(55555)
         
         for _ in range(12):
-            sim_with_trade.step(rng2, use_decision=True)
+            sim_with_trade.step(rng2)
         
         # Compare economic outcomes
         no_trade_inventories = {agent.id: dict(agent.carrying) for agent in sim_no_trade.agents}

@@ -13,7 +13,7 @@ def test_epsilon_bootstrap_enables_initial_target():
 
     rng = random.Random(0)
     for _ in range(10):
-        sim.step(rng=rng, use_decision=True)
+        sim.step(rng=rng)
         if a.carrying["good1"] > 0 or a.carrying["good2"] > 0:
             break
     assert (

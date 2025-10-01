@@ -69,7 +69,7 @@ def test_collection_event_emission_decision_mode():
     # Execute multiple steps to allow agent to move to resource and collect
     rng = random.Random(123)
     for step_num in range(5):  # Give agent time to move and collect
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         
         # Check if we got an event
         if len(observer.events) > 0:
@@ -87,32 +87,7 @@ def test_collection_event_emission_decision_mode():
     assert False, "No ResourceCollectionEvent was emitted during simulation"
 
 
-def test_collection_event_emission_legacy_mode():
-    """Verify ResourceCollectionEvent is emitted in legacy mode (if supported).""" 
-    import os
-    
-    # Enable both legacy and foraging
-    os.environ["ECONSIM_LEGACY_RANDOM"] = "1"
-    os.environ["ECONSIM_FORAGE_ENABLED"] = "1"
-    
-    # Setup: agent at (1,1) with resource at (2,2)
-    resources = [(2, 2, 'B')]
-    sim, observer = build_sim_with_observer([(1, 1)], resources=resources)
-    
-    # Execute multiple steps 
-    rng = random.Random(456)
-    for _ in range(10):  # More steps since legacy mode is less efficient
-        sim.step(rng, use_decision=False)
-        
-        if len(observer.events) > 0:
-            event = observer.events[0]
-            assert event.agent_id == 0, f"Expected agent_id=0, got {event.agent_id}"
-            assert event.resource_type == 'B', f"Expected resource_type='B', got {event.resource_type}"
-            assert event.step >= 0, f"Expected step >= 0, got {event.step}"
-            return  # Test passed
-    
-    # Legacy mode may be deprecated, so we'll accept if no collection occurs
-    print("Legacy mode collection may be deprecated or inefficient - test skipped")
+# Legacy mode test removed: ECONSIM_LEGACY_RANDOM deprecated, decision system always enabled
 
 
 def test_collection_event_fields():
@@ -129,7 +104,7 @@ def test_collection_event_fields():
     # Execute until collection happens
     rng = random.Random(789)
     for _ in range(10):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         if len(observer.events) > 0:
             break
     
@@ -151,7 +126,7 @@ def test_no_collection_no_event():
     
     # Execute
     rng = random.Random(999)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     
     # Assert: No collection events should be emitted
     collection_events = [e for e in observer.events if isinstance(e, ResourceCollectionEvent)]

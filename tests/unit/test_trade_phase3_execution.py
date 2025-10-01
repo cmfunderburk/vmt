@@ -36,7 +36,7 @@ def test_single_execution_swap(monkeypatch) -> None:  # type: ignore[missing-ann
     a1.carrying['good1'] = 1
     a1.carrying['good2'] = 6
     rng = random.Random(5)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     # After execution: (7,2) and (2,5)
     assert a0.carrying['good1'] == 7
     assert a0.carrying['good2'] == 2
@@ -57,7 +57,7 @@ def test_no_double_execution(monkeypatch) -> None:  # type: ignore[missing-annot
     a1.carrying['good1'] = 1
     a1.carrying['good2'] = 6
     rng = random.Random(7)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     # One swap only (second intent not formed because each agent now possesses both goods)
     assert a0.carrying['good1'] == 7
     assert a0.carrying['good2'] == 2
@@ -83,11 +83,11 @@ def test_hash_parity_execution_flag(monkeypatch) -> None:  # type: ignore[missin
     # Draft only
     monkeypatch.setenv("ECONSIM_TRADE_DRAFT", "1")
     monkeypatch.setattr(Agent, "move_random", lambda self, grid, rng: None)
-    sim_a.step(rng_a, use_decision=False)
+    sim_a.step(rng_a)
     hash_draft = sim_a.metrics_collector.determinism_hash()  # type: ignore[union-attr]
     # Draft + exec
     monkeypatch.setenv("ECONSIM_TRADE_EXEC", "1")
-    sim_b.step(rng_b, use_decision=False)
+    sim_b.step(rng_b)
     hash_exec = sim_b.metrics_collector.determinism_hash()  # type: ignore[union-attr]
     assert hash_draft == hash_exec
 
@@ -104,7 +104,7 @@ def test_flag_gating(monkeypatch) -> None:  # type: ignore[missing-annotations]
     a1.carrying['good1'] = 1
     a1.carrying['good2'] = 6
     rng = random.Random(11)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     # Swap executed -> (7,2) and (2,5)
     assert (a0.carrying['good1'], a0.carrying['good2']) == (7, 2)
     assert (a1.carrying['good1'], a1.carrying['good2']) == (2, 5)
@@ -120,7 +120,7 @@ def test_execution_requires_inventory(monkeypatch) -> None:  # type: ignore[miss
     # Only one side has goods; no valid swap
     a0.carrying['good1'] = 8
     rng = random.Random(13)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     # No change
     assert a0.carrying['good1'] == 8 and a0.carrying['good2'] == 0
     assert a1.carrying['good1'] == 0 and a1.carrying['good2'] == 0
@@ -139,7 +139,7 @@ def test_no_trade_when_marginals_not_reciprocal(monkeypatch) -> None:  # type: i
     a1.carrying['good1'] = 5
     a1.carrying['good2'] = 5
     rng = random.Random(17)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     assert a0.carrying['good1'] == 5 and a0.carrying['good2'] == 5
     assert a1.carrying['good1'] == 5 and a1.carrying['good2'] == 5
     assert sim.metrics_collector.trades_executed == 0  # type: ignore[attr-defined]

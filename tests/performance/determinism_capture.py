@@ -81,7 +81,7 @@ class DeterminismCapture:
         
         # Run validation steps 
         for step in range(self.validation_steps):
-            simulation.step(self.ext_rng, use_decision=True)
+            simulation.step(self.ext_rng)
             
         # Capture final state
         agent_count = len(simulation.agents)

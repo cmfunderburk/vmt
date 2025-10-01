@@ -1,13 +1,12 @@
-## VMT EconSim – AI Coding Agent Guide (Updated Oct 2025)
+## VMT EconSim – AI Coding Agent Guide (Concise)
 Mission: Deterministic educational micro‑economics simulation (PyQt6 + Pygame). Absolute rule: economic coherence > cosmetic determinism. Never add ghost/rollback logic to "preserve hashes." If you change ordering, RNG draws, tie‑breaks, or asymptotic step cost—stop and add/update tests first.
 
-Core flow (single thread): PyQt6 QTimer (≈16ms) → `Simulation.step(ext_rng)` → `StepExecutor` → ordered handlers → Pygame blit → Qt paint. Core code: `src/econsim/simulation/`; GUI + launcher: `src/econsim/gui/`, `src/econsim/tools/launcher/`.
+Core flow (single thread): PyQt6 QTimer (≈16ms) → `Simulation.step(ext_rng, use_decision)` → `StepExecutor` → ordered handlers → Pygame blit → Qt paint. Core code: `src/econsim/simulation/`; GUI + launcher: `src/econsim/gui/`, `src/econsim/tools/launcher/`.
 
 **Primary Development Interface**: `make launcher` (canonical build with enhanced GUI, scenario registry, and optimized logging). Use this over `make dev` for development work.
+Mission: Deterministic educational micro‑economics simulation (PyQt6 + Pygame). Absolute rule: economic coherence > cosmetic determinism. Never add ghost/rollback logic to “preserve hashes.” If you change ordering, RNG draws, tie‑breaks, or asymptotic step cost—stop and add/update tests first.
 
-**CURRENT STATUS (Oct 2025)**: Post-unified refactor cleanup in progress. The unified refactor (Phases 1-4) successfully introduced modern architecture with observer patterns and decomposed step handlers. We are now executing a systematic legacy deprecation plan to eliminate 289+ legacy system usages across 330 files. Priority: Phase A immediate cleanup (removing deprecated flags, parameters, and obsolete tests) followed by GUILogger migration to observer pattern. See `tmp_plans/CURRENT/REVIEWS/LEGACY_DEPRECATION_PLAN.md` for details.
-
-**Phase A Timeline**: 1-2 weeks, 8-10 working days focused on low-risk component elimination. Current targets: 82+ legacy references across 4 component categories (flags, tests, documentation, parameters). Implementation follows systematic detection → automated cleanup → component removal → validation pattern. See `tmp_plans/CURRENT/REVIEWS/PHASE_A_IMMEDIATE_CLEANUP_REVIEW.md` for complete implementation plan.
+Core flow (single thread): PyQt6 QTimer (≈16ms) → `Simulation.step(ext_rng, use_decision)` → `StepExecutor` → ordered handlers → Pygame blit → Qt paint. Core code: `src/econsim/simulation/`; GUI + launcher: `src/econsim/gui/`, `src/econsim/tools/launcher/`.
 
 Canonical construction:
 ```python
@@ -28,7 +27,7 @@ Handler pipeline (Phase 2 complete): Movement → Collection → Trading → Met
 
 Selection / decision system: Distance‑discounted utility `ΔU' = ΔU / (1 + k*d^2)`; reject non‑positive ΔU early. Complexity must remain O(agents + visible_resources); avoid quadratic partner scans.
 
-Feature flags (env): `ECONSIM_FORAGE_ENABLED=0`, `ECONSIM_TRADE_DRAFT=1`, `ECONSIM_TRADE_EXEC=1`, `ECONSIM_HEADLESS_RENDER=1`, debug: `ECONSIM_DEBUG_AGENT_MODES=1`, `ECONSIM_DEBUG_FPS=1`.
+Feature flags (env): `ECONSIM_LEGACY_RANDOM=1` (fallback movement), `ECONSIM_FORAGE_ENABLED=0`, `ECONSIM_TRADE_DRAFT=1`, `ECONSIM_TRADE_EXEC=1`, `ECONSIM_HEADLESS_RENDER=1`, debug: `ECONSIM_DEBUG_AGENT_MODES=1`, `ECONSIM_DEBUG_FPS=1`.
 
 Events & observability: Emit events via `observability/events.py`; never call GUI directly from simulation. Add collection/trade/mode events rather than inline prints. Keep logging overhead <2%.
 
@@ -50,11 +49,14 @@ Where to look first: `simulation/world.py` (orchestration), `simulation/executio
 
 When unsure: add a focused determinism or perf test instead of speculative refactor. Commit messages: concise WHAT + WHY (e.g. `selection: prune zero ΔU early (perf +1.2%, hash stable)`).
 
+Current refinement focus: broaden event coverage (collection/trade execution), metrics fidelity, scaling perf validation, determinism baseline refresh tied to respawn cadence updates.
+
 **Development Environment Setup**:
 ```bash
 make venv && source vmt-dev/bin/activate  # Essential first step
 make launcher                             # Primary development interface
 ECONSIM_DEBUG_AGENT_MODES=1 make launcher # Debug mode transitions
+ECONSIM_LEGACY_RANDOM=1 make dev          # Force legacy random walk
 ```
 
 **Core Architecture Boundaries**:
@@ -64,46 +66,4 @@ ECONSIM_DEBUG_AGENT_MODES=1 make launcher # Debug mode transitions
 - Launcher Framework: `src/econsim/tools/launcher/` (enhanced GUI + scenario registry)
 - Configuration Registry: Use `TestConfiguration` dataclass pattern, not scattered manual setup
 
-**Legacy System Cleanup (Oct 2025)**: `ECONSIM_LEGACY_RANDOM` flag deprecated and ignored—decision system is always enabled. Remove any `use_decision=False` parameters and legacy flag references. When modifying mode-related code, check for direct assignments and convert to `_set_mode()` helper pattern with proper `observer_registry` and `step_number` parameters.
-
-**Active Legacy Deprecation (Phase A)**: Currently executing systematic removal of 82+ low-risk legacy references across 4 component categories:
-
-**Component 1 - ECONSIM_LEGACY_RANDOM Flag System**: 26 references across files
-- 16 test files setting `ECONSIM_LEGACY_RANDOM=1`
-- 51 uses of `use_decision=False` parameter calls
-- GUI components: `embedded_pygame.py`, `main_window.py` references
-- Status: Flag processed but ignored, warnings emitted, decision system always enabled
-
-**Component 2 - Legacy Mode Test Scenarios**: 15+ test files
-- Legacy determinism hash validation (marked xfail)
-- Legacy mode test scenarios using deprecated flags
-- Manual test placeholders with example templates
-- Performance tests comparing legacy vs. new systems
-
-**Component 3 - Documentation References**: README.md, Makefile, developer guides
-- Makefile comments referencing legacy random movement
-- README.md sections with obsolete flag instructions
-- AI coding instructions with outdated patterns
-
-**Component 4 - Legacy Parameters**: Function signatures, handler configurations
-- 51 `use_decision=False` calls that default to True
-- Legacy configuration parameters in test setups
-- Deprecated feature toggles in configuration classes
-
-**Phase A Implementation Pattern**:
-1. **Days 1-2**: Automated detection and cataloging (inventory all components)
-2. **Days 3-4**: Cleanup tool development (flag removal, test cleanup, docs updater)
-3. **Days 5-7**: Component-by-component removal (flags → docs → tests → parameters)
-4. **Days 8-10**: Validation and testing (functional, documentation, integration)
-
-**When encountering legacy patterns**:
-1. **Flag processing**: Remove `ECONSIM_LEGACY_RANDOM` environment variable checks entirely
-2. **Parameter calls**: Change `sim.step(rng, use_decision=False)` → `sim.step(rng)`
-3. **Function signatures**: Remove `use_decision` parameter from method definitions
-4. **Test configurations**: Remove `os.environ["ECONSIM_LEGACY_RANDOM"] = "1"`
-5. **Documentation**: Remove legacy flag references from README/Makefile comments
-6. **xfail tests**: Remove xfail markers for legacy determinism tests
-
-**Success Criteria**: Zero legacy flags, clean parameters, updated docs, test stability, no deprecation warnings.
-
-Performance note: Legacy compatibility layers currently cause ~65% regression. Removing them is high priority for Phase C.
+**Active Refactoring (Sept 2025)**: Migrating ~80% of remaining direct `agent.mode = ` assignments in `world.py` to `_set_mode()` helper calls. When modifying mode-related code, check for direct assignments and convert to helper pattern with proper `observer_registry` and `step_number` parameters.

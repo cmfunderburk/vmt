@@ -29,7 +29,7 @@ def test_agent_inspector_last_trade_placeholder(monkeypatch):  # type: ignore[no
     # Prevent movement randomness
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
     rng = random.Random(1)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
 
     summary = controller.last_trade_summary()
     assert summary is None or 'seller' in summary  # Either no trade occurred or formatted string present

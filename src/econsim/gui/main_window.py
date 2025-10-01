@@ -133,8 +133,6 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         decision_enabled = bool(selection.decision_mode_enabled)
         if selection.mode == "legacy":
             decision_enabled = False
-        if os.environ.get("ECONSIM_LEGACY_RANDOM") == "1":
-            decision_enabled = False
 
         # Build simulation page lazily with horizontal layout per ASCII design
         sim_container = QWidget()

@@ -111,15 +111,14 @@ class Simulation:
             seed = getattr(self.config, "seed", 0)
             self._rng = _random.Random(int(seed))
 
-    def step(self, rng: random.Random, *, use_decision: bool = False) -> None:
+    def step(self, rng: random.Random) -> None:
         """Advance simulation by one step using decomposed handler system.
 
         Orchestrates step execution through focused handlers while maintaining
         deterministic behavior and performance characteristics.
 
         Args:
-            rng: External RNG for legacy random movement mode
-            use_decision: Enable deterministic decision-making and trading
+            rng: External RNG for backward compatibility with existing code patterns
         """
         # Initialize step executor on first use
         if self._step_executor is None:

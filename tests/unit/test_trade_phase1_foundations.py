@@ -57,7 +57,7 @@ def test_metrics_placeholders_do_not_affect_hash():
     # Step with external RNG
     import random as _r
     ext_rng = _r.Random(123)
-    sim.step(ext_rng, use_decision=True)
+    sim.step(ext_rng)
     assert sim.metrics_collector is not None
     h_before = sim.metrics_collector.determinism_hash()
     # Modify counters manually (simulating future usage); hash must not change retroactively

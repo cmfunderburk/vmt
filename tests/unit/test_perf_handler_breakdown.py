@@ -24,7 +24,7 @@ def capture(sim: Simulation):
     rng = random.Random(999)
     handler_timings=[]
     for _ in range(STEPS):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
         mts = sim.last_step_metrics or {}
         handler_timings.append(mts.get('handler_timings', {}))
     # Aggregate average per handler

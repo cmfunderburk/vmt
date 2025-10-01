@@ -61,7 +61,7 @@ def _run_steps(sim: Simulation, steps: int) -> None:
     """Run simulation for specified number of steps."""
     rng = random.Random(123)
     for _ in range(steps):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
 
 
 def test_mode_change_event_fields():

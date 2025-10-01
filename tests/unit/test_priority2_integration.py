@@ -294,7 +294,7 @@ class TestCrossFeatureIntegration:
         
         # Step simulation a few times
         for _ in range(3):
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
         
         # At least some agents should be in FORAGE mode (not all idle)
         final_modes = [agent.mode for agent in sim.agents]
@@ -440,7 +440,7 @@ class TestSystemStabilityUnderStress:
         
         # Step simulation several times - should not crash
         for _ in range(10):
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
         
         # All agents should be idle (no resources to forage)
         for agent in sim.agents:

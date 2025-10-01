@@ -43,7 +43,7 @@ def _build() -> Simulation:
 def _run(sim: Simulation) -> str:
     rng = random.Random(SEED + 99)
     for _ in range(STEPS):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
     return sim.metrics_collector.determinism_hash()  # type: ignore[attr-defined]
 
 

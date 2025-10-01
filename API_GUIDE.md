@@ -75,8 +75,8 @@ for a in sim.agents:
 
 ## 4. Random Walk (Legacy Path)
 ```python
-# Replace use_decision=True with use_decision=False (default) to employ legacy movement
-sim.step(rng, use_decision=False)
+# Decision-based movement is now the only mode (legacy movement removed)
+sim.step(rng)
 ```
 Use only for baseline comparisons; Gate 6 will default UI to decision mode.
 

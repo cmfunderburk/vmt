@@ -27,7 +27,7 @@ def test_movement_mode_metrics_decision(monkeypatch):  # type: ignore[missing-an
     monkeypatch.delenv("ECONSIM_LEGACY_RANDOM", raising=False)
     sim = build_sim([(0,0),(1,1)])
     rng = random.Random(1)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     metrics = sim.last_step_metrics or {}
     # movement_movement_mode should exist and be 'decision' or 'unified'
     keys = [k for k in metrics.keys() if k.startswith('movement_')]
@@ -43,7 +43,7 @@ def test_collection_diff_decision(monkeypatch):  # type: ignore[missing-annotati
     resources = [(0,0,'wood'), (1,1,'stone')]
     sim = build_sim([(0,0)], resources=resources)
     rng = random.Random(3)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     metrics = sim.last_step_metrics or {}
     # Ensure collection metric key is namespaced
     assert 'collection_resources_collected' in metrics
@@ -54,7 +54,7 @@ def test_respawn_interval_no_respawn(monkeypatch):  # type: ignore[missing-annot
     # Ensure respawn handler reports skipped when disabled
     sim = build_sim([(0,0)])
     rng = random.Random(4)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     metrics = sim.last_step_metrics or {}
     # respawn_respawn_attempted present and zero
     assert metrics.get('respawn_respawn_attempted', 0) in (0,1)
@@ -65,7 +65,7 @@ def test_metrics_handler_steps_per_sec(monkeypatch):  # type: ignore[missing-ann
     rng = random.Random(5)
     # Run several steps to accumulate rolling timings
     for _ in range(5):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
     metrics = sim.last_step_metrics or {}
     assert metrics.get('metrics_steps_per_sec', 0) >= 0
 
@@ -79,7 +79,7 @@ def test_trading_draft_execution_single_intent(monkeypatch):  # type: ignore[mis
     a0.carrying['wood'] = 1
     a1.carrying['stone'] = 1
     rng = random.Random(6)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     metrics = sim.last_step_metrics or {}
     intents = metrics.get('trading_intents_count')
     executed = metrics.get('trading_executed')
@@ -95,7 +95,7 @@ def test_trading_foraged_gating(monkeypatch):  # type: ignore[missing-annotation
     # Force one agent to collect first by placing a resource they will pick
     sim.grid.add_resource(0,0,'wood')  # type: ignore[attr-defined]
     rng = random.Random(7)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     metrics = sim.last_step_metrics or {}
     # Intents may be reduced if foraged gating applied; just ensure metric exists
     assert 'trading_intents_count' in metrics

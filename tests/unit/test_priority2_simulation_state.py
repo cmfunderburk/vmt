@@ -2,7 +2,7 @@
 
 Tests for simulation state consistency, determinism valida        # Step simulation a few times
         for _ in range(3):
-            sim.step(controller._manual_rng, use_decision=True)n,
+            sim.step(controller._manual_rng)n,
 and performance characteristics under various scenarios.
 """
 
@@ -128,7 +128,7 @@ class TestSimulationStateConsistency:
         
         # Step simulation multiple times
         for step in range(5):
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
             
             # Verify state consistency
             for i, agent in enumerate(sim.agents):
@@ -255,7 +255,7 @@ class TestPerformanceCharacteristics:
         step_times = []
         for _ in range(10):
             start_time = time.time()
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
             step_time = time.time() - start_time
             step_times.append(step_time)
         
@@ -335,7 +335,7 @@ class TestMemoryAndResourceManagement:
         
         # Run simulation for several steps
         for _ in range(20):
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
         
         # Agent count should remain stable
         assert len(sim.agents) == initial_agent_count
@@ -379,7 +379,7 @@ class TestDataIntegrity:
         
         # Run simulation for several steps
         for _ in range(15):
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
         
         # Preference types should remain unchanged
         for agent in sim.agents:
@@ -420,7 +420,7 @@ class TestDataIntegrity:
         
         # Run simulation steps
         for _ in range(10):
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
         
         # Count final resources and agent goods
         final_resources = len(list(sim.grid.iter_resources()))
@@ -456,7 +456,7 @@ class TestDataIntegrity:
         
         # Run simulation with many steps to test boundary conditions
         for step in range(25):
-            sim.step(controller._manual_rng, use_decision=True)
+            sim.step(controller._manual_rng)
             
             # Check all agent positions after each step
             for agent in sim.agents:

@@ -38,7 +38,7 @@ def test_decision_mode_step_throughput():
     ticks = 200
     start = time.perf_counter()
     for _ in range(ticks):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
     duration = time.perf_counter() - start
     steps_per_sec = ticks / duration if duration > 0 else float("inf")
     # Soft assertion with headroom

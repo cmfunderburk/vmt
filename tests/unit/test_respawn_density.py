@@ -33,7 +33,7 @@ def make_sim(width: int = 20, height: int = 20, n_agents: int = 3, seed: int = 1
 def run_until_converged(sim: Simulation, steps: int = 80):
     ext_rng = random.Random(999)  # legacy movement rng (agents currently decisionless here)
     for _ in range(steps):
-        sim.step(ext_rng, use_decision=False)
+        sim.step(ext_rng)
 
 
 def test_density_converges_within_tolerance():
@@ -87,5 +87,5 @@ def test_zero_rate_no_op():
     )
     ext_rng = random.Random(5)
     for _ in range(20):
-        sim.step(ext_rng, use_decision=False)
+        sim.step(ext_rng)
     assert sim.grid.resource_count() == 0

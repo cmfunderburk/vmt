@@ -12,7 +12,6 @@ Feature Flag Design Principles:
 - Backward compatibility with existing flag semantics
 
 Environment Variables Managed:
-- ECONSIM_LEGACY_RANDOM: Force legacy random movement mode
 - ECONSIM_FORAGE_ENABLED: Enable/disable resource collection
 - ECONSIM_TRADE_DRAFT: Enable trading intent enumeration  
 - ECONSIM_TRADE_EXEC: Enable trading intent execution
@@ -57,7 +56,6 @@ class SimulationFeatures:
         compatibility with existing flag semantics.
         
         Environment Variable Mappings:
-        - ECONSIM_LEGACY_RANDOM=1 -> legacy_random_movement=True
         - ECONSIM_FORAGE_ENABLED=0 -> forage_enabled=False (default: True)
         - ECONSIM_TRADE_DRAFT=1 -> trade_draft_enabled=True
         - ECONSIM_TRADE_EXEC=1 -> trade_execution_enabled=True
@@ -65,18 +63,7 @@ class SimulationFeatures:
         Returns:
             SimulationFeatures with settings from environment
         """
-        # Legacy random movement DEPRECATED: always False (decision/unified system mandatory)
-        legacy_env = os.environ.get("ECONSIM_LEGACY_RANDOM")
-        if legacy_env == "1":
-            try:
-                import warnings as _warn
-                _warn.warn(
-                    "ECONSIM_LEGACY_RANDOM is deprecated and ignored; decision system always enabled.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-            except Exception:  # pragma: no cover - defensive
-                pass
+        # Legacy random movement removed: decision/unified system is always enabled
         legacy_random_movement = False
         
         # Resource collection (default enabled, explicit disable with =0)

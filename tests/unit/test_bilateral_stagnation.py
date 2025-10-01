@@ -57,7 +57,7 @@ def test_stagnation_forces_return_home_and_deposit(monkeypatch):
     forced_triggered = False
     max_steps = 400
     for _ in range(max_steps):
-        sim.step(ext_rng, use_decision=True)
+        sim.step(ext_rng)
         a0_mode = a0.mode
         a1_mode = a1.mode
         # Detect forced return: agent flagged RETURN_HOME with force_deposit_once
@@ -71,7 +71,7 @@ def test_stagnation_forces_return_home_and_deposit(monkeypatch):
 
     # Advance until deposit clears force_deposit_once (should become IDLE with inventories banked)
     for _ in range(50):
-        sim.step(ext_rng, use_decision=True)
+        sim.step(ext_rng)
         if not getattr(a0, 'force_deposit_once', False) and not getattr(a1, 'force_deposit_once', False):
             break
 

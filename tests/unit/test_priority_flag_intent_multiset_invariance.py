@@ -29,7 +29,7 @@ def test_priority_flag_intent_multiset_invariance(monkeypatch):  # type: ignore[
     os.environ['ECONSIM_TRADE_DRAFT'] = '1'
     sim1 = build_two()
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
-    sim1.step(rng, use_decision=False)
+    sim1.step(rng)
     intents_off = sim1.trade_intents
     assert intents_off
 
@@ -38,7 +38,7 @@ def test_priority_flag_intent_multiset_invariance(monkeypatch):  # type: ignore[
     os.environ['ECONSIM_TRADE_PRIORITY_DELTA'] = '1'
     sim2 = build_two()
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
-    sim2.step(rng, use_decision=False)
+    sim2.step(rng)
     intents_on = sim2.trade_intents
     assert intents_on
 

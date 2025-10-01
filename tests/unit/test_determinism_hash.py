@@ -31,7 +31,7 @@ def build_sim(seed: int, with_respawn: bool = True) -> Simulation:
 def advance(sim: Simulation, steps: int) -> None:
 	rng = random.Random(999)
 	for _ in range(steps):
-		sim.step(rng, use_decision=False)
+		sim.step(rng)
 
 
 @pytest.mark.xfail(reason="Determinism hashes changed during refactor - will be updated after architecture stabilization")

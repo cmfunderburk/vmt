@@ -54,7 +54,7 @@ def _build_sim(seed: int) -> Simulation:
 def _run_steps(sim: Simulation, steps: int) -> None:
     rng = random.Random(999)
     for _ in range(steps):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
 
 
 def test_micro_delta_threshold_emitted_once(tmp_path: Path):

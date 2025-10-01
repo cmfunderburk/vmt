@@ -59,7 +59,7 @@ def test_gui_trade_flag_matrix(forage, bilateral):  # type: ignore[no-untyped-de
     if forage:
         sim.grid.add_resource(0,0,'A')
     pre_bundles = {a.id: (a.carrying['good1'], a.carrying['good2']) for a in sim.agents}
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     intents = getattr(sim, 'trade_intents', None)
     if not bilateral:
         assert intents is None
@@ -84,7 +84,7 @@ def test_execution_highlight_presence():  # type: ignore[no-untyped-def]
     rng = random.Random(0)
     # Step until a trade executes or max 10 steps to avoid infinite loop
     for _ in range(10):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         if getattr(sim.metrics_collector, 'last_executed_trade', None):
             hl = getattr(sim, '_last_trade_highlight', None)
             assert hl is not None
@@ -92,7 +92,7 @@ def test_execution_highlight_presence():  # type: ignore[no-untyped-def]
             assert expire > sim.steps
             # Advance steps beyond expiry
             for _ in range(15):
-                sim.step(rng, use_decision=True)
+                sim.step(rng)
             assert getattr(sim, '_last_trade_highlight', None) is None
             break
     else:
