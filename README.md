@@ -68,7 +68,7 @@ cfg = SimConfig(
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ext_rng = random.Random(999)
 for _ in range(40):
-	sim.step(ext_rng, use_decision=True)
+	sim.step(ext_rng)
 print("hash=", sim.metrics_collector.determinism_hash())
 ```
 Legacy manual wiring is supported but deprecated.

@@ -63,7 +63,7 @@ def run_clustering_test():
     # Run for 150 steps to get clustering patterns
     step_count = 150
     for step in range(step_count):
-        sim.step(ext_rng, use_decision=True)
+        sim.step(ext_rng)
         
         if step % 50 == 0:
             print(f"Step {step}: {sim.grid.resource_count()} resources remaining")

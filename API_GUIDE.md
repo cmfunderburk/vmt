@@ -40,7 +40,7 @@ sim = Simulation.from_config(cfg, agent_positions=agent_positions)
 import random
 ext_rng = random.Random(999)  # legacy external RNG still required for random movement path
 for _ in range(15):
-    sim.step(ext_rng, use_decision=True)
+    sim.step(ext_rng)
 
 if sim.metrics_collector:
     print("hash:", sim.metrics_collector.determinism_hash())
@@ -66,7 +66,7 @@ agents = [Agent(id=0, x=0, y=0, preference=CobbDouglasPreference(alpha=0.5))]
 sim = Simulation(grid, agents)
 rng = random.Random(42)
 for _ in range(15):
-    sim.step(rng, use_decision=True)  # explicit decision mode
+    sim.step(rng)  # decision-based agent behavior
 
 # Inspect agent state
 for a in sim.agents:
@@ -89,7 +89,7 @@ sim.respawn_scheduler = RespawnScheduler(target_density=0.25, max_spawn_per_tick
 sim.metrics_collector = MetricsCollector()
 
 for step in range(60):
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
 
 print("determinism hash:", sim.metrics_collector.determinism_hash())
 ```
@@ -105,7 +105,7 @@ from econsim.simulation.snapshot import Snapshot
 snap = Snapshot.from_sim(sim)
 # Advance further
 for _ in range(10):
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
 # Restore
 restored = Snapshot.restore(snap)
 ```

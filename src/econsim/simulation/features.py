@@ -37,12 +37,10 @@ class SimulationFeatures:
     variable checks with structured configuration access.
     
     Attributes:
-        legacy_random_movement: Use legacy random movement instead of decision system
         forage_enabled: Allow agents to collect resources from grid
         trade_draft_enabled: Enable enumeration of trading intents
         trade_execution_enabled: Enable execution of trading intents
     """
-    legacy_random_movement: bool = False
     forage_enabled: bool = True
     trade_draft_enabled: bool = False  
     trade_execution_enabled: bool = False
@@ -63,8 +61,7 @@ class SimulationFeatures:
         Returns:
             SimulationFeatures with settings from environment
         """
-        # Legacy random movement removed: decision/unified system is always enabled
-        legacy_random_movement = False
+        # Decision/unified system is always enabled (legacy random movement removed)
         
         # Resource collection (default enabled, explicit disable with =0)
         forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") != "0"
@@ -76,22 +73,19 @@ class SimulationFeatures:
         trade_execution_enabled = os.environ.get("ECONSIM_TRADE_EXEC", "0") == "1"
         
         return cls(
-            legacy_random_movement=legacy_random_movement,
             forage_enabled=forage_enabled,
             trade_draft_enabled=trade_draft_enabled,
             trade_execution_enabled=trade_execution_enabled,
         )
 
     def is_decision_mode_enabled(self) -> bool:
-        """Check if the modern decision system should be used.
+        """Check if the decision system should be used.
         
-        The decision system is disabled when legacy random movement is enabled.
-        This affects agent target selection and movement behavior.
+        Decision-based agent behavior is now the only system available.
         
         Returns:
-            True if decision system should be used for agent behavior
+            Always True (legacy random movement removed)
         """
-        # Legacy mode deprecated: always True
         return True
 
     def is_trading_enabled(self) -> bool:

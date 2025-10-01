@@ -66,7 +66,7 @@ def test_event_buffering():
         print(f"  Buffer stats before step: {sim._event_buffer.get_stats()}")
         
         # Run step (this should buffer events during step, flush at end)
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         
         print(f"  Buffer stats after step: {sim._event_buffer.get_stats()}")
         print(f"  Total events captured: {len(observer.events)}")

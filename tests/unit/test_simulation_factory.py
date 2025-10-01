@@ -25,10 +25,10 @@ def build_config(enable_respawn: bool = True, enable_metrics: bool = True, seed:
     )
 
 
-def step_n(sim: Simulation, n: int, decision: bool = False) -> None:
+def step_n(sim: Simulation, n: int) -> None:
     ext_rng = random.Random(999)
     for _ in range(n):
-        sim.step(ext_rng, use_decision=decision)
+        sim.step(ext_rng)
 
 
 def test_factory_attaches_hooks_when_enabled():
@@ -62,8 +62,8 @@ def test_determinism_same_seed():
     cfg2 = build_config(seed=77)
     sim1 = Simulation.from_config(cfg1, agent_positions=[(0, 0)])
     sim2 = Simulation.from_config(cfg2, agent_positions=[(0, 0)])
-    step_n(sim1, 10, decision=False)
-    step_n(sim2, 10, decision=False)
+    step_n(sim1, 10)
+    step_n(sim2, 10)
     # Compare serialized resource layout (sorted)
     assert sim1.grid.serialize()["resources"] == sim2.grid.serialize()["resources"]
 
@@ -73,8 +73,8 @@ def test_different_seed_diverges():
     cfg2 = build_config(seed=202)
     sim1 = Simulation.from_config(cfg1, agent_positions=[(0, 0)])
     sim2 = Simulation.from_config(cfg2, agent_positions=[(0, 0)])
-    step_n(sim1, 12, decision=False)
-    step_n(sim2, 12, decision=False)
+    step_n(sim1, 12)
+    step_n(sim2, 12)
     if sim1.grid.serialize()["resources"] == sim2.grid.serialize()["resources"]:  # extremely unlikely
         step_n(sim1, 5)
         step_n(sim2, 5)

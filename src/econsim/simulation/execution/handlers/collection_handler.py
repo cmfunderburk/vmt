@@ -1,13 +1,11 @@
 """Collection handler for resource acquisition and spatial optimization.
 
 This handler manages resource collection logic extracted from the monolithic
-Simulation.step() method. It handles both integrated decision-mode collection
-(part of step_decision) and explicit legacy-mode collection with proper
-resource iteration patterns.
+Simulation.step() method. It tracks collection metrics for decision-based 
+agent behavior where collection is integrated within agent step_decision.
 
-Collection Modes:
-- Integrated: Collection handled within agent step_decision (modern path)
-- Legacy Explicit: Separate collection pass after movement (legacy random path)
+Collection Mode:
+- Integrated: Collection handled within agent step_decision (decision-based behavior)
 - Feature Gated: Respects ECONSIM_FORAGE_ENABLED flag
 
 Design Principles:
@@ -41,46 +39,18 @@ class CollectionHandler(BaseStepHandler):
         resources_collected = 0
         agents_collected = set()
         
-        # Collection is handled differently based on movement mode
-        if context.feature_flags.legacy_random_movement:
-            # Legacy mode: explicit collection pass after movement
-            resources_collected, agents_collected = self._handle_legacy_collection(context)
-        else:
-            # Decision mode: collection is integrated in step_decision 
-            # This handler tracks metrics but doesn't perform collection
-            # (Collection already happened in MovementHandler via step_decision calls)
-            resources_collected, agents_collected = self._track_decision_mode_collection(context)
+        # Collection is integrated in step_decision (decision-based agent behavior)
+        # This handler tracks metrics but doesn't perform collection
+        # (Collection already happened in MovementHandler via step_decision calls)
+        resources_collected, agents_collected = self._track_decision_mode_collection(context)
         
         return StepResult.with_metrics(
             self.handler_name,
             resources_collected=resources_collected,
             agents_that_collected=len(agents_collected),
             foraging_enabled=context.feature_flags.forage_enabled,
-            collection_mode="legacy_explicit" if context.feature_flags.legacy_random_movement else "integrated"
+            collection_mode="integrated"
         )
-    
-    def _handle_legacy_collection(self, context: StepContext) -> tuple[int, Set[int]]:
-        """Handle explicit collection pass for legacy random movement mode."""
-        total_collected = 0
-        collecting_agents = set()
-        
-        # In legacy mode, each agent attempts collection at their current position
-        # after the movement phase has completed
-        for agent in context.simulation.agents:
-            # Use step context for behavioral tracking  
-            collected = agent.collect(context.simulation.grid, context.step_number, context.observer_registry)
-            if collected:
-                total_collected += 1
-                collecting_agents.add(agent.id)
-                # Note: ResourceCollectionEvent is now emitted directly from agent.collect()
-                # self._notify_collection_event(context, agent)  # No longer needed
-        
-        # Provide transient foraged IDs too (legacy path) for trading gating consistency
-        try:
-            context.simulation._transient_foraged_ids = set(collecting_agents)  # noqa: SLF001
-        except Exception:
-            pass
-        return total_collected, collecting_agents
     
     def _track_decision_mode_collection(self, context: StepContext) -> tuple[int, Set[int]]:
         """Track collection metrics for decision mode (collection integrated in step_decision)."""

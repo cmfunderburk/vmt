@@ -68,7 +68,7 @@ def main():
     start_time = time.time()
     
     for step in range(10100):
-        sim.step(ext_rng, use_decision=True)
+        sim.step(ext_rng)
         
         # Progress updates every 1000 steps
         if step % 1000 == 999:

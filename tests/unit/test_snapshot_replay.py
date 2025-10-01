@@ -22,10 +22,10 @@ def build_sim(seed: int = 123) -> Simulation:
     return sim
 
 
-def advance(sim: Simulation, steps: int, *, decision: bool = False) -> None:
+def advance(sim: Simulation, steps: int) -> None:
     rng = random.Random(999)
     for _ in range(steps):
-        sim.step(rng, use_decision=decision)
+        sim.step(rng)
 
 
 def test_snapshot_replay_hash_prefix_preserved():
