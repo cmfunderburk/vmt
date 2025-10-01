@@ -22,7 +22,7 @@ def _build_pair(seed: int = 314159):
     return sim1, sim2
 
 
-def test_legacy_rng_parity_widget_vs_manual():
+def test_rng_parity_widget_vs_manual():
     # Ensure GUI can init in headless
     if not os.environ.get("DISPLAY"):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"

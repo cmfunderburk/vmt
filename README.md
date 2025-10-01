@@ -25,7 +25,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 
 **Canonical Development Build**: `make launcher` is now the primary development interface with optimized logging and educational GUI tests. Features not incorporated there are deprecated or scheduled for removal.
 
-Gate 6 delivered: factory construction, GUI default decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param), overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard. Subsequent increment: uniform seeded respawn distribution (removed top-left bias) + GUI respawn interval dropdown.
+Gate 6 delivered: factory construction, GUI decision-based agent behavior, overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard. Subsequent increment: uniform seeded respawn distribution (removed top-left bias) + GUI respawn interval dropdown.
 
 ## 3. Quick Start (Current Behavior)
 ```bash
@@ -41,9 +41,8 @@ make dev                               # Basic GUI (Start Menu → choose scenar
 pytest -q                            # Run full test suite (210+ tests)
 python scripts/perf_stub.py          # Performance sample
 
-# Legacy/debugging options (features may be deprecated soon)
-ECONSIM_NEW_GUI=0 make dev            # Legacy minimal bootstrap window
-ECONSIM_LEGACY_RANDOM=1 make dev      # Force legacy random walk
+# Alternative GUI option (features may be deprecated soon)
+ECONSIM_NEW_GUI=0 make dev            # Minimal bootstrap window
 ```
 
 ## 4. Factory Construction (Preferred)
@@ -230,7 +229,7 @@ The determinism hash currently includes agents' carrying inventories. Since exec
 ## 6. Gate 6 (Integration Summary)
 Delivered:
 * `Simulation.from_config` (seeded RNG + optional respawn & metrics)
-* GUI defaults to decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param `decision_mode=False`)
+* GUI uses decision-based agent behavior (legacy random movement removed)
 * Overlay/grid toggle (key 'O') + overlay regression (byte-diff) test
 * Decision step throughput safeguard test (raw stepping floor)
 * Test migration reducing private attribute reliance (only specialized replay/density cases remain)

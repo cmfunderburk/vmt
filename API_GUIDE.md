@@ -245,12 +245,11 @@ Last updated: 2025-09-24 (Bilateral Phase 3: priority flag + fairness_round, tes
 
 ## 14. Environment Variables
 - `ECONSIM_NEW_GUI=1` – Launch the new Start Menu + panels shell (default for `make dev`).
-- `ECONSIM_LEGACY_RANDOM=1` – Force legacy random movement in the widget when `decision_mode` parameter is not explicitly passed.
 - `ECONSIM_LEGACY_ANIM_BG=1` – Enable legacy animated background in the Pygame viewport (off by default).
 - `ECONSIM_METRICS_AUTO=1` – Auto-refresh metrics panel. Optional: `ECONSIM_METRICS_AUTO_INTERVAL_MS` to override interval (min 250ms enforced).
 - `ECONSIM_DEBUG_FPS=1` – Print `[FPS]` diagnostic lines once per second in the widget.
 
 ## 15. Start Menu Behavior
-- Baseline scenario exposes the Decision Mode radio; disabling it launches the simulation in legacy random mode while keeping the Start Menu flow intact.
-- Legacy scenario is available for regression comparisons but forces legacy stepping regardless of the radio selection.
+- Scenarios use decision-based agent behavior (legacy random movement has been removed).
+- All simulations now use the unified decision system for consistent, deterministic agent behavior.
 - Non-implemented scenarios (e.g., `bilateral_exchange`, `money_market`) are disabled in the dropdown with a “Not implemented yet” tooltip to avoid modal interruptions.

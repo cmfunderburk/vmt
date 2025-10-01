@@ -23,8 +23,7 @@ def build_sim(agent_positions: List[Tuple[int,int]], resources=None):
     return Simulation.from_config(cfg, agent_positions=agent_positions)
 
 
-def test_movement_mode_metrics_decision(monkeypatch):  # type: ignore[missing-annotations]
-    monkeypatch.delenv("ECONSIM_LEGACY_RANDOM", raising=False)
+def test_movement_mode_metrics_decision():  # type: ignore[missing-annotations]
     sim = build_sim([(0,0),(1,1)])
     rng = random.Random(1)
     sim.step(rng)
@@ -37,8 +36,7 @@ def test_movement_mode_metrics_decision(monkeypatch):  # type: ignore[missing-an
 # Legacy movement test removed - legacy random movement is deprecated and no longer supported
 
 
-def test_collection_diff_decision(monkeypatch):  # type: ignore[missing-annotations]
-    monkeypatch.delenv("ECONSIM_LEGACY_RANDOM", raising=False)
+def test_collection_diff_decision():  # type: ignore[missing-annotations]
     # Seed a few resources manually
     resources = [(0,0,'wood'), (1,1,'stone')]
     sim = build_sim([(0,0)], resources=resources)
