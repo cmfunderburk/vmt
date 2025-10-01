@@ -25,7 +25,7 @@ Usage:
 """
 
 from .events import SimulationEvent, AgentModeChangeEvent
-from .observers import SimulationObserver, BaseObserver  
+from .observers import BaseObserver  
 from .registry import ObserverRegistry
 from .config import ObservabilityConfig
 from .legacy_adapter import LegacyLoggerAdapter, create_legacy_adapter
@@ -33,7 +33,6 @@ from .legacy_adapter import LegacyLoggerAdapter, create_legacy_adapter
 __all__ = [
     "SimulationEvent", 
     "AgentModeChangeEvent",
-    "SimulationObserver",
     "BaseObserver", 
     "ObserverRegistry",
     "ObservabilityConfig",
