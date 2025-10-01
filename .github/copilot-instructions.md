@@ -3,7 +3,7 @@ Mission: Deterministic educational micro‑economics simulation (PyQt6 + Pygame)
 
 Core flow (single thread): PyQt6 QTimer (≈16ms) → `Simulation.step(ext_rng, use_decision)` → `StepExecutor` → ordered handlers → Pygame blit → Qt paint. Core code: `src/econsim/simulation/`; GUI + launcher: `src/econsim/gui/`, `src/econsim/tools/launcher/`.
 
-**Primary Development Interface**: `make launcher` (canonical build with enhanced GUI, scenario registry, and optimized logging). Use this over `make dev` for development work.MT EconSim – AI Coding Agent Guide (Concise)
+**Primary Development Interface**: `make launcher` (canonical build with enhanced GUI, scenario registry, and optimized logging). Use this over `make dev` for development work.
 Mission: Deterministic educational micro‑economics simulation (PyQt6 + Pygame). Absolute rule: economic coherence > cosmetic determinism. Never add ghost/rollback logic to “preserve hashes.” If you change ordering, RNG draws, tie‑breaks, or asymptotic step cost—stop and add/update tests first.
 
 Core flow (single thread): PyQt6 QTimer (≈16ms) → `Simulation.step(ext_rng, use_decision)` → `StepExecutor` → ordered handlers → Pygame blit → Qt paint. Core code: `src/econsim/simulation/`; GUI + launcher: `src/econsim/gui/`, `src/econsim/tools/launcher/`.
@@ -37,9 +37,9 @@ Performance guardrails: Per‑step O(n). Movement handler budget ≤3ms typical.
 
 Hash & schema rules: Dataclasses / snapshot / trade tuples are append‑only. Determinism hash excludes debug & trade metrics; if legitimate behavioral change alters hash, refresh `baselines/determinism_hashes.json` with rationale.
 
-Testing workflow: `make venv && source vmt-dev/bin/activate` then `pytest -q`. Headless GUI: set `QT_QPA_PLATFORM=offscreen` and `SDL_VIDEODRIVER=dummy`. Always construct sims with `Simulation.from_config` in tests.
+**Development Workflow**: `make venv && source vmt-dev/bin/activate` → `make launcher` (primary dev interface). Full test suite: `pytest -q` (210+ tests). Performance validation: `make perf`. Baseline capture: `make phase0-capture`. Headless GUI: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy`. Always construct sims with `Simulation.from_config` in tests.
 
-Launcher / scenarios: `make launcher` (canonical with enhanced GUI). Alternative interfaces: `make manual-tests` (GUI test suite), `make batch-tests` (sequential test runner), `make bookmarks` (configuration manager). Programmatic test runner: `from econsim.tools.launcher.test_runner import create_test_runner`. Add scenarios via `src/econsim/tools/launcher/framework/test_configs.py` registry.
+**Interface Hierarchy**: `make launcher` (canonical) > `make manual-tests` (GUI test suite) > `make batch-tests` (sequential runner) > `make bookmarks` (config manager) > `make dev` (legacy). Programmatic access: `from econsim.tools.launcher.test_runner import create_test_runner`. Add scenarios via `TestConfiguration` in `src/econsim/tools/launcher/framework/test_configs.py`.
 
 Safe extension checklist: tests green; perf within baseline; no new unordered iterations; tie keys unchanged; RNG draw count stable; new metrics either excluded from hash or baseline updated; events (not silent state mutation) for new mode changes; economic coherence preserved.
 
@@ -50,5 +50,20 @@ Where to look first: `simulation/world.py` (orchestration), `simulation/executio
 When unsure: add a focused determinism or perf test instead of speculative refactor. Commit messages: concise WHAT + WHY (e.g. `selection: prune zero ΔU early (perf +1.2%, hash stable)`).
 
 Current refinement focus: broaden event coverage (collection/trade execution), metrics fidelity, scaling perf validation, determinism baseline refresh tied to respawn cadence updates.
+
+**Development Environment Setup**:
+```bash
+make venv && source vmt-dev/bin/activate  # Essential first step
+make launcher                             # Primary development interface
+ECONSIM_DEBUG_AGENT_MODES=1 make launcher # Debug mode transitions
+ECONSIM_LEGACY_RANDOM=1 make dev          # Force legacy random walk
+```
+
+**Core Architecture Boundaries**:
+- Simulation Core: `src/econsim/simulation/` (deterministic step execution)
+- Step Pipeline: `src/econsim/simulation/execution/` (Movement → Collection → Trading → Metrics → Respawn)
+- Event System: `src/econsim/observability/` (NO direct GUI calls from simulation)
+- Launcher Framework: `src/econsim/tools/launcher/` (enhanced GUI + scenario registry)
+- Configuration Registry: Use `TestConfiguration` dataclass pattern, not scattered manual setup
 
 **Active Refactoring (Sept 2025)**: Migrating ~80% of remaining direct `agent.mode = ` assignments in `world.py` to `_set_mode()` helper calls. When modifying mode-related code, check for direct assignments and convert to helper pattern with proper `observer_registry` and `step_number` parameters.

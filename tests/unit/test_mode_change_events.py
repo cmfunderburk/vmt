@@ -11,10 +11,10 @@ from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
 from econsim.simulation.agent import Agent, AgentMode
 from econsim.observability.events import AgentModeChangeEvent
-from econsim.observability.observers import SimulationObserver
+from econsim.observability.observers import BaseObserver
 
 
-class TestModeChangeObserver(SimulationObserver):
+class TestModeChangeObserver(BaseObserver):
     """Test observer that captures AgentModeChangeEvents."""
     
     def __init__(self):

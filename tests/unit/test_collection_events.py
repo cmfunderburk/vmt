@@ -10,10 +10,10 @@ from typing import List, Tuple, Any, Optional
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
 from econsim.observability.events import ResourceCollectionEvent
-from econsim.observability.observers import SimulationObserver
+from econsim.observability.observers import BaseObserver
 
 
-class TestCollectionObserver(SimulationObserver):
+class TestCollectionObserver(BaseObserver):
     """Test observer that captures ResourceCollectionEvents."""
     
     def __init__(self):
