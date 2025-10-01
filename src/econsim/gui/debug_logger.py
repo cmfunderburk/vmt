@@ -177,6 +177,27 @@ class GUILogger:
         if GUILogger._instance is not None:
             raise RuntimeError("GUILogger is a singleton. Use get_instance() instead.")
         
+        # PHASE 3.3: DEPRECATION WARNING - GUILogger is being migrated to observer pattern
+        import warnings
+        warnings.warn(
+            "GUILogger is deprecated and will be removed in a future version. "
+            "Use FileObserver and EducationalObserver from the observer pattern instead. "
+            "See migration guide for details.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
+        # Initialize observer system internally for backward compatibility
+        try:
+            from ..observability.legacy_adapter import create_legacy_adapter
+            self._legacy_adapter = create_legacy_adapter(enable_warnings=False)  # Disable nested warnings
+            self._observer_system_enabled = True
+        except Exception as e:
+            # Graceful fallback if observer system isn't available
+            self._legacy_adapter = None
+            self._observer_system_enabled = False
+            warnings.warn(f"Observer system unavailable, using legacy implementation: {e}", UserWarning)
+        
         # SIMPLIFIED: Always use VERBOSE level and structured format
         self.log_level = LogLevel.VERBOSE
             
@@ -2101,11 +2122,21 @@ class GUILogger:
     def log(self, category: str, message: str, step: Optional[int] = None) -> None:
         """Log a debug message with timestamp and category.
         
+        DEPRECATED: This method is deprecated in favor of the observer pattern.
+        Use specific event types with FileObserver and EducationalObserver instead.
+        
         Args:
             category: Type of message (e.g., "AGENT_MODE", "TRADE", "SIMULATION")
             message: The debug message
             step: Optional simulation step number
         """
+        # Route to observer system if available
+        if self._observer_system_enabled and self._legacy_adapter:
+            try:
+                self._legacy_adapter.log(category, message, step)
+            except Exception:
+                pass  # Fall back to legacy implementation
+        
         # Skip logging if session has been finalized or level filtering
         if self.is_finalized() or not self._should_log_category(category):
             return
@@ -2194,7 +2225,19 @@ class GUILogger:
             pass
 
     def log_agent_mode(self, agent_id: int, old_mode: str, new_mode: str, reason: str = "", step: Optional[int] = None) -> None:
-        """Log agent mode transitions."""
+        """Log agent mode transitions.
+        
+        DEPRECATED: This method is deprecated in favor of the observer pattern.
+        Use AgentModeChangeEvent with FileObserver and EducationalObserver instead.
+        """
+        # Route to observer system if available
+        if self._observer_system_enabled and self._legacy_adapter:
+            try:
+                self._legacy_adapter.log_agent_mode(agent_id, old_mode, new_mode, reason, step)
+            except Exception:
+                pass  # Fall back to legacy implementation
+        
+        # Legacy implementation for backward compatibility
         reason_str = f" ({reason})" if reason else ""
         message = f"Agent {agent_id} mode: {old_mode} -> {new_mode}{reason_str}"
         self.log("AGENT_MODE", message, step)
@@ -2207,8 +2250,19 @@ class GUILogger:
             return []
     
     def finalize_session(self) -> None:
-        """Write session end marker and prevent further logging."""
-        # Flush any remaining buffered trades and transitions
+        """Write session end marker and prevent further logging.
+        
+        DEPRECATED: This method is deprecated in favor of the observer pattern.
+        Use observer cleanup methods instead.
+        """
+        # Close observer system if enabled
+        if self._observer_system_enabled and self._legacy_adapter:
+            try:
+                self._legacy_adapter.finalize_session()
+            except Exception:
+                pass  # Continue with legacy cleanup
+        
+        # Legacy cleanup - flush any remaining buffered trades and transitions
         self._flush_trade_buffer()
         self._flush_transition_buffer()
         self._flush_bundle_buffer()
