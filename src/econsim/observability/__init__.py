@@ -36,6 +36,10 @@ from .observer_logger import (
     ObserverLogger, get_observer_logger, 
     get_global_observer_logger, initialize_global_observer_logger
 )
+from .serializers import (
+    OptimizedEventSerializer, OptimizedLogWriter,
+    create_optimized_serializer, create_optimized_log_writer
+)
 
 __all__ = [
     # Core events
@@ -57,4 +61,9 @@ __all__ = [
     "get_observer_logger",
     "get_global_observer_logger",
     "initialize_global_observer_logger",
+    # Optimized serialization
+    "OptimizedEventSerializer",
+    "OptimizedLogWriter",
+    "create_optimized_serializer",
+    "create_optimized_log_writer",
 ]
