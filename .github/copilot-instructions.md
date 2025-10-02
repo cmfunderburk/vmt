@@ -1,5 +1,3 @@
-## VMT EconSim – AI Agent Guide (Oct 2025)
-
 **Goal**: Maintain a deterministic educational microeconomics simulation (PyQt6 + Pygame) while safely refactoring legacy systems. Economic coherence > visual consistency. Never add rollback/ghost state to "preserve hashes."
 
 ### Architecture Overview
@@ -10,6 +8,9 @@
 - `src/econsim/gui/` - PyQt6 GUI with embedded Pygame surface  
 - `src/econsim/observability/` - Event system & logging infrastructure
 - `src/econsim/tools/launcher/` - Main GUI application entry point
+- `tests/` - Comprehensive test suite (210+ tests) with performance baselines
+- `baselines/` - Determinism hashes and performance references for validation
+- `MANUAL_TESTS/` - Interactive GUI test scenarios and launcher components
 
 ### Development Workflow
 ```bash
@@ -28,8 +29,6 @@ make token                              # Generate LLM token usage report
 - `make lint` - Ruff + Black code quality checks
 - `make format` - Auto-format with Black + Ruff
 - `make token` - Generate LLM context token analysis report (see `llm_counter/`)
-
-**Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
 **Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
@@ -103,6 +102,8 @@ Handler pattern:
 
 **Hash invariant**: Excludes trade & debug metrics. Behavioral changes require: (1) focused test, (2) baseline refresh with commit message explaining WHAT + WHY.
 
+**Test Structure**: Use `tests/conftest.py` fixtures - `clear_trade_flags` and `reset_forage_flag` ensure clean test isolation. All tests use factory construction pattern via `SimConfig`.
+
 ### Feature Flags (Active)
 **Core Behavior**:
 - `ECONSIM_FORAGE_ENABLED` - agent foraging behavior
@@ -123,6 +124,11 @@ Handler pattern:
 - `ECONSIM_HEADLESS_RENDER` - skip rendering for CI/testing
 - `ECONSIM_LEGACY_ANIM_BG` - restore animated background (default: static)
 - `ECONSIM_LAUNCHER_SUPPRESS_LOGS` - disable launcher file logging
+
+### Project Dependencies & Environment
+**Core Stack**: Python 3.11+, PyQt6 (GUI), Pygame (rendering), NumPy (math). Development tools: pytest, black, ruff, mypy.
+
+**Virtual Environment**: Always use `make venv && source vmt-dev/bin/activate` for consistent development environment. Project uses `pyproject.toml` with `setuptools>=68`.
 
 ### Current Refactoring Status
 **UNIFIED REFACTOR COMPLETE** (Oct 2025): Major architectural modernization achieved ✅
@@ -152,6 +158,9 @@ Handler pattern:
 - `tools/launcher/` - Canonical development interface architecture
 - `baselines/` - Determinism & performance references
 - `llm_counter/` - Token usage analysis for LLM context optimization
+
+### Token Usage Analysis
+**Unique Feature**: This project includes `llm_counter/` for analyzing LLM token consumption. Use `make token` to generate reports on codebase size for AI context optimization.
 
 ### Pre-commit Checklist
 1. All tests pass (`pytest -q`)
