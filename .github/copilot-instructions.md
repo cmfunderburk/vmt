@@ -57,6 +57,19 @@ Handler pattern:
 - Output: `StepResult` (metrics + event counts)
 - Orchestration: `StepExecutor` aggregates results
 
+### Agent Component Architecture (October 2025)
+**Status**: Agent refactor complete with 6 specialized components.
+
+**Component Structure**:
+- **Movement**: `AgentMovement` - spatial navigation, pathfinding, collision avoidance
+- **Event Emitter**: `AgentEventEmitter` - observer pattern integration, structured logging
+- **Inventory**: `AgentInventory` - dual inventory management (carrying + home), mutation-safe
+- **Trading Partner**: `TradingPartner` - bilateral exchange coordination, cooldown management
+- **Target Selection**: `ResourceTargetStrategy` - deterministic resource/partner targeting
+- **Mode State Machine**: `AgentModeStateMachine` - behavioral mode transitions, validation
+
+**Component Integration**: Components initialized in `Agent.__post_init__()` with proper event emitter wiring.
+
 ### Observer Event System
 **Current Status**: Legacy GUILogger eliminated. Observer pattern is authoritative.
 
@@ -115,6 +128,7 @@ Handler pattern:
 **UNIFIED REFACTOR COMPLETE** (Oct 2025): Major architectural modernization achieved ✅
 - **GUILogger elimination complete** - Legacy 2593-line monolith removed, observer pattern established
 - **Step decomposition complete** - `Simulation.step()` decomposed from 450+ lines to 70-line orchestration via handler system
+- **Agent component refactor complete** - Agent class modularized into 6 specialized components (972→831 lines)
 - **Observer system operational** - Event-driven architecture eliminates simulation→GUI coupling
 - **Launcher architecture modern** - `make launcher` is canonical development interface with modular design
 - **Technical debt reduced 85%** - From 289 legacy references to ~15 minor launcher framework cleanup items
@@ -132,7 +146,8 @@ Handler pattern:
 - `simulation/world.py` - Main orchestration (70-line step method)
 - `simulation/execution/step_executor.py` - Handler pipeline coordinator
 - `simulation/execution/handlers/` - Step-specific logic (Movement, Collection, Trading, Metrics, Respawn)
-- `simulation/agent.py` - Decision & mode system with observer integration
+- `simulation/agent.py` - Modular agent with 6 component architecture
+- `simulation/components/` - Agent component implementations (Movement, EventEmitter, Inventory, TradingPartner, TargetSelection, ModeStateMachine)
 - `observability/events.py` - Event types for observer pattern
 - `tools/launcher/` - Canonical development interface architecture
 - `baselines/` - Determinism & performance references

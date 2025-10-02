@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from enum import Enum
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -10,13 +9,8 @@ if TYPE_CHECKING:
     from ..observability.event_buffer import StepEventBuffer
     from .event_emitter import AgentEventEmitter
 
-
-class AgentMode(Enum):
-    """Agent behavioral modes determining movement and interaction patterns."""
-    FORAGE = "FORAGE"
-    RETURN_HOME = "RETURN_HOME"
-    IDLE = "IDLE"
-    MOVE_TO_PARTNER = "MOVE_TO_PARTNER"
+# Import the correct AgentMode from the main agent module
+from ..agent import AgentMode
 
 
 class AgentModeStateMachine:

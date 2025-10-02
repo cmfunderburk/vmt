@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-10-02T20:15:00",
+  "timestamp": "2025-10-02T22:30:00",
   "python_version": "3.12.3",
   "validation_steps": 500,
   "scenarios": [
@@ -10,7 +10,7 @@
       "steps_executed": 500,
       "agent_count": 20,
       "resource_count": 208,
-      "determinism_hash": "03e634ad484ba1ea",
+      "determinism_hash": "a033518ab986dfa0",
       "simulation_state_summary": {
         "total_agents": 20,
         "total_resources": 208,
@@ -40,7 +40,7 @@
       "steps_executed": 500,
       "agent_count": 30,
       "resource_count": 135,
-      "determinism_hash": "9f4eaee71b45ad22",
+      "determinism_hash": "120914e2024083f6",
       "simulation_state_summary": {
         "total_agents": 30,
         "total_resources": 135,

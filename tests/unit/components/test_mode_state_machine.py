@@ -62,16 +62,16 @@ class TestAgentModeStateMachine:
         
         # Valid transition should return True and emit event
         result = state_machine.validate_and_emit_transition(
-            old_mode="FORAGE",
-            new_mode="RETURN_HOME",
+            old_mode="forage",
+            new_mode="return_home",
             reason="test_reason",
             step_number=42
         )
         
         assert result is True
         mock_emitter.emit_mode_change.assert_called_once_with(
-            old_mode="FORAGE",
-            new_mode="RETURN_HOME",
+            old_mode="forage",
+            new_mode="return_home",
             reason="test_reason",
             step_number=42,
             observer_registry=None,
@@ -85,7 +85,7 @@ class TestAgentModeStateMachine:
         # Invalid mode string should return False
         result = state_machine.validate_and_emit_transition(
             old_mode="INVALID_MODE",
-            new_mode="FORAGE",
+            new_mode="forage",
             reason="test_reason",
             step_number=42
         )
@@ -101,8 +101,8 @@ class TestAgentModeStateMachine:
         mock_buffer = Mock()
         
         result = state_machine.validate_and_emit_transition(
-            old_mode="FORAGE",
-            new_mode="FORAGE",  # No-op transition should be valid
+            old_mode="forage",
+            new_mode="forage",  # No-op transition should be valid
             reason="test_reason",
             step_number=42,
             observer_registry=mock_registry,
@@ -139,8 +139,8 @@ class TestAgentModeStateMachine:
         
         # Should still validate transitions correctly
         result = state_machine.validate_and_emit_transition(
-            old_mode="FORAGE",
-            new_mode="RETURN_HOME",
+            old_mode="forage",
+            new_mode="return_home",
             reason="test_reason",
             step_number=42
         )
@@ -160,8 +160,8 @@ class TestAgentModeStateMachine:
     
     def test_enum_consistency(self):
         """Test that AgentMode enum values match expected strings."""
-        # Verify enum values match what the Agent class expects
-        assert AgentMode.FORAGE.value == "FORAGE"
-        assert AgentMode.RETURN_HOME.value == "RETURN_HOME"
-        assert AgentMode.IDLE.value == "IDLE"
-        assert AgentMode.MOVE_TO_PARTNER.value == "MOVE_TO_PARTNER"
+        # Verify enum values match what the Agent class expects (lowercase)
+        assert AgentMode.FORAGE.value == "forage"
+        assert AgentMode.RETURN_HOME.value == "return_home"
+        assert AgentMode.IDLE.value == "idle"
+        assert AgentMode.MOVE_TO_PARTNER.value == "move_to_partner"

@@ -15,12 +15,44 @@ An educational microeconomic simulation featuring deterministic spatial agent be
 ### 1.1 Completed Systems
 - **Observer Pattern**: Modular event system with FileObserver, EducationalObserver, PerformanceObserver
 - **Step Decomposition**: Handler pipeline (Movement, Collection, Trading, Metrics, Respawn)
+- **Agent Component Architecture**: Modular agent design with 6 specialized components
 - **Launcher Architecture**: Modern GUI with test gallery, configuration editor, batch runner
 - **Deterministic Simulation**: Factory construction, sorted iteration, RNG separation
 - **Bilateral Trading**: Feature-gated single-unit exchange with intent enumeration
 - **Distance-Discounted Utility**: Configurable k parameter for local vs global optimization
 - **Agent Wealth Accumulation**: Home inventory tracking with utility calculations
 - **Real-time Visualization**: Configurable overlays, agent inspector, performance metrics
+
+### 1.2 Agent Component Architecture (October 2025)
+
+The Agent class has been refactored into a modular component architecture with 6 specialized components:
+
+| Component | Responsibility | Key Features |
+|-----------|----------------|--------------|
+| **Movement** | Spatial navigation & pathfinding | Manhattan distance, collision avoidance, target tracking |
+| **Event Emitter** | Observer pattern integration | Mode change events, resource collection events, structured logging |
+| **Inventory** | Dual inventory management | Carrying + home inventories, mutation-safe operations |
+| **Trading Partner** | Bilateral exchange coordination | Partner pairing, meeting points, cooldown management |
+| **Target Selection** | Resource & partner targeting | Deterministic priority ordering, distance-discounted utility |
+| **Mode State Machine** | Behavioral mode transitions | Valid transition validation, event emission integration |
+
+**Architecture Benefits**:
+- **Modularity**: Each component has a single responsibility
+- **Testability**: Components can be tested in isolation
+- **Maintainability**: Clear separation of concerns
+- **Backward Compatibility**: Agent API preserved through component delegation
+- **Performance**: Minimal overhead through efficient component integration
+
+**Component Integration**:
+```python
+# Agent components are initialized in __post_init__
+self._movement = AgentMovement(self.id)
+self._event_emitter = AgentEventEmitter(self.id)
+self._inventory = AgentInventory(self.preference)
+self._trading_partner = TradingPartner(self.id)
+self._target_selection = ResourceTargetStrategy()
+self._mode_state_machine = AgentModeStateMachine(self.id)
+```
 
 ## 2. Quick Start
 
