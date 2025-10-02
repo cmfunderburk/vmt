@@ -481,6 +481,27 @@ class Agent:
             self._set_mode(AgentMode.IDLE, "no_targets", observer_registry, step_number)
             self.target = None
 
+    # --- Unified / Shared Candidate Computation -----------------
+    def compute_best_resource_candidate(self, grid: Grid) -> tuple[Position | None, float, tuple[float,int,int,int] | None]:
+        """Return best resource target using target selection component.
+        
+        Maintains backward compatibility for select_unified_target and other methods
+        that depend on this interface. Delegates to the target selection component.
+        
+        Returns:
+            (position, delta_u, tie_key) where tie_key = (-delta_u, distance, x, y)
+        """
+        current_bundle = self._current_bundle()
+        candidate = self._target_selection.select_target(
+            (self.x, self.y), current_bundle, self.preference, grid
+        )
+        
+        if candidate is None:
+            return None, 0.0, None
+        
+        # Convert to expected format for backward compatibility
+        key = (-candidate.delta_u_raw, candidate.distance, candidate.position[0], candidate.position[1])
+        return candidate.position, candidate.delta_u_raw, key
 
     def step_decision(self, grid: Grid, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> bool:
         """Perform one decision+movement+interaction step (without RNG).

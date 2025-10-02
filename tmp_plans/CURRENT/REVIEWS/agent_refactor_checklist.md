@@ -188,14 +188,14 @@
 - [x] Run performance benchmark → **REPORT GENERATED** (276.6 steps/sec mean)
 - [x] **Status**: Target selection validated
 
-#### Day 11: Flag Removal ✓ / ✗
-- [ ] Remove flag checks
-- [ ] Delete legacy selection code
-- [ ] Remove flag from `agent_flags.py`
-- [ ] **Commit**: `agent: target selection complete (flag removed)`
-- [ ] **Lines Reduced**: ~150 lines
+#### Day 11: Flag Removal ✓
+- [x] Remove flag checks
+- [x] Delete legacy selection code
+- [x] Remove flag from `agent_flags.py`
+- [x] **Commit**: `agent: target selection complete (flag removed, cleanup)`
+- [x] **Lines Reduced**: 392 lines (1191→799)
 
-**Phase 2.3 Result**: ✓ Complete / ✗ Issues / ⚠ Needs Review
+**Phase 2.3 Result**: ✓ Complete
 
 ---
 
