@@ -11,14 +11,14 @@ from pathlib import Path
 import tempfile
 import json
 
-from src.econsim.observability.config import ObservabilityConfig
-from src.econsim.observability.registry import ObserverRegistry
-from src.econsim.observability.events import (
+from econsim.observability.config import ObservabilityConfig
+from econsim.observability.registry import ObserverRegistry
+from econsim.observability.events import (
     AgentModeChangeEvent, TradeExecutionEvent, ResourceCollectionEvent
 )
-from src.econsim.observability.observer_logger import ObserverLogger
-from src.econsim.observability.observers.gui_observer import GUIEventObserver
-from src.econsim.observability.validation.validation_framework import (
+from econsim.observability.observer_logger import ObserverLogger
+from econsim.observability.observers.gui_observer import GUIEventObserver
+from econsim.observability.validation.validation_framework import (
     EventCaptureSystem, ObserverValidator, IntegrationTester, PerformanceTester,
     CapturedEvent, ValidationResult, EventAnalysis,
     create_validation_framework, run_comprehensive_validation

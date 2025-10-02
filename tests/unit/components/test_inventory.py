@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock
-from src.econsim.simulation.components.inventory import AgentInventory
+from econsim.simulation.components.inventory import AgentInventory
 from econsim.preferences.cobb_douglas import CobbDouglasPreference
 
 

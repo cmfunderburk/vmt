@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from .components.inventory import AgentInventory
     from .components.trading_partner import TradingPartner
     from .components.target_selection import ResourceTargetStrategy
+    from .components.mode_state_machine import AgentModeStateMachine
 
 Position = tuple[int, int]
 
@@ -166,6 +167,11 @@ class Agent:
         # Initialize target selection component
         from .components.target_selection import ResourceTargetStrategy
         self._target_selection = ResourceTargetStrategy()
+        
+        # Initialize mode state machine component
+        from .components.mode_state_machine import AgentModeStateMachine
+        self._mode_state_machine = AgentModeStateMachine(self.id)
+        self._mode_state_machine.set_event_emitter(self._event_emitter)
     
     # Trading partner properties that delegate to component
     @property
@@ -246,7 +252,7 @@ class Agent:
 
     def _set_mode(self, new_mode: AgentMode, reason: str = "", observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0, event_buffer: Optional['StepEventBuffer'] = None) -> None:
         """
-        Centralized mode setter that emits AgentModeChangeEvent.
+        Centralized mode setter with state machine validation and event emission.
         
         Args:
             new_mode: Target AgentMode
@@ -259,13 +265,17 @@ class Agent:
             return  # No-op if mode unchanged
             
         old_mode = self.mode
+        
+        # Validate transition using state machine
+        if not self._mode_state_machine.validate_and_emit_transition(
+            old_mode.value, new_mode.value, reason, step_number, observer_registry, event_buffer
+        ):
+            # Invalid transition - log and reject
+            self._debug_log_mode_change(old_mode, new_mode, f"REJECTED: {reason}")
+            return
+            
         self._debug_log_mode_change(old_mode, new_mode, reason)
         self.mode = new_mode
-        
-        # Emit mode change event
-        self._event_emitter.emit_mode_change(
-            old_mode.value, new_mode.value, reason, step_number, observer_registry, event_buffer
-        )
 
     # --- Movement --------------------------------------------------
     def move_random(

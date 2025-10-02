@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock
-from src.econsim.simulation.components.trading_partner import TradingPartner
+from econsim.simulation.components.trading_partner import TradingPartner
 
 
 class TestTradingPartner:

@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, MagicMock
-from src.econsim.simulation.components.target_selection import (
+from econsim.simulation.components.target_selection import (
     TargetSelectionStrategy, 
     TargetCandidate, 
     ResourceTargetStrategy

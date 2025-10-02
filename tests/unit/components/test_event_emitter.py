@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from src.econsim.simulation.components.event_emitter import AgentEventEmitter
+from econsim.simulation.components.event_emitter import AgentEventEmitter
 
 
 class TestAgentEventEmitter:
