@@ -27,16 +27,16 @@ def test_runtime_toggle_enables_and_disables(monkeypatch):  # type: ignore[no-un
     controller.set_bilateral_enabled(False)
     rng = random.Random(7)
     # Step with feature disabled → no intents
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     assert not getattr(sim, 'trade_intents', None)
     # Enable live
     controller.set_bilateral_enabled(True)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     intents = getattr(sim, 'trade_intents', None)
     assert intents is not None and len(intents) > 0
     # Disable live
     controller.set_bilateral_enabled(False)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     assert not getattr(sim, 'trade_intents', None)
 
 def test_last_trade_summary_format(monkeypatch):  # type: ignore[no-untyped-def]
@@ -47,7 +47,7 @@ def test_last_trade_summary_format(monkeypatch):  # type: ignore[no-untyped-def]
     controller = SimulationController(simulation=sim)
     controller.set_bilateral_enabled(True)
     rng = random.Random(11)
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     summary = controller.last_trade_summary()
     # Depending on marginal utilities a trade may or may not have executed; if executed summary has required fields
     if summary is not None:

@@ -107,7 +107,7 @@ def run_demo(
 
     header_printed = False
     for _ in range(steps):
-        sim.step(rng_external, use_decision=True)
+        sim.step(rng_external)
         # Pull last metrics entry (recorded inside step)
         rec = list(sim.metrics_collector.records())[-1]  # type: ignore[arg-type]
         if not header_printed:
@@ -133,7 +133,7 @@ def run_demo(
         rng_fwd = random.Random(seed + 999)
         forward_hashes: list[str] = []
         for _ in range(steps):
-            init_sim.step(rng_fwd, use_decision=True)
+            init_sim.step(rng_fwd)
             forward_hashes.append(init_sim.metrics_collector.determinism_hash())  # type: ignore[arg-type]
         # Replay from snapshot and reproduce hash progression
         sim_re = restore_snapshot(snap)
@@ -142,7 +142,7 @@ def run_demo(
         rng2 = random.Random(seed + 999)
         replay_hashes: list[str] = []
         for _ in range(steps):
-            sim_re.step(rng2, use_decision=True)
+            sim_re.step(rng2)
             replay_hashes.append(sim_re.metrics_collector.determinism_hash())
         parity = "MATCH" if replay_hashes == forward_hashes else "MISMATCH"
         print(f"Replay parity: {parity}")
@@ -445,13 +445,13 @@ def main() -> int:
                     if self._pending_steps > 0:
                         self._pending_steps -= 1
                         self._capture_pre()
-                        self._sim.step(random.Random(12345), use_decision=True)
+                        self._sim.step(random.Random(12345))
                         self._capture_post()
                         self._step_count += 1
                         if self._step_count == 1 and self._pending_steps == 0:
                             print("[TurnMode] Idle. SPACE=1, ENTER=5, A=auto, O=overlay, Q=quit")
                 else:
-                    self._sim.step(random.Random(12345), use_decision=True)
+                    self._sim.step(random.Random(12345))
                 super()._update_scene()
                 self._draw_fading_resources()
                 self._draw_tails_and_highlights()

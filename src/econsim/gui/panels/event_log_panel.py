@@ -14,7 +14,8 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QFont
 
 from ..simulation_controller import SimulationController
-from ..debug_logger import format_agent_id, format_delta
+# Use GUI utilities instead of legacy debug_logger
+from ..utils import format_agent_id, format_delta
 
 
 class EventLogPanel(QWidget):  # pragma: no cover (GUI)
@@ -283,42 +284,26 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         self._log_display.ensureCursorVisible()
 
     def _refresh_debug_display(self) -> None:
-        # Display content from centralized structured debug log files
+        # Display content from observer events (replacing legacy structured debug logs)
         if self._debug_enabled:
             try:
-                import json
-                from ..debug_logger import get_gui_logger
+                from ...observability.observer_logger import get_global_observer_logger
                 
-                # Get the logger and structured log path
-                logger = get_gui_logger()
-                log_path = logger.get_structured_log_path()
+                # Get the observer logger
+                logger = get_global_observer_logger()
+                if logger is None:
+                    self._debug_display.setPlainText("Observer logger not available")
+                    return
                 
-                formatted_lines: list[str] = []
-                if log_path is not None and log_path.exists():
-                    # Read the latest structured log content (JSON Lines format)
-                    with open(log_path, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-
-                    # Process each JSON line and format for display
-                    for line in lines:
-                        line = line.strip()
-                        if line:
-                            try:
-                                event = json.loads(line)
-                                formatted_lines.append(logger.format_structured_event_for_display(event))
-                            except json.JSONDecodeError:
-                                continue
-                else:
-                    # Fallback to in-memory ring buffer when file has not been flushed yet
-                    for event in logger.recent_structured_events():
-                        try:
-                            formatted_lines.append(logger.format_structured_event_for_display(event))
-                        except Exception:
-                            continue
-
-                # Keep only the most recent entries
-                if len(formatted_lines) > self._max_entries:
-                    formatted_lines = formatted_lines[-self._max_entries:]
+                # For Step 2 GUI Migration: Simple fallback display until observer buffering added
+                # This provides functional GUI during transition period
+                formatted_lines = [
+                    "Observer-based debug display active",
+                    f"Debug enabled: {self._debug_enabled}", 
+                    f"Max entries: {self._max_entries}",
+                    "Debug events will be captured via observer pattern",
+                    "(Full event buffering to be implemented in observer logger)"
+                ]
 
                 # Update the debug display with formatted content
                 dbg_text = '\n'.join(formatted_lines)
@@ -331,8 +316,8 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                 self._debug_display.ensureCursorVisible()
                 
             except Exception as e:
-                # Fallback to show error if log reading fails
-                error_text = f"Debug log error: {str(e)}\nFallback: Reading from structured log files..."
+                # Fallback to show error if observer access fails
+                error_text = f"Observer debug error: {str(e)}\nFallback: Observer-based debug logging..."
                 self._debug_display.setPlainText(error_text)
         else:
             # Clear display when debug is disabled

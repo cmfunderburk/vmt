@@ -61,12 +61,10 @@ def test_behavior_matrix_decision_mode(forage: bool, exchange: bool, monkeypatch
     # Configure flags via controller (mirrors GUI path)
     controller.set_forage_enabled(forage)
     controller.set_bilateral_enabled(exchange)
-    # Ensure decision mode path
-    use_decision = True
     # Prime: place a resource so foraging path can collect if enabled
     if forage:
         sim.grid.add_resource(0,0,'A')
-    sim.step(rng, use_decision=use_decision)
+    sim.step(rng)
     intents = getattr(sim, 'trade_intents', None)
     if not forage and not exchange:
         # Agents should have moved toward home & possibly idled, but no trade intents
@@ -118,7 +116,7 @@ def test_gui_checkboxes_toggle(monkeypatch):  # type: ignore[no-untyped-def]
     # Place a resource and step in decision mode to ensure no collection occurs when disabled
     sim.grid.add_resource(0,0,'A')
     before_present = sim.grid.has_resource(0,0)
-    sim.step(random.Random(1), use_decision=True)
+    sim.step(random.Random(1))
     after_present = sim.grid.has_resource(0,0)
     # Resource should remain because foraging logic skipped
     assert before_present and after_present

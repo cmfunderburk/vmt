@@ -25,7 +25,7 @@ An educational microeconomic simulation prototype combining a PyQt6 desktop shel
 
 **Canonical Development Build**: `make launcher` is now the primary development interface with optimized logging and educational GUI tests. Features not incorporated there are deprecated or scheduled for removal.
 
-Gate 6 delivered: factory construction, GUI default decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param), overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard. Subsequent increment: uniform seeded respawn distribution (removed top-left bias) + GUI respawn interval dropdown.
+Gate 6 delivered: factory construction, GUI decision-based agent behavior, overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard. Subsequent increment: uniform seeded respawn distribution (removed top-left bias) + GUI respawn interval dropdown.
 
 ## 3. Quick Start (Current Behavior)
 ```bash
@@ -41,9 +41,8 @@ make dev                               # Basic GUI (Start Menu → choose scenar
 pytest -q                            # Run full test suite (210+ tests)
 python scripts/perf_stub.py          # Performance sample
 
-# Legacy/debugging options (features may be deprecated soon)
-ECONSIM_NEW_GUI=0 make dev            # Legacy minimal bootstrap window
-ECONSIM_LEGACY_RANDOM=1 make dev      # Force legacy random walk
+# Alternative GUI option (features may be deprecated soon)
+ECONSIM_NEW_GUI=0 make dev            # Minimal bootstrap window
 ```
 
 ## 4. Factory Construction (Preferred)
@@ -69,7 +68,7 @@ cfg = SimConfig(
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ext_rng = random.Random(999)
 for _ in range(40):
-	sim.step(ext_rng, use_decision=True)
+	sim.step(ext_rng)
 print("hash=", sim.metrics_collector.determinism_hash())
 ```
 Legacy manual wiring is supported but deprecated.
@@ -104,7 +103,7 @@ Current Mechanics:
 * Intent Fields: seller, buyer, give_type, take_type, delta_utility (approx combined marginal lift), priority tuple.
 * Metrics (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round`.
 * Inspector / Event Log: last executed trade summary (cleared on disable).
-* Hash Neutral Debug: `ECONSIM_TRADE_HASH_NEUTRAL=1` restores carrying inventories post-hash for parity exploration (not default).
+* Economic Coherence: Trade execution has real consequences - inventory changes persist and affect subsequent behavior.
 
 Determinism Safeguards:
 * Feature off (default) → simulation identical to pre-trade build.
@@ -230,7 +229,7 @@ The determinism hash currently includes agents' carrying inventories. Since exec
 ## 6. Gate 6 (Integration Summary)
 Delivered:
 * `Simulation.from_config` (seeded RNG + optional respawn & metrics)
-* GUI defaults to decision mode (env override `ECONSIM_LEGACY_RANDOM=1` or widget param `decision_mode=False`)
+* GUI uses decision-based agent behavior (legacy random movement removed)
 * Overlay/grid toggle (key 'O') + overlay regression (byte-diff) test
 * Decision step throughput safeguard test (raw stepping floor)
 * Test migration reducing private attribute reliance (only specialized replay/density cases remain)
@@ -271,7 +270,7 @@ Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist
 | Intent | Proposed single-unit swap between two co-located agents (fields: seller, buyer, give_type, take_type, delta_utility, priority tuple). Enumeration hash‑excluded. |
 | Priority Tuple | Ordering key (flagged): `(-delta_utility, seller_id, buyer_id, give_type, take_type)`; reorders only (multiset invariant). |
 | fairness_round | Advisory counter incremented each executed trade (hash-excluded) indicating progression of exchanges. |
-| Hash Neutral Mode | Debug flag `ECONSIM_TRADE_HASH_NEUTRAL=1` restoring carrying inventories post-hash to explore parity; not enabled in normal runs. |
+| Economic Coherence | Trade execution produces real inventory changes that persist and influence subsequent agent decisions and utility calculations. |
 | Agent Mode Debug | Debug flag `ECONSIM_DEBUG_AGENT_MODES=1` logging agent mode transitions (idle↔forage↔return_home↔move_to_partner) to console for behavioral debugging. |
 | Carrying Inventory | Goods presently held (mutable during execution). Included in current determinism hash (pending redesign). |
 | Home Inventory | Goods deposited at agent home; immutable during trading; part of lifetime wealth/utility. |
@@ -312,7 +311,7 @@ Added:
 * **fairness_round Metric**: Advisory progression counter.
 * **Executed Trade Highlight**: Pulsing cell outline for 12 steps.
 * **Partner Connection Lines**: Cyan lines between paired agents (overlay toggle).
-* **Hash Neutral Debug Mode**: `ECONSIM_TRADE_HASH_NEUTRAL=1` to restore carrying inventories after metrics hash for parity diagnostics.
+* **Economic Coherence**: Trade execution produces real inventory changes with lasting behavioral consequences.
 * **Selected Agent Highlight**: Light green border synced with Agent Inspector.
 
 Removed / Updated:

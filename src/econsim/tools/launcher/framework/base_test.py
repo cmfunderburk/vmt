@@ -204,7 +204,7 @@ class BaseManualTest(QWidget):
         self.check_phase_transition()
         
         # Execute simulation step
-        self.simulation.step(self.ext_rng, use_decision=True)
+        self.simulation.step(self.ext_rng)
         
         # Update display
         self.update_display()
@@ -224,8 +224,9 @@ class BaseManualTest(QWidget):
                     steps_per_sec = (len(self.simulation._step_times) - 1) / time_window
                     frame_ms = (time_window / (len(self.simulation._step_times) - 1)) * 1000
             
-            from econsim.gui.debug_logger import log_periodic_summary, log_economics
-            log_periodic_summary(steps_per_sec, frame_ms, agent_count, resource_count, self.phase, self.current_turn)
+            # Legacy debug logging removed - observer system now handles analytics
+            # Periodic summary logged via console for launcher framework
+            print(f"[LAUNCHER] Step {self.current_turn}: {steps_per_sec:.1f} steps/sec, {frame_ms:.1f}ms/frame, {agent_count} agents, {resource_count} resources, Phase {self.phase}")
             
             # Resource flow analysis
             resource_by_type = {"good1": 0, "good2": 0}
@@ -242,10 +243,10 @@ class BaseManualTest(QWidget):
                 for res_type, count in agent.home_inventory.items():
                     total_home_inventory[res_type] = total_home_inventory.get(res_type, 0) + count
             
-            log_economics(f"Resource distribution - Grid: good1={resource_by_type['good1']}, good2={resource_by_type['good2']} | Carrying: good1={total_carrying['good1']}, good2={total_carrying['good2']} | Home: good1={total_home_inventory['good1']}, good2={total_home_inventory['good2']}", self.current_turn)
+            # Economics logging via console (observer system handles structured logging)
+            print(f"[LAUNCHER] Economics T{self.current_turn}: Grid: good1={resource_by_type['good1']}, good2={resource_by_type['good2']} | Carrying: good1={total_carrying['good1']}, good2={total_carrying['good2']} | Home: good1={total_home_inventory['good1']}, good2={total_home_inventory['good2']}")
             
-            # Spatial analytics
-            from econsim.gui.debug_logger import log_spatial
+            # Spatial analytics (legacy debug logging removed - observer system handles structured logging)
             agent_positions = [(agent.x, agent.y) for agent in self.simulation.agents]
             
             # Calculate center of mass
@@ -267,20 +268,16 @@ class BaseManualTest(QWidget):
                 
                 avg_inter_distance = sum(inter_distances) / len(inter_distances) if inter_distances else 0
                 
-                log_spatial(f"Agent clustering - Center: ({center_x:.1f}, {center_y:.1f}) | Avg distance from center: {avg_distance_from_center:.1f} | Avg inter-agent distance: {avg_inter_distance:.1f}", self.current_turn)
+                # Spatial logging via console (observer system handles structured logging)
+                print(f"[LAUNCHER] Spatial T{self.current_turn}: Center: ({center_x:.1f}, {center_y:.1f}) | Avg distance from center: {avg_distance_from_center:.1f} | Avg inter-agent distance: {avg_inter_distance:.1f}")
         
         # Check if we just completed the final turn
         total_turns = self.get_total_turns()
         if self.current_turn >= total_turns:
             self.step_timer.stop()
             
-            # Finalize debug logging to prevent noise during cleanup
-            try:
-                from econsim.gui.debug_logger import finalize_log_session
-                finalize_log_session()
-                print("🔧 Debug logging session finalized")
-            except Exception as e:
-                print(f"⚠️  Could not finalize debug logging: {e}")
+            # Legacy debug logging removed - observer system handles cleanup automatically
+            print("🔧 Test logging session complete (observer system)")
             
             self.test_layout.control_panel.start_button.setText("Test Completed!")
             self.test_layout.control_panel.status_text.setText(f"🎉 Test completed! All {total_turns} turns executed with phase transitions.")

@@ -16,7 +16,6 @@ import os
 
 from .agent import Agent
 from econsim.preferences.helpers import marginal_utility
-from ..gui.debug_logger import GUILogger  # for one-shot micro-delta emission
 
 # Priority key structure for deterministic ordering:
 # (-combined_delta_u, seller_id, buyer_id, give_type, take_type)
@@ -51,31 +50,28 @@ def _emit_micro_delta_once(first_drop_delta: float) -> None:
 
     Called when an intent passing marginal utility tests is pruned due to
     combined utility delta below MIN_TRADE_DELTA during execution mode.
-    Deterministic: Only flips boolean flag and logs (hash-excluded).
+    Deterministic: Only flips boolean flag and emits debug event (hash-excluded).
     """
     global _micro_delta_threshold_emitted
     if _micro_delta_threshold_emitted:
         return
     _micro_delta_threshold_emitted = True
     try:
-        # Support either get_instance() (current) or legacy get()
-        logger = None
-        for accessor_name in ("get_instance", "get"):
-            accessor = getattr(GUILogger, accessor_name, None)
-            if callable(accessor):  # type: ignore[truthy-function]
-                try:
-                    logger = accessor()
-                except Exception:
-                    logger = None
-                if logger is not None:
-                    break
+        # Emit observer event for debugging transparency
+        from ..observability.observer_logger import get_global_observer_logger
+        from ..observability.events import DebugLogEvent
+        
+        logger = get_global_observer_logger()
         if logger is not None:
-            build_fn = getattr(logger, "build_micro_delta_threshold", None)
-            emit_fn = getattr(logger, "emit_built_event", None)
-            if callable(build_fn) and callable(emit_fn):  # type: ignore[truthy-function]
-                built = build_fn(threshold=MIN_TRADE_DELTA, first_drop_delta=first_drop_delta)
-                # Step unknown at enumeration time -> emit with step=None
-                emit_fn(None, built)
+            # Use effective threshold (including any test override)
+            effective_threshold = _effective_min_trade_delta()
+            # Create debug event with micro-delta threshold information
+            event = DebugLogEvent.create(
+                step=0,  # Step unknown at enumeration time, use 0
+                category="TRADE_MICRO_DELTA",
+                message=f"Micro-delta threshold applied: {effective_threshold:.2e}, first_drop={first_drop_delta:.2e}"
+            )
+            logger.observer_registry.notify(event)
     except Exception:
         # Never allow logging issues to disrupt enumeration
         pass
@@ -363,33 +359,38 @@ def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Ag
             continue
         if buyer.carrying.get(intent.take_type, 0) <= 0:
             continue
-        # Calculate utility before trade for logging
-        from ..gui.debug_logger import log_trade_detail, log_utility_change
+        # Calculate utility before trade for observer events
         seller_utility_before = seller.current_utility()
         buyer_utility_before = buyer.current_utility()
         
-        # Perform swap (normal execution). Hash neutrality (if desired) is handled by restoration
-        # logic in Simulation.step when ECONSIM_TRADE_HASH_NEUTRAL=1.
+        # Perform swap (economic coherence - trade has real consequences)
         seller.carrying[intent.give_type] -= 1
         buyer.carrying[intent.give_type] = buyer.carrying.get(intent.give_type, 0) + 1
         buyer.carrying[intent.take_type] -= 1
         seller.carrying[intent.take_type] = seller.carrying.get(intent.take_type, 0) + 1
         
-        # Calculate utility after trade and log changes
+        # Calculate utility after trade and emit observer events
         seller_utility_after = seller.current_utility()
         buyer_utility_after = buyer.current_utility()
         
-        # Log individual utility changes
-        log_utility_change(intent.seller_id, seller_utility_before, seller_utility_after, "trade", step)
-        log_utility_change(intent.buyer_id, buyer_utility_before, buyer_utility_after, "trade", step)
-        
-        # Log the executed trade with combined utility gain
-        combined_utility_delta = (seller_utility_after - seller_utility_before) + (buyer_utility_after - buyer_utility_before)
-        log_trade_detail(
-            intent.seller_id, intent.give_type, 
-            intent.buyer_id, intent.take_type,
-            combined_utility_delta, step
-        )
+        # Emit observer events for utility changes and trade execution
+        try:
+            from ..observability.observer_logger import get_global_observer_logger
+            from ..observability.events import DebugLogEvent
+            
+            logger = get_global_observer_logger()
+            if logger is not None:
+                # Log individual utility changes via debug events
+                seller_delta = seller_utility_after - seller_utility_before
+                buyer_delta = buyer_utility_after - buyer_utility_before
+                combined_utility_delta = seller_delta + buyer_delta
+                
+                # Emit debug event for trade execution (replaces log_trade_detail)
+                debug_msg = f"TRADE seller={intent.seller_id} buyer={intent.buyer_id} gave={intent.give_type} took={intent.take_type} utility_delta={combined_utility_delta:.3f}"
+                debug_event = DebugLogEvent.create(step=step or 0, category="trade", message=debug_msg)
+                logger.observer_registry.notify(debug_event)
+        except Exception:  # pragma: no cover
+            pass  # Graceful degradation when observer system not available
         
         return intent
     return None

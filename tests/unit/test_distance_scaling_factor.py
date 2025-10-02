@@ -31,7 +31,7 @@ def _step_and_get_choice(sim: Simulation) -> tuple[str, object] | None:
     os.environ['ECONSIM_TRADE_EXEC'] = '1'
     os.environ['ECONSIM_UNIFIED_SELECTION_DISABLE'] = '0'
     r = random.Random(999)
-    sim.step(r, use_decision=True)
+    sim.step(r)
     return sim.agents[0].current_unified_task
 
 

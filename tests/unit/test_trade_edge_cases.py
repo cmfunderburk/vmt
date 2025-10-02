@@ -68,7 +68,7 @@ class TestIdenticalMarginalUtilities:
         monkeypatch.setattr(Agent, "move_random", no_move)
 
         rng = random.Random(100)
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
 
         intents = sim.trade_intents or []
         assert len(intents) > 0, "Should generate trade intents with asymmetric preferences"
@@ -88,7 +88,7 @@ class TestIdenticalMarginalUtilities:
             sim2.agents[2].carrying = {"good1": 1, "good2": 2}
             
             rng2 = random.Random(seed)  # Different step seed
-            sim2.step(rng2, use_decision=False)
+            sim2.step(rng2)
             
             intents2 = sim2.trade_intents or []
             # Intent ordering should be identical despite different step RNG
@@ -119,14 +119,14 @@ class TestIdenticalMarginalUtilities:
         monkeypatch.delenv("ECONSIM_TRADE_PRIORITY_DELTA", raising=False)
         
         rng1 = random.Random(50)
-        sim1.step(rng1, use_decision=False)
+        sim1.step(rng1)
         intents1 = sim1.trade_intents or []
         
         # Test with priority delta enabled
         monkeypatch.setenv("ECONSIM_TRADE_PRIORITY_DELTA", "1")
         
         rng2 = random.Random(50)  # Same RNG seed
-        sim2.step(rng2, use_decision=False)
+        sim2.step(rng2)
         intents2 = sim2.trade_intents or []
         
         # Same intents should exist (multiset invariance)
@@ -173,7 +173,7 @@ class TestZeroInventoryEdgeCases:
         monkeypatch.setattr(Agent, "move_random", lambda self, grid, rng: None)
         
         rng = random.Random(75)
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
         
         intents = sim.trade_intents or []
         assert len(intents) > 0, "Should generate intents despite zero inventories via epsilon lifting"
@@ -202,7 +202,7 @@ class TestZeroInventoryEdgeCases:
         monkeypatch.setattr(Agent, "move_random", lambda self, grid, rng: None)
         
         rng = random.Random(85)
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
         
         intents = sim.trade_intents or []
         assert len(intents) == 0, "No trades possible when carrying inventory is zero"
@@ -229,7 +229,7 @@ class TestLeontiefComplementRatios:
         monkeypatch.setattr(Agent, "move_random", lambda self, grid, rng: None)
         
         rng = random.Random(90)
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
         
         intents = sim.trade_intents or []
         
@@ -262,7 +262,7 @@ class TestLeontiefComplementRatios:
         monkeypatch.setattr(Agent, "move_random", lambda self, grid, rng: None)
         
         rng = random.Random(95)
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
         
         intents = sim.trade_intents or []
         assert len(intents) > 0, "Severely imbalanced Leontief agents should want to trade"
@@ -307,7 +307,7 @@ class TestCoLocationPerformance:
         start_time = time.perf_counter()
         
         rng = random.Random(200)
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
         
         elapsed = time.perf_counter() - start_time
         
@@ -347,7 +347,7 @@ class TestCoLocationPerformance:
         monkeypatch.setattr(Agent, "move_random", lambda self, grid, rng: None)
         
         rng = random.Random(150)
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         
         intents = sim.trade_intents or []
         

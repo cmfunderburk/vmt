@@ -187,19 +187,9 @@ class PhaseManager:
                 
                 # Log transition using centralized debug logger
                 # Use structured logging for phase transitions
-                try:
-                    # Add src to Python path if needed
-                    import sys
-                    import os as path_os
-                    src_path = path_os.path.join(path_os.path.dirname(path_os.path.abspath(__file__)), '..', '..', 'src')
-                    if src_path not in sys.path:
-                        sys.path.insert(0, src_path)
-                    
-                    from econsim.gui.debug_logger import log_phase_transition
-                    log_phase_transition(phase_num, current_turn, phase_def.description)
-                except ImportError:
-                    # Silently skip logging if debug logger not available (structured logging only)
-                    pass
+                # Legacy debug logging removed - observer system handles phase transitions
+                # Phase transition logged via console for launcher framework
+                print(f"[LAUNCHER] Phase Transition: Phase {phase_num} at turn {current_turn} - {phase_def.description}")
                 
                 return PhaseTransition(
                     new_phase=phase_num,

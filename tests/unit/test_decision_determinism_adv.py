@@ -57,8 +57,8 @@ def test_decision_determinism_adv():
     states2: list[Any] = []
     steps = 30
     for _ in range(steps):
-        sim1.step(rng1, use_decision=True)
-        sim2.step(rng2, use_decision=True)
+        sim1.step(rng1)
+        sim2.step(rng2)
         states1.append(snapshot(sim1))
         states2.append(snapshot(sim2))
     assert states1 == states2

@@ -40,7 +40,7 @@ sim = Simulation.from_config(cfg, agent_positions=agent_positions)
 import random
 ext_rng = random.Random(999)  # legacy external RNG still required for random movement path
 for _ in range(15):
-    sim.step(ext_rng, use_decision=True)
+    sim.step(ext_rng)
 
 if sim.metrics_collector:
     print("hash:", sim.metrics_collector.determinism_hash())
@@ -66,7 +66,7 @@ agents = [Agent(id=0, x=0, y=0, preference=CobbDouglasPreference(alpha=0.5))]
 sim = Simulation(grid, agents)
 rng = random.Random(42)
 for _ in range(15):
-    sim.step(rng, use_decision=True)  # explicit decision mode
+    sim.step(rng)  # decision-based agent behavior
 
 # Inspect agent state
 for a in sim.agents:
@@ -75,8 +75,8 @@ for a in sim.agents:
 
 ## 4. Random Walk (Legacy Path)
 ```python
-# Replace use_decision=True with use_decision=False (default) to employ legacy movement
-sim.step(rng, use_decision=False)
+# Decision-based movement is now the only mode (legacy movement removed)
+sim.step(rng)
 ```
 Use only for baseline comparisons; Gate 6 will default UI to decision mode.
 
@@ -89,7 +89,7 @@ sim.respawn_scheduler = RespawnScheduler(target_density=0.25, max_spawn_per_tick
 sim.metrics_collector = MetricsCollector()
 
 for step in range(60):
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
 
 print("determinism hash:", sim.metrics_collector.determinism_hash())
 ```
@@ -105,7 +105,7 @@ from econsim.simulation.snapshot import Snapshot
 snap = Snapshot.from_sim(sim)
 # Advance further
 for _ in range(10):
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
 # Restore
 restored = Snapshot.restore(snap)
 ```
@@ -245,12 +245,11 @@ Last updated: 2025-09-24 (Bilateral Phase 3: priority flag + fairness_round, tes
 
 ## 14. Environment Variables
 - `ECONSIM_NEW_GUI=1` – Launch the new Start Menu + panels shell (default for `make dev`).
-- `ECONSIM_LEGACY_RANDOM=1` – Force legacy random movement in the widget when `decision_mode` parameter is not explicitly passed.
 - `ECONSIM_LEGACY_ANIM_BG=1` – Enable legacy animated background in the Pygame viewport (off by default).
 - `ECONSIM_METRICS_AUTO=1` – Auto-refresh metrics panel. Optional: `ECONSIM_METRICS_AUTO_INTERVAL_MS` to override interval (min 250ms enforced).
 - `ECONSIM_DEBUG_FPS=1` – Print `[FPS]` diagnostic lines once per second in the widget.
 
 ## 15. Start Menu Behavior
-- Baseline scenario exposes the Decision Mode radio; disabling it launches the simulation in legacy random mode while keeping the Start Menu flow intact.
-- Legacy scenario is available for regression comparisons but forces legacy stepping regardless of the radio selection.
+- Scenarios use decision-based agent behavior (legacy random movement has been removed).
+- All simulations now use the unified decision system for consistent, deterministic agent behavior.
 - Non-implemented scenarios (e.g., `bilateral_exchange`, `money_market`) are disabled in the dropdown with a “Not implemented yet” tooltip to avoid modal interruptions.

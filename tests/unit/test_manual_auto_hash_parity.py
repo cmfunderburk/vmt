@@ -55,7 +55,7 @@ def test_manual_plus_auto_matches_pure_auto():
     import random as _r
     rng_auto = _r.Random(seed)
     for _ in range(TOTAL):
-        sim_auto.step(rng_auto, use_decision=True)
+        sim_auto.step(rng_auto)
     assert sim_auto.metrics_collector is not None, "Metrics collector missing in auto path"
     hash_auto = sim_auto.metrics_collector.determinism_hash()
 
@@ -67,11 +67,11 @@ def test_manual_plus_auto_matches_pure_auto():
 
     # Manual steps
     for _ in range(MANUAL_STEPS):
-        sim_mixed.step(manual_rng, use_decision=True)
+        sim_mixed.step(manual_rng)
 
     # For auto steps after manual, continue with SAME manual_rng to mirror controller strategy
     for _ in range(AUTO_STEPS):
-        sim_mixed.step(manual_rng, use_decision=True)
+        sim_mixed.step(manual_rng)
 
     assert sim_mixed.metrics_collector is not None, "Metrics collector missing in mixed path"
     hash_mixed = sim_mixed.metrics_collector.determinism_hash()

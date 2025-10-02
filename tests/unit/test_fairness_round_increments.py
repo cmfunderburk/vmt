@@ -30,11 +30,11 @@ def test_fairness_round_increments(monkeypatch):  # type: ignore[no-untyped-def]
     mc = sim.metrics_collector
     assert mc is not None
     assert mc.fairness_round == 0
-    sim.step(rng, use_decision=False)
+    sim.step(rng)
     # One trade should typically execute; fairness_round increments if so.
     assert mc.fairness_round in (0,1)
     # Run multiple steps to allow further trades if conditions persist.
     for _ in range(4):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
     assert mc.fairness_round >= 0
 

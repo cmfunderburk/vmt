@@ -52,11 +52,11 @@ class TestSimulationStepAPI:
         ext_rng = random.Random(999)
         
         # Test basic step call
-        result = basic_simulation.step(ext_rng, use_decision=True)
+        result = basic_simulation.step(ext_rng)
         assert result is None  # step() should not return anything
         
         # Test step with decision disabled
-        result = basic_simulation.step(ext_rng, use_decision=False)
+        result = basic_simulation.step(ext_rng)
         assert result is None
     
     def test_step_determinism_invariant(self, basic_simulation):
@@ -78,8 +78,8 @@ class TestSimulationStepAPI:
         
         # Execute identical step sequences
         for _ in range(10):
-            sim1.step(ext_rng1, use_decision=True)
-            sim2.step(ext_rng2, use_decision=True)
+            sim1.step(ext_rng1)
+            sim2.step(ext_rng2)
         
         # Compare agent positions (basic determinism check)
         assert len(sim1.agents) == len(sim2.agents)
@@ -90,13 +90,13 @@ class TestSimulationStepAPI:
     def test_step_with_empty_grid(self, basic_simulation):
         """Test step execution with no resources on grid."""
         # Remove all resources
-        basic_simulation.grid.resources.clear()
+        basic_simulation.grid._resources.clear()  # Use private member
         
         ext_rng = random.Random(123)
         
         # Should not crash
         for _ in range(5):
-            basic_simulation.step(ext_rng, use_decision=True)
+            basic_simulation.step(ext_rng)
     
     def test_step_agent_count_stability(self, basic_simulation):
         """Verify agent count remains stable during normal execution."""
@@ -105,7 +105,7 @@ class TestSimulationStepAPI:
         
         # Run multiple steps
         for _ in range(20):
-            basic_simulation.step(ext_rng, use_decision=True)
+            basic_simulation.step(ext_rng)
         
         # Agent count should remain the same (no spawning/despawning)
         assert len(basic_simulation.agents) == initial_agent_count
@@ -139,7 +139,7 @@ class TestEducationalScenarioIntegrity:
         
         # Execute several steps without crashing
         for step in range(50):
-            simulation.step(ext_rng, use_decision=True)
+            simulation.step(ext_rng)
             
             # Sanity checks
             assert len(simulation.agents) == initial_agent_count
@@ -159,27 +159,25 @@ class TestGUILoggerInterface:
         """Test basic GUILogger instantiation."""
         from econsim.gui.debug_logger import GUILogger
         
-        # Should not crash during instantiation
-        try:
-            logger = GUILogger()
-            assert logger is not None
-        except Exception as e:
-            # If it fails, ensure it's a known issue, not a regression
-            assert "deprecated" in str(e).lower() or "observer" in str(e).lower()
+        # Use singleton pattern correctly
+        logger = GUILogger.get_instance()
+        assert logger is not None
     
     def test_gui_logger_log_methods_exist(self):
         """Test that key logging methods still exist (may be deprecated)."""
         from econsim.gui.debug_logger import GUILogger
         
-        # Key methods that existing code depends on
+        # Updated method names based on current API
         expected_methods = [
-            'log_agent_mode_change',
-            'track_agent_pairing',
-            'track_agent_movement'
+            'log_agent_mode',        # Updated from log_agent_mode_change
+            'track_agent_pairing',   # Unchanged
+            'track_agent_movement'   # Unchanged
         ]
         
+        # Test instance methods since that's how they're called
+        logger = GUILogger.get_instance()
         for method_name in expected_methods:
-            assert hasattr(GUILogger, method_name), f"Missing method: {method_name}"
+            assert hasattr(logger, method_name), f"Missing method: {method_name}"
 
 
 class TestTradingSystemSafeguards:
@@ -205,7 +203,7 @@ class TestTradingSystemSafeguards:
             
             # Should execute without trading
             for _ in range(10):
-                simulation.step(ext_rng, use_decision=True)
+                simulation.step(ext_rng)
                 
         finally:
             # Cleanup
@@ -232,7 +230,7 @@ class TestTradingSystemSafeguards:
             
             # Should execute with trade enumeration but no execution
             for _ in range(15):
-                simulation.step(ext_rng, use_decision=True)
+                simulation.step(ext_rng)
                 
         finally:
             # Cleanup
@@ -258,7 +256,7 @@ class TestMetricsSystemSafeguards:
         
         # Execute steps and verify metrics collection doesn't crash
         for _ in range(20):
-            simulation.step(ext_rng, use_decision=True)
+            simulation.step(ext_rng)
         
         # Basic metrics should be available
         if hasattr(simulation, 'metrics_collector'):
@@ -279,7 +277,7 @@ class TestMetricsSystemSafeguards:
         
         # Should work without metrics
         for _ in range(20):
-            simulation.step(ext_rng, use_decision=True)
+            simulation.step(ext_rng)
 
 
 @pytest.mark.integration
@@ -298,7 +296,7 @@ class TestRefactorValidationSuite:
             
             # Execute meaningful number of steps
             for _ in range(100):
-                simulation.step(ext_rng, use_decision=True)
+                simulation.step(ext_rng)
             
             # Basic validation
             assert len(simulation.agents) == config.agent_count
@@ -325,7 +323,7 @@ class TestRefactorValidationSuite:
         ext_rng = random.Random(111)
         
         # Should execute regardless of flags
-        simulation.step(ext_rng, use_decision=True)
+        simulation.step(ext_rng)
         
         # Cleanup (conftest.py should handle this, but be explicit)
         os.environ.pop('ECONSIM_TRADE_DRAFT', None)

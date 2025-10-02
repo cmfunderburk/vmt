@@ -7,13 +7,30 @@ from pathlib import Path
 from econsim.simulation.world import Simulation
 from econsim.simulation.config import SimConfig
 from econsim.simulation.grid import Grid
-from econsim.gui.debug_logger import GUILogger
+from econsim.observability.observer_logger import get_global_observer_logger
+from econsim.observability.events import DebugLogEvent
+from econsim.observability.observers.base_observer import BaseObserver
 import econsim.simulation.trade as trade_mod
 
 # This test validates that enabling trade execution (which prunes micro-delta intents)
-# triggers exactly one micro_delta_threshold structured event, and that disabling execution
+# triggers exactly one micro_delta_threshold debug event via observer system, and that disabling execution
 # suppresses it. It also asserts determinism hash parity between a run with logging active
 # and a control run where the pruning still occurs (hash excludes the log event).
+
+
+class MicroDeltaEventCapture(BaseObserver):
+    """Observer to capture micro-delta threshold debug events."""
+    
+    def __init__(self) -> None:
+        self.captured_events: list[DebugLogEvent] = []
+    
+    def notify(self, event) -> None:
+        # Capture all debug events for debugging
+        if isinstance(event, DebugLogEvent):
+            self.captured_events.append(event)
+    
+    def flush_step(self, step: int) -> None:
+        pass
 
 
 def _build_sim(seed: int) -> Simulation:
@@ -54,7 +71,7 @@ def _build_sim(seed: int) -> Simulation:
 def _run_steps(sim: Simulation, steps: int) -> None:
     rng = random.Random(999)
     for _ in range(steps):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
 
 
 def test_micro_delta_threshold_emitted_once(tmp_path: Path):
@@ -68,14 +85,25 @@ def test_micro_delta_threshold_emitted_once(tmp_path: Path):
     # Reset one-shot flag for isolation
     if hasattr(trade_mod, '_micro_delta_threshold_emitted'):
         trade_mod._micro_delta_threshold_emitted = False  # type: ignore[attr-defined]
+    
+    # Set up observer to capture micro-delta events
+    observer = MicroDeltaEventCapture()
     sim = _build_sim(seed=123)
-
-    # Capture structured log file path (logger created lazily; trigger a step)
-    _run_steps(sim, 5)
-
-    logger = GUILogger.get_instance()
-    events = [e for e in logger.recent_structured_events() if e.get('event') == 'micro_delta_threshold']
-    assert len(events) == 1, f"Expected 1 micro_delta_threshold event, found {len(events)}"  # type: ignore[truthy-bool]
+    
+    try:
+        # Register observer directly with simulation's observer registry
+        sim._observer_registry.register(observer)
+        _run_steps(sim, 5)
+        
+        # Check captured events for micro-delta threshold
+        micro_delta_events = [e for e in observer.captured_events if 'Micro-delta threshold applied' in e.message]
+        assert len(micro_delta_events) == 1, f"Expected 1 micro_delta_threshold event, found {len(micro_delta_events)}"  # type: ignore[truthy-bool]
+    finally:
+        # Cleanup observer from simulation registry
+        try:
+            sim._observer_registry.unregister(observer)
+        except:
+            pass
 
 
 def test_micro_delta_threshold_not_emitted_when_exec_disabled(tmp_path: Path):
@@ -85,15 +113,25 @@ def test_micro_delta_threshold_not_emitted_when_exec_disabled(tmp_path: Path):
     os.environ.pop('ECONSIM_FORCE_MICRO_DELTA_EMIT', None)
     if hasattr(trade_mod, '_micro_delta_threshold_emitted'):
         trade_mod._micro_delta_threshold_emitted = False  # type: ignore[attr-defined]
+    
+    # Set up observer to capture micro-delta events
+    observer = MicroDeltaEventCapture()
     sim = _build_sim(seed=456)
-    _run_steps(sim, 5)
+    
+    try:
+        # Register observer directly with simulation's observer registry
+        sim._observer_registry.register(observer)
+        _run_steps(sim, 5)
 
-    logger = GUILogger.get_instance()
-    before = len([e for e in logger.recent_structured_events() if e.get('event') == 'micro_delta_threshold'])
-    events = [e for e in logger.recent_structured_events() if e.get('event') == 'micro_delta_threshold']
-    after = len(events)
-    # No NEW emission should have occurred; allow prior runs to have populated buffer.
-    assert after == before, f"Expected no additional micro_delta_threshold events; before={before} after={after}"  # type: ignore[truthy-bool]
+        # Check that no micro-delta events were emitted when execution disabled
+        micro_delta_events = [e for e in observer.captured_events if 'Micro-delta threshold applied' in e.message]
+        assert len(micro_delta_events) == 0, f"Expected no micro_delta_threshold events when exec disabled, found {len(micro_delta_events)}"  # type: ignore[truthy-bool]
+    finally:
+        # Cleanup observer from simulation registry
+        try:
+            sim._observer_registry.unregister(observer)
+        except:
+            pass
 
 
 def test_micro_delta_threshold_does_not_change_hash():

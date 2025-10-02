@@ -31,7 +31,7 @@ def test_cobb_douglas_preference_shift_to_balance_goods():
     # Step until first collection (should be an 'A')
     first_collected_tick = None
     for tick in range(15):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         if agent.carrying["good1"] + agent.carrying["good2"] >= 1:
             first_collected_tick = tick
             break
@@ -41,12 +41,12 @@ def test_cobb_douglas_preference_shift_to_balance_goods():
     ), "First collection should be type A (good1)"
 
     # Advance one more step (target reselection & movement towards B expected)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     # Agent should be moving toward B at (3,0); target either (3,0) or None if already there/collected
     assert agent.carrying["good1"] >= 1, "Still should have at least one A"
     # Run additional steps to collect B
     for _ in range(10):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         if agent.carrying["good2"] >= 1:
             break
     assert agent.carrying["good2"] >= 1, "Agent should collect B (good2) after balancing decision"

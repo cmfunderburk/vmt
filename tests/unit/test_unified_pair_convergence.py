@@ -23,7 +23,7 @@ def test_paired_agents_converge_and_intents_after_meeting(monkeypatch):
     # Step until they pair and then meet
     met = False
     for _ in range(30):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         a0, a1 = sim.agents
         if a0.trade_partner_id is not None and a1.trade_partner_id is not None:
             if (a0.x, a0.y) == (a1.x, a1.y):
@@ -31,5 +31,5 @@ def test_paired_agents_converge_and_intents_after_meeting(monkeypatch):
                 break
     assert met, 'Agents failed to converge to meeting point'
     # After meeting, intents should be generated next step (since both carrying complementary goods)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     assert (sim.trade_intents is not None) and len(sim.trade_intents) > 0

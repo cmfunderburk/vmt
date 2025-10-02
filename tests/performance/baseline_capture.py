@@ -94,7 +94,7 @@ class BaselineCapture:
         if self.warmup_steps > 0:
             print(f"   Warming up ({self.warmup_steps} steps)...")
             for _ in range(self.warmup_steps):
-                simulation.step(self.ext_rng, use_decision=True)
+                simulation.step(self.ext_rng)
         
         # Capture determinism hash after warmup 
         determinism_hash = None
@@ -122,7 +122,7 @@ class BaselineCapture:
         start_time = time.perf_counter()
         
         for step in range(self.steps_per_scenario):
-            simulation.step(self.ext_rng, use_decision=True)
+            simulation.step(self.ext_rng)
             
             # Progress indicator for long benchmarks
             if step > 0 and step % 200 == 0:

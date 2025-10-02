@@ -25,7 +25,7 @@ def test_priority_delta_flag_reorders_intents(monkeypatch):  # type: ignore[no-u
     os.environ['ECONSIM_TRADE_DRAFT'] = '1'
     sim1 = build_two()
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
-    sim1.step(rng, use_decision=False)
+    sim1.step(rng)
     intents_off = sim1.trade_intents
     assert intents_off is not None and len(intents_off) > 0
 
@@ -33,7 +33,7 @@ def test_priority_delta_flag_reorders_intents(monkeypatch):  # type: ignore[no-u
     os.environ['ECONSIM_TRADE_PRIORITY_DELTA'] = '1'
     sim2 = build_two()
     monkeypatch.setattr(Agent, 'move_random', lambda self, grid, rng: None)
-    sim2.step(rng, use_decision=False)
+    sim2.step(rng)
     intents_on = sim2.trade_intents
     assert intents_on is not None and len(intents_on) > 0
 

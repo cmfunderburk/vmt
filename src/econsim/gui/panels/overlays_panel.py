@@ -71,21 +71,25 @@ class OverlaysPanel(QWidget):  # pragma: no cover (simple wiring; behavior teste
 
     def _emit_overlay_state(self) -> None:
         try:
-            from ..debug_logger import get_gui_logger  # type: ignore
-            logger: Any = get_gui_logger()
-        except Exception:  # pragma: no cover
-            logger = None
-        if logger is None:
-            return
-        try:
-            builder = logger.build_overlay_state(
-                grid=self._state.show_grid,
-                ids=self._state.show_agent_ids,
-                arrows=self._state.show_target_arrow,
-                trades=self._state.show_trade_lines if hasattr(self._state, 'show_trade_lines') else True,
-                highlight=True,  # highlight proxies home labels + arrows emphasis
-            )
-            logger.emit_built_event(step=None, builder_result=builder)
+            # Use observer pattern for overlay state changes
+            from ...observability.observer_logger import get_global_observer_logger
+            from ...observability.events import GUIDisplayEvent
+            
+            logger = get_global_observer_logger()
+            if logger is not None:
+                # Create GUI display event for overlay state
+                event = GUIDisplayEvent.create(
+                    step=0,  # GUI events don't have specific simulation step
+                    display_type="overlay_state",
+                    element_id="overlay_controls",
+                    data={
+                        "grid": self._state.show_grid,
+                        "agent_ids": self._state.show_agent_ids,
+                        "target_arrows": self._state.show_target_arrow,
+                        "home_labels": self._state.show_home_labels
+                    }
+                )
+                logger.observer_registry.notify(event)
         except Exception:  # pragma: no cover
             pass
 

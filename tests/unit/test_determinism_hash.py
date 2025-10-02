@@ -30,7 +30,7 @@ def build_sim(seed: int, with_respawn: bool = True) -> Simulation:
 def advance(sim: Simulation, steps: int) -> None:
 	rng = random.Random(999)
 	for _ in range(steps):
-		sim.step(rng, use_decision=False)
+		sim.step(rng)
 
 
 def test_determinism_same_seed_same_hash():

@@ -35,7 +35,7 @@ def test_trade_overlay_executed_highlight(monkeypatch):  # type: ignore[no-untyp
     monkeypatch.setattr(Agent, 'step_decision', noop_step_decision)  # type: ignore[attr-defined]
     import random
     dummy_rng = random.Random(0)
-    sim.step(rng=dummy_rng, use_decision=True)
+    sim.step(rng=dummy_rng)
 
     # Render overlay (should include executed trade highlight and summary line)
     render_trade_debug(surface, font, sim)

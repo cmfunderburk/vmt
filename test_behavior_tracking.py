@@ -73,7 +73,7 @@ def run_behavior_tracking_test():
     # Run for 300 steps (3 behavior flush cycles at 100-step intervals)
     step_count = 300
     for step in range(step_count):
-        sim.step(ext_rng, use_decision=True)
+        sim.step(ext_rng)
         
         # Progress indicator
         if step % 50 == 0:

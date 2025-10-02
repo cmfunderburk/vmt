@@ -37,7 +37,7 @@ def test_playback_speed_throttles_steps():
             # emulate a single auto step
             import random
             rng = random.Random(999)
-            controller.simulation.step(rng, use_decision=True)
+            controller.simulation.step(rng)
             controller._record_step_timestamp()  # type: ignore[attr-defined]
             stepped += 1
     # Expect roughly 1 step (allowing small jitter) but not more than 2.
@@ -52,7 +52,7 @@ def test_playback_speed_throttles_steps():
         if controller._should_step_now(now):  # type: ignore[attr-defined]
             import random
             rng = random.Random(999)
-            controller.simulation.step(rng, use_decision=True)
+            controller.simulation.step(rng)
             controller._record_step_timestamp()  # type: ignore[attr-defined]
             stepped2 += 1
     # At 2 tps over ~1.2s expect between 2 and 3 steps

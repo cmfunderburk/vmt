@@ -1,0 +1,126 @@
+{
+  "timestamp": "2025-09-30T18:49:23",
+  "python_version": "3.12.3",
+  "scenarios": [
+    {
+      "scenario_id": 1,
+      "scenario_name": "Baseline Unified Target Selection",
+      "grid_size": [
+        30,
+        30
+      ],
+      "agent_count": 20,
+      "resource_density": 0.25,
+      "total_steps": 1000,
+      "warmup_steps": 100,
+      "execution_time_seconds": 1.2765925580006297,
+      "steps_per_second": 783.3352887206058,
+      "memory_usage_mb": null,
+      "determinism_hash": null
+    },
+    {
+      "scenario_id": 2,
+      "scenario_name": "Sparse Long-Range",
+      "grid_size": [
+        50,
+        50
+      ],
+      "agent_count": 10,
+      "resource_density": 0.1,
+      "total_steps": 1000,
+      "warmup_steps": 100,
+      "execution_time_seconds": 0.6948262080004497,
+      "steps_per_second": 1439.2088100386577,
+      "memory_usage_mb": null,
+      "determinism_hash": null
+    },
+    {
+      "scenario_id": 3,
+      "scenario_name": "High Density Local",
+      "grid_size": [
+        15,
+        15
+      ],
+      "agent_count": 30,
+      "resource_density": 0.8,
+      "total_steps": 1000,
+      "warmup_steps": 100,
+      "execution_time_seconds": 0.9968697479998809,
+      "steps_per_second": 1003.140081245719,
+      "memory_usage_mb": null,
+      "determinism_hash": null
+    },
+    {
+      "scenario_id": 4,
+      "scenario_name": "Large World Global",
+      "grid_size": [
+        60,
+        60
+      ],
+      "agent_count": 15,
+      "resource_density": 0.05,
+      "total_steps": 1000,
+      "warmup_steps": 100,
+      "execution_time_seconds": 0.6374967930005369,
+      "steps_per_second": 1568.6353421375688,
+      "memory_usage_mb": null,
+      "determinism_hash": null
+    },
+    {
+      "scenario_id": 5,
+      "scenario_name": "Pure Cobb-Douglas",
+      "grid_size": [
+        25,
+        25
+      ],
+      "agent_count": 25,
+      "resource_density": 0.4,
+      "total_steps": 1000,
+      "warmup_steps": 100,
+      "execution_time_seconds": 0.8864292319995002,
+      "steps_per_second": 1128.1216411876676,
+      "memory_usage_mb": null,
+      "determinism_hash": null
+    },
+    {
+      "scenario_id": 6,
+      "scenario_name": "Pure Leontief",
+      "grid_size": [
+        25,
+        25
+      ],
+      "agent_count": 25,
+      "resource_density": 0.4,
+      "total_steps": 1000,
+      "warmup_steps": 100,
+      "execution_time_seconds": 4.054260801000055,
+      "steps_per_second": 246.65408790508306,
+      "memory_usage_mb": null,
+      "determinism_hash": null
+    },
+    {
+      "scenario_id": 7,
+      "scenario_name": "Pure Perfect Substitutes",
+      "grid_size": [
+        25,
+        25
+      ],
+      "agent_count": 25,
+      "resource_density": 0.4,
+      "total_steps": 1000,
+      "warmup_steps": 100,
+      "execution_time_seconds": 1.2468254460000026,
+      "steps_per_second": 802.0368875275569,
+      "memory_usage_mb": null,
+      "determinism_hash": null
+    }
+  ],
+  "summary": {
+    "total_scenarios": 7,
+    "total_execution_time_seconds": 11.031428317999598,
+    "mean_steps_per_second": 995.8760198232656,
+    "min_steps_per_second": 246.65408790508306,
+    "max_steps_per_second": 1568.6353421375688,
+    "total_simulation_steps": 7000
+  }
+}

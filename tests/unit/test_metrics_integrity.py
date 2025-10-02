@@ -22,7 +22,7 @@ def make_sim(n_agents: int = 4) -> Simulation:
 def advance(sim: Simulation, steps: int) -> None:
 	rng = random.Random(77)
 	for _ in range(steps):
-		sim.step(rng, use_decision=False)
+		sim.step(rng)
 
 
 def test_metrics_basic_integrity():

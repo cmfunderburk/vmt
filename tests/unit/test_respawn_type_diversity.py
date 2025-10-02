@@ -30,7 +30,7 @@ def test_respawn_includes_both_types():
     sim = build_sim()
     rng = random.Random(777)
     for _ in range(25):
-        sim.step(rng, use_decision=False)
+        sim.step(rng)
     types = {t for (_,_,t) in sim.grid.iter_resources()}
     assert 'A' in types, 'Type A missing after respawn steps'
     assert 'B' in types, 'Type B missing after respawn steps'

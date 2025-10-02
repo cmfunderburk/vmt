@@ -33,7 +33,7 @@ def test_trade_metrics_realized_gain_and_ticks(monkeypatch):  # type: ignore[no-
     monkeypatch.setattr(Agent, 'step_decision', noop_step_decision)  # type: ignore[attr-defined]
 
     dummy_rng = random.Random(0)
-    sim.step(rng=dummy_rng, use_decision=True)
+    sim.step(rng=dummy_rng)
 
     mc = sim.metrics_collector
     assert mc is not None
@@ -50,6 +50,6 @@ def test_trade_metrics_realized_gain_and_ticks(monkeypatch):  # type: ignore[no-
         assert key in lt
 
     # Second step may still trade depending on marginal utilities (current approximation allows second swap)
-    sim.step(rng=dummy_rng, use_decision=True)
+    sim.step(rng=dummy_rng)
     assert mc.trade_ticks >= 1
 

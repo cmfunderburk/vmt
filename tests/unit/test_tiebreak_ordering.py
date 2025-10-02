@@ -36,7 +36,7 @@ def test_tiebreak_lexicographic_when_delta_and_distance_equal():
     rng = random.Random(0)
 
     # Advance one decision tick; agent should pick lexicographically smaller target (0,3)
-    sim.step(rng, use_decision=True)
+    sim.step(rng)
     assert agent.target in {(0, 3), (3, 0)}  # sanity
     assert (
         agent.target == (0, 3)
@@ -44,7 +44,7 @@ def test_tiebreak_lexicographic_when_delta_and_distance_equal():
 
     # Step until first collection happens (should be B at (0,3))
     for _ in range(10):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         if agent.carrying["good2"] >= 1 or agent.carrying["good1"] >= 1:
             if agent.carrying["good2"] >= 1:
                 break
@@ -52,7 +52,7 @@ def test_tiebreak_lexicographic_when_delta_and_distance_equal():
 
     # Continue until second resource collected
     for _ in range(20):
-        sim.step(rng, use_decision=True)
+        sim.step(rng)
         if agent.carrying["good1"] >= 1 and agent.carrying["good2"] >= 1:
             break
     assert (

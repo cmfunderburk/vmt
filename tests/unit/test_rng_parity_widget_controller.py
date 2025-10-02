@@ -1,6 +1,6 @@
-"""Legacy RNG parity between auto-stepping widget and controller manual stepping.
+"""RNG parity between auto-stepping widget and controller manual stepping.
 
-Ensures that when both paths use legacy random movement (use_decision=False) and
+Ensures that when both paths use the same decision-based movement system and
 the RNGs are seeded from the same simulation config seed, trajectories match.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ def _build_pair(seed: int = 314159):
     return sim1, sim2
 
 
-def test_legacy_rng_parity_widget_vs_manual():
+def test_rng_parity_widget_vs_manual():
     # Ensure GUI can init in headless
     if not os.environ.get("DISPLAY"):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -37,10 +37,9 @@ def test_legacy_rng_parity_widget_vs_manual():
     ctrl = SimulationController(sim_manual)
 
     # Auto widget steps using RNG seeded from sim.config.seed; force legacy movement
-    w = EmbeddedPygameWidget(simulation=sim_auto, decision_mode=False)
+    w = EmbeddedPygameWidget(simulation=sim_auto)
 
-    # Ensure legacy random mode for manual stepping
-    ctrl.set_decision_mode(False)
+    # Decision mode is always enabled (legacy mode removed)
     steps = 20
     for _ in range(steps):
         ctrl.manual_step()

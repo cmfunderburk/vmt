@@ -42,11 +42,26 @@ from .trade import (  # type: ignore
 )
 import os
 
+# Observer system imports (Phase 1.3: Observer Foundation)
+from ..observability.registry import ObserverRegistry
+from ..observability.events import AgentModeChangeEvent
+from ..observability.event_buffer import StepEventBuffer
 
-def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
-    """Log agent mode transitions for debugging."""
-    from ..gui.debug_logger import log_agent_mode
-    log_agent_mode(agent.id, old_mode.value, new_mode.value, reason)
+
+def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "", 
+                          observer_registry: Optional[ObserverRegistry] = None, step: int = 0) -> None:
+    """Log agent mode transitions using observer system (Phase 1.3: Breaking circular dependency)."""
+    if observer_registry and observer_registry.has_observers():
+        # Use new observer-based event system
+        event = AgentModeChangeEvent.create(
+            step=step,
+            agent_id=agent.id,
+            old_mode=old_mode.value,
+            new_mode=new_mode.value,
+            reason=reason
+        )
+        observer_registry.notify(event)
+    # Note: Legacy fallback removed - observer system is now required for mode change logging
 
 
 @dataclass(slots=True)
@@ -64,7 +79,7 @@ class Simulation:
     _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
-    _respawn_interval: int | None = 5       # New: how frequently to invoke respawn (5 => every 5 steps, None/<=0 => disabled)
+    _respawn_interval: int | None = 1       # How frequently to invoke respawn (1 => every step default; None/<=0 => disabled)
     # Draft trade intents (feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
     trade_intents: list[TradeIntent] | None = None
@@ -72,409 +87,126 @@ class Simulation:
     _last_trade_highlight: tuple[int,int,int] | None = None  # (x,y,expire_step)
     # Performance tracking for debug logging
     _step_times: list[float] = field(default_factory=list)
+    # Observer system integration (Phase 1.3: Observer Foundation)  
+    _observer_registry: ObserverRegistry = field(default_factory=ObserverRegistry)
+    # Event buffering system for performance optimization
+    _event_buffer: StepEventBuffer = field(default_factory=StepEventBuffer)
+    # Step execution system (Phase 2: Step Decomposition)
+    _step_executor: Any = field(default=None)
+    # Pre-step resource snapshot for collection metrics (not part of determinism hash)
+    pre_step_resource_count: int | None = None
+    # Captured aggregated step metrics (non-deterministic hash; for testing/diagnostics)
+    last_step_metrics: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """Initialize internal RNG from config seed if available."""
         if self.config is not None and self._rng is None:
             seed = getattr(self.config, "seed", 0)
             self._rng = _random.Random(int(seed))
+        
+        # Initialize global observer logger
+        from ..observability.observer_logger import initialize_global_observer_logger
+        initialize_global_observer_logger(self._observer_registry)
 
-    def step(self, rng: random.Random, *, use_decision: bool = False) -> None:
-        """Advance simulation by one step.
+    def step(self, rng: random.Random) -> None:
+        """Advance simulation by one step using decomposed handler system.
 
-        REFACTOR REQUIRED: This method is 450+ lines and should be decomposed into
-        smaller, focused methods for maintainability and testability.
+        Orchestrates step execution through focused handlers while maintaining
+        deterministic behavior and performance characteristics.
 
         Args:
-            rng: External RNG for legacy random movement mode
-            use_decision: Enable deterministic decision-making and trading
+            rng: External RNG for backward compatibility with existing code patterns
         """
-        # Performance tracking
-        import time
-        import os
-        from ..gui.debug_logger import log_comprehensive, log_simulation, log_performance
-
-        step_start = time.perf_counter()
-        step_num = self._steps + 1
-
-        # Comprehensive debug logging for simulation steps
-        log_comprehensive(f"=== SIMULATION STEP {step_num} START ===", step_num)
-
-    # Removed legacy summary line (Agents/Resources/Decision Mode) as redundant with newer instrumentation
-
-        forage_enabled = os.environ.get("ECONSIM_FORAGE_ENABLED", "1") == "1"
-        hash_neutral = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"  # default early to avoid unbound
-        parity_restore_snapshot: list[tuple[int, dict[str,int]]] | None = None
-        # Track which agents foraged (collected) this tick for trade gating when both systems on
-        foraged_ids: set[int] = set()
-        unified_mode_active = False
-        draft_enabled = os.environ.get("ECONSIM_TRADE_DRAFT") == "1"
-        exec_enabled = os.environ.get("ECONSIM_TRADE_EXEC") == "1"
-        unified_disabled = os.environ.get("ECONSIM_UNIFIED_SELECTION_DISABLE") == "1"
-        explicit_unified = os.environ.get("ECONSIM_UNIFIED_SELECTION_ENABLE") == "1"
-        if use_decision and forage_enabled and (not unified_disabled) and (exec_enabled or explicit_unified):
-            # Unified selection (Option 1): evaluate resource vs partner for all agents before movement.
-            unified_mode_active = True
-            self._unified_selection_pass(rng, foraged_ids, step_num)
-        elif use_decision and forage_enabled:
-            for agent in self.agents:
-                try:
-                    collected = agent.step_decision(self.grid)  # type: ignore[assignment]
-                except TypeError:
-                    agent.step_decision(self.grid)  # legacy fallback
-                    collected = False
-                if collected:
-                    foraged_ids.add(agent.id)
-        elif use_decision and not forage_enabled:
-            # Decision mode but foraging disabled: optional behaviors depend on exchange flags.
-            # If exchange also disabled, agents should return home then idle.
-            exchange_any = os.environ.get("ECONSIM_TRADE_DRAFT") == "1" or os.environ.get("ECONSIM_TRADE_EXEC") == "1"
-            if not exchange_any:
-                # Neither foraging nor exchange: agents return home then idle
-                for agent in self.agents:
-                    # Clear any existing target first (they shouldn't be pursuing resources)
-                    agent.target = None
-                    
-                    # If agent is not at home, set to return home (regardless of carrying inventory)
-                    if not agent.at_home():
-                        agent.mode = AgentMode.RETURN_HOME
-                    else:
-                        # Already at home, can idle immediately (deposit any carrying goods first)
-                        agent.maybe_deposit()
-                        agent.mode = AgentMode.IDLE
-                    
-                    # Execute the step to actually move toward home / deposit
-                    agent.step_decision(self.grid)
-            else:
-                # Exchange enabled but foraging disabled: agents immediately start bilateral exchange
-                for agent in self.agents:
-                    # CRITICAL FIX: If agent is still in FORAGE mode but foraging is disabled, transition them
-                    if agent.mode == AgentMode.FORAGE and not forage_enabled:
-                        # Immediately transition to IDLE for bilateral exchange (skip return home)
-                        agent.mode = AgentMode.IDLE
-                        agent.target = None
-                    
-                    # If agent is at home, withdraw available inventory for trading
-                    if agent.at_home() and sum(agent.home_inventory.values()) > 0:
-                        agent.withdraw_all()
-                        agent.mode = AgentMode.IDLE
-                        agent.target = None
-                    
-                    # All agents should be in IDLE mode for bilateral exchange
-                    # (No return home step when bilateral exchange is enabled)
-                    if agent.mode == AgentMode.RETURN_HOME:
-                        # Preserve RETURN_HOME only if a forced deposit is pending (stagnation recovery)
-                        if getattr(agent, "force_deposit_once", False):
-                            # Let normal decision step move toward home & eventually deposit
-                            try:
-                                agent.step_decision(self.grid)
-                            except Exception:
-                                pass
-                            continue  # Do not enter bilateral movement this tick
-                        else:
-                            # Legacy behavior: convert to IDLE for exchange search
-                            agent.mode = AgentMode.IDLE
-                            agent.target = None
-
-                    # In bilateral exchange mode (IDLE), use tiered movement logic
-                    if agent.mode == AgentMode.IDLE:
-                        self._handle_bilateral_exchange_movement(agent, rng)
-                    # Any other mode (should be rare here) just perform decision step for safety
-        else:  # legacy randomness path (foraging always implicit here if enabled)
-            for agent in self.agents:
-                agent.move_random(self.grid, rng)
-            for agent in self.agents:
-                agent.collect(self.grid)  # Legacy path - no step context
-        # Draft trade intent enumeration (feature flag; no state mutation)
-        if draft_enabled or exec_enabled:  # enumeration only when a trade feature flag is active
-            intents: List[TradeIntent] = []
-            funnel_stats = TradeEnumerationStats()
-            # Build co-location index (O(n))
-            cell_map: Dict[Tuple[int, int], List[Agent]] = {}
-            for a in self.agents:
-                cell_map.setdefault((a.x, a.y), []).append(a)
-            for coloc_agents in cell_map.values():
-                if len(coloc_agents) > 1:
-                    # If both forage and exchange enabled, restrict trade consideration to agents
-                    # that did NOT actively forage (collected) this tick, honoring "forage first then trade".
-                    if use_decision and forage_enabled and len(foraged_ids) > 0:
-                        filtered = [ag for ag in coloc_agents if ag.id not in foraged_ids]
-                        if len(filtered) > 1:
-                            intents.extend(enumerate_intents_for_cell(filtered, funnel_stats))
-                    else:
-                        intents.extend(enumerate_intents_for_cell(coloc_agents, funnel_stats))
-            self.trade_intents = intents
-            executed: TradeIntent | None = None
-            if exec_enabled and intents:
-                # Optional hash parity mode: if ECONSIM_TRADE_HASH_NEUTRAL=1 we restore inventories after metrics.
-                if hash_neutral:
-                    parity_restore_snapshot = [(a.id, dict(a.carrying)) for a in self.agents]
-                # Build id map once
-                agents_by_id: Dict[int, Agent] = {a.id: a for a in self.agents}
-                executed = execute_single_intent(intents, agents_by_id, step_num)
-                # Capture highlight immediately if executed; metrics hook will not need agents_by_id
-                if executed is not None:
-                    try:
-                        seller_agent = agents_by_id.get(executed.seller_id)
-                        if seller_agent is not None:
-                            self._last_trade_highlight = (
-                                int(getattr(seller_agent, 'x', 0)),
-                                int(getattr(seller_agent, 'y', 0)),
-                                self._steps + 12,
-                            )
-                    except Exception:
-                        pass
-                # Parity debug (hash redesign deferred). Enable only when explicitly requested.
-                if os.environ.get("ECONSIM_DEBUG_TRADE_PARITY") == "1":  # pragma: no cover - debug aid
-                    try:
-                        import json as _json
-                        snap = [  # type: ignore[var-annotated]
-                            {
-                                "id": a.id,
-                                "x": a.x,
-                                "y": a.y,
-                                "c": dict(a.carrying),
-                                "h": dict(a.home_inventory),
-                            }
-                            for a in sorted(self.agents, key=lambda ag: ag.id)
-                        ]
-                        print("[PARITY_EXEC_SNAP]" + _json.dumps(snap))
-                    except Exception:
-                        pass
-            # Emit trade intent funnel instrumentation after possible execution
-            if funnel_stats.drafted > 0:
-                try:
-                    from ..gui.debug_logger import get_gui_logger
-                    logger = get_gui_logger()
-
-                    executed_count = 1 if executed is not None else 0
-                    builder_result = logger.build_trade_intent_funnel(
-                        drafted=funnel_stats.drafted,
-                        pruned_micro=funnel_stats.pruned_micro,
-                        pruned_nonpositive=funnel_stats.pruned_nonpositive,
-                        executed=executed_count,
-                        max_delta_u=funnel_stats.max_delta_u,
-                    )
-                    logger.emit_built_event(step_num, builder_result)
-                except Exception:
-                    pass  # Don't break simulation if logging fails
-            if self.metrics_collector is not None:
-                try:
-                    mc = self.metrics_collector  # type: ignore[attr-defined]
-                    mc.trade_intents_generated += len(intents)  # type: ignore[attr-defined]
-                    if exec_enabled:
-                        if executed is not None:
-                            seller_delta_u = getattr(executed, "delta_utility", 0.0)
-                            buyer_delta_u = seller_delta_u  # Approximation placeholder
-                            hash_neutral_mode = os.environ.get("ECONSIM_TRADE_HASH_NEUTRAL") == "1"
-                            # Unified metrics registration (counters + histories)
-                            mc.register_executed_trade(
-                                step=self._steps,
-                                agent1_id=executed.seller_id,
-                                agent2_id=executed.buyer_id,
-                                agent1_give=executed.give_type,
-                                agent1_take=executed.take_type,
-                                agent1_delta_u=seller_delta_u,
-                                agent2_delta_u=buyer_delta_u,
-                                realized_utility_gain=seller_delta_u,
-                                hash_neutral=hash_neutral_mode,
-                            )
-                        else:
-                            mc.no_trade_ticks += 1  # type: ignore[attr-defined]
-                except Exception:  # pragma: no cover
-                    pass
-            # Pairing cleanup: clear persistent pairings that are co-located but have no remaining intents
-            try:
-                active_pairs: set[tuple[int,int]] = set()
-                for it in self.trade_intents or []:
-                    pair = (min(it.seller_id, it.buyer_id), max(it.seller_id, it.buyer_id))
-                    active_pairs.add(pair)
-                executed_pair: tuple[int,int] | None = None
-                if 'executed' in locals() and executed is not None:
-                    executed_pair = (min(executed.seller_id, executed.buyer_id), max(executed.seller_id, executed.buyer_id))
-                seen: set[int] = set()
-                for agent in sorted(self.agents, key=lambda a: a.id):
-                    pid = getattr(agent, 'trade_partner_id', None)
-                    if pid is None or agent.id in seen:
-                        continue
-                    partner = self._find_agent_by_id(pid)
-                    if partner is None:
-                        agent.clear_trade_partner()
-                        continue
-                    pair_key = (min(agent.id, pid), max(agent.id, pid))
-                    if executed_pair is not None and pair_key == executed_pair:
-                        agent.end_trading_session(partner)
-                    else:
-                        if (agent.x, agent.y) == (partner.x, partner.y) and pair_key not in active_pairs:
-                            agent.end_trading_session(partner)
-                    seen.add(agent.id); seen.add(pid)
-            except Exception:  # pragma: no cover
-                pass
-        else:
-            self.trade_intents = None
-            # Trade disabled: clear lingering pairings & meeting points
-            for a in self.agents:
-                if getattr(a, 'trade_partner_id', None) is not None:
-                    try:
-                        a.clear_trade_partner()
-                    except Exception:
-                        pass
-        # Respawn hook (inert if scheduler not attached)
-        if self.respawn_scheduler is not None and self._rng is not None:
-            # Only invoke respawn when interval condition satisfied.
-            if self._respawn_interval and self._respawn_interval > 0:
-                if (self._steps % self._respawn_interval) == 0:
-                    try:
-                        # Emit respawn cycle event
-                        try:
-                            from ..gui.debug_logger import get_gui_logger
-                            logger = get_gui_logger()
-                            
-                            # Calculate current density for logging
-                            total_cells = self.grid.width * self.grid.height
-                            current_count = self.grid.resource_count()
-                            current_density = current_count / total_cells if total_cells > 0 else 0.0
-                            target_density = self.respawn_scheduler.target_density
-                            
-                            builder_result = logger.build_respawn_cycle(
-                                step=self._steps,
-                                current_count=current_count,
-                                target_count=int(target_density * total_cells),
-                                current_density=current_density,
-                                target_density=target_density,
-                                deficit=int(target_density * total_cells) - current_count
-                            )
-                            logger.emit_built_event(self._steps, builder_result)
-                        except Exception:
-                            pass  # Don't break simulation if logging fails
-                        
-                        # Execute respawn
-                        spawned_count = self.respawn_scheduler.step(self.grid, self._rng, step_index=self._steps)
-                        
-                        # Log if no resources were spawned (skipped)
-                        if spawned_count == 0:
-                            try:
-                                from ..gui.debug_logger import get_gui_logger
-                                logger = get_gui_logger()
-                                
-                                reason = "density_adequate" if current_count >= int(target_density * total_cells) else "no_empty_cells"
-                                builder_result = logger.build_respawn_skipped(
-                                    step=self._steps,
-                                    reason=reason
-                                )
-                                logger.emit_built_event(self._steps, builder_result)
-                            except Exception:
-                                pass  # Don't break simulation if logging fails
-                                
-                    except Exception as exc:  # pragma: no cover - defensive placeholder
-                        logging.getLogger(__name__).warning("Respawn scheduler error: %s", exc)
-        # Metrics hook (placeholder logic handled inside collector)
-        if self.metrics_collector is not None:
-            try:
-                if os.environ.get("ECONSIM_DEBUG_TRADE_PARITY") == "1":  # pragma: no cover - debug aid
-                    try:
-                        import json as _json
-                        snap = [  # type: ignore[var-annotated]
-                            {
-                                "id": a.id,
-                                "x": a.x,
-                                "y": a.y,
-                                "c": dict(a.carrying),
-                                "h": dict(a.home_inventory),
-                            }
-                            for a in sorted(self.agents, key=lambda ag: ag.id)
-                        ]
-                        print("[PARITY_HASH_SNAP]" + _json.dumps(snap))
-                    except Exception:
-                        pass
-                self.metrics_collector.record(self._steps, self)
-            except Exception as exc:  # pragma: no cover - defensive
-                logging.getLogger(__name__).warning("Metrics record error: %s", exc)
-        # Restore inventories post-hash if hash-neutral parity mode active
-        if hash_neutral and parity_restore_snapshot is not None:
-            id_map = {a.id: a for a in self.agents}
-            for aid, carry in parity_restore_snapshot:
-                a = id_map.get(aid)
-                if a is not None:
-                    a.carrying.clear()
-                    a.carrying.update(carry)
+        # Initialize step executor on first use
+        if self._step_executor is None:
+            self._initialize_step_executor()
         
-        # End-of-step logging and performance metrics
-        step_num = self._steps + 1
-        log_comprehensive(f"=== SIMULATION STEP {step_num} END ===", step_num)
-        
-        # Performance metrics
-        step_end = time.perf_counter()
-        step_duration = (step_end - step_start) * 1000  # Convert to milliseconds
-        
-        # Track steps per second over recent window
-        if not hasattr(self, '_step_times'):
-            self._step_times = []
-        self._step_times.append(step_end)
-        
-        # Keep only last 30 steps for rolling average
-        if len(self._step_times) > 30:
-            self._step_times.pop(0)
-        
-        # Calculate steps per second if we have enough data
-        if len(self._step_times) >= 2:
-            time_window = self._step_times[-1] - self._step_times[0]
-            if time_window > 0:
-                steps_per_sec = (len(self._step_times) - 1) / time_window
-                # Use legacy performance logging - unified periodic logging is handled by higher-level code
-                log_performance(f"{steps_per_sec:.1f} steps/sec | Frame: {step_duration:.1f}ms | Agents: {len(self.agents)} | Resources: {self.grid.resource_count()}", step_num)
-                
-                # Performance spike detection
-                if len(self._step_times) >= 10:  # Need enough data for rolling average
-                    # Calculate rolling mean of step durations
-                    step_durations = []
-                    for i in range(1, len(self._step_times)):
-                        duration = (self._step_times[i] - self._step_times[i-1]) * 1000  # ms
-                        step_durations.append(duration)
-                    
-                    if step_durations:
-                        rolling_mean = sum(step_durations) / len(step_durations)
-                        
-                        # Check for performance spike (current step significantly slower than rolling mean)
-                        import os
-                        spike_factor = float(os.environ.get("ECONSIM_PERF_SPIKE_FACTOR", "1.35"))
-                        
-                        # Debug: Always emit perf spike event to see if it's working
-                        try:
-                            from ..gui.debug_logger import get_gui_logger
-                            logger = get_gui_logger()
-                            
-                            builder_result = logger.build_perf_spike(
-                                step=step_num,
-                                time_ms=step_duration,
-                                rolling_mean_ms=rolling_mean,
-                                agents=len(self.agents),
-                                resources=self.grid.resource_count(),
-                                phase=None  # Could be enhanced to track phase if available
-                            )
-                            logger.emit_built_event(step_num, builder_result)
-                        except Exception:
-                            pass  # Don't break simulation if logging fails
-        
-        # Flush PAIRING accumulator for completed step
+        # Snapshot pre-step resource count for collection metrics (decision/unified modes)
         try:
-            from ..gui.debug_logger import get_gui_logger
-            get_gui_logger().flush_pairing_for_step(step_num)
+            self.pre_step_resource_count = self.grid.resource_count()
         except Exception:
-            pass  # Don't break simulation if logging fails
+            self.pre_step_resource_count = None
+
+        # Create step context for handlers
+        from .features import SimulationFeatures
+        from .execution import StepContext
         
+        step_num = self._steps + 1
+        feature_flags = SimulationFeatures.from_environment()
+        
+        context = StepContext(
+            simulation=self,
+            step_number=step_num,
+            ext_rng=rng,
+            feature_flags=feature_flags,
+            observer_registry=self._observer_registry,
+            event_buffer=self._event_buffer
+        )
+        
+        # Begin event buffering for this step
+        self._event_buffer.begin_step(step_num)
+        
+        # Execute step through handler system
+        step_metrics = self._step_executor.execute_step(context)
+        
+        # Flush buffered events to observers after step completion
+        events_processed = self._event_buffer.end_step(self._observer_registry)
+        self.last_step_metrics = step_metrics  # store for tests/analytics (excluded from hash logic)
+
+        # Update determinism metrics/hash (must occur before step counter increment to preserve historical ordering semantics)
+        try:
+            if self.metrics_collector is not None:
+                # Use step_num (current logical step about to be committed)
+                self.metrics_collector.record(step_num, self)
+        except Exception:  # pragma: no cover - defensive; avoid breaking simulation loop on metrics failure
+            pass
+
+        # Update step counter (handlers assume previous self._steps during execution)
         self._steps += 1
-        # Expire highlight if past its lifetime
+
+        # Optional lightweight FPS debug (will migrate to MetricsHandler once implemented)
+        # (FPS debug moved to MetricsHandler metrics; print removed to avoid duplication)
+
+        # Expire highlight if past lifetime
         if self._last_trade_highlight is not None:
-            # Only need expiry for maintenance; coordinates consumed by renderer.
             _, _, expire = self._last_trade_highlight
             if self._steps >= expire:
                 self._last_trade_highlight = None
-        # Clear transient unified task markers post-step (retain only for one frame visibility if needed)
-        if unified_mode_active:
-            for a in self.agents:
-                # Keep a.current_unified_task for possible overlay; comment out clearing if persistent desired
+
+        # Flush observers at end-of-step (after all handlers)
+        self._observer_registry.flush_step(step_num)
+
+        # Clear transient cross-handler scratch data
+        if hasattr(self, '_transient_foraged_ids'):
+            try:
+                delattr(self, '_transient_foraged_ids')
+            except Exception:
                 pass
+        # Reset snapshot for next step
+        self.pre_step_resource_count = None
+    
+    def _initialize_step_executor(self) -> None:
+        """Initialize the step executor with ordered handlers.
+        
+        Handler order is critical for deterministic behavior.
+        Do not reorder without updating validation tests.
+        """
+        from .execution import StepExecutor
+        from .execution.handlers.movement_handler import MovementHandler
+        from .execution.handlers.collection_handler import CollectionHandler
+        from .execution.handlers.trading_handler import TradingHandler
+        from .execution.handlers.metrics_handler import MetricsHandler
+        from .execution.handlers.respawn_handler import RespawnHandler
+        
+        handlers = [
+            MovementHandler(),      # Agent movement and mode transitions
+            CollectionHandler(),    # Resource collection events
+            TradingHandler(),      # Bilateral trading system
+            MetricsHandler(),      # Performance and behavioral metrics
+            RespawnHandler(),      # Resource respawn cycles
+        ]
+        
+        self._step_executor = StepExecutor(handlers)
 
     @property
     def steps(self) -> int:
@@ -573,12 +305,17 @@ class Simulation:
         else:
             self._respawn_interval = int(interval)
 
-    def _handle_bilateral_exchange_movement(self, agent: "Agent", rng: random.Random) -> None:
+    def _handle_bilateral_exchange_movement(self, agent: "Agent", rng: random.Random, step: int = 0) -> None:
         """Handle agent movement and pairing logic for bilateral trading mode.
         
         REFACTOR REQUIRED: This method is 140+ lines and handles multiple concerns
         (stagnation tracking, partner search, movement, trading). Should be decomposed
         into focused helper methods for better maintainability.
+        
+        Args:
+            agent: Agent to handle movement for
+            rng: Random number generator
+            step: Current simulation step number (for observer events)
         """
         # Utility stagnation tracking: compare current utility to last improvement baseline.
         # We use carrying bundle only; if first time (baseline 0) set immediately.
@@ -615,22 +352,25 @@ class Simulation:
             agent.trade_stagnation_steps >= 100
             and agent.mode not in (AgentMode.RETURN_HOME,)
         ):
-            # Emit stagnation trigger event
+            # Emit stagnation trigger event using observer pattern
             try:
-                from ..gui.debug_logger import get_gui_logger
-                logger = get_gui_logger()
-                
-                # Calculate last improvement step (approximate)
-                last_improve_step = self._steps - agent.trade_stagnation_steps
-                
-                builder_result = logger.build_stagnation_trigger(
-                    agent_id=agent.id,
-                    threshold=100,
-                    last_improve_step=last_improve_step,
-                    action="return_home",
-                    deposit=True
-                )
-                logger.emit_built_event(self._steps, builder_result)
+                from ..observability.observer_logger import get_global_observer_logger
+                logger = get_global_observer_logger()
+                if logger:
+                    # Calculate last improvement step (approximate)
+                    last_improve_step = self._steps - agent.trade_stagnation_steps
+                    
+                    # Use structured agent decision event for stagnation
+                    details = (
+                        f"Agent stagnated for {agent.trade_stagnation_steps} steps "
+                        f"(threshold=100, last_improve={last_improve_step}, action=return_home, deposit=True)"
+                    )
+                    logger.log_agent_decision(
+                        agent_id=agent.id,
+                        decision_type="stagnation_trigger",
+                        details=details,
+                        step=self._steps
+                    )
             except Exception:
                 pass  # Don't break simulation if logging fails
                 
@@ -641,8 +381,8 @@ class Simulation:
                 else:
                     agent.clear_trade_partner()
             agent.force_deposit_once = True
-            _debug_log_mode_change(agent, agent.mode, AgentMode.RETURN_HOME, "stagnation")
-            agent.mode = AgentMode.RETURN_HOME
+            from .agent_mode_utils import set_agent_mode
+            set_agent_mode(agent, AgentMode.RETURN_HOME, "stagnation", step, self._observer_registry)
             agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
             # Reset counters so we don't repeatedly trigger before deposit occurs
             agent.trade_stagnation_steps = 0
@@ -786,9 +526,10 @@ class Simulation:
         agents_by_id = {a.id: a for a in self.agents}
         for a in self.agents:
             if a.force_deposit_once:
-                a.mode = AgentMode.RETURN_HOME
+                from .agent_mode_utils import set_agent_mode
+                set_agent_mode(a, AgentMode.RETURN_HOME, "force_deposit_stagnation", step, self._observer_registry)
                 a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
-                a.maybe_deposit()
+                a.maybe_deposit(self._observer_registry, step)
                 continue
             if getattr(a, 'trade_partner_id', None) is not None:
                 # Already paired; movement handled in post-pass
@@ -815,7 +556,7 @@ class Simulation:
                         if prospect is not None and prospect not in claimed_resources:
                             claimed_resources.add(prospect)
                             a.target = prospect
-                            a.mode = AgentMode.FORAGE
+                            a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step, self._event_buffer)
                             # Move one step toward prospect immediately
                             if (a.x, a.y) != prospect:
                                 tx, ty = prospect
@@ -836,7 +577,7 @@ class Simulation:
                             if fallback_target is not None:
                                 claimed_resources.add(fallback_target)
                                 a.target = fallback_target
-                                a.mode = AgentMode.FORAGE
+                                a._set_mode(AgentMode.FORAGE, "resource_selection_fallback", self._observer_registry, step, self._event_buffer)
                                 # Move one step toward fallback immediately
                                 tx, ty = fallback_target
                                 dx = tx - a.x; dy = ty - a.y
@@ -849,12 +590,12 @@ class Simulation:
                         pass
                 # No target found - fall back to deposit/idle logic
                 if a.carrying_total() > 0:
-                    a.mode = AgentMode.RETURN_HOME
+                    a._set_mode(AgentMode.RETURN_HOME, "carrying_capacity_full", self._observer_registry, step, self._event_buffer)
                     new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                     a._track_target_change(new_target, step)
                     a.target = new_target
                 else:
-                    a.mode = AgentMode.IDLE
+                    a._set_mode(AgentMode.IDLE, "no_target_available", self._observer_registry, step, self._event_buffer)
                     a._track_target_change(None, step)
                     a.target = None
                 continue
@@ -864,19 +605,19 @@ class Simulation:
                 if pos in claimed_resources:
                     # Already claimed; idle fallback
                     if a.carrying_total() > 0:
-                        a.mode = AgentMode.RETURN_HOME
+                        a._set_mode(AgentMode.RETURN_HOME, "resource_claimed_fallback", self._observer_registry, step, self._event_buffer)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
                     else:
-                        a.mode = AgentMode.IDLE
+                        a._set_mode(AgentMode.IDLE, "resource_claimed_fallback", self._observer_registry, step, self._event_buffer)
                         a._track_target_change(None, step)
                         a.target = None
                     continue
                 claimed_resources.add(pos)
                 a._track_target_change(pos, step)
                 a.target = pos
-                a.mode = AgentMode.FORAGE
+                a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step, self._event_buffer)
                 # Immediate attempt collect if already on cell
                 collected = a.collect(self.grid, step)
                 if collected:
@@ -885,7 +626,7 @@ class Simulation:
                     a.target = None
                     # After collecting, check if should return home
                     if a.carrying_total() > 0:
-                        a.mode = AgentMode.RETURN_HOME
+                        a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step, self._event_buffer)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
@@ -900,12 +641,12 @@ class Simulation:
                             a.y += 1 if dy > 0 else -1
                         # Collect if arrived
                         if a.target is not None and (a.x, a.y) == a.target and self.grid.has_resource(a.x, a.y):
-                            if a.collect(self.grid, step):
+                            if a.collect(self.grid, step, self._observer_registry):
                                 foraged_ids.add(a.id)
                                 a.target = None
                                 # After collecting, check if should return home
                                 if a.carrying_total() > 0:
-                                    a.mode = AgentMode.RETURN_HOME
+                                    a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step, self._event_buffer)
                                     a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                 a.maybe_deposit()
             elif kind == "partner":
@@ -913,12 +654,12 @@ class Simulation:
                 if pid in claimed_partners:
                     # Partner already claimed; fallback
                     if a.carrying_total() > 0:
-                        a.mode = AgentMode.RETURN_HOME
+                        a._set_mode(AgentMode.RETURN_HOME, "partner_claimed_fallback", self._observer_registry, step, self._event_buffer)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
                     else:
-                        a.mode = AgentMode.IDLE
+                        a._set_mode(AgentMode.IDLE, "partner_claimed_fallback", self._observer_registry, step, self._event_buffer)
                         a._track_target_change(None, step)
                         a.target = None
                     continue
@@ -929,12 +670,11 @@ class Simulation:
                 a.pair_with_agent(partner)
                 # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
                 from .agent import AgentMode
-                _debug_log_mode_change(a, a.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
-                a.mode = AgentMode.MOVE_TO_PARTNER
+                from .agent_mode_utils import set_agent_mode
+                set_agent_mode(a, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step, self._observer_registry)
                 a._track_target_change(a.meeting_point, step)
                 a.target = a.meeting_point
-                _debug_log_mode_change(partner, partner.mode, AgentMode.MOVE_TO_PARTNER, "paired_for_trade")
-                partner.mode = AgentMode.MOVE_TO_PARTNER
+                set_agent_mode(partner, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step, self._observer_registry)
                 partner._track_target_change(partner.meeting_point, step)
                 partner.target = partner.meeting_point
                 # Initial convergence step
@@ -955,53 +695,55 @@ class Simulation:
                 if a.mode == _AM.FORAGE and a.target is None:
                     # Safety check: agents with cargo should return home first
                     if a.carrying_total() > 0 and not a.at_home():
-                        a.mode = _AM.RETURN_HOME
+                        a._set_mode(_AM.RETURN_HOME, "no_target_available", self._observer_registry, step, self._event_buffer)
                         a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                     elif a.at_home():
-                        a.mode = _AM.IDLE  # Only idle at home
+                        a._set_mode(_AM.IDLE, "idle_at_home", self._observer_registry, step, self._event_buffer)  # Only idle at home
                     # If no cargo and not at home, let them continue seeking or return home
         # Emit selection sample instrumentation (periodic)
         import os
         sample_period = int(os.environ.get("ECONSIM_SELECTION_SAMPLE_PERIOD", "200"))
         if step % sample_period == 0:
             try:
-                from ..gui.debug_logger import get_gui_logger
-                logger = get_gui_logger()
-                
-                # Collect top candidates for analysis
-                resource_candidates = []
-                partner_candidates = []
-                
-                for a in self.agents:
-                    if a.current_unified_task is not None:
-                        kind, payload = a.current_unified_task
-                        if kind == "resource":
-                            resource_candidates.append({
-                                "agent_id": a.id,
-                                "pos": payload.get("pos"),
-                                "score": payload.get("score", 0.0),
-                                "delta_u": payload.get("delta_u", 0.0)
-                            })
-                        elif kind == "partner":
-                            partner_candidates.append({
-                                "agent_id": a.id,
-                                "partner_id": payload.get("partner_id"),
-                                "score": payload.get("score", 0.0),
-                                "delta_u": payload.get("delta_u", 0.0)
-                            })
-                
-                # Sort by score (descending) and take top N
-                resource_candidates.sort(key=lambda x: x["score"], reverse=True)
-                partner_candidates.sort(key=lambda x: x["score"], reverse=True)
-                
-                builder_result = logger.build_selection_sample(
-                    step=step,
-                    resource_candidates=resource_candidates[:5],  # Top 5 resources
-                    partner_candidates=partner_candidates[:5],   # Top 5 partners
-                    total_agents=len(self.agents),
-                    active_agents=len([a for a in self.agents if a.current_unified_task is not None])
-                )
-                logger.emit_built_event(step, builder_result)
+                from ..observability.observer_logger import get_global_observer_logger
+                logger = get_global_observer_logger()
+                if logger:
+                    # Collect top candidates for analysis
+                    resource_candidates = []
+                    partner_candidates = []
+                    
+                    for a in self.agents:
+                        if a.current_unified_task is not None:
+                            kind, payload = a.current_unified_task
+                            if kind == "resource":
+                                resource_candidates.append({
+                                    "agent_id": a.id,
+                                    "pos": payload.get("pos") if hasattr(payload, 'get') else None,
+                                    "score": payload.get("score", 0.0) if hasattr(payload, 'get') else 0.0,
+                                    "delta_u": payload.get("delta_u", 0.0) if hasattr(payload, 'get') else 0.0
+                                })
+                            elif kind == "partner":
+                                partner_candidates.append({
+                                    "agent_id": a.id,
+                                    "partner_id": payload.get("partner_id") if hasattr(payload, 'get') else None,
+                                    "score": payload.get("score", 0.0) if hasattr(payload, 'get') else 0.0,
+                                    "delta_u": payload.get("delta_u", 0.0) if hasattr(payload, 'get') else 0.0
+                                })
+                    
+                    # Sort by score (descending) and take top N
+                    resource_candidates.sort(key=lambda x: x["score"], reverse=True)
+                    partner_candidates.sort(key=lambda x: x["score"], reverse=True)
+                    
+                    # Create structured selection analysis message
+                    active_agents = len([a for a in self.agents if a.current_unified_task is not None])
+                    message = (
+                        f"Selection sample - Total agents: {len(self.agents)}, "
+                        f"Active: {active_agents}, "
+                        f"Top resources: {len(resource_candidates[:5])}, "
+                        f"Top partners: {len(partner_candidates[:5])}"
+                    )
+                    
+                    logger.log_simulation(message, step)
             except Exception:
                 pass  # Don't break simulation if logging fails
 
@@ -1009,35 +751,36 @@ class Simulation:
         churn_period = int(os.environ.get("ECONSIM_CHURN_EMIT_PERIOD", "500"))
         if step % churn_period == 0:
             try:
-                from ..gui.debug_logger import get_gui_logger
-                logger = get_gui_logger()
-                
-                # Collect retarget data from all agents
-                retarget_data = []
-                total_retargets = 0
-                
-                for a in self.agents:
-                    if a._recent_retargets:
-                        # Count retargets in the last window
-                        window_start = max(0, step - int(os.environ.get("ECONSIM_CHURN_WINDOW", "100")))
-                        recent_count = len([s for s in a._recent_retargets if s >= window_start])
-                        if recent_count > 0:
-                            retarget_data.append({
-                                "agent_id": a.id,
-                                "retarget_count": recent_count,
-                                "last_retarget": max(a._recent_retargets) if a._recent_retargets else step
-                            })
-                            total_retargets += recent_count
-                
-                # Debug: Always emit target churn event (even if no retargets) to see if it's working
-                builder_result = logger.build_target_churn(
-                    step=step,
-                    total_retargets=total_retargets,
-                    active_agents=len(retarget_data),
-                    retarget_data=retarget_data[:10],  # Top 10 most active agents
-                    window_size=int(os.environ.get("ECONSIM_CHURN_WINDOW", "100"))
-                )
-                logger.emit_built_event(step, builder_result)
+                from ..observability.observer_logger import get_global_observer_logger
+                logger = get_global_observer_logger()
+                if logger:
+                    # Collect retarget data from all agents
+                    retarget_data = []
+                    total_retargets = 0
+                    
+                    for a in self.agents:
+                        if a._recent_retargets:
+                            # Count retargets in the last window
+                            window_start = max(0, step - int(os.environ.get("ECONSIM_CHURN_WINDOW", "100")))
+                            recent_count = len([s for s in a._recent_retargets if s >= window_start])
+                            if recent_count > 0:
+                                retarget_data.append({
+                                    "agent_id": a.id,
+                                    "retarget_count": recent_count,
+                                    "last_retarget": max(a._recent_retargets) if a._recent_retargets else step
+                                })
+                                total_retargets += recent_count
+                    
+                    # Create structured target churn analysis message
+                    window_size = int(os.environ.get("ECONSIM_CHURN_WINDOW", "100"))
+                    message = (
+                        f"Target churn analysis - Total retargets: {total_retargets}, "
+                        f"Active agents: {len(retarget_data)}, "
+                        f"Window size: {window_size}, "
+                        f"Top agents with retargets: {min(len(retarget_data), 10)}"
+                    )
+                    
+                    logger.log_simulation(message, step)
             except Exception:
                 pass  # Don't break simulation if logging fails
 

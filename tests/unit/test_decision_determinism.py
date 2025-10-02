@@ -33,8 +33,8 @@ def test_decision_determinism_basic():
     rng1 = random.Random(42)
     rng2 = random.Random(42)
     for _ in range(15):
-        sim1.step(rng1, use_decision=True)
-        sim2.step(rng2, use_decision=True)
+        sim1.step(rng1)
+        sim2.step(rng2)
         assert snapshot(sim1) == snapshot(sim2)
     # Ensure non-idle if resources exist
     assert any(a.mode != AgentMode.IDLE for a in sim1.agents)

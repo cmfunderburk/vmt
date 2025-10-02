@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 import os
 import pygame
-from .debug_logger import format_delta
+from .utils import format_delta
 
 @runtime_checkable
 class _SurfaceLike(Protocol):  # minimal protocol for blit
