@@ -147,39 +147,6 @@ class TestEducationalScenarioIntegrity:
             assert all(0 <= agent.y < config.grid_size[1] for agent in simulation.agents)
 
 
-class TestGUILoggerInterface:
-    """Safety net tests for GUILogger interface during refactor."""
-    
-    def test_gui_logger_import(self):
-        """Test that GUILogger can still be imported."""
-        from econsim.gui.debug_logger import GUILogger
-        assert GUILogger is not None
-    
-    def test_gui_logger_basic_instantiation(self):
-        """Test basic GUILogger instantiation."""
-        from econsim.gui.debug_logger import GUILogger
-        
-        # Use singleton pattern correctly
-        logger = GUILogger.get_instance()
-        assert logger is not None
-    
-    def test_gui_logger_log_methods_exist(self):
-        """Test that key logging methods still exist (may be deprecated)."""
-        from econsim.gui.debug_logger import GUILogger
-        
-        # Updated method names based on current API
-        expected_methods = [
-            'log_agent_mode',        # Updated from log_agent_mode_change
-            'track_agent_pairing',   # Unchanged
-            'track_agent_movement'   # Unchanged
-        ]
-        
-        # Test instance methods since that's how they're called
-        logger = GUILogger.get_instance()
-        for method_name in expected_methods:
-            assert hasattr(logger, method_name), f"Missing method: {method_name}"
-
-
 class TestTradingSystemSafeguards:
     """Safety net tests for trading system during refactor."""
     

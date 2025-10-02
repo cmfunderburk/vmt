@@ -21,7 +21,8 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Set
 from .. import BaseStepHandler, StepContext, StepResult
-from ...agent import Agent, AgentMode
+from ...agent import Agent
+from ...constants import AgentMode
 
 
 class MovementHandler(BaseStepHandler):

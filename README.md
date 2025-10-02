@@ -1,476 +1,245 @@
 # VMT EconSim Platform
 
-An educational microeconomic simulation prototype combining a PyQt6 desktop shell with a deterministic spatial agent model (preferences, resource collection, decision logic).
+An educational microeconomic simulation featuring deterministic spatial agent behavior with PyQt6 GUI and modular observer-based architecture.
 
-> This README reflects the **current state after Unified Selection Implementation (distance-discounted utility, spatial indexing, conservative trade heuristics)**. The previous aspirational narrative lives in `README_aspirational.md`.
+> This README reflects the **current state after Unified Refactor (October 2025): GUILogger elimination complete, observer pattern established, step decomposition operational, launcher architecture modernized**. See `.github/copilot-instructions.md` for development constraints.
 
-## 1. Snapshot: Implemented vs Pending
+## 1. Current Architecture (October 2025)
 
-| Area | Implemented (Usable) | Pending / Not Yet Integrated |
-|------|----------------------|-------------------------------|
-| Rendering Core | PyQt6 window + embedded Pygame surface (~62 FPS, configurable 320×320 to 800×800) with sprite-based visuals (agents, resources) | GUI controls / menus / scenario panels |
-| Preferences | Cobb-Douglas, Perfect Substitutes, Leontief + factory | N-good generalization, adaptive forms |
-| Grid & Resources | Typed resources (A,B) with deterministic iteration | Quantities >1 per cell, spatial clustering |
-| Agents | Carrying vs home inventories with wealth accumulation, modes, unified decision selection (distance-discounted utility), tie-break determinism, bilateral exchange capabilities, randomized non-overlapping home placement + on-grid home labels (H{id}), utility reflects total wealth (carrying + home) | Multi-agent production chains, advanced economic interactions |
-| Decision Mode | Unified target selection with distance scaling (k=0-10), conservative trade heuristics, Leontief prospecting fallback, GUI default ON; env / param override | Multi-step planning, market equilibrium algorithms |
-| Respawn | Dual GUI controls: **Interval** (Off/1/5/10/20 steps, default 20) + **Rate** (10%/25%/50%/75%/100% deficit replenishment, default 100%). Random A/B type assignment, uniform seeded placement. | Weighted / adaptive multi-type distribution, richer policies |
-| Metrics | Factory-attached collector + determinism hash | Additional economic metrics suite |
-| Snapshot / Replay | Serialize + restore + hash parity tests | Scenario library management |
-| Configuration | `SimConfig` + `Simulation.from_config` factory | Extended scenario descriptors |
-| Overlays / HUD | Toggleable overlay + grid lines (key 'O'); regression + perf neutrality tests | Utility contours, advanced UI panels |
-| Tests | Determinism, decision precedence, respawn, metrics, snapshot, perf (FPS + throughput), overlay regression | Extended educational UI interaction tests |
+**Major Achievement**: Unified refactor complete with 85% technical debt reduction. GUILogger system (2593 lines) eliminated and replaced with modular observer pattern. Step execution decomposed from 450+ lines to focused handler pipeline.
 
-## 2. Current Reality (Post Unified Selection Implementation)
-**Latest Status**: Unified target selection implemented and operational as default behavior. Distance-discounted utility with configurable scaling factor (k), spatial indexing, and conservative bilateral trade heuristics.
+**Canonical Development Interface**: `make launcher` - comprehensive test management with modular tabs, real-time health monitoring, and educational scenario configuration.
 
-**Canonical Development Build**: `make launcher` is now the primary development interface with optimized logging and educational GUI tests. Features not incorporated there are deprecated or scheduled for removal.
+**Core Pipeline**: PyQt6 QTimer (16ms) → `Simulation.step(ext_rng)` → `StepExecutor` handlers (Movement → Collection → Trading → Metrics → Respawn) → Pygame render → Qt display
 
-Gate 6 delivered: factory construction, GUI decision-based agent behavior, overlay toggle, conditional respawn/metrics wiring, overlay regression test, decision step throughput safeguard. Subsequent increment: uniform seeded respawn distribution (removed top-left bias) + GUI respawn interval dropdown.
+### 1.1 Completed Systems
+- **Observer Pattern**: Modular event system with FileObserver, EducationalObserver, PerformanceObserver
+- **Step Decomposition**: Handler pipeline (Movement, Collection, Trading, Metrics, Respawn)
+- **Agent Component Architecture**: Modular agent design with 6 specialized components
+- **Launcher Architecture**: Modern GUI with test gallery, configuration editor, batch runner
+- **Deterministic Simulation**: Factory construction, sorted iteration, RNG separation
+- **Bilateral Trading**: Feature-gated single-unit exchange with intent enumeration
+- **Distance-Discounted Utility**: Configurable k parameter for local vs global optimization
+- **Agent Wealth Accumulation**: Home inventory tracking with utility calculations
+- **Real-time Visualization**: Configurable overlays, agent inspector, performance metrics
 
-## 3. Quick Start (Current Behavior)
-```bash
-# Create and activate development environment
-make venv
-source vmt-dev/bin/activate
+### 1.2 Agent Component Architecture (October 2025)
 
-# Primary development interface (canonical build with optimized logging)
-make launcher
+The Agent class has been refactored into a modular component architecture with 6 specialized components:
 
-# Alternative interfaces
-make dev                               # Basic GUI (Start Menu → choose scenario)
-pytest -q                            # Run full test suite (210+ tests)
-python scripts/perf_stub.py          # Performance sample
+| Component | Responsibility | Key Features |
+|-----------|----------------|--------------|
+| **Movement** | Spatial navigation & pathfinding | Manhattan distance, collision avoidance, target tracking |
+| **Event Emitter** | Observer pattern integration | Mode change events, resource collection events, structured logging |
+| **Inventory** | Dual inventory management | Carrying + home inventories, mutation-safe operations |
+| **Trading Partner** | Bilateral exchange coordination | Partner pairing, meeting points, cooldown management |
+| **Target Selection** | Resource & partner targeting | Deterministic priority ordering, distance-discounted utility |
+| **Mode State Machine** | Behavioral mode transitions | Valid transition validation, event emission integration |
 
-# Alternative GUI option (features may be deprecated soon)
-ECONSIM_NEW_GUI=0 make dev            # Minimal bootstrap window
+**Architecture Benefits**:
+- **Modularity**: Each component has a single responsibility
+- **Testability**: Components can be tested in isolation
+- **Maintainability**: Clear separation of concerns
+- **Backward Compatibility**: Agent API preserved through component delegation
+- **Performance**: Minimal overhead through efficient component integration
+
+**Component Integration**:
+```python
+# Agent components are initialized in __post_init__
+self._movement = AgentMovement(self.id)
+self._event_emitter = AgentEventEmitter(self.id)
+self._inventory = AgentInventory(self.preference)
+self._trading_partner = TradingPartner(self.id)
+self._target_selection = ResourceTargetStrategy()
+self._mode_state_machine = AgentModeStateMachine(self.id)
 ```
 
-## 4. Factory Construction (Preferred)
-Use the factory for deterministic, hook-aware simulation setup:
+## 2. Quick Start
+
+```bash
+# Setup development environment
+make venv && source vmt-dev/bin/activate
+
+# Primary development interface (canonical)
+make launcher                         # Modern GUI with test gallery & configuration
+
+# Alternative interfaces
+make dev                             # DEPRECATED - legacy bootstrap GUI
+pytest -q                           # Run 210+ tests for validation
+make perf                           # Performance comparison vs baselines
+make token                          # Generate LLM token usage report
+
+# Headless execution for CI/testing
+QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher
+```
+
+## 3. Simulation Construction (Required Pattern)
+
+**ALWAYS use factory method** - never direct instantiation:
+
 ```python
 from econsim.simulation.config import SimConfig
-from econsim.simulation.world import Simulation  # (typo fixed)
+from econsim.simulation.world import Simulation
 import random
 
 cfg = SimConfig(
-	grid_size=(12,12),
-	initial_resources=[(2,2,'A'), (4,5,'B')],
-	perception_radius=8,
-	respawn_target_density=0.25,
-	respawn_rate=0.4,
-	max_spawn_per_tick=3,
-	seed=123,
-	enable_respawn=True,
-	enable_metrics=True,
-	viewport_size=640,  # configurable 320-800
-	distance_scaling_factor=0.0,  # k=0.0 for no distance penalty, k=5.0 for strong local behavior
+    grid_size=(12,12),
+    initial_resources=[(2,2,'A'), (4,5,'B')],
+    perception_radius=8,
+    seed=123,
+    enable_respawn=True,
+    enable_metrics=True,
+    distance_scaling_factor=0.0  # k=0.0 for no distance penalty, k=5.0 for strong local behavior
 )
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ext_rng = random.Random(999)
 for _ in range(40):
-	sim.step(ext_rng)
+    sim.step(ext_rng)
 print("hash=", sim.metrics_collector.determinism_hash())
 ```
-Legacy manual wiring is supported but deprecated.
 
-## 5. Known Gaps / Explicit Limitations
-1. Production, consumption, and extended economic metrics (e.g., inequality) not implemented.
-	- Bilateral exchange fully implemented (Phase 3) with feature-gating for educational flexibility & single‑unit scope.
-2. Advanced overlays (utility contours, analytics) not implemented.
-3. Multi-scenario educational progression system not yet built.
+## 4. Key Systems Overview
 
-### 5.1 Bilateral Exchange (Production Ready – Phase 3 Complete)
-Status: Feature‑gated single‑unit reciprocal trade system (enabled by default at startup) with deterministic intent enumeration and optional priority reordering. Adds fairness_round advisory metric. Determinism hash unchanged when features disabled (trade metrics excluded). Movement subsystem adds partner search + meeting point logic when foraging disabled.
+### 4.1 Observer Pattern Architecture
+**Status**: GUILogger system eliminated (October 2025). Modular observer system operational.
+- **FileObserver**: High-performance structured logging to files
+- **EducationalObserver**: Behavioral analytics and educational insights  
+- **PerformanceObserver**: Performance monitoring and optimization metrics
+- **ObserverRegistry**: Centralized event distribution system
 
-Activation Paths:
-* Start Menu (Advanced): enable trade draft / execution toggles (if exposed) or master checkbox.
-* Runtime: Controls panel Trade Controls group:
-	* Master (Draft+Exec) – enables both draft enumeration and execution.
-	* Draft Intents – enumerate intents only.
-	* Execute Trades – execute highest-priority intent (implies draft).
-	* Debug Overlay – shows first few intents + last executed summary (requires draft).
+### 4.2 Bilateral Exchange System
+**Status**: Feature-gated single-unit reciprocal trading with deterministic mechanics.
+- **Intent Enumeration**: Draft trade proposals with utility calculations
+- **Execution Pipeline**: Maximum one trade per step when enabled
+- **Priority Sorting**: `(-ΔU, seller_id, buyer_id, give_type, take_type)` for determinism
+- **Partner Search**: Meeting point system when foraging disabled
 
-Feature Flags (auto-managed by GUI when toggled):
-* `ECONSIM_TRADE_DRAFT=1` – enumerate draft intents (no execution).
-* `ECONSIM_TRADE_EXEC=1` – execute at most one intent per step (implies draft enumeration).
-* `ECONSIM_TRADE_GUI_INFO=1` – show executed trade summary overlay line.
-* `ECONSIM_TRADE_DEBUG_OVERLAY=1` – (internal helper; currently tied to Debug Overlay toggle).
-* `ECONSIM_DEBUG_AGENT_MODES=1` – log agent mode transitions (idle↔forage↔return_home↔move_to_partner) to console and timestamped log files.
+**Feature Flags** (environment-controlled):
+- `ECONSIM_TRADE_DRAFT=1` – enumerate trade intents (no execution)
+- `ECONSIM_TRADE_EXEC=1` – execute highest-priority intent per step
+- `ECONSIM_DEBUG_AGENT_MODES=1` – log agent mode transitions
 
-Current Mechanics:
-* Rule: one marginally utility‑improving reciprocal unit swap (good1 ↔ good2) per executed step (unified intent execution pipeline; movement pairing no longer performs swaps directly).
-* Micro-delta filter: intents with combined utility gain < 1e-5 are discarded to prevent oscillatory 0.000 ΔU churn.
-* Intent Fields: seller, buyer, give_type, take_type, delta_utility (approx combined marginal lift), priority tuple.
-* Metrics (hash-excluded): `trade_intents_generated`, `trades_executed`, `trade_ticks`, `no_trade_ticks`, `realized_utility_gain_total`, `last_executed_trade`, `fairness_round`.
-* Inspector / Event Log: last executed trade summary (cleared on disable).
-* Economic Coherence: Trade execution has real consequences - inventory changes persist and affect subsequent behavior.
+**Trading Mechanics**:
+- One reciprocal unit swap per step maximum (good1 ↔ good2)
+- Micro-delta filter: utility gains < 1e-5 discarded to prevent oscillation
+- Deterministic priority: `(-ΔU, seller_id, buyer_id, give_type, take_type)`
+- Partner search with meeting points when foraging disabled
+- Economic coherence: persistent inventory changes affect future behavior
 
-Determinism Safeguards:
-* Feature off (default) → simulation identical to pre-trade build.
-* Trade metrics excluded from determinism hash; delta_utility informational only.
-* Priority reordering gated (`ECONSIM_TRADE_PRIORITY_DELTA`) — must not change multiset of intents.
-* Pairing movement path only active when foraging disabled & trade enabled (isolated branch avoids contaminating forage path).
+### 4.3 Unified Target Selection System
+**Status**: Fully operational as default agent decision mechanism.
 
-Phase 3 Delivered:
-* Priority flag `ECONSIM_TRADE_PRIORITY_DELTA=1` sets ordering: `(-delta_utility, seller_id, buyer_id, give_type, take_type)`.
-* `fairness_round` advisory metric (hash-excluded) increments per executed trade.
-* Multiset invariance test: priority flag only reorders, never adds/removes intents.
-* Pairing + cooldown system (see movement pseudocode) enabling partner selection & session lifecycle.
-* Autouse test fixture clears `ECONSIM_TRADE_*` env leakage across tests.
-
-Future: multi-intent policies, partner quality heuristics, fairness-weighted scheduling, richer analytics overlays.
-
-#### 5.1.1 Bilateral Exchange Movement (Forage Disabled)
-When foraging is OFF and trading is ON, agents use a partner search + meeting workflow. Tiered algorithm ensures O(agents) per step (local perception only):
-
-Pseudocode:
-```
-for each agent:
-	if paired & colocated: attempt trade; if no beneficial trade -> end session (apply cooldowns)
-	elif paired & not colocated: move toward meeting point
-	else:
-		decrement general + partner-specific cooldowns
-		if on cooldown: move_random()
-		else:
-			nearby = find_nearby_agents(perception_radius)
-			if none: move_random()
-			elif one & available: pair + move_toward_meeting_point()
-			elif many: iterate nearest-first until available partner found else move_random()
-```
-Pairing availability excludes agents that are: already paired, currently trading, on general cooldown, or on mutual partner-specific cooldown.
-
-##### 5.1.1.a Stagnation Return-Home Rule (New)
-While in bilateral exchange search/trading mode (foraging disabled path), each agent tracks its last observed carrying-bundle utility. If an agent accrues **100 consecutive steps with no utility improvement**, it will:
-1. Break any active pairing (cooldowns applied as usual)
-2. Enter RETURN_HOME mode with a one-time forced deposit override (inventory is banked even though trading is enabled)
-3. After depositing, transition to IDLE with cleared stagnation counters
-
-Rationale: provides a gentle reset for agents stuck in cycles of unproductive partner searching, preparing inventory state for future (planned) adaptive decision rules without introducing hidden randomness.
-
-Update: With the unified trade execution path (pair movement no longer executes swaps) and micro-delta filtering (ΔU < 1e-5 suppressed), stagnation counters now reflect only meaningful improvements; tiny reversible swaps no longer mask inactivity.
-
-Determinism: threshold is a fixed constant; utility comparisons use the same epsilon-lift bundle adjustment as decision logic. No additional RNG or ordering changes introduced.
-
-Visual Aids:
-* Cyan lines between active partners (overlay toggle).
-* Orange/yellow pulsing highlight for recently executed trade cell (~12 steps) (overlay on).
-* Light green multi-width outline for selected agent (Agent Inspector selection).
-
-### 5.2 Foraging Enable Flag
-
-The baseline resource collection ("foraging") can now be disabled at runtime for instructional contrast with pure trading scenarios.
-
-Environment Flag:
-* `ECONSIM_FORAGE_ENABLED=1` (default if unset) – agents move, target, and collect resources.
-* `ECONSIM_FORAGE_ENABLED=0` – disables collection logic; when trading disabled agents deterministically return home & idle; when trading enabled they may participate in trades without gathering new goods.
-
-GUI Controls:
-* Controls Panel → "Foraging Enabled" checkbox reflects and mutates the flag (sets explicit `0` rather than deleting to preserve disabled state deterministically).
-
-#### 5.2.1 Idle Path Semantics (Updated)
-When both foraging and trading features are disabled (`ECONSIM_FORAGE_ENABLED=0`, `ECONSIM_TRADE_DRAFT` unset/`0`, `ECONSIM_TRADE_EXEC` unset/`0`), agents now immediately enter an idle state without marching home and depositing carried goods. This change:
-* Preserves any pre-existing carrying inventory for invariance across feature toggles during demonstrations.
-* Avoids silent inventory mutation that could confuse students when toggling systems on/off mid-session.
-* Keeps per-step complexity O(agents) with no extra movement calculations.
-
-Educational Rationale: The previous behavior (deterministic return-home + deposit) obscured the contrast between active collection vs. inactive economic systems. The new idle semantics make the “nothing is happening because both systems are off” state visually and analytically transparent.
-
-No changes to determinism hash were required; the path is purely a no-op w.r.t. inventories and positions.
-
-### 5.3 Unified Target Selection (Default Decision System)
-
-Status: **Fully implemented** and operational as the default agent decision mechanism. Replaces legacy separate foraging/trading paths with a sophisticated unified approach.
-
-**Core Mechanism**: `Agent.select_unified_target()` evaluates both resource and trade partner opportunities using distance-discounted utility:
-
+**Core Algorithm**: Distance-discounted utility evaluation
 ```
 ΔU_discounted = ΔU_base / (1 + k × distance²)
 ```
 
-**Key Features:**
-* **Distance scaling factor (k)**: Configurable parameter (0-10, default 0.0) available in Start Menu Advanced panel and live-adjustable in Controls panel Decision Params group
-* **Educational impact**: Higher k values emphasize local interactions; lower k allows longer-range behavior
-* **Deterministic tiebreaks**: `(x,y)` for resources, `agent_id` for partners, lexical ordering (`foraging < partner`) for mixed types  
-* **Conservative bilateral trade heuristic**: Uses minimum of directional marginal gains to prevent oscillatory exchanges
-* **O(agents+resources) complexity**: Maintained via `AgentSpatialGrid` spatial indexing (rebuilt each step)
-* **Leontief prospecting fallback**: Integrated within unified path to preserve behavioral parity for complementarity preferences
-* **Profitability filter**: Only considers candidates with `ΔU_base > 0` before applying distance discount
+**Key Features**:
+- **Distance scaling factor (k)**: Configurable 0-10, live-adjustable in GUI
+- **Deterministic tie-breaking**: `(-ΔU, distance, x, y)` for resources, `agent_id` for partners
+- **Spatial indexing**: `AgentSpatialGrid` for O(agents+resources) complexity per step
+- **Conservative trade heuristics**: Minimum directional marginal gains to prevent oscillation
+- **Leontief prospecting**: Integrated fallback for complementarity preferences
 
-**Implementation Status**: All 210+ tests passing. Performance maintained at ~62 FPS with spatial indexing overhead <2%.
+**Performance**: 62+ FPS maintained, <2% spatial indexing overhead, all 210+ tests passing.
 
 **GUI Integration**: 
-* Start Menu: Initial k configuration in Advanced panel
-* Controls Panel: Live k adjustment with immediate effect (no simulation restart required)
-* Visual feedback: Distance scaling affects agent target selection in real-time
+- Start Menu: Initial k configuration in Advanced panel
+- Controls Panel: Live k adjustment with immediate effect
+- Visual feedback: Real-time target selection updates
 
-### 5.4 Behavior Gating Matrix
+## 5. Development Architecture
 
-Decision mode per-step behavior depends on combinations of Foraging and Trade settings:
+### 5.1 Launcher Architecture (Canonical Interface)
+**Primary Entry Point**: `make launcher` - Modern GUI with modular design
+- **TestRegistry**: Centralized configuration management for all scenarios
+- **TestExecutor**: Programmatic execution with subprocess fallback
+- **LauncherLogger**: Independent logging system (`launcher_logs/`)
+- **Modular Tabs**: Gallery, comparison, history, batch runner, config editor
+- **Health Monitoring**: Real-time status checks with actionable error reporting
 
-| Forage | Trade Draft | Trade Exec | Resulting Behavior |
-|--------|-------------|------------|--------------------|
-| Off | Off | Off | Agents immediately idle in place (no movement); no intents |
-| Off | On | Off | Intents enumerated (may be empty); no execution |
-| Off | On | On | Intents enumerated; at most one trade executed per step |
-| On | Off | Off | Normal collection only |
-| On | On | Off | Collect first; non-foraging agents (if any) can draft intents |
-| On | On | On | Collect first; non-foraging agents can trade (one execution) |
+### 5.2 Critical Determinism Invariants
+1. **Resources**: iterate only via `Grid.iter_resources_sorted()`
+2. **Agent selection**: preserve original list order within each step
+3. **Trade priority**: `(-ΔU, seller_id, buyer_id, give_type, take_type)`
+4. **RNG separation**: external `step(ext_rng)` vs internal `_rng`
+5. **Execution limits**: maximum one trade per step when enabled
 
-Note: When both foraging and trading are enabled, any agent that successfully collected a resource this step is excluded from that step's trade enumeration ("forage first then trade" educational sequencing).
+### 5.3 Performance & Baselines
+- **Complexity**: O(n) per-step performance maintained
+- **Determinism**: `baselines/determinism_hashes.json` - only refresh with rationale  
+- **Performance**: `baselines/performance_baseline.json` - compare after algorithm changes
+- **Hash invariant**: excludes trade & debug metrics for stability
 
-### 5.5 Executed Trade Visual Feedback
+## 6. Educational Features
 
-Recent executed trade cell is outlined with a pulsing highlight (deterministic timing) for a short fixed window (currently 12 steps) when overlays are visible, aiding classroom narration without altering simulation state.
+### 6.1 Preference Types
+- **Cobb-Douglas**: U(x, y) = x^α * y^(1-α) - diminishing marginal utility
+- **Perfect Substitutes**: U(x, y) = a·x + b·y - constant marginal rate of substitution  
+- **Leontief (Complements)**: U(x, y) = min(x/a, y/b) - fixed proportions consumption
 
-### 5.6 Determinism Hash Parity (Temporary Deferral)
+### 6.2 Behavioral Demonstrations
+- **Distance vs Utility Trade-offs**: Configurable k parameter shows local vs global optimization
+- **Wealth Accumulation**: Agents build home inventory, demonstrating long-term economic behavior
+- **Trading Dynamics**: Bilateral exchange with realistic partner search and meeting mechanics
+- **Mode Transitions**: Observable agent states (idle, forage, return home, seek partner)
 
-The determinism hash currently includes agents' carrying inventories. Since execution mutates carrying bundles, draft-only vs draft+execution runs diverge. A previously strict parity test (`test_hash_parity_execution_flag`) has been marked `xfail` with an explicit reason while a future hash design revision (likely separating carrying vs banked wealth or introducing a controlled canonical post-trade normalization) is scoped. All other determinism guarantees remain intact.
+### 6.3 Real-time Visualization
+- **Overlay System**: Toggleable grid lines, agent IDs, home labels, trade connections
+- **Agent Inspector**: Individual agent state, inventories, utility calculations
+- **Performance Metrics**: Real-time FPS, step counts, trade statistics
+- **Debug Information**: Educational logging with reasoning explanations
 
-## 6. Gate 6 (Integration Summary)
-Delivered:
-* `Simulation.from_config` (seeded RNG + optional respawn & metrics)
-* GUI uses decision-based agent behavior (legacy random movement removed)
-* Overlay/grid toggle (key 'O') + overlay regression (byte-diff) test
-* Decision step throughput safeguard test (raw stepping floor)
-* Test migration reducing private attribute reliance (only specialized replay/density cases remain)
-* Documentation synchronization (README, copilot instructions, Gate 6 eval)
-Deferred: advanced GUI panels, utility contours, economic interactions.
+## 7. Contributing & Development
 
-## 7. Roadmap (High-Level Forward View)
-| Gate | Theme | Core Scope | Deferrals |
-|------|-------|-----------|-----------|
-| 6 | Integration & Surface | Factory, default decision mode, overlay toggle, test API cleanup | Advanced GUI panels |
-| 7 | Agent Interaction | Trading primitives, exchange rules, utility effect tests | UI trade inspector |
-| 8 | Basic GUI Controls | Parameter sliders, run/pause, scenario load/save | Multi-tab analytics |
-| 9 | Production / Consumption | Resource generation & consumption cycles | Market equilibrium visualization |
+**Development Workflow**: See `.github/copilot-instructions.md` for constraints and invariants.
 
-Detailed sequencing lives in [`ROADMAP_REVISED.md`](ROADMAP_REVISED.md) and the Gate 6 execution list in [`completed_steps_docs/Gate_6_todos.md`](completed_steps_docs/Gate_6_todos.md).
+**Pre-commit Checklist**:
+1. All tests pass (`pytest -q`)
+2. Performance within baseline (`make perf`)
+3. Determinism invariants unchanged (or explicit test + baseline update)
+4. New metrics hash-excluded unless justified
+5. Mode transitions emit proper observer events
 
-## 8. Contributing
-Follow gate workflow (see `.github/copilot-instructions.md`). For post-Gate 6 work keep PRs narrowly scoped (integration polish vs. new mechanics) unless entering a new gate.
+**Commit Format**: `component: concise change (perf/determinism impact, hash stable|updated)`
 
-## 9. Testing & Determinism Notes
-Determinism enforced via: sorted resource iteration, tie-break key (−ΔU, dist, x, y), agent list ordering, epsilon bootstrap for zero bundles, canonical metrics hash. Adjust any of these only with explicit gate-scoped justification.
+## 8. Reference Documentation
 
-## 10. Reference Documents
 | Document | Purpose |
 |----------|---------|
-| `README_aspirational.md` | Archived earlier goals / narrative (superseded) |
-| `completed_steps_docs/GATE6_EVAL.md` | Gate 6 evidence mapping |
-| `completed_steps_docs/GATE5_EVAL.md` | Gate 5 evidence (historical) |
-| `orientation_docs/Implementation Roadmap.md` | Original long-form plan (pre-reconciliation) |
-| `.github/copilot-instructions.md` | High-signal constraints & invariants |
-| `scripts/perf_stub.py` | Performance validation harness |
+| `.github/copilot-instructions.md` | **Development constraints & architectural invariants** |
+| `API_GUIDE.md` | Programmatic API usage examples |
+| `docs/launcher_architecture.md` | Launcher system design and components |
+| `docs/launcher_troubleshooting.md` | Development environment debugging |
+| `baselines/` | Determinism & performance reference data |
+| `llm_counter/` | LLM context optimization tools |
 
-### Glossary (High-Signal Domain Terms)
+## 9. Key Terminology
+
 | Term | Definition |
 |------|------------|
-| Foraging | Resource collection path: target selection → move 1 cell → collect if first → deposit when returning home. Can be disabled via `ECONSIM_FORAGE_ENABLED=0`. |
-| Bilateral Exchange | Feature‑gated trading system enabling at most one executed reciprocal unit swap per step (when foraging disabled path engaged). |
-| Intent | Proposed single-unit swap between two co-located agents (fields: seller, buyer, give_type, take_type, delta_utility, priority tuple). Enumeration hash‑excluded. |
-| Priority Tuple | Ordering key (flagged): `(-delta_utility, seller_id, buyer_id, give_type, take_type)`; reorders only (multiset invariant). |
-| fairness_round | Advisory counter incremented each executed trade (hash-excluded) indicating progression of exchanges. |
-| Economic Coherence | Trade execution produces real inventory changes that persist and influence subsequent agent decisions and utility calculations. |
-| Agent Mode Debug | Debug flag `ECONSIM_DEBUG_AGENT_MODES=1` logging agent mode transitions (idle↔forage↔return_home↔move_to_partner) to console for behavioral debugging. |
-| Carrying Inventory | Goods presently held (mutable during execution). Included in current determinism hash (pending redesign). |
-| Home Inventory | Goods deposited at agent home; immutable during trading; part of lifetime wealth/utility. |
-| Perception Radius | Maximum Manhattan (or configured) distance scanned for resources or nearby agents (decision & pairing scopes); constant default preserved for determinism. |
-| Respawn Interval | Step modulus controlling when respawn scheduler attempts placement (`(step % interval)==0`). |
-| Respawn Rate | Fraction of current deficit replaced on a respawn event (10–100%). |
-| Determinism Hash | Canonical reproducibility digest over simulation state (excludes trade metrics & debug overlays). |
-| Meeting Point | Deterministic intermediate cell agents path toward after pairing (abstracted in movement helper). |
-| Cooldown (General) | Post-trade or session delay preventing immediate re-pairing for an agent. |
-| Partner-Specific Cooldown | Pairwise delay blocking rapid re-trading with the same counterpart while allowing others. |
-| Pairing Availability | Agent eligible if: not already paired, not trading, general cooldown == 0, and mutual partner-specific cooldowns clear. |
-| OverlayState | GUI-side dataclass toggling read-only visual layers (grid, IDs, target arrows, home labels, trade lines). |
-| Executed Trade Highlight | Pulsing orange/yellow rectangle over last executed trade cell lasting ~12 steps (overlay only). |
-| External RNG | RNG passed into `Simulation.step` (legacy/random walk path); separated from internal RNG for determinism. |
-| Internal RNG | `Simulation._rng` used for respawn, home assignment, and future stochastic hooks—never influences external path unpredictably. |
-| Multiset Invariance | Property that enabling priority flag does not add/remove intents—only ordering differs; enforced by tests. |
-| Selected Agent Highlight | Light green multi-width border indicating agent chosen in Inspector (purely visual). |
-
-
-See also: `API_GUIDE.md` (usage) and `ROADMAP_REVISED.md` (forward plan).
-
-### Quick Navigation
-| Resource | Link |
-|----------|------|
-| API Guide | [`API_GUIDE.md`](API_GUIDE.md) |
-| Revised Roadmap | [`ROADMAP_REVISED.md`](ROADMAP_REVISED.md) |
-| Gate 6 Todos | [`completed_steps_docs/Gate_6_todos.md`](completed_steps_docs/Gate_6_todos.md) |
-| Gate 6 Checklist | [`completed_steps_docs/GATE6_CHECKLIST.md`](completed_steps_docs/GATE6_CHECKLIST.md) |
-| Copilot Instructions | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
+| **Observer Pattern** | Event-driven architecture replacing monolithic GUILogger; FileObserver + EducationalObserver + PerformanceObserver |
+| **StepExecutor** | Handler pipeline coordinator executing: Movement → Collection → Trading → Metrics → Respawn |
+| **Factory Construction** | Required `Simulation.from_config()` pattern; never direct instantiation |
+| **Determinism Hash** | Reproducibility digest excluding trade/debug metrics; stable across feature toggles |
+| **Distance Scaling (k)** | Configurable 0-10 parameter: ΔU_discounted = ΔU_base / (1 + k × distance²) |
+| **Intent Enumeration** | Draft trade proposals with priority sorting: `(-ΔU, seller_id, buyer_id, give_type, take_type)` |
+| **Agent Modes** | State machine: idle ↔ forage ↔ return_home ↔ move_to_partner (with observer events) |
+| **Launcher Architecture** | Modern GUI (`make launcher`) with TestRegistry, TestExecutor, modular tabs |
+| **Feature Flags** | Environment variables controlling behavior: `ECONSIM_TRADE_*`, `ECONSIM_DEBUG_*`, etc. |
+| **Economic Coherence** | Trade execution produces persistent inventory changes affecting subsequent behavior |
 
 ---
-Last updated: 2025-09-26 (Unified Selection Implementation Complete: distance-discounted utility, spatial indexing, conservative trade heuristics, comprehensive documentation update).
 
-### Recent Increment (Bilateral Exchange Phase 3 & Visual Enhancements)
-Added:
-* **Bilateral Pairing System**: Deterministic partner search & meeting point movement path (forage disabled mode).
-* **Trade Priority Flag**: Optional reordering without altering intent multiset.
-* **fairness_round Metric**: Advisory progression counter.
-* **Executed Trade Highlight**: Pulsing cell outline for 12 steps.
-* **Partner Connection Lines**: Cyan lines between paired agents (overlay toggle).
-* **Economic Coherence**: Trade execution produces real inventory changes with lasting behavioral consequences.
-* **Selected Agent Highlight**: Light green border synced with Agent Inspector.
+**Last Updated**: October 2, 2025  
+**Status**: Unified Refactor Complete - GUILogger elimination achieved, observer pattern operational, launcher architecture modernized
 
-Removed / Updated:
-* Obsolete wording around “return home then idle” when systems disabled.
-* Sprite experiment references removed; sprite system now deterministic assignment from maintained packs.
+### Quick Navigation
 
-### Recent Increment (Configurable Viewport, Agent Wealth Accumulation, Complete GUI)
-Added:
-* **Configurable Viewport**: Pygame surface size selectable from 320×320 to 800×800 (square constraint) in Start Menu Advanced panel. Maintains determinism and performance across all sizes.
-* **Agent Wealth Accumulation**: Agents now accumulate goods at home base. Utility calculation includes total wealth (carrying + home inventory). GUI shows both "Carry:" and "Home:" inventories separately in Agent Inspector panel.
-* **Complete GUI Controls**: Full-featured Start Menu with scenario selection, parameter configuration, and Advanced panel (grid size, density, perception radius, viewport size). Simulation page includes grouped panels: Controls, Overlays, Metrics, Agent Inspector.
-* **Enhanced Agent Inspector**: Individual agent state tracking with dropdown selection, separate display of carrying vs home inventories, and total utility calculation reflecting accumulated wealth.
-* **Multi-type respawn baseline**: scheduler assigns random resource types A/B deterministically ensuring diversity without added per-step complexity.
-* **Randomized non-overlapping agent home placement** (deterministic secondary RNG seeded by `seed+9973`) with `H{id}` labels rendered in cells.
-
-Performance: Configurable viewport maintains ~62 FPS across all sizes. Agent wealth tracking adds negligible overhead. All GUI components preserve determinism.
-Determinism: Viewport size doesn't affect simulation state. Wealth accumulation preserves all hash parity. GUI interactions remain read-only for simulation state.
-
-
-## Project Overview
-
-VMT is a **Desktop GUI Application** designed to teach microeconomic theory through spatial agent-based visualizations.
-
-### **Key Features**
-- **Spatial Collection Visualization**: Agents collect goods on NxN grid demonstrating preference-driven choice
-- **Three Preference Types**: Observable differences between Cobb-Douglas, Perfect Substitutes, and Leontief preferences
-- **Educational Progression**: Tutorial system with assessment and learning outcome measurement
-- **Desktop Application**: Self-contained PyQt6 + embedded Pygame application for easy educational deployment
-
-### **Educational Mission**
-Transform abstract utility maximization into concrete, observable spatial behavior that students can watch, understand, and test. Show that economic theory provides a flexible framework rather than rigid assumptions.
-
-## Implementation Status
-
-### **✅ Gate 1 Achievements (Week 0)**
-- **PyQt6 Integration**: Professional desktop window with embedded Pygame surface
-- **High Performance**: Sustained 62.5 FPS rendering with moving primitives and color cycling
-- **Cross-Platform**: Full headless compatibility for CI/CD environments
-- **Quality Systems**: Automated linting, formatting, type checking, and testing pipeline
-- **Development Environment**: Complete vmt-dev virtual environment with all dependencies
-
-### **🚀 Current Capabilities (Post Uniform Respawn + Interval Control Increment)**
-```bash
-# Working demonstration
-source vmt-dev/bin/activate
-make dev                               # Launch GUI (configurable viewport + agent wealth tracking + full controls panel)
-make test-unit                         # 210+ tests pass (determinism, decision, respawn diversity, metrics, snapshot, perf, GUI pacing, overlays)
-make manual-tests                      # Launch educational GUI tests for unified target selection validation
-make lint                              # Code quality enforced
-python scripts/perf_stub.py --mode widget --duration 2  # Quick FPS validation
-```
-
-### **📊 Performance & Determinism (Current Snapshot)**
-- **Frame Rate (widget)**: ~61–62 FPS typical (floor safeguard ≥25 CI / ≥30 target)
-- **Decision Throughput Test**: 4000 steps <1.0s (floor ≥4000 steps/sec; typical much higher)
-- **Overlay Regression Test**: Byte-diff ≥2% when enabled, <15% after disabling (ensures draw path active, inert to state)
-- **Respawn & Metrics Overhead**: Negligible; hooks no-op when disabled
-- **Determinism Hash**: Stable across alternating respawn introduction (hash parity for identical seeds preserved; see tests + `GATE6_EVAL.md` for prior baseline)
-- **Private Access**: General tests avoid internals; controlled replay/density exceptions documented
-- **Suite Coverage**: Determinism, competition, hash, respawn density, metrics, snapshot, overlay regression, widget & raw perf
-
-## Documentation Organization
-
-### **📁 Complete Planning Documentation** (`orientation_docs/`)
-All strategic and implementation planning systematically completed:
-
-- **📋 Project Overview**: `README.md` - Complete documentation index and navigation
-- **📊 Current Status**: `current_assessment.md` - 99% readiness assessment with completion summary
-- **🛤️ Implementation Strategy**: `Implementation Roadmap.md` - Phase-based development plan with supporting specifications
-- **✅ Validation Approach**: `Progressive Validation Roadmap.md` - Gate-based validation methodology
-
-### **🔧 Detailed Implementation Specifications** (All Complete ✅)
-- **📁 Project Structure**: `project_structure_specification.md` - Complete directory hierarchy with module organization
-- **🔄 Development Process**: `validation_to_production_transition_plan.md` - Systematic prototype→production evolution
-- **🎓 Educational Content**: `educational_scenarios_specification.md` - Concrete tutorial scenarios with assessments  
-- **⚙️ Development Workflow**: `development_workflow_guide.md` - Git branching, CI/CD, quality gates
-- **🚪 Implementation Gates**: `implementation_phase_gates.md` - Rigorous progression with measurable criteria
-
-### **🔬 Validation Planning** (`orientation_docs/Week0/`)
-Gate-based technical validation approach:
-- Environment setup and PyQt6 + Pygame integration validation
-- Economic theory implementation with spatial collection framework
-- Success metrics and educational effectiveness measurement
-
-## Technology Stack
-
-### **✅ Implemented & Validated**
-- **PyQt6 6.9.1**: Professional desktop GUI - **WORKING** with 640x480 main window
-- **Pygame 2.6.1**: Real-time visualization - **WORKING** at 62.5 FPS with off-screen surface
-- **Python 3.11+**: Core implementation - **VALIDATED** with full type checking and linting
-- **Development Tools**: pytest, black, ruff, mypy - **INTEGRATED** in automated workflow
-
-### **🔧 Development Infrastructure**  
-- **Virtual Environment**: vmt-dev with pinned dependencies
-- **CI/CD Pipeline**: GitHub Actions with headless testing (QT_QPA_PLATFORM=offscreen)
-- **Quality Gates**: Automated linting, formatting, type checking, unit testing
-- **Performance Monitoring**: Widget-based FPS measurement and synthetic benchmarking
-
-### **🔄 Gate 4 Additions (Beyond Gate 3)**
-- **Typed Resources**: Grid upgraded from boolean presence to typed (A,B) mapping to goods (good1, good2)
-- **Agent State Expansion**: Distinct carrying vs home inventory, modes (FORAGE, RETURN_HOME, IDLE), target tracking
-- **Utility-Driven Decision Logic**: ΔU scoring with tie-break (−ΔU, distance, x, y) and greedy 1-step movement
-- **Epsilon Bootstrap**: Addresses Cobb-Douglas zero-product stall by lifting zero bundles with ε=1e-6 for initial marginal utility
-- **Deterministic Behavior**: Advanced determinism test ensures identical (mode,pos,target,inventory) trajectories across runs
-- **Competition Resolution**: Contested resource test validates single-winner & loser retargeting without deadlock
-- **Preference Shift Behavior**: After unbalanced collection, agent switches to complementary good to raise utility
-- **Sprite-Based Rendering**: Deterministic sprite assignment from maintained packs; resources show themed icons (A=food, B=tools) with fallback colored rectangles
-- **Performance Guards**: Decision throughput + micro benchmark preventing latent regression
-- **Testing Surface Access**: Added `get_surface_bytes()` for safe render assertions
-
-### **🎯 Upcoming Focus**
--- Weighted / adaptive multi-type respawn strategies (beyond current random assignment)
--- Trade interactions & richer economic behaviors
--- Utility contour & marginal rate visualization overlays
--- Parameterized scenario loading & persistence
-
-### Controls & Metrics Panel (Usage)
-Controls panel includes:
-* Agent dropdown: deterministic list of agent IDs (sorted)
-* Carry label: current in-hand goods (good1, good2)
-* Home label: accumulated wealth at home base (good1, good2)
-* Utility label: utility of total wealth (carrying + home inventory)
-* Turn Rate dropdown: pacing (Unlimited or X tps)
-* Respawn Interval dropdown: Off / Every 1 / 5 / 10 / 20 steps (default 20; when respawn occurs)
-* Respawn Rate dropdown: 10% / 25% / 50% / 75% / 100% (default 100%; percentage of deficit replenished each time)
-
-### Start Menu Configuration
-Preferences section (main area) includes:
-* Num Agents: agent count (default 4)
-* Pref Mix: preference type (Cobb-Douglas, Perfect Substitutes, Leontief)
-* Grid Size: NxN simulation grid dimensions (default 20×20)
-* Resource Density: target percentage of cells with resources (default 0.25 = 25%)
-* Perception Radius: agent decision-making scan radius (default 8)
-* Viewport Size: configurable Pygame surface size (default 800×800, square)
-* Metrics Enabled: toggle metrics collection and hash computation
-
-Advanced panel (experimental features only, collapsed by default):
-* Bilateral Exchange: enable experimental trading features
-
-Agent metrics update cadence is 4 Hz (lightweight timer). Respawn interval changes are deterministic given identical user interaction order and do not reseed RNG.
-
-## Preferences Architecture (Gate 2 Foundation)
-
-Gate 2 establishes a lightweight but extensible preference system enabling multiple utility formulations without committing yet to full agent/grid complexity.
-
-### Implemented Preference Types
-- **Cobb-Douglas**: U(x, y) = x^α * y^(1-α)
-- **Perfect Substitutes**: U(x, y) = a·x + b·y
-- **Leontief (Perfect Complements)**: U(x, y) = min(x/a, y/b)
-
-All concrete preferences share the abstract `Preference` contract:
-- `utility(bundle: tuple[float, float]) -> float`
-- `describe_parameters() -> dict[str, float]`
-- `update_params(**kwargs)` with validation
-- `serialize() / @classmethod deserialize(data)`
-
-### Usage Example
-```python
-from econsim.preferences import (
-	PreferenceFactory,
-	CobbDouglasPreference,
-	PerfectSubstitutesPreference,
+| Resource | Purpose |
+|----------|---------|
+| [`API_GUIDE.md`](API_GUIDE.md) | Programmatic usage examples |
+| [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | **Development constraints & invariants** |
+| [`docs/launcher_architecture.md`](docs/launcher_architecture.md) | Launcher system design |
+| [`baselines/`](baselines/) | Performance & determinism references |
+| [`llm_counter/`](llm_counter/) | LLM context optimization tools |

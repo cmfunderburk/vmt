@@ -8,12 +8,12 @@ import pytest
 import time
 from unittest.mock import Mock, MagicMock
 
-from src.econsim.observability.config import ObservabilityConfig
-from src.econsim.observability.events import (
+from econsim.observability.config import ObservabilityConfig
+from econsim.observability.events import (
     AgentModeChangeEvent, TradeExecutionEvent, ResourceCollectionEvent,
     DebugLogEvent, PerformanceMonitorEvent, AgentDecisionEvent, ResourceEvent
 )
-from src.econsim.observability.observers.gui_observer import (
+from econsim.observability.observers.gui_observer import (
     GUIEventObserver, DisplayUpdateBatcher, EventToDisplayMapper,
     DisplayUpdate, GUIPerformanceMonitor, create_gui_observer
 )

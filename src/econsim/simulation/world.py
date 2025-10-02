@@ -30,7 +30,8 @@ except Exception:  # pragma: no cover
     SimConfig = Any  # fallback for type checkers
 
 import logging
-from .agent import Agent, AgentMode
+from .agent import Agent
+from .constants import AgentMode
 from .grid import Grid
 from .respawn import RespawnScheduler  # type: ignore
 from .metrics import MetricsCollector  # type: ignore
@@ -319,7 +320,7 @@ class Simulation:
         """
         # Utility stagnation tracking: compare current utility to last improvement baseline.
         # We use carrying bundle only; if first time (baseline 0) set immediately.
-        from econsim.simulation.agent import AgentMode  # local import to avoid cycle at module load
+        from econsim.simulation.constants import AgentMode  # local import to avoid cycle at module load
         try:
             # Only track stagnation while seeking/engaging in trade (IDLE random search or active pairing)
             if agent.mode in (AgentMode.IDLE,) or agent.trade_partner_id is not None:
@@ -500,7 +501,7 @@ class Simulation:
         decomposed into focused helper methods for better testability.
         """
         from .constants import default_PERCEPTION_RADIUS
-        from .agent import AgentMode
+        from .constants import AgentMode
         from .spatial import AgentSpatialGrid
         # Flags
         import os
@@ -669,7 +670,7 @@ class Simulation:
                 claimed_partners.add(pid)
                 a.pair_with_agent(partner)
                 # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
-                from .agent import AgentMode
+                from .constants import AgentMode
                 from .agent_mode_utils import set_agent_mode
                 set_agent_mode(a, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step, self._observer_registry)
                 a._track_target_change(a.meeting_point, step)
@@ -690,7 +691,7 @@ class Simulation:
         except Exception:
             any_resources = True
         if not any_resources:
-            from .agent import AgentMode as _AM
+            from .constants import AgentMode as _AM
             for a in self.agents:
                 if a.mode == _AM.FORAGE and a.target is None:
                     # Safety check: agents with cargo should return home first
