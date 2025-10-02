@@ -29,7 +29,6 @@ from econsim.preferences.base import Preference
 
 from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS
 from .grid import Grid
-from .agent_flags import is_refactor_enabled
 
 if TYPE_CHECKING:
     from ..observability.registry import ObserverRegistry
@@ -127,6 +126,9 @@ class Agent:
     # Unified selection commitment tracking:
     unified_commitment: dict[str, object] = field(default_factory=dict, init=False, repr=False)
     unified_commitment_started: int = field(default=0, init=False, repr=False)
+    
+    # Refactored components (feature flagged)
+    _movement: Any = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize derived fields and backward compatibility aliases."""
@@ -138,10 +140,9 @@ class Agent:
         # Backward compatibility: expose carrying as 'inventory'
         object.__setattr__(self, "inventory", self.carrying)
         
-        # Initialize refactored components (feature flagged)
-        if is_refactor_enabled("movement"):
-            from .components.movement import AgentMovement
-            self._movement = AgentMovement(self.id)
+        # Initialize refactored components
+        from .components.movement import AgentMovement
+        self._movement = AgentMovement(self.id)
 
     def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
         """Log agent mode transitions for debugging via observer events."""
@@ -207,16 +208,8 @@ class Agent:
         self, grid: Grid, rng: random.Random
     ) -> None:
         """Move one step randomly in 4-neighborhood or stay put."""
-        if is_refactor_enabled("movement"):
-            new_pos = self._movement.move_random((self.x, self.y), grid, rng)
-            self.x, self.y = new_pos
-        else:
-            # LEGACY: Existing implementation
-            moves = [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]
-            dx, dy = rng.choice(moves)
-            nx, ny = self.x + dx, self.y + dy
-            if 0 <= nx < grid.width and 0 <= ny < grid.height:
-                self.x, self.y = nx, ny
+        new_pos = self._movement.move_random((self.x, self.y), grid, rng)
+        self.x, self.y = new_pos
 
     # --- Resource Interaction -------------------------------------
     def collect(self, grid: Grid, step: int = -1, observer_registry: Optional['ObserverRegistry'] = None) -> bool:
@@ -1196,24 +1189,8 @@ class Agent:
         if self.meeting_point is None:
             return
             
-        if is_refactor_enabled("movement"):
-            new_pos = self._movement.move_toward_meeting_point((self.x, self.y), self.meeting_point)
-            self.x, self.y = new_pos
-        else:
-            # LEGACY: Existing implementation
-            target_x, target_y = self.meeting_point
-            if (self.x, self.y) == (target_x, target_y):
-                return  # Already at meeting point
-                
-            # Simple greedy movement toward meeting point
-            dx = target_x - self.x
-            dy = target_y - self.y
-            
-            # Prioritize horizontal movement if distance is greater
-            if abs(dx) > abs(dy):
-                self.x += 1 if dx > 0 else -1
-            elif dy != 0:
-                self.y += 1 if dy > 0 else -1
+        new_pos = self._movement.move_toward_meeting_point((self.x, self.y), self.meeting_point)
+        self.x, self.y = new_pos
 
     def attempt_trade_with_partner(self, other_agent: "Agent", metrics_collector: Any = None, current_step: int = 0) -> bool:
         """Deprecated trade execution path - no longer executes trades.
