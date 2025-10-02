@@ -58,11 +58,14 @@
 - [x] Delete legacy movement code paths
 - [x] Remove `"movement"` entry from `agent_flags.py`
 - [x] Run full test suite: `pytest -q` → **ALL PASS**
-- [⏳] **Commit**: `agent: movement component complete (flag removed, cleanup)`
+- [x] **Commit**: `agent: movement component complete (flag removed, cleanup)`
 - [x] **Lines Reduced**: 7 lines from Agent class (1215→1208)
 
 **Phase 1.1 Day 1 Result**: ✓ Complete  
-**Phase 1.1 Day 2 Result**: ✓ Complete
+**Phase 1.1 Day 2 Result**: ✓ Complete  
+**Phase 1.1 Day 3 Result**: ✓ Complete
+
+**Phase 1.1 Result**: ✓ Complete
 
 ---
 

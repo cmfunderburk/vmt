@@ -29,6 +29,7 @@ from econsim.preferences.base import Preference
 
 from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS
 from .grid import Grid
+from .agent_flags import is_refactor_enabled
 
 if TYPE_CHECKING:
     from ..observability.registry import ObserverRegistry
@@ -143,6 +144,10 @@ class Agent:
         # Initialize refactored components
         from .components.movement import AgentMovement
         self._movement = AgentMovement(self.id)
+        
+        if is_refactor_enabled("events"):
+            from .components.event_emitter import AgentEventEmitter
+            self._event_emitter = AgentEventEmitter(self.id)
 
     def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
         """Log agent mode transitions for debugging via observer events."""
@@ -188,20 +193,26 @@ class Agent:
         self._debug_log_mode_change(old_mode, new_mode, reason)
         self.mode = new_mode
         
-        # Use event buffer for batched processing (performance optimized)
-        if event_buffer is not None:
-            event_buffer.queue_mode_change(self.id, old_mode.value, new_mode.value, reason)
-        # Fallback to immediate notification (for testing/backwards compatibility)
-        elif observer_registry:
-            from econsim.observability.events import AgentModeChangeEvent
-            event = AgentModeChangeEvent.create(
-                step=step_number,
-                agent_id=self.id,
-                old_mode=old_mode.value,
-                new_mode=new_mode.value,
-                reason=reason
+        # Emit mode change event
+        if is_refactor_enabled("events"):
+            self._event_emitter.emit_mode_change(
+                old_mode.value, new_mode.value, reason, step_number, observer_registry, event_buffer
             )
-            observer_registry.notify(event)
+        else:
+            # LEGACY: Use event buffer for batched processing (performance optimized)
+            if event_buffer is not None:
+                event_buffer.queue_mode_change(self.id, old_mode.value, new_mode.value, reason)
+            # Fallback to immediate notification (for testing/backwards compatibility)
+            elif observer_registry:
+                from econsim.observability.events import AgentModeChangeEvent
+                event = AgentModeChangeEvent.create(
+                    step=step_number,
+                    agent_id=self.id,
+                    old_mode=old_mode.value,
+                    new_mode=new_mode.value,
+                    reason=reason
+                )
+                observer_registry.notify(event)
 
     # --- Movement --------------------------------------------------
     def move_random(
@@ -256,7 +267,11 @@ class Agent:
                     pass  # Don't break simulation if logging fails
             
             # Emit resource collection event
-            if observer_registry:
+            if is_refactor_enabled("events"):
+                self._event_emitter.emit_resource_collection(
+                    self.x, self.y, rtype, step if step >= 0 else 0, observer_registry
+                )
+            elif observer_registry:
                 from econsim.observability.events import ResourceCollectionEvent
                 event = ResourceCollectionEvent.create(
                     step=step if step >= 0 else 0,
@@ -288,7 +303,11 @@ class Agent:
                     pass  # Don't break simulation if logging fails
             
             # Emit resource collection event
-            if observer_registry:
+            if is_refactor_enabled("events"):
+                self._event_emitter.emit_resource_collection(
+                    self.x, self.y, rtype, step if step >= 0 else 0, observer_registry
+                )
+            elif observer_registry:
                 from econsim.observability.events import ResourceCollectionEvent
                 event = ResourceCollectionEvent.create(
                     step=step if step >= 0 else 0,
