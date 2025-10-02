@@ -8,6 +8,7 @@ def get_refactor_flags() -> Dict[str, bool]:
     return {
         "selection": os.environ.get("ECONSIM_AGENT_SELECTION_REFACTOR", "0") == "1",
         "state_machine": os.environ.get("ECONSIM_AGENT_STATE_MACHINE_REFACTOR", "0") == "1",
+        "target_selection": os.environ.get("ECONSIM_AGENT_TARGET_SELECTION_REFACTOR", "0") == "1",
     }
 
 def is_refactor_enabled(component: str) -> bool:

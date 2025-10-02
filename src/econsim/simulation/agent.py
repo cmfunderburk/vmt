@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from .components.event_emitter import AgentEventEmitter
     from .components.inventory import AgentInventory
     from .components.trading_partner import TradingPartner
+    from .components.target_selection import ResourceTargetStrategy
 
 Position = tuple[int, int]
 
@@ -100,6 +101,7 @@ class Agent:
     _event_emitter: 'AgentEventEmitter | None' = field(default=None, init=False, repr=False)
     _inventory: 'AgentInventory | None' = field(default=None, init=False, repr=False)
     _trading_partner: 'TradingPartner | None' = field(default=None, init=False, repr=False)
+    _target_selection: 'ResourceTargetStrategy | None' = field(default=None, init=False, repr=False)
     force_deposit_once: bool = field(default=False, init=False, repr=False)
     # Target churn tracking for instrumentation
     _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
@@ -160,6 +162,12 @@ class Agent:
         # Initialize trading partner component
         from .components.trading_partner import TradingPartner
         self._trading_partner = TradingPartner(self.id)
+        
+        # Initialize target selection component (feature flagged)
+        from .agent_flags import is_refactor_enabled
+        if is_refactor_enabled("target_selection"):
+            from .components.target_selection import ResourceTargetStrategy
+            self._target_selection = ResourceTargetStrategy()
     
     # Trading partner properties that delegate to component
     @property
@@ -437,10 +445,11 @@ class Agent:
             observer_registry: Event registry for mode change notifications
             step_number: Current step for event context
         
-        Falls back to Leontief prospecting if no positive ΔU resources found.
+        Uses refactored target selection component when flag is enabled.
         Transitions to RETURN_HOME when carrying goods but no targets available.
         """
         import os  # Import here to avoid circular import issues
+        from .agent_flags import is_refactor_enabled
         
         if self.mode == AgentMode.RETURN_HOME:
             self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
@@ -459,18 +468,16 @@ class Agent:
                 self.target = None
                 return
 
-        # Gather candidate resources
-        # Evaluate best resource candidate (position, delta, key)
-        best_meta, _delta_u, _key = self.compute_best_resource_candidate(grid)
-        # Need raw_bundle for prospecting fallback logic
-        raw_bundle = self._current_bundle()
-
-        if best_meta is None:
-            # No single resource gives positive ΔU - try prospecting for Leontief agents
-            prospect_target = self._try_leontief_prospecting(grid, raw_bundle)
-            if prospect_target is not None:
-                self.target = prospect_target
-                self._set_mode(AgentMode.FORAGE, "prospecting", observer_registry, step_number)
+        # Use refactored target selection component if enabled
+        if is_refactor_enabled("target_selection") and self._target_selection is not None:
+            current_bundle = self._current_bundle()
+            candidate = self._target_selection.select_target(
+                (self.x, self.y), current_bundle, self.preference, grid
+            )
+            
+            if candidate is not None:
+                self.target = candidate.position
+                self._set_mode(AgentMode.FORAGE, "resource_found", observer_registry, step_number)
             elif self.carrying_total() > 0:
                 self._set_mode(AgentMode.RETURN_HOME, "no_targets", observer_registry, step_number)
                 self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
@@ -478,8 +485,28 @@ class Agent:
                 self._set_mode(AgentMode.IDLE, "no_targets", observer_registry, step_number)
                 self.target = None
         else:
-            self.target = best_meta
-            self._set_mode(AgentMode.FORAGE, "resource_found", observer_registry, step_number)
+            # LEGACY: Existing implementation
+            # Gather candidate resources
+            # Evaluate best resource candidate (position, delta, key)
+            best_meta, _delta_u, _key = self.compute_best_resource_candidate(grid)
+            # Need raw_bundle for prospecting fallback logic
+            raw_bundle = self._current_bundle()
+
+            if best_meta is None:
+                # No single resource gives positive ΔU - try prospecting for Leontief agents
+                prospect_target = self._try_leontief_prospecting(grid, raw_bundle)
+                if prospect_target is not None:
+                    self.target = prospect_target
+                    self._set_mode(AgentMode.FORAGE, "prospecting", observer_registry, step_number)
+                elif self.carrying_total() > 0:
+                    self._set_mode(AgentMode.RETURN_HOME, "no_targets", observer_registry, step_number)
+                    self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
+                else:
+                    self._set_mode(AgentMode.IDLE, "no_targets", observer_registry, step_number)
+                    self.target = None
+            else:
+                self.target = best_meta
+                self._set_mode(AgentMode.FORAGE, "resource_found", observer_registry, step_number)
 
     # --- Unified / Shared Candidate Computation -----------------
     def compute_best_resource_candidate(self, grid: Grid) -> tuple[Position | None, float, tuple[float,int,int,int] | None]:
