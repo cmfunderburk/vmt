@@ -16,6 +16,7 @@ HASH CONTRACT:
 """
 
 from __future__ import annotations
+import os
 from typing import Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -29,6 +30,18 @@ class AgentInventory:
         self.carrying: Dict[str, int] = {"good1": 0, "good2": 0}
         self.home_inventory: Dict[str, int] = {"good1": 0, "good2": 0}
         self.preference = preference
+        
+        # Store original dict IDs for mutation guards
+        self._original_carrying_id = id(self.carrying)
+        self._original_home_id = id(self.home_inventory)
+    
+    def _check_mutation_invariants(self) -> None:
+        """Runtime check that dict identity is preserved (strict mode only)."""
+        if os.environ.get("ECONSIM_REFACTOR_STRICT_MODE", "0") == "1":
+            assert id(self.carrying) == self._original_carrying_id, \
+                "CRITICAL: carrying dict identity changed - mutation invariant violated!"
+            assert id(self.home_inventory) == self._original_home_id, \
+                "CRITICAL: home_inventory dict identity changed - mutation invariant violated!"
     
     @property
     def inventory(self) -> Dict[str, int]:
@@ -65,6 +78,9 @@ class AgentInventory:
                 self.home_inventory[key] += self.carrying[key]
                 self.carrying[key] = 0
                 moved = True
+        
+        # Runtime mutation guard check
+        self._check_mutation_invariants()
         return moved
     
     def withdraw_all(self) -> bool:
@@ -76,6 +92,9 @@ class AgentInventory:
                 self.carrying[key] += self.home_inventory[key]
                 self.home_inventory[key] = 0
                 moved = True
+        
+        # Runtime mutation guard check
+        self._check_mutation_invariants()
         return moved
     
     def collect_resource(self, resource_type: str) -> None:
@@ -85,6 +104,9 @@ class AgentInventory:
             self.carrying["good1"] += 1
         elif resource_type == "B":
             self.carrying["good2"] += 1
+        
+        # Runtime mutation guard check
+        self._check_mutation_invariants()
     
     def total_inventory(self) -> Dict[str, int]:
         """Return combined carrying + home inventory without mutation."""

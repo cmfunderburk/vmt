@@ -101,27 +101,27 @@
 
 ### Phase 2.1: Inventory Component (Days 5-7)
 
-#### Day 5: Implementation ✓ / ✗
-- [ ] Create directory: `components/inventory/`
-- [ ] Create `inventory/core.py` with `AgentInventory`
-- [ ] **CRITICAL**: Add mutation invariant docstring
-- [ ] Implement all methods with in-place mutation only
-- [ ] Integrate with Agent (aliases via `object.__setattr__`)
-- [ ] Create unit tests + mutation invariant tests
-- [ ] **Commit**: `agent: extract inventory component (flag=0, day 5 of 7)`
+#### Day 5: Implementation ✓
+- [x] Create directory: `components/inventory/`
+- [x] Create `inventory/core.py` with `AgentInventory`
+- [x] **CRITICAL**: Add mutation invariant docstring
+- [x] Implement all methods with in-place mutation only
+- [x] Integrate with Agent (aliases via `object.__setattr__`)
+- [x] Create unit tests + mutation invariant tests
+- [x] **Commit**: `agent: extract inventory component (flag=0, day 5 of 7)`
 
-#### Day 6: Testing & Validation ✓ / ✗
-- [ ] Set `ECONSIM_AGENT_INVENTORY_REFACTOR=1`
-- [ ] Set `ECONSIM_REFACTOR_STRICT_MODE=1` (enables runtime mutation guards)
-- [ ] Run full test suite → **ALL PASS**
-- [ ] Run mutation invariant tests → **PASS**
-- [ ] Verify alias identity preserved:
+#### Day 6: Testing & Validation ✓
+- [x] Set `ECONSIM_AGENT_INVENTORY_REFACTOR=1`
+- [x] Set `ECONSIM_REFACTOR_STRICT_MODE=1` (enables runtime mutation guards)
+- [x] Run full test suite → **ALL PASS**
+- [x] Run mutation invariant tests → **PASS**
+- [x] Verify alias identity preserved:
   ```python
   assert id(agent.carrying) == id(agent._inventory.carrying)
   ```
-- [ ] Run performance benchmark → **REPORT GENERATED**
-- [ ] **Status**: Inventory component validated
-- [ ] **Note**: Mutation guards will be removed after Phase 3 completion
+- [x] Run performance benchmark → **REPORT GENERATED**
+- [x] **Status**: Inventory component validated
+- [x] **Note**: Mutation guards will be removed after Phase 3 completion
 
 #### Day 7: Flag Removal ✓ / ✗
 - [ ] Remove flag checks
