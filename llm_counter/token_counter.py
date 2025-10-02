@@ -28,6 +28,8 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 import json
 from collections import defaultdict
+from contextlib import redirect_stderr
+import io
 
 try:
     import click
@@ -147,15 +149,23 @@ class VMTTokenCounter:
         else:
             return 'Other'
     
-    def count_tokens_in_file(self, file_path: Path) -> int:
+    def count_tokens_in_file(self, file_path: Path, quiet: bool = False) -> int:
         """Count tokens in a single file."""
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            # Use repotokens to count tokens
-            token_count = repotokens.count_tokens(content)
-            return token_count
+            # Use repotokens to count tokens (pass file path, not content)
+            if quiet:
+                # Suppress stdout/stderr from repotokens for clean JSON output
+                with redirect_stderr(io.StringIO()):
+                    old_stdout = sys.stdout
+                    sys.stdout = io.StringIO()
+                    try:
+                        token_count = repotokens.count_tokens(str(file_path))
+                    finally:
+                        sys.stdout = old_stdout
+                return token_count
+            else:
+                token_count = repotokens.count_tokens(str(file_path))
+                return token_count
             
         except Exception as e:
             # If repotokens fails, fall back to simple estimation
@@ -167,7 +177,7 @@ class VMTTokenCounter:
             except:
                 return 0
     
-    def analyze_repository(self) -> AnalysisResult:
+    def analyze_repository(self, quiet: bool = False) -> AnalysisResult:
         """Perform complete token analysis of the repository."""
         files_info = []
         by_directory = defaultdict(int)
@@ -189,17 +199,25 @@ class VMTTokenCounter:
                 if self.should_include_file(file_path):
                     all_files.append(file_path)
         
-        # Analyze files with progress bar
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=self.console
-        ) as progress:
-            task = progress.add_task(f"Analyzing {len(all_files)} files...", total=len(all_files))
+        # Analyze files with progress bar (if not quiet)
+        if not quiet:
+            progress_ctx = Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console
+            )
+        else:
+            # Dummy context manager for quiet mode
+            from contextlib import nullcontext
+            progress_ctx = nullcontext()
+        
+        with progress_ctx as progress:
+            if not quiet:
+                task = progress.add_task(f"Analyzing {len(all_files)} files...", total=len(all_files))
             
             for file_path in all_files:
                 try:
-                    tokens = self.count_tokens_in_file(file_path)
+                    tokens = self.count_tokens_in_file(file_path, quiet=quiet)
                     size = file_path.stat().st_size
                     file_type = self.get_file_type(file_path)
                     
@@ -228,7 +246,8 @@ class VMTTokenCounter:
                     # Skip files that cause errors
                     pass
                 
-                progress.advance(task)
+                if not quiet:
+                    progress.advance(task)
         
         # Sort files by token count
         files_info.sort(key=lambda x: x.tokens, reverse=True)
@@ -270,43 +289,62 @@ def main(output_format: str, by_directory: bool, by_filetype: bool,
          top_files: Optional[int], output: Optional[str], repo_root: Optional[str]):
     """Analyze token counts in the VMT repository."""
     
-    console = Console()
+    # For JSON output, suppress all console messages to ensure clean JSON to stdout
+    console = Console(quiet=(output_format == 'json' and not output), file=sys.stderr if output_format == 'json' else None)
     
     # Initialize counter
     root_path = Path(repo_root) if repo_root else None
     counter = VMTTokenCounter(root_path)
     
-    console.print("🔍 VMT Repository Token Analysis", style="bold blue")
-    console.print(f"Repository: {counter.repo_root}", style="dim")
+    if output_format != 'json' or output:
+        console.print("🔍 VMT Repository Token Analysis", style="bold blue")
+        console.print(f"Repository: {counter.repo_root}", style="dim")
     
     # Perform analysis
-    with console.status("Analyzing repository..."):
-        results = counter.analyze_repository()
+    if output_format != 'json' or output:
+        with console.status("Analyzing repository..."):
+            results = counter.analyze_repository()
+    else:
+        # Silent analysis for JSON stdout
+        results = counter.analyze_repository(quiet=True)
     
     # Generate output
     output_content = None
     
     if output_format == 'json':
-        # JSON output
+        # JSON output - compatible with generate_report.py format
+        # Count files per type
+        type_file_counts = defaultdict(int)
+        for f in results.files:
+            type_file_counts[f.file_type] += 1
+        
         json_data = {
-            'total_tokens': results.total_tokens,
-            'total_files': results.total_files,
-            'total_size_bytes': results.total_size_bytes,
-            'by_directory': results.by_directory,
-            'by_filetype': results.by_filetype,
-            'files': [
+            'summary': {
+                'total_tokens': results.total_tokens,
+                'total_files': results.total_files,
+                'total_size_mb': results.total_size_bytes / (1024 * 1024),
+                'average_tokens_per_file': results.total_tokens / results.total_files if results.total_files > 0 else 0
+            },
+            'by_file_type': {
+                file_type: {
+                    'tokens': tokens,
+                    'files': type_file_counts[file_type]
+                }
+                for file_type, tokens in results.by_filetype.items()
+            },
+            'top_files': [
                 {
                     'path': f.path,
                     'tokens': f.tokens,
-                    'size_bytes': f.size_bytes,
-                    'file_type': f.file_type
+                    'size_mb': f.size_bytes / (1024 * 1024)
                 }
-                for f in results.files
-            ]
+                for f in sorted(results.files, key=lambda x: x.tokens, reverse=True)[:20]
+            ],
+            'by_directory': results.by_directory
         }
         output_content = json.dumps(json_data, indent=2)
         if not output:
-            console.print_json(output_content)
+            print(output_content)  # Use print for clean JSON output to stdout
     
     elif output_format == 'table':
         # Detailed table output

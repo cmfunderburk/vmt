@@ -53,19 +53,21 @@ This command:
 - Saves the report to `llm_counter/vmt_token_report.md`
 - Provides clear status messages and completion confirmation
 
-### Additional Makefile Targets (Future)
+### Additional Makefile Targets
 
-You could extend the Makefile with additional token analysis commands:
+The Makefile includes additional token analysis commands for different use cases:
 
-```makefile
-token-analysis:
-	@echo "🔍 Running basic token analysis..."
-	cd llm_counter && python3 demo_counter.py
+```bash
+# Quick basic analysis (no dependencies required)
+make token-analysis
 
-token-analysis-full:
-	@echo "🔍 Running detailed token analysis..."
-	cd llm_counter && python3 token_counter.py --format table
+# Detailed table view with full token counter (requires dependencies)
+make token-analysis-full
 ```
+
+These targets provide:
+- `token-analysis`: Fast, dependency-free analysis using `demo_counter.py`
+- `token-analysis-full`: Comprehensive analysis with detailed table output using `token_counter.py`
 
 ## Files Overview
 

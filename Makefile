@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test-unit perf manual-tests launcher enhanced-tests batch-tests bookmarks test tests clean venv token
+.PHONY: install dev lint format type test-unit perf manual-tests launcher enhanced-tests batch-tests bookmarks test tests clean venv token token-analysis token-analysis-full
 
 # Create canonical development virtual environment (vmt-dev) and install deps
 .PHONY: venv
@@ -91,14 +91,26 @@ phase0-capture:
 	@echo "See tmp_plans/CURRENT/CRITICAL/UNIFIED_REFACTOR_PLAN.md for Phase 1 details."
 
 token:
-	# Generate VMT repository token analysis report
-	@echo "📄 Generating token analysis report..."
+	# Generate VMT repository token analysis report with full repotokens analysis
+	@echo "📄 Generating full token analysis report with timestamp..."
 	@if [ -d "vmt-dev" ]; then \
-		. vmt-dev/bin/activate && cd llm_counter && $(PYTHON) generate_report.py; \
+		. vmt-dev/bin/activate && cd llm_counter && $(PYTHON) generate_report.py --timestamp; \
 	else \
-		cd llm_counter && $(PYTHON) generate_report.py; \
+		cd llm_counter && $(PYTHON) generate_report.py --timestamp; \
 	fi
-	@echo "✅ Report saved to llm_counter/vmt_token_report.md"
+	@echo "✅ Report saved to llm_counter/ with timestamped filename"
+
+token-analysis:
+	@echo "🔍 Running basic token analysis..."
+	cd llm_counter && $(PYTHON) demo_counter.py
+
+token-analysis-full:
+	@echo "🔍 Running detailed token analysis..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && cd llm_counter && $(PYTHON) token_counter.py --format table; \
+	else \
+		cd llm_counter && $(PYTHON) token_counter.py --format table; \
+	fi
 
 manual-tests:
 	# Launch comprehensive manual GUI tests for unified target selection
