@@ -323,9 +323,12 @@ class ObserverValidator:
                 
                 def notify(self, event):
                     self.received_events.append(event)
+                
+                def flush_step(self, step: int) -> None:
+                    pass  # No step processing needed for test
             
             test_observer = TestObserver(self.config)
-            registry.register_observer(test_observer)
+            registry.register(test_observer)
             
             # Test event emission
             test_event = AgentModeChangeEvent.create(1, 1, "foraging", "trading")
@@ -341,7 +344,7 @@ class ObserverValidator:
                 result.errors.append(f"Wrong event type: {test_observer.received_events[0].event_type}")
             
             # Test observer unregistration
-            registry.unregister_observer(test_observer)
+            registry.unregister(test_observer)
             registry.emit_event(test_event)
             
             if len(test_observer.received_events) != 1:  # Should still be 1
@@ -356,8 +359,8 @@ class ObserverValidator:
                 registry.flush_batch()
                 result.details["batch_processing"] = "supported"
             
-            result.details["observers_registered"] = len(registry.observers)
-            result.details["event_types_supported"] = list(registry.get_supported_event_types()) if hasattr(registry, 'get_supported_event_types') else "unknown"
+            result.details["observers_registered"] = registry.observer_count()
+            result.details["event_types_supported"] = "unknown"  # Not exposed in current API
             
         except Exception as e:
             result.success = False
@@ -619,8 +622,8 @@ class IntegrationTester:
         
         try:
             # Register all observers
-            registry.register_observer(logger)
-            registry.register_observer(gui_observer)
+            registry.register(logger)
+            registry.register(gui_observer)
             
             # Test comprehensive event emission and handling
             test_events = [
@@ -640,8 +643,8 @@ class IntegrationTester:
             result.details = {
                 "events_emitted": len(test_events),
                 "gui_events_processed": gui_processed,
-                "observers_registered": len(registry.observers),
-                "observer_types": [type(obs).__name__ for obs in registry.observers]
+                "observers_registered": registry.observer_count(),
+                "observer_types": "unknown"  # Not exposed in current API
             }
             
             if gui_processed != len(test_events):
@@ -689,10 +692,13 @@ class PerformanceTester:
                 
                 def notify(self, event):
                     self.event_count += 1
+                
+                def flush_step(self, step: int) -> None:
+                    pass  # No step processing needed for benchmark
             
             config = ObservabilityConfig()
             test_observer = BenchmarkObserver(config)
-            registry.register_observer(test_observer)
+            registry.register(test_observer)
             
             # Benchmark event processing
             test_events = [

@@ -138,6 +138,14 @@ class ObserverRegistry:
         
         self._debug_stats["events_processed"] += 1
 
+    def emit_event(self, event: SimulationEvent) -> None:
+        """Alias for notify() method for compatibility with validation framework.
+        
+        Args:
+            event: Event to distribute to observers
+        """
+        self.notify(event)
+
     def flush_step(self, step: int) -> None:
         """Notify all observers of step boundary.
         

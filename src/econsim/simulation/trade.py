@@ -16,7 +16,7 @@ import os
 
 from .agent import Agent
 from econsim.preferences.helpers import marginal_utility
-from ..gui.debug_logger import GUILogger  # for one-shot micro-delta emission
+from ..observability.observer_logger import get_global_observer_logger  # observer-based dev emission
 
 # Priority key structure for deterministic ordering:
 # (-combined_delta_u, seller_id, buyer_id, give_type, take_type)
@@ -47,38 +47,32 @@ def _effective_min_trade_delta() -> float:
 _micro_delta_threshold_emitted = False
 
 def _emit_micro_delta_once(first_drop_delta: float) -> None:
-    """Emit micro-delta threshold event once per process for debugging transparency.
+    """Emit a one-shot debug event explaining micro-delta pruning (dev only).
 
-    Called when an intent passing marginal utility tests is pruned due to
-    combined utility delta below MIN_TRADE_DELTA during execution mode.
-    Deterministic: Only flips boolean flag and logs (hash-excluded).
+    Determinism: Only flips a module-level boolean + emits observer event (hash-excluded).
+    If no global observer logger (e.g., early test harness), this silently no-ops.
     """
     global _micro_delta_threshold_emitted
     if _micro_delta_threshold_emitted:
         return
     _micro_delta_threshold_emitted = True
     try:
-        # Support either get_instance() (current) or legacy get()
-        logger = None
-        for accessor_name in ("get_instance", "get"):
-            accessor = getattr(GUILogger, accessor_name, None)
-            if callable(accessor):  # type: ignore[truthy-function]
-                try:
-                    logger = accessor()
-                except Exception:
-                    logger = None
-                if logger is not None:
-                    break
-        if logger is not None:
-            build_fn = getattr(logger, "build_micro_delta_threshold", None)
-            emit_fn = getattr(logger, "emit_built_event", None)
-            if callable(build_fn) and callable(emit_fn):  # type: ignore[truthy-function]
-                built = build_fn(threshold=MIN_TRADE_DELTA, first_drop_delta=first_drop_delta)
-                # Step unknown at enumeration time -> emit with step=None
-                emit_fn(None, built)
+        logger = get_global_observer_logger()
+        if logger is None:
+            return
+        # Reuse generic debug log path with category tag; emission gated by env debug flags.
+        # Use a distinctive category suffix to allow filtering if needed.
+        logger.log(
+            category="TRADE_MICRO_DELTA",
+            message=(
+                f"Pruned trade intent below MIN_TRADE_DELTA threshold={MIN_TRADE_DELTA:.1e}; "
+                f"first_drop_combined_delta={first_drop_delta:.3e} (one-shot)"
+            ),
+            step=None,
+        )
     except Exception:
         # Never allow logging issues to disrupt enumeration
-        pass
+        return
 
 
 def _compute_exact_utility_delta(agent_i: Agent, agent_j: Agent, 

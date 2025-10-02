@@ -324,7 +324,7 @@ class TestFactoryFunctions:
         config = ObservabilityConfig(agent_mode_logging=True, trade_logging=True)
         
         # Create components to validate
-        registry = ObserverRegistry(config)
+        registry = ObserverRegistry()
         logger = ObserverLogger(registry)
         gui_observer = GUIEventObserver(config, None)
         
@@ -363,8 +363,8 @@ class TestValidationScenarios:
         gui_observer = GUIEventObserver(config, Mock())  # Mock GUI reference
         
         # Register observers
-        registry.register_observer(logger)
-        registry.register_observer(gui_observer)
+        registry.register(logger)
+        registry.register(gui_observer)
         
         # Create validation framework
         capture, validator, integration, performance = create_validation_framework(config)

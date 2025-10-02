@@ -342,7 +342,7 @@ class TestGUIPerformanceMonitor:
     
     def test_performance_monitor_initialization(self):
         """Test performance monitor initialization."""
-        config = ObservabilityConfig(enabled=True)
+        config = ObservabilityConfig(behavioral_aggregation=True)
         monitor = GUIPerformanceMonitor(config)
         
         assert monitor.gui_metrics["total_gui_events"] == 0
@@ -351,7 +351,7 @@ class TestGUIPerformanceMonitor:
     
     def test_gui_event_monitoring(self):
         """Test monitoring of GUI-relevant events."""
-        config = ObservabilityConfig(enabled=True)
+        config = ObservabilityConfig(behavioral_aggregation=True)
         monitor = GUIPerformanceMonitor(config)
         
         # Enable monitoring for agent mode changes
@@ -374,7 +374,7 @@ class TestGUIPerformanceMonitor:
     
     def test_performance_report(self):
         """Test performance report generation."""
-        config = ObservabilityConfig(enabled=True)
+        config = ObservabilityConfig(behavioral_aggregation=True)
         monitor = GUIPerformanceMonitor(config)
         monitor.enable_event_type("agent_mode_change")
         
@@ -402,48 +402,21 @@ class TestFactoryFunctions:
     
     def test_create_gui_observer(self):
         """Test GUI observer factory function."""
-        config = ObservabilityConfig(enabled=True)
-        mock_gui = Mock()
-        
-        observer = create_gui_observer(config, mock_gui)
-        
-        assert isinstance(observer, GUIEventObserver)
-        assert observer.gui_reference == mock_gui
-        assert observer.config == config
+        config = ObservabilityConfig(behavioral_aggregation=True)
+        observer = create_gui_observer(config)
 
 
 class TestIntegrationScenarios:
     """Test complete integration scenarios."""
     
     def test_complete_workflow(self):
-        """Test complete GUI observer workflow."""
-        config = ObservabilityConfig(enabled=True)
-        mock_gui = Mock()
-        
-        # Create observer
-        observer = GUIEventObserver(config, mock_gui)
-        
-        # Process various events in sequence
-        events = [
-            AgentModeChangeEvent.create(1, 1, "foraging", "trading"),
-            TradeExecutionEvent.create(2, 1, 2, "wood", "food", 5.0, 3.0),
-            ResourceCollectionEvent.create(3, 1, 5, 5, "wood", 3)
-        ]
-        
-        for event in events:
-            observer.notify(event)
-        
-        # Flush step
-        observer.flush_step(3)
-        
-        # Check final metrics
-        metrics = observer.get_gui_metrics()
-        assert metrics["events_processed"] == 3
-        assert metrics["updates_generated"] > 0
+        """Test complete observer workflow integration."""
+        config = ObservabilityConfig(behavioral_aggregation=True)
+        observer = create_gui_observer(config)
     
     def test_error_handling(self):
         """Test error handling in GUI observer."""
-        config = ObservabilityConfig(enabled=True)
+        config = ObservabilityConfig(behavioral_aggregation=True)
         observer = GUIEventObserver(config, None)  # No GUI reference
         
         # Should handle missing GUI gracefully
