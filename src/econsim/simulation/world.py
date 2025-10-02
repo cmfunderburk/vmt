@@ -84,6 +84,8 @@ class Simulation:
     # Draft trade intents (feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
     trade_intents: list[TradeIntent] | None = None
+    # Cached spatial index for performance optimization
+    _spatial_index: Any | None = None
     # Last executed trade cell highlight bookkeeping (GUI render hint; purely observational)
     _last_trade_highlight: tuple[int,int,int] | None = None  # (x,y,expire_step)
     # Performance tracking for debug logging
@@ -306,6 +308,10 @@ class Simulation:
         else:
             self._respawn_interval = int(interval)
 
+    def _invalidate_spatial_index(self) -> None:
+        """Invalidate cached spatial index (e.g., when grid size changes)."""
+        self._spatial_index = None
+
     def _handle_bilateral_exchange_movement(self, agent: "Agent", rng: random.Random, step: int = 0) -> None:
         """Handle agent movement and pairing logic for bilateral trading mode.
         
@@ -517,10 +523,17 @@ class Simulation:
                 k = float(getattr(self.config, "distance_scaling_factor", 0.0))
         except Exception:
             k = 0.0
-        # Build spatial index
-        index = AgentSpatialGrid(self.grid.width, self.grid.height)
-        for ag in self.agents:
-            index.add_agent(ag.x, ag.y, ag)
+        # Use cached spatial index with incremental updates
+        if self._spatial_index is None:
+            # Initialize spatial index on first use
+            from .spatial import AgentSpatialGrid
+            self._spatial_index = AgentSpatialGrid(self.grid.width, self.grid.height)
+            self._spatial_index.rebuild_from_agents(self.agents)
+        else:
+            # Update spatial index incrementally (much faster than full rebuild)
+            self._spatial_index.update_agent_positions(self.agents)
+        
+        index = self._spatial_index
         # Reservation sets (avoid duplicate resource claims / partner races)
         claimed_resources: set[tuple[int,int]] = set()
         claimed_partners: set[int] = set()

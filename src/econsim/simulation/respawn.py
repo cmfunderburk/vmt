@@ -95,16 +95,10 @@ class RespawnScheduler:
         if to_spawn <= 0:
             return 0
 
-        # Enumerate all empty cells then shuffle for uniform distribution.
-        # O(empty_cells) complexity acceptable for typical grid sizes (≤64×64).
-        occupied = getattr(grid, "_resources", {})
+        # Get empty cells using optimized cache (O(empty_count) instead of O(width*height))
         if current >= total_cells:  # grid full
             return 0
-        empties: List[Tuple[int, int]] = []
-        for y in range(grid.height):
-            for x in range(grid.width):
-                if (x, y) not in occupied:
-                    empties.append((x, y))
+        empties = grid.get_empty_cells_list()
         if not empties:
             return 0
         rng.shuffle(empties)

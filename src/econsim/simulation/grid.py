@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Set
 
 Coord = tuple[int, int]
 ResourceType = str  # A, B resource types
@@ -29,10 +29,16 @@ class Grid:
     
     Uses dict-based storage for O(1) operations and provides deterministic
     iteration order for reproducible simulations.
+    
+    Performance optimizations:
+    - Maintains _empty_cells set for O(1) empty cell access
+    - Caches _resource_count to avoid len() calls
     """
     width: int
     height: int
     _resources: dict[Coord, ResourceType]
+    _empty_cells: Set[Coord]
+    _resource_count: int
 
     def __init__(
         self,
@@ -53,6 +59,11 @@ class Grid:
         self.width = width
         self.height = height
         self._resources = {}
+        
+        # Initialize empty cells set with all possible coordinates
+        self._empty_cells = set((x, y) for x in range(width) for y in range(height))
+        self._resource_count = 0
+        
         if resources:
             for entry in resources:
                 if len(entry) == 2:  # type: ignore[arg-type]
@@ -75,7 +86,14 @@ class Grid:
     def add_resource(self, x: int, y: int, rtype: ResourceType = "A") -> None:
         """Add resource of specified type at position."""
         self._check_bounds(x, y)
-        self._resources[(x, y)] = rtype
+        coord = (x, y)
+        
+        # Only update caches if cell was empty
+        if coord in self._empty_cells:
+            self._empty_cells.remove(coord)
+            self._resource_count += 1
+        
+        self._resources[coord] = rtype
 
     def has_resource(self, x: int, y: int) -> bool:
         """Check if resource exists at position."""
@@ -85,7 +103,14 @@ class Grid:
     def take_resource_type(self, x: int, y: int) -> ResourceType | None:
         """Remove and return resource type at position, or None if empty."""
         self._check_bounds(x, y)
-        return self._resources.pop((x, y), None)
+        coord = (x, y)
+        rtype = self._resources.pop(coord, None)
+        
+        if rtype is not None:
+            self._empty_cells.add(coord)
+            self._resource_count -= 1
+        
+        return rtype
 
     def take_resource(self, x: int, y: int) -> bool:
         """Remove resource at position, returning True if found."""
@@ -93,8 +118,16 @@ class Grid:
 
     # --- Introspection / Serialization ------------------------------
     def resource_count(self) -> int:
-        """Return total number of resources on grid."""
-        return len(self._resources)
+        """Return total number of resources on grid (cached)."""
+        return self._resource_count
+
+    def get_empty_cells(self) -> Set[Coord]:
+        """Get set of empty cells (O(1) operation)."""
+        return self._empty_cells.copy()
+
+    def get_empty_cells_list(self) -> list[Coord]:
+        """Get list of empty cells (O(empty_count) operation)."""
+        return list(self._empty_cells)
 
     def iter_resources(self):
         """Iterate over resources as (x, y, type) tuples."""

@@ -27,6 +27,8 @@ def make_sim(width: int = 20, height: int = 20, n_agents: int = 3, seed: int = 1
         max_spawn_per_tick=50,
         respawn_rate=0.5,
     )
+    # Set respawn interval to 1 for tests (every step) to ensure convergence
+    sim.set_respawn_interval(1)
     return sim
 
 

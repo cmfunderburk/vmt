@@ -94,6 +94,21 @@ class Agent:
     # Target churn tracking for instrumentation
     _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
     
+    # Target selection caching for performance optimization
+    _cached_resource_candidate: tuple | None = field(default=None, init=False, repr=False)
+    _cached_agent_position: tuple[int, int] | None = field(default=None, init=False, repr=False)
+    _cached_agent_bundle: tuple[float, float] | None = field(default=None, init=False, repr=False)
+    _cached_resource_count: int | None = field(default=None, init=False, repr=False)
+    _cached_step: int = field(default=0, init=False, repr=False)
+    
+    # Partner selection caching for performance optimization
+    _cached_self_mu: dict[str, float] | None = field(default=None, init=False, repr=False)
+    _cached_self_mu_position: tuple[int, int] | None = field(default=None, init=False, repr=False)
+    _cached_self_mu_bundle: tuple[float, float] | None = field(default=None, init=False, repr=False)
+    _cached_partner_evaluations: dict[int, dict] | None = field(default=None, init=False, repr=False)
+    _cached_partner_positions: dict[int, tuple[int, int]] | None = field(default=None, init=False, repr=False)
+    _cached_partner_bundles: dict[int, tuple[float, float]] | None = field(default=None, init=False, repr=False)
+    
     def _track_target_change(self, new_target: Position | None, step: int) -> None:
         """Track target changes for behavioral churn analysis.
         
@@ -271,6 +286,8 @@ class Agent:
         """Move one step randomly in 4-neighborhood or stay put."""
         new_pos = self._movement.move_random((self.x, self.y), grid, rng)
         self.x, self.y = new_pos
+        # Invalidate partner selection cache when position changes
+        self._invalidate_partner_selection_cache()
 
     # --- Resource Interaction -------------------------------------
     def collect(self, grid: Grid, step: int = -1, observer_registry: Optional['ObserverRegistry'] = None) -> bool:
@@ -321,6 +338,11 @@ class Agent:
         self._event_emitter.emit_resource_collection(
             self.x, self.y, rtype, step if step >= 0 else 0, observer_registry
         )
+        
+        # Invalidate caches when inventory changes
+        self._invalidate_target_selection_cache()
+        self._invalidate_partner_selection_cache()
+        
         return True
         # Unknown resource type ignored
         return False
@@ -340,11 +362,21 @@ class Agent:
 
     def deposit(self) -> bool:
         """Move all carried goods into home inventory. Returns True if any deposited."""
-        return self._inventory.deposit_all()
+        result = self._inventory.deposit_all()
+        if result:
+            # Invalidate caches when inventory changes
+            self._invalidate_target_selection_cache()
+            self._invalidate_partner_selection_cache()
+        return result
 
     def withdraw_all(self) -> bool:
         """Move all home inventory goods into carrying. Returns True if withdrawn."""
-        return self._inventory.withdraw_all()
+        result = self._inventory.withdraw_all()
+        if result:
+            # Invalidate caches when inventory changes
+            self._invalidate_target_selection_cache()
+            self._invalidate_partner_selection_cache()
+        return result
 
     def maybe_deposit(self, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
         """Deposit carried goods at home and transition to appropriate mode.
@@ -480,25 +512,116 @@ class Agent:
 
     # --- Unified / Shared Candidate Computation -----------------
     def compute_best_resource_candidate(self, grid: Grid) -> tuple[Position | None, float, tuple[float,int,int,int] | None]:
-        """Return best resource target using target selection component.
+        """Return best resource target using target selection component with caching.
         
         Maintains backward compatibility for select_unified_target and other methods
-        that depend on this interface. Delegates to the target selection component.
+        that depend on this interface. Delegates to the target selection component
+        with performance optimization through caching.
         
         Returns:
             (position, delta_u, tie_key) where tie_key = (-delta_u, distance, x, y)
         """
+        # Check if we can use cached result
+        if self._should_use_cached_target_selection(grid):
+            cached_result = getattr(self, '_cached_resource_candidate', None)
+            if cached_result is not None:
+                return cached_result
+        
+        # Compute fresh result
         current_bundle = self._current_bundle()
         candidate = self._target_selection.select_target(
             (self.x, self.y), current_bundle, self.preference, grid
         )
         
         if candidate is None:
-            return None, 0.0, None
+            result = (None, 0.0, None)
+        else:
+            # Convert to expected format for backward compatibility
+            key = (-candidate.delta_u_raw, candidate.distance, candidate.position[0], candidate.position[1])
+            result = (candidate.position, candidate.delta_u_raw, key)
         
-        # Convert to expected format for backward compatibility
-        key = (-candidate.delta_u_raw, candidate.distance, candidate.position[0], candidate.position[1])
-        return candidate.position, candidate.delta_u_raw, key
+        # Cache the result
+        self._cache_target_selection_result(result, grid)
+        return result
+
+    def _should_use_cached_target_selection(self, grid: Grid) -> bool:
+        """Check if cached target selection result is still valid.
+        
+        Returns True if the cached result can be reused, False if it needs to be recomputed.
+        """
+        # Check if we have a cached result
+        if self._cached_resource_candidate is None:
+            return False
+        
+        # Check if agent position has changed significantly
+        if self._cached_agent_position != (self.x, self.y):
+            return False
+        
+        # Check if agent's current bundle has changed
+        current_bundle = self._current_bundle()
+        if self._cached_agent_bundle != current_bundle:
+            return False
+        
+        # Check if grid resource count has changed (simple heuristic)
+        current_resource_count = grid.resource_count()
+        if self._cached_resource_count != current_resource_count:
+            return False
+        
+        # Check if cache is not too old (prevent stale caches)
+        if self._cached_step == 0:
+            return False
+        
+        # Cache is valid for a few steps to avoid excessive recomputation
+        return True
+
+    def _cache_target_selection_result(self, result: tuple, grid: Grid) -> None:
+        """Cache target selection result and associated state.
+        
+        Args:
+            result: The target selection result to cache
+            grid: Current grid state for cache invalidation tracking
+        """
+        self._cached_resource_candidate = result
+        self._cached_agent_position = (self.x, self.y)
+        self._cached_agent_bundle = self._current_bundle()
+        self._cached_resource_count = grid.resource_count()
+        self._cached_step += 1
+
+    def _invalidate_target_selection_cache(self) -> None:
+        """Invalidate cached target selection results."""
+        self._cached_resource_candidate = None
+        self._cached_agent_position = None
+        self._cached_agent_bundle = None
+        self._cached_resource_count = None
+        self._cached_step = 0
+        
+    def _should_use_cached_partner_selection(self) -> bool:
+        """Check if cached partner selection data is still valid."""
+        if self._cached_self_mu is None:
+            return False
+        if self._cached_self_mu_position != (self.x, self.y):
+            return False
+        if self._cached_self_mu_bundle != (self.carrying.get('good1', 0), self.carrying.get('good2', 0)):
+            return False
+        return True
+    
+    def _cache_partner_selection_result(self, self_mu: dict[str, float], partner_evaluations: dict[int, dict]) -> None:
+        """Cache partner selection results for performance optimization."""
+        self._cached_self_mu = self_mu.copy()
+        self._cached_self_mu_position = (self.x, self.y)
+        self._cached_self_mu_bundle = (self.carrying.get('good1', 0), self.carrying.get('good2', 0))
+        self._cached_partner_evaluations = partner_evaluations.copy()
+        self._cached_partner_positions = {}
+        self._cached_partner_bundles = {}
+        
+    def _invalidate_partner_selection_cache(self) -> None:
+        """Invalidate partner selection cache when agent state changes."""
+        self._cached_self_mu = None
+        self._cached_self_mu_position = None
+        self._cached_self_mu_bundle = None
+        self._cached_partner_evaluations = None
+        self._cached_partner_positions = None
+        self._cached_partner_bundles = None
 
     def step_decision(self, grid: Grid, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> bool:
         """Perform one decision+movement+interaction step (without RNG).
@@ -529,6 +652,9 @@ class Agent:
             else:  # same cell already (shouldn't happen due to earlier check)
                 pass
             
+            # Invalidate target selection cache when agent moves
+            self._invalidate_target_selection_cache()
+            
             # Track movement for behavioral analysis using observer pattern
             new_pos = (self.x, self.y)
             if new_pos != old_pos:
@@ -546,6 +672,8 @@ class Agent:
         if collected:
             # Clear target so reselection occurs next tick
             self.target = None
+            # Invalidate target selection cache when bundle changes
+            self._invalidate_target_selection_cache()
         else:
             # If we reached target but resource already gone (collected earlier this tick), retarget immediately.
             if (
@@ -623,7 +751,7 @@ class Agent:
                     elif abs(raw_new - raw_old) <= 1e-15 and kind < best_choice[0]:
                         best_choice = (kind, payload)
 
-        # Resource candidates
+        # Resource candidates (uses cached result when possible)
         if enable_foraging:
             pos, delta_u, key = self.compute_best_resource_candidate(grid)
             if pos is not None and delta_u > 0.0:
@@ -635,14 +763,21 @@ class Agent:
         if enable_trade and nearby_agents:
             # Conservative heuristic: potential gain = max(0, mu_gain_partner - mu_loss_self) for one swap across goods
             from econsim.preferences.helpers import marginal_utility as _mu
-            # Precompute own marginal utilities once (using carrying+home aggregated implicitly by helper)
-            self_mu = _mu(
-                self.preference,
-                self.carrying,
-                self.home_inventory,
-                epsilon_lift=True,
-                include_missing_two_goods=True,
-            )
+            
+            # Use cached self marginal utility if available
+            if self._should_use_cached_partner_selection():
+                self_mu = self._cached_self_mu
+                partner_evaluations = self._cached_partner_evaluations or {}
+            else:
+                # Precompute own marginal utilities once (using carrying+home aggregated implicitly by helper)
+                self_mu = _mu(
+                    self.preference,
+                    self.carrying,
+                    self.home_inventory,
+                    epsilon_lift=True,
+                    include_missing_two_goods=True,
+                )
+                partner_evaluations = {}
             
             for other in nearby_agents:
                 scanned_count += 1
@@ -656,34 +791,55 @@ class Agent:
                     continue
                 
                 eligible_count += 1
-                other_mu = _mu(
-                    other.preference,
-                    other.carrying,
-                    other.home_inventory,
-                    epsilon_lift=True,
-                    include_missing_two_goods=True,
-                )
-                # Evaluate both swap directions; keep best positive conservative estimate
-                best_partner_delta = 0.0
-                # self gives good1, receives good2
-                if self.carrying.get('good1', 0) > 0 and other.carrying.get('good2', 0) > 0:
-                    gain_self = self_mu.get('good2', 0.0) - self_mu.get('good1', 0.0)
-                    gain_other = other_mu.get('good1', 0.0) - other_mu.get('good2', 0.0)
-                    combined = min(gain_self, gain_other)  # conservative (bottleneck)
-                    if combined > best_partner_delta:
-                        best_partner_delta = combined
-                # self gives good2, receives good1
-                if self.carrying.get('good2', 0) > 0 and other.carrying.get('good1', 0) > 0:
-                    gain_self = self_mu.get('good1', 0.0) - self_mu.get('good2', 0.0)
-                    gain_other = other_mu.get('good2', 0.0) - other_mu.get('good1', 0.0)
-                    combined = min(gain_self, gain_other)
-                    if combined > best_partner_delta:
-                        best_partner_delta = combined
+                
+                # Check if we have cached evaluation for this partner
+                partner_id = other.id
+                cached_evaluation = partner_evaluations.get(partner_id)
+                
+                if cached_evaluation is not None:
+                    # Use cached evaluation
+                    best_partner_delta = cached_evaluation.get("delta_u", 0.0)
+                    dist = cached_evaluation.get("dist", 0)
+                    discounted = cached_evaluation.get("discounted", 0.0)
+                else:
+                    # Calculate fresh evaluation
+                    other_mu = _mu(
+                        other.preference,
+                        other.carrying,
+                        other.home_inventory,
+                        epsilon_lift=True,
+                        include_missing_two_goods=True,
+                    )
+                    # Evaluate both swap directions; keep best positive conservative estimate
+                    best_partner_delta = 0.0
+                    # self gives good1, receives good2
+                    if self.carrying.get('good1', 0) > 0 and other.carrying.get('good2', 0) > 0:
+                        gain_self = self_mu.get('good2', 0.0) - self_mu.get('good1', 0.0)
+                        gain_other = other_mu.get('good1', 0.0) - other_mu.get('good2', 0.0)
+                        combined = min(gain_self, gain_other)  # conservative (bottleneck)
+                        if combined > best_partner_delta:
+                            best_partner_delta = combined
+                    # self gives good2, receives good1
+                    if self.carrying.get('good2', 0) > 0 and other.carrying.get('good1', 0) > 0:
+                        gain_self = self_mu.get('good1', 0.0) - self_mu.get('good2', 0.0)
+                        gain_other = other_mu.get('good2', 0.0) - other_mu.get('good1', 0.0)
+                        combined = min(gain_self, gain_other)
+                        if combined > best_partner_delta:
+                            best_partner_delta = combined
+                    
+                    dist = abs(other.x - self.x) + abs(other.y - self.y)
+                    discounted = best_partner_delta / (1.0 + distance_scaling_factor * (dist * dist))
+                    
+                    # Cache the evaluation
+                    partner_evaluations[partner_id] = {
+                        "delta_u": best_partner_delta,
+                        "dist": dist,
+                        "discounted": discounted,
+                    }
+                
                 if best_partner_delta <= 0.0:
                     rejected_partners.append((other.id, "negative_utility"))
                     continue
-                dist = abs(other.x - self.x) + abs(other.y - self.y)
-                discounted = best_partner_delta / (1.0 + distance_scaling_factor * (dist * dist))
                 
                 # Track if this partner gets chosen
                 old_best = best_choice
@@ -719,6 +875,10 @@ class Agent:
                         f"Rejections: {len(rejection_sample)}"
                     )
                     logger.log_trade(message, step)
+        
+        # Cache partner selection results for next step
+        if enable_trade and nearby_agents:
+            self._cache_partner_selection_result(self_mu, partner_evaluations)
                     
         self.current_unified_task = best_choice
         return best_choice
@@ -800,6 +960,8 @@ class Agent:
             
         new_pos = self._movement.move_toward_meeting_point((self.x, self.y), self._trading_partner.meeting_point)
         self.x, self.y = new_pos
+        # Invalidate partner selection cache when position changes
+        self._invalidate_partner_selection_cache()
 
     def attempt_trade_with_partner(self, other_agent: "Agent", metrics_collector: Any = None, current_step: int = 0) -> bool:
         """Deprecated trade execution path - no longer executes trades.
