@@ -103,6 +103,7 @@ class Agent:
     _inventory: 'AgentInventory | None' = field(default=None, init=False, repr=False)
     _trading_partner: 'TradingPartner | None' = field(default=None, init=False, repr=False)
     _target_selection: 'ResourceTargetStrategy | None' = field(default=None, init=False, repr=False)
+    _mode_state_machine: 'AgentModeStateMachine | None' = field(default=None, init=False, repr=False)
     force_deposit_once: bool = field(default=False, init=False, repr=False)
     # Target churn tracking for instrumentation
     _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
@@ -170,7 +171,7 @@ class Agent:
         
         # Initialize mode state machine component
         from .components.mode_state_machine import AgentModeStateMachine
-        self._mode_state_machine = AgentModeStateMachine(self.id)
+        object.__setattr__(self, "_mode_state_machine", AgentModeStateMachine(self.id))
         self._mode_state_machine.set_event_emitter(self._event_emitter)
     
     # Trading partner properties that delegate to component
