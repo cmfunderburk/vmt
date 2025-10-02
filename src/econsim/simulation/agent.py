@@ -38,6 +38,13 @@ Position = tuple[int, int]
 
 
 class AgentMode(str, Enum):  # str for readable serialization/debug
+    """Agent behavioral modes determining movement and interaction patterns.
+    
+    FORAGE: Actively seek and collect resources based on utility maximization
+    RETURN_HOME: Move toward home position to deposit carried goods
+    IDLE: Stationary or random movement, available for partner pairing
+    MOVE_TO_PARTNER: Move toward established meeting point for trading
+    """
     FORAGE = "forage"
     RETURN_HOME = "return_home"
     IDLE = "idle"
@@ -95,7 +102,11 @@ class Agent:
     _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
     
     def _track_target_change(self, new_target: Position | None, step: int) -> None:
-        """Track target changes for behavioral churn analysis."""
+        """Track target changes for behavioral churn analysis.
+        
+        Maintains history of recent target changes for behavioral instrumentation
+        and emits retargeting events via observer pattern.
+        """
         if new_target != self.target:
             self._recent_retargets.append(step)
             # Keep only recent retargets (last 100 steps)
@@ -290,9 +301,11 @@ class Agent:
 
     # --- Home / Deposit Logic ------------------------------------
     def at_home(self) -> bool:
+        """Check if agent is currently at their home position."""
         return self.x == self.home_x and self.y == self.home_y
 
     def carrying_total(self) -> int:
+        """Return total number of goods currently being carried."""
         return sum(self.carrying.values())
     
     def current_utility(self) -> float:
@@ -396,9 +409,15 @@ class Agent:
 
     # --- Decision Logic -------------------------------------------
     def _manhattan(self, x1: int, y1: int, x2: int, y2: int) -> int:
+        """Calculate Manhattan distance between two points."""
         return abs(x1 - x2) + abs(y1 - y2)
 
     def _current_bundle(self) -> tuple[float, float]:
+        """Get current bundle (good1, good2) from total wealth (carrying + home inventory).
+        
+        Uses total wealth for consistent utility calculations, ensuring trade predictions
+        match actual execution utility calculations.
+        """
         # Use total wealth (carrying + home) for consistent utility calculations
         # This ensures trade predictions match actual execution utility calculations
         total_good1 = float(self.carrying["good1"] + self.home_inventory["good1"])
@@ -1052,6 +1071,10 @@ class Agent:
 
     # --- Serialization (Optional Future Use) ----------------------
     def serialize(self) -> Mapping[str, Any]:
+        """Serialize agent state to dictionary for persistence and debugging.
+        
+        Includes backward compatible 'inventory' field (alias for carrying).
+        """
         # Provide backward compatible 'inventory' (carrying) plus new fields
         return {
             "id": self.id,
@@ -1069,6 +1092,7 @@ class Agent:
     # Position helper
     @property
     def pos(self) -> Position:
+        """Get agent's current position as a (x, y) tuple."""
         return (self.x, self.y)
 
     def total_inventory(self) -> dict[str, int]:

@@ -17,7 +17,16 @@ make venv && source vmt-dev/bin/activate  # Create dev environment
 make launcher                             # Primary development interface (canonical)
 pytest -q                               # Run 210+ tests for validation
 make perf                               # Performance comparison vs baselines
+make token                              # Generate LLM token usage report
 ```
+
+**CRITICAL**: `make launcher` is the **canonical user-facing environment**. `make dev` is **outdated** and scheduled for deprecation - its functionality needs migration into the new launcher architecture.
+
+**Development Commands**:
+- `make dev` - **DEPRECATED** Enhanced GUI (legacy bootstrap with `ECONSIM_NEW_GUI=0`)
+- `make test-unit` - Full test suite alias
+- `make lint` - Ruff + Black code quality checks
+- `make format` - Auto-format with Black + Ruff
 
 **Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
@@ -61,15 +70,29 @@ Handler pattern:
 **Baselines**: 
 - Determinism: `baselines/determinism_hashes.json` - only refresh with rationale
 - Performance: `baselines/performance_baseline.json` - compare after algorithm changes
+- Canonical: `baselines/CANONICAL_REFACTOR_BASELINE.md` - refactor start point
+
+**Performance Targets**: Mean ≥999.3 steps/sec across 7 educational scenarios. Leontief preferences are 6x slower than sparse scenarios (246.8 vs 1545.7 steps/sec).
 
 **Hash invariant**: Excludes trade & debug metrics. Behavioral changes require: (1) focused test, (2) baseline refresh with commit message explaining WHAT + WHY.
 
 ### Feature Flags (Active)
+**Core Behavior**:
 - `ECONSIM_FORAGE_ENABLED` - agent foraging behavior
 - `ECONSIM_TRADE_DRAFT` - enumerate trade intents (no execution)  
 - `ECONSIM_TRADE_EXEC` - execute up to one trade per step
+- `ECONSIM_NEW_GUI` - enhanced GUI vs legacy bootstrap (default: 1)
+
+**Debugging**:
 - `ECONSIM_DEBUG_AGENT_MODES` - mode transition logging
+- `ECONSIM_DEBUG_FPS` - FPS debugging output
+- `ECONSIM_LOG_LEVEL` - DEBUG/INFO logging level
+- `ECONSIM_LOG_FORMAT` - structured vs plain log format
+- `ECONSIM_LOG_CATEGORIES` - filter event categories (ALL, PAIRING, etc.)
+
+**Performance**:
 - `ECONSIM_HEADLESS_RENDER` - skip rendering for CI/testing
+- `ECONSIM_LEGACY_ANIM_BG` - restore animated background (default: static)
 
 ### Current Refactoring Status
 **Active Cleanup** (as of Oct 2025): GUILogger elimination complete ✅
