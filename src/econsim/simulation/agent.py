@@ -29,11 +29,13 @@ from econsim.preferences.base import Preference
 
 from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS
 from .grid import Grid
+from .agent_flags import is_refactor_enabled
 
 if TYPE_CHECKING:
     from ..observability.registry import ObserverRegistry
     from ..observability.event_buffer import StepEventBuffer
     from .components.event_emitter import AgentEventEmitter
+    from .components.inventory import AgentInventory
 
 Position = tuple[int, int]
 
@@ -101,6 +103,7 @@ class Agent:
     
     # Refactored components (initialized in __post_init__)
     _event_emitter: 'AgentEventEmitter | None' = field(default=None, init=False, repr=False)
+    _inventory: 'AgentInventory | None' = field(default=None, init=False, repr=False)
     force_deposit_once: bool = field(default=False, init=False, repr=False)
     # Target churn tracking for instrumentation
     _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
@@ -150,6 +153,14 @@ class Agent:
         
         from .components.event_emitter import AgentEventEmitter
         object.__setattr__(self, "_event_emitter", AgentEventEmitter(self.id))
+        
+        if is_refactor_enabled("inventory"):
+            from .components.inventory import AgentInventory
+            self._inventory = AgentInventory(self.preference)
+            # CRITICAL: Set up aliases (not copies!)
+            object.__setattr__(self, "carrying", self._inventory.carrying)
+            object.__setattr__(self, "home_inventory", self._inventory.home_inventory)
+            object.__setattr__(self, "inventory", self._inventory.inventory)
 
     def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
         """Log agent mode transitions for debugging via observer events."""
@@ -233,54 +244,38 @@ class Agent:
         rtype = grid.take_resource_type(self.x, self.y)
         if rtype is None:
             return False
-        if rtype == "A":
-            self.carrying["good1"] += 1
-            # Track acquisition for behavioral analysis using observer pattern
-            if step >= 0:
-                try:
-                    from ..observability.observer_logger import get_global_observer_logger
-                    logger = get_global_observer_logger()
-                    if logger:
-                        # Use log_resource_event for resource acquisition tracking
-                        logger.log_resource_event(
-                            event_type="pickup",
-                            position=(self.x, self.y),
-                            resource_type=rtype,
-                            agent_id=self.id,
-                            step=step
-                        )
-                except Exception:
-                    pass  # Don't break simulation if logging fails
-            
-            # Emit resource collection event
-            self._event_emitter.emit_resource_collection(
-                self.x, self.y, rtype, step if step >= 0 else 0, observer_registry
-            )
-            return True
-        if rtype == "B":
-            self.carrying["good2"] += 1
-            # Track acquisition for behavioral analysis using observer pattern
-            if step >= 0:
-                try:
-                    from ..observability.observer_logger import get_global_observer_logger
-                    logger = get_global_observer_logger()
-                    if logger:
-                        # Use log_resource_event for resource acquisition tracking
-                        logger.log_resource_event(
-                            event_type="pickup",
-                            position=(self.x, self.y),
-                            resource_type=rtype,
-                            agent_id=self.id,
-                            step=step
-                        )
-                except Exception:
-                    pass  # Don't break simulation if logging fails
-            
-            # Emit resource collection event
-            self._event_emitter.emit_resource_collection(
-                self.x, self.y, rtype, step if step >= 0 else 0, observer_registry
-            )
-            return True
+        # Collect resource using inventory component or legacy path
+        if is_refactor_enabled("inventory"):
+            self._inventory.collect_resource(rtype)
+        else:
+            # LEGACY: Direct inventory manipulation
+            if rtype == "A":
+                self.carrying["good1"] += 1
+            elif rtype == "B":
+                self.carrying["good2"] += 1
+        
+        # Track acquisition for behavioral analysis using observer pattern
+        if step >= 0:
+            try:
+                from ..observability.observer_logger import get_global_observer_logger
+                logger = get_global_observer_logger()
+                if logger:
+                    # Use log_resource_event for resource acquisition tracking
+                    logger.log_resource_event(
+                        event_type="pickup",
+                        position=(self.x, self.y),
+                        resource_type=rtype,
+                        agent_id=self.id,
+                        step=step
+                    )
+            except Exception:
+                pass  # Don't break simulation if logging fails
+        
+        # Emit resource collection event
+        self._event_emitter.emit_resource_collection(
+            self.x, self.y, rtype, step if step >= 0 else 0, observer_registry
+        )
+        return True
         # Unknown resource type ignored
         return False
 
@@ -291,38 +286,54 @@ class Agent:
 
     def carrying_total(self) -> int:
         """Return total number of goods currently being carried."""
-        return sum(self.carrying.values())
+        if is_refactor_enabled("inventory"):
+            return self._inventory.carrying_total()
+        else:
+            # LEGACY: Direct calculation
+            return sum(self.carrying.values())
     
     def current_utility(self) -> float:
         """Calculate current utility from total wealth (carrying + home inventory)."""
-        from .constants import EPSILON_UTILITY
-        raw_bundle = self._current_bundle()
-        # Apply epsilon augmentation for consistent evaluation
-        if raw_bundle[0] == 0.0 or raw_bundle[1] == 0.0:
-            bundle = (raw_bundle[0] + EPSILON_UTILITY, raw_bundle[1] + EPSILON_UTILITY)
+        if is_refactor_enabled("inventory"):
+            return self._inventory.current_utility()
         else:
-            bundle = raw_bundle
-        return self.preference.utility(bundle)
+            # LEGACY: Direct calculation
+            from .constants import EPSILON_UTILITY
+            raw_bundle = self._current_bundle()
+            # Apply epsilon augmentation for consistent evaluation
+            if raw_bundle[0] == 0.0 or raw_bundle[1] == 0.0:
+                bundle = (raw_bundle[0] + EPSILON_UTILITY, raw_bundle[1] + EPSILON_UTILITY)
+            else:
+                bundle = raw_bundle
+            return self.preference.utility(bundle)
 
     def deposit(self) -> bool:
         """Move all carried goods into home inventory. Returns True if any deposited."""
-        moved = False
-        for k, v in list(self.carrying.items()):
-            if v > 0:
-                self.home_inventory[k] += v
-                self.carrying[k] = 0
-                moved = True
-        return moved
+        if is_refactor_enabled("inventory"):
+            return self._inventory.deposit_all()
+        else:
+            # LEGACY: Direct manipulation
+            moved = False
+            for k, v in list(self.carrying.items()):
+                if v > 0:
+                    self.home_inventory[k] += v
+                    self.carrying[k] = 0
+                    moved = True
+            return moved
 
     def withdraw_all(self) -> bool:
         """Move all home inventory goods into carrying. Returns True if withdrawn."""
-        moved = False
-        for k, v in list(self.home_inventory.items()):
-            if v > 0:
-                self.carrying[k] += v
-                self.home_inventory[k] = 0
-                moved = True
-        return moved
+        if is_refactor_enabled("inventory"):
+            return self._inventory.withdraw_all()
+        else:
+            # LEGACY: Direct manipulation
+            moved = False
+            for k, v in list(self.home_inventory.items()):
+                if v > 0:
+                    self.carrying[k] += v
+                    self.home_inventory[k] = 0
+                    moved = True
+            return moved
 
     def maybe_deposit(self, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
         """Deposit carried goods at home and transition to appropriate mode.
@@ -403,11 +414,15 @@ class Agent:
         Uses total wealth for consistent utility calculations, ensuring trade predictions
         match actual execution utility calculations.
         """
-        # Use total wealth (carrying + home) for consistent utility calculations
-        # This ensures trade predictions match actual execution utility calculations
-        total_good1 = float(self.carrying["good1"] + self.home_inventory["good1"])
-        total_good2 = float(self.carrying["good2"] + self.home_inventory["good2"])
-        return total_good1, total_good2
+        if is_refactor_enabled("inventory"):
+            return self._inventory.current_bundle()
+        else:
+            # LEGACY: Direct calculation
+            # Use total wealth (carrying + home) for consistent utility calculations
+            # This ensures trade predictions match actual execution utility calculations
+            total_good1 = float(self.carrying["good1"] + self.home_inventory["good1"])
+            total_good2 = float(self.carrying["good2"] + self.home_inventory["good2"])
+            return total_good1, total_good2
 
     def select_target(self, grid: Grid, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
         """Select movement target based on current mode and available resources.
@@ -1082,14 +1097,18 @@ class Agent:
 
     def total_inventory(self) -> dict[str, int]:
         """Return combined carrying + home inventory without mutation."""
-        if not self.carrying and not self.home_inventory:
-            return {}
-        # Copy home first, then overlay carrying counts
-        combined: dict[str, int] = dict(self.home_inventory)
-        for k, v in self.carrying.items():
-            if v:
-                combined[k] = combined.get(k, 0) + v
-        return combined
+        if is_refactor_enabled("inventory"):
+            return self._inventory.total_inventory()
+        else:
+            # LEGACY: Direct calculation
+            if not self.carrying and not self.home_inventory:
+                return {}
+            # Copy home first, then overlay carrying counts
+            combined: dict[str, int] = dict(self.home_inventory)
+            for k, v in self.carrying.items():
+                if v:
+                    combined[k] = combined.get(k, 0) + v
+            return combined
 
     def find_nearby_agents(self, all_agents: list["Agent"]) -> list[tuple["Agent", int]]:
         """Find other agents within perception radius for potential trading.
