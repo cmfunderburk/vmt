@@ -61,14 +61,7 @@ def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMod
             reason=reason
         )
         observer_registry.notify(event)
-    else:
-        # Fallback to legacy logging system for backward compatibility
-        try:
-            from ..gui.debug_logger import log_agent_mode
-            log_agent_mode(agent.id, old_mode.value, new_mode.value, reason)
-        except ImportError:
-            # Graceful degradation if GUI logging not available
-            pass
+    # Note: Legacy fallback removed - observer system is now required for mode change logging
 
 
 @dataclass(slots=True)

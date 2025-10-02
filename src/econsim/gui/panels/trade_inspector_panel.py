@@ -12,7 +12,7 @@ from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont
 
 from ..simulation_controller import SimulationController
-from ..debug_logger import format_agent_id, format_delta
+from ..utils import format_agent_id, format_delta
 
 
 class TradeInspectorPanel(QWidget):  # pragma: no cover (GUI)

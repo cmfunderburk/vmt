@@ -13,7 +13,7 @@ from collections import deque
 from time import perf_counter
 
 from econsim.simulation.world import Simulation
-from .debug_logger import format_delta
+from .utils import format_delta
 
 
 class SimulationController:
@@ -508,18 +508,38 @@ class SimulationController:
         # If we have a new step, check for new trades
         if current_step > self._last_checked_step:
             try:
-                from .debug_logger import log_trade
+                # Use observer events for trade debugging (replacing legacy log_trade)
+                try:
+                    from ..observability.observer_logger import get_global_observer_logger
+                    from ..observability.events import DebugLogEvent
+                    
+                    logger = get_global_observer_logger()
+                    if logger is not None:
+                        last_trade = mc.last_executed_trade
+                        # DEBUG: Trade detection logic and delta utility values
+                        logger.observer_registry.notify(DebugLogEvent.create(
+                            step=current_step, category="trade_detection", 
+                            message=f"current_step={current_step}, last_checked_step={self._last_checked_step}"))
+                        logger.observer_registry.notify(DebugLogEvent.create(
+                            step=current_step, category="trade_detection", 
+                            message=f"last_trade={last_trade}"))
+                except Exception:  # pragma: no cover
+                    pass
+                
                 last_trade = mc.last_executed_trade
-                # DEBUG: Trade detection logic and delta utility values
-                log_trade(f"current_step={current_step}, last_checked_step={self._last_checked_step}", current_step)
-                log_trade(f"last_trade={last_trade}", current_step)
                 
                 if (last_trade and 
                     last_trade.get('step', -1) > self._last_checked_step):
                     
                     # DEBUG: Check the raw delta_utility value
                     raw_delta_u = last_trade.get('delta_utility', 0)
-                    log_trade(f"Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})", current_step)
+                    # Debug via observer events
+                    try:
+                        if logger is not None:
+                            logger.observer_registry.notify(DebugLogEvent.create(
+                                step=current_step, category="trade_detection", 
+                                message=f"Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})"))
+                    except: pass
                     
                     # Format trade for display (use trade's actual step, not current step)
                     trade_step = last_trade.get('step', current_step)
@@ -532,20 +552,20 @@ class SimulationController:
                         'step': trade_step
                     }
                     
-                    log_trade(f"Formatted trade_info delta_utility: {trade_info['delta_utility']}", current_step)
+                    # Debug logging removed (legacy debug_logger elimination)
                     
                     # Add to history and trim to reasonable size
                     self._trade_history.append(trade_info)
                     if len(self._trade_history) > 50:  # Keep last 50 trades
                         self._trade_history = self._trade_history[-50:]
                     
-                    # DEBUG: Confirm trade was added (enabled for debugging)
-                    log_trade(f"Added trade to history. Total trades: {len(self._trade_history)}", current_step)
+                    # DEBUG: Confirm trade was added (legacy debug logging removed)
                 else:
-                    log_trade(f"No new trade detected (bilateral_enabled={self._bilateral_enabled})", current_step)
+                    # Debug logging removed (legacy debug_logger elimination)
+                    pass
                         
             except Exception:
-                # Graceful fallback
+                # Graceful fallback for trade detection
                 pass
                 
             self._last_checked_step = current_step

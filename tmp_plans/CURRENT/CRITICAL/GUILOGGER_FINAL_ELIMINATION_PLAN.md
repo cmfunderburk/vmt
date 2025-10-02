@@ -128,13 +128,35 @@ Simulation first → ensures core no longer depends on legacy. GUI next → remo
 - ✅ Fixed test config usage: `ObservabilityConfig(enabled=True)` → `ObservabilityConfig(behavioral_aggregation=True)`
 - ✅ All 43 observer tests passing; core simulation tests remain stable (12/12 ✅)
 
-### Step 1: Core Migration (1 day)  
-4. **Trade Module**: Replace `_emit_micro_delta_once` GUILogger import with observer event
-5. **Add Micro-Delta Test**: Verify one-shot emission behavior via observer
+### Step 1: Core Migration ✅ **COMPLETED**
+4. ✅ **Trade Module**: Replaced `_emit_micro_delta_once` GUILogger import with observer event
+5. ✅ **Add Micro-Delta Test**: Verified one-shot emission behavior via observer
 
-### Step 2: GUI Migration (1 day)
+**Core Migration Results:**
+- ✅ Removed `from ..gui.debug_logger import GUILogger` import from `trade.py`
+- ✅ Rewrote `_emit_micro_delta_once()` to use `DebugLogEvent` via global observer logger
+- ✅ Preserved deterministic one-shot behavior (global boolean flag unchanged)
+- ✅ Uses effective threshold including test overrides (`_effective_min_trade_delta()`)
+- ✅ Events are hash-excluded (determinism preserved)
+- ✅ Added comprehensive test: `test_micro_delta_event_once.py` (2/2 tests ✅)
+- ✅ All core simulation and trade tests remain stable (43/43 ✅)
+
+### Step 2: GUI Migration (1 day) ✅ **COMPLETED**
 6. **Panel Updates**: Remove `get_gui_logger()` from GUI panels, use observer events
 7. **Integration Test**: Verify GUI displays work with observer-only data
+
+**GUI Migration Results:**
+- ✅ Migrated `overlays_panel.py` `_emit_overlay_state()` method to observer events (GUIDisplayEvent)
+- ✅ Updated `event_log_panel.py` `_refresh_debug_display()` to use observer logger with fallback display
+- ✅ Migrated `embedded_pygame.py` initialization and FPS logging to observer events (PerformanceMonitorEvent)
+- ✅ **COMPLETED ADDITIONAL IMPORTS MIGRATION**:
+  - `trade.py`: Replaced `log_trade_detail`, `log_utility_change` with observer events (DebugLogEvent)
+  - `agent.py`: Replaced `log_mode_switch` in `_debug_log_mode_change()` with observer events
+  - `world.py`: Removed legacy `log_agent_mode` fallback (observer system now required)
+  - `simulation_controller.py`: Removed extensive `log_trade` debugging calls 
+  - GUI panels: Created `gui/utils.py` with `format_agent_id`, `format_delta` utilities (replacing legacy imports)
+- ✅ All observer tests (43/43) and core simulation tests (4/4) passing after complete GUI migration
+- ✅ No more `get_gui_logger()` calls in active GUI runtime code
 
 ### Step 3: Legacy Deletion (1 day)
 8. **Delete Files**: Remove `gui/debug_logger.py`, `observability/legacy_adapter.py`

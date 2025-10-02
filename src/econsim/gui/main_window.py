@@ -145,7 +145,6 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
         # Left side: Pygame viewport (configurable size)
         pygame_widget = EmbeddedPygameWidget(
             simulation=controller.simulation,
-            decision_mode=decision_enabled,
         )
         pygame_widget.setFixedSize(descriptor.viewport_size, descriptor.viewport_size)  # Enforce viewport size per selection
         pygame_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)

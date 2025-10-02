@@ -127,19 +127,30 @@ class Agent:
         object.__setattr__(self, "inventory", self.carrying)
 
     def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
-        """Log agent mode transitions for debugging."""
-        from ..gui.debug_logger import log_mode_switch
-        # Add context about agent state
-        carrying_count = sum(self.carrying.values()) 
-        capacity_info = f"carrying: {carrying_count}"  # VMT agents have unlimited carrying capacity
-        if self.target:
-            target_info = f", target: {self.target}"
-        else:
-            target_info = ""
-        context = f"{capacity_info}{target_info}"
-        if reason:
-            context = f"({reason}), {context}"
-        log_mode_switch(self.id, old_mode.value, new_mode.value, context)
+        """Log agent mode transitions for debugging via observer events."""
+        try:
+            from ..observability.observer_logger import get_global_observer_logger
+            from ..observability.events import DebugLogEvent
+            
+            logger = get_global_observer_logger()
+            if logger is not None:
+                # Add context about agent state
+                carrying_count = sum(self.carrying.values()) 
+                capacity_info = f"carrying: {carrying_count}"  # VMT agents have unlimited carrying capacity
+                if self.target:
+                    target_info = f", target: {self.target}"
+                else:
+                    target_info = ""
+                context = f"{capacity_info}{target_info}"
+                if reason:
+                    context = f"({reason}), {context}"
+                
+                # Emit debug event for mode switch
+                debug_msg = f"MODE_SWITCH agent={self.id} {old_mode.value}->{new_mode.value} {context}"
+                debug_event = DebugLogEvent.create(step=0, category="agent_mode", message=debug_msg)
+                logger.observer_registry.notify(debug_event)
+        except Exception:  # pragma: no cover
+            pass  # Graceful degradation when observer system not available
 
     def _set_mode(self, new_mode: AgentMode, reason: str = "", observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0, event_buffer: Optional['StepEventBuffer'] = None) -> None:
         """

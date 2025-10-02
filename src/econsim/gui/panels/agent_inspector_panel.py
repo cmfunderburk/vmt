@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt6.QtCore import QTimer
 
 from ..simulation_controller import SimulationController
-from ..debug_logger import format_delta
+from ..utils import format_delta
 
 
 class AgentInspectorPanel(QWidget):  # pragma: no cover (GUI)
