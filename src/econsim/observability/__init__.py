@@ -32,9 +32,8 @@ from .events import (
 from .observers import BaseObserver  
 from .registry import ObserverRegistry
 from .config import ObservabilityConfig
-from .legacy_adapter import LegacyLoggerAdapter, create_legacy_adapter
 from .observer_logger import (
-    ObserverLogger, get_observer_logger, create_gui_logger_replacement,
+    ObserverLogger, get_observer_logger, 
     get_global_observer_logger, initialize_global_observer_logger
 )
 
@@ -53,13 +52,9 @@ __all__ = [
     "BaseObserver", 
     "ObserverRegistry",
     "ObservabilityConfig",
-    # Legacy compatibility
-    "LegacyLoggerAdapter",
-    "create_legacy_adapter",
-    # Observer-based logging (Step 1.3)
+    # Observer-based logging
     "ObserverLogger",
     "get_observer_logger",
-    "create_gui_logger_replacement",
     "get_global_observer_logger",
     "initialize_global_observer_logger",
 ]

@@ -104,7 +104,7 @@ class Simulation:
             seed = getattr(self.config, "seed", 0)
             self._rng = _random.Random(int(seed))
         
-        # Initialize global observer logger for GUILogger replacement
+        # Initialize global observer logger
         from ..observability.observer_logger import initialize_global_observer_logger
         initialize_global_observer_logger(self._observer_registry)
 

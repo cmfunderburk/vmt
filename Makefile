@@ -18,8 +18,8 @@ install:
 	$(PYTHON) -m pip install -e .[dev]
 
 dev:
-	# Launch the new GUI shell by default (Start Menu + controller stack).
-	# To run the legacy minimal bootstrap instead: ECONSIM_NEW_GUI=0 make dev
+	# Launch the enhanced GUI with observer-based architecture (modernized)
+	# Legacy bootstrap available with: ECONSIM_NEW_GUI=0 make dev
 	ECONSIM_NEW_GUI=1 $(PYTHON) -m $(PACKAGE).main
 
 lint:
@@ -35,7 +35,7 @@ type:
 
 test-unit:
 	# Run comprehensive automated unit/integration tests (210+ tests)
-	# Used for development validation, determinism checks, and CI/CD
+	# Includes observer pattern tests, import guards, and modernized architecture validation
 	pytest -q
 
 perf:
@@ -111,13 +111,14 @@ manual-tests:
 	fi
 
 launcher:
-	# Launch New VMT Enhanced Test Launcher with modular architecture
+	# Launch VMT Enhanced Test Launcher with modernized observer-based architecture
 	# Launcher logs suppressed by default - set ECONSIM_LAUNCHER_SUPPRESS_LOGS=0 to re-enable.
+	# Uses observer pattern for all logging (legacy GUILogger eliminated)
 	@if [ -d "vmt-dev" ]; then \
-		echo "[launcher] Using virtual environment (new launcher system)."; \
+		echo "[launcher] Using virtual environment (observer-based launcher system)."; \
 		. vmt-dev/bin/activate && ECONSIM_LAUNCHER_SUPPRESS_LOGS=1 $(PYTHON) -m econsim.tools.launcher.runner; \
 	else \
-		echo "[launcher] Using system Python (new launcher system)."; \
+		echo "[launcher] Using system Python (observer-based launcher system)."; \
 		ECONSIM_LAUNCHER_SUPPRESS_LOGS=1 $(PYTHON) -m econsim.tools.launcher.runner; \
 	fi
 
@@ -141,15 +142,15 @@ bookmarks:
 		cd MANUAL_TESTS && $(PYTHON) test_bookmarks.py; \
 	fi
 
-# Legacy aliases for backward compatibility
+# Legacy aliases for backward compatibility (modernized architecture)
 test: test-unit
 	@echo "Note: 'make test' is now 'make test-unit'. Use 'make manual-tests' for GUI tests."
 
 tests: manual-tests
-	@echo "Note: 'make tests' is now 'make manual-tests'."
+	@echo "Note: 'make tests' is now 'make manual-tests' (observer-based)."
 
 enhanced-tests:
-	@echo "Note: 'make enhanced-tests' is now 'make launcher'."
+	@echo "Note: 'make enhanced-tests' is now 'make launcher' (observer-based architecture)."
 	@$(MAKE) launcher
 
 clean:

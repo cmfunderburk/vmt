@@ -1,11 +1,28 @@
-## VMT EconSim – Concise AI Agent Guide (Oct 2025)
-Goal: Maintain a deterministic educational micro‑economics sim (PyQt6 + Pygame) while iterating safely. Economic coherence > cosmetic frame sameness. Never add rollback/ghost state to “preserve hashes.” If you change ordering, RNG draw count, tie‑break keys, or big‑O, add/update tests first.
+## VMT EconSim – AI Agent Guide (Oct 2025)
 
-Core loop (single thread): PyQt6 QTimer (~16ms) → `Simulation.step(ext_rng)` → `StepExecutor` pipeline (Movement → Collection → Trading → Metrics → Respawn) → Pygame blit → Qt paint. Core: `src/econsim/simulation/`; GUI & launcher: `src/econsim/tools/launcher/` + `src/econsim/gui/`.
+**Goal**: Maintain a deterministic educational microeconomics simulation (PyQt6 + Pygame) while safely refactoring legacy systems. Economic coherence > visual consistency. Never add rollback/ghost state to "preserve hashes."
 
-Primary workflow: `make venv && source vmt-dev/bin/activate` → `make launcher`. Run tests: `pytest -q`. Perf check: `make perf`. Determinism baseline: see `baselines/determinism_hashes.json` (refresh only with rationale). Headless: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`.
+### Architecture Overview
+**Core Loop**: PyQt6 QTimer (16ms) → `Simulation.step(ext_rng)` → `StepExecutor` pipeline (Movement → Collection → Trading → Metrics → Respawn) → Pygame blit → Qt paint
 
-Construct sims ONLY via factory:
+**Key Directories**:
+- `src/econsim/simulation/` - Core simulation logic & execution pipeline
+- `src/econsim/gui/` - PyQt6 GUI with embedded Pygame surface  
+- `src/econsim/observability/` - Event system & logging infrastructure
+- `src/econsim/tools/launcher/` - Main GUI application entry point
+
+### Development Workflow
+```bash
+make venv && source vmt-dev/bin/activate  # Create dev environment
+make launcher                             # Primary development interface (canonical)
+pytest -q                               # Run 210+ tests for validation
+make perf                               # Performance comparison vs baselines
+```
+
+**Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
+
+### Simulation Construction Pattern
+**ALWAYS use factory method** - never direct instantiation:
 ```python
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
@@ -13,35 +30,77 @@ cfg = SimConfig(grid_size=(12,12), seed=123, enable_respawn=True, enable_metrics
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ```
 
-Determinism invariants (do not violate):
-1. Iterate resources only through `Grid.iter_resources_sorted()`.
-2. Selection tie key: `(-ΔU, distance, x, y)`; trade priority key: `(-ΔU, seller_id, buyer_id, give_type, take_type)`.
-3. Preserve original agent list order each step (no resorting mid‑step).
-4. External RNG passed into `step` stays separate from internal `_rng` (no extra / reordered draws).
-5. At most one executed trade per step when trade execution enabled.
+### Critical Determinism Invariants
+1. Resources: iterate only via `Grid.iter_resources_sorted()`
+2. Selection tie-breaking: `(-ΔU, distance, x, y)`; trade priority: `(-ΔU, seller_id, buyer_id, give_type, take_type)`
+3. Agent order: preserve original list order within each step (no mid-step resorting)
+4. RNG separation: external `step(ext_rng)` parameter vs internal `_rng` (no extra draws)
+5. Trade execution: maximum one executed trade per step when enabled
 
-Architecture pattern: Add new per‑step logic as a handler in `simulation/execution/handlers/` subclassing `BaseStepHandler`; never re‑inflate `Simulation.step()`. Handlers use `StepContext` (immutable view) and return `StepResult` objects aggregated by `StepExecutor`.
+### Modular Handler Architecture
+**Add new step logic**: Create handlers in `simulation/execution/handlers/` subclassing `BaseStepHandler`. Never expand `Simulation.step()` directly.
 
-Decision system: unified distance‑discounted utility (ΔU' = ΔU / (1 + k*d²)); ignore non‑positive ΔU early; keep complexity O(agents + visible_resources). Avoid quadratic partner scans.
+Handler pattern:
+- Input: `StepContext` (immutable simulation view)
+- Output: `StepResult` (metrics + event counts)
+- Orchestration: `StepExecutor` aggregates results
 
-Events & observability: Emit via `observability/events.py`. Simulation must not call GUI widgets directly. Logging overhead target <2% per step.
+### Observer Event System
+**Current Status**: Legacy GUILogger eliminated. Observer pattern is authoritative.
 
-Mode changes: Always call `agent._set_mode(new_mode, reason, observer_registry, step_number)` (never direct assignment) to ensure `AgentModeChangeEvent`. Audit `world.py` for any remaining raw assignments before edits.
+**Use Observer Events**: Emit via `observability/events.py` (e.g., `AgentModeChangeEvent`, `TradeExecutionEvent`, `DebugLogEvent`)
+- Simulation never calls GUI directly
+- Agent mode changes: `agent._set_mode(new_mode, reason, observer_registry, step_number)`
+- Performance target: <2% logging overhead per step
 
-Performance guardrails: Per‑step O(n). No large per‑frame allocations. Movement handler budget ≲3ms typical. After altering selection, movement, or trading internals run `make perf` and compare against `baselines/performance_baseline.json`.
+**Current Architecture**: Use `FileObserver`, `EducationalObserver`, `PerformanceObserver` with `ObserverRegistry` for all logging needs.
 
-Hash & schema: Append‑only for dataclasses / snapshot / trade tuples. Determinism hash excludes trade & debug metrics. If a legit behavioral change alters the hash: (a) add/adjust a focused test, (b) regenerate baseline with concise commit message (WHAT + WHY).
+### Performance & Testing
+**Complexity**: Maintain O(n) per-step performance. No quadratic partner scans or large per-frame allocations.
 
-Feature flags in active use: `ECONSIM_FORAGE_ENABLED`, `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXEC`, optional debug `ECONSIM_DEBUG_AGENT_MODES`, `ECONSIM_HEADLESS_RENDER`. Legacy `ECONSIM_LEGACY_RANDOM` and `use_decision` args are being purged—remove, don’t preserve.
+**Baselines**: 
+- Determinism: `baselines/determinism_hashes.json` - only refresh with rationale
+- Performance: `baselines/performance_baseline.json` - compare after algorithm changes
 
-Active cleanup focus (Phase A): eliminate legacy random mode artifacts (flags, test scaffolds, `use_decision=False` params) and migrate any stray mode assignments to `_set_mode`. When you touch a file containing legacy remnants, opportunistically remove them (ensure tests green).
+**Hash invariant**: Excludes trade & debug metrics. Behavioral changes require: (1) focused test, (2) baseline refresh with commit message explaining WHAT + WHY.
 
-Common pitfalls to avoid: resorting agents inside a step; iterating unsorted resource containers; generating >1 trade execution per step; hidden RNG draws; quadratic partner scans; per‑frame big list/dict rebuilds; GUI calls from simulation; silent inventory rewrites for “visual parity.”
+### Feature Flags (Active)
+- `ECONSIM_FORAGE_ENABLED` - agent foraging behavior
+- `ECONSIM_TRADE_DRAFT` - enumerate trade intents (no execution)  
+- `ECONSIM_TRADE_EXEC` - execute up to one trade per step
+- `ECONSIM_DEBUG_AGENT_MODES` - mode transition logging
+- `ECONSIM_HEADLESS_RENDER` - skip rendering for CI/testing
 
-Key files to inspect first: `simulation/world.py` (orchestration), `simulation/execution/step_executor.py` (pipeline), `simulation/execution/handlers/` (per‑phase logic), `simulation/agent.py` (decision & mode), `simulation/grid.py` (spatial indexing), `simulation/trade.py` (bilateral exchange), `observability/events.py` (event types), `metrics.py` (hashing rules), `tools/launcher/` (GUI launcher & scenarios).
+### Current Refactoring Status
+**Active Cleanup** (as of Oct 2025): GUILogger elimination complete ✅
+- Legacy GUILogger and LegacyLoggerAdapter removed
+- Observer system infrastructure complete and operational
+- GUI panels use observer events exclusively
+- Remove any remaining `use_decision=False` parameters and legacy random artifacts
 
-Extension checklist before merging: (1) tests all pass, (2) perf within baseline, (3) invariants above unchanged (or explicitly updated with tests + baseline refresh), (4) new metrics excluded from hash unless justified, (5) any new mode transitions emit events, (6) no new nondeterministic iteration sources.
+### Common Pitfalls
+- Resorting agents mid-step (breaks determinism)
+- Iterating unsorted resource containers
+- Multiple trade executions per step
+- Hidden RNG draws in new code
+- Per-frame heavy allocations
+- Direct GUI calls from simulation
+- Raw agent mode assignments (use `_set_mode`)
 
-Unsure? Add a focused determinism or perf test rather than speculative refactor. Commit message format: `component: concise change (perf/determinism impact, hash stable|updated)`.
+### Key Files for Understanding
+- `simulation/world.py` - Main orchestration
+- `simulation/execution/step_executor.py` - Handler pipeline  
+- `simulation/execution/handlers/` - Step-specific logic
+- `simulation/agent.py` - Decision & mode system
+- `observability/events.py` - Event types
+- `baselines/` - Determinism & performance references
 
-Feedback welcome—if a constraint blocked a legitimate improvement, document rationale in PR and reference updated tests.
+### Pre-commit Checklist
+1. All tests pass (`pytest -q`)
+2. Performance within baseline (`make perf`)  
+3. Determinism invariants unchanged (or explicit test + baseline update)
+4. New metrics hash-excluded unless justified
+5. Mode transitions emit proper events
+6. No new non-deterministic iteration sources
+
+**Commit format**: `component: concise change (perf/determinism impact, hash stable|updated)`

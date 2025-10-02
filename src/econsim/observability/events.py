@@ -267,7 +267,7 @@ class TradeExecutionEvent(SimulationEvent):
 class DebugLogEvent(SimulationEvent):
     """Event for debug/categorical logging messages.
     
-    Replaces GUILogger's categorical logging (log_simulation, log_trade, etc.)
+    Provides categorical logging (simulation, trade, etc.)
     with structured observer events that can be filtered by category and 
     environment variables.
     """

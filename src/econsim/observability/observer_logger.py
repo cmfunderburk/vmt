@@ -1,30 +1,19 @@
-"""Observer-based logging replacement for GUILogger.
+"""Observer-based logging for the simulation.
 
-This module provides ObserverLogger, a drop-in replacement for GUILogger that
-uses the observer pattern instead of direct GUI coupling. It maintains API
-compatibility while providing cleaner architecture and better performance.
+This module provides ObserverLogger, which uses the observer pattern for
+event distribution with environment variable-based filtering and performance
+optimizations.
 
 Design Principles:
-- Drop-in replacement for existing GUILogger calls
 - Pure observer pattern implementation (no GUI dependencies)
-- Environment variable-based filtering (preserves existing behavior)
+- Environment variable-based filtering
 - Performance optimizations through event batching
 - Graceful degradation when observers unavailable
 
-Architecture:
-- ObserverLogger: Main replacement class with GUILogger-compatible API
-- Event factories: Convert legacy calls to observer events
-- Environment filtering: Preserves conditional logging behavior
-- Registry integration: Uses enhanced ObserverRegistry for distribution
-
 Usage:
-    # Direct replacement
     from econsim.observability.observer_logger import ObserverLogger
     logger = ObserverLogger(observer_registry)
     logger.log("TRADE", "Agent trade executed", step=42)
-    
-    # Factory function for easy integration
-    logger = get_observer_logger(observer_registry)
 """
 
 from __future__ import annotations
@@ -42,18 +31,10 @@ from .events import (
 
 
 class ObserverLogger:
-    """Observer-based replacement for GUILogger functionality.
+    """Observer-based logging functionality.
     
-    Provides the same API as GUILogger but uses the observer pattern for
-    event distribution. This eliminates GUI coupling and improves performance
-    while maintaining backward compatibility.
-    
-    Features:
-    - Complete GUILogger API compatibility
-    - Environment variable-based filtering
-    - Performance optimizations through observer batching
-    - Clean observer pattern architecture
-    - Graceful fallback when no observers present
+    Uses the observer pattern for event distribution with environment 
+    variable-based filtering and performance optimizations.
     
     Attributes:
         observer_registry: Registry for event distribution
@@ -104,7 +85,7 @@ class ObserverLogger:
     def _should_log_category(self, category: str) -> bool:
         """Check if events of this category should be logged.
         
-        Uses environment variables to match GUILogger behavior.
+        Uses environment variables for conditional logging.
         
         Args:
             category: Event category to check
@@ -132,7 +113,7 @@ class ObserverLogger:
             # Default: log if any debug mode is enabled
             return any(self._env_cache.values())
     
-    # Core logging methods (GUILogger API compatibility)
+    # Core logging methods
     
     def log(self, category: str, message: str, step: Optional[int] = None) -> None:
         """Log a categorized debug message.
@@ -385,7 +366,7 @@ class ObserverLogger:
         )
         self.observer_registry.notify(event)
     
-    # Builder methods (for compatibility with complex GUILogger patterns)
+    # Builder methods for complex logging patterns
     
     def build_phase_transition(self, phase: int, turn: int, description: str) -> Tuple[str, Dict[str, Any], str]:
         """Build phase transition data (compatibility method).
@@ -490,28 +471,7 @@ def get_observer_logger(observer_registry: ObserverRegistry) -> ObserverLogger:
     return ObserverLogger(observer_registry)
 
 
-def create_gui_logger_replacement(observer_registry: ObserverRegistry) -> ObserverLogger:
-    """Create a GUILogger replacement using observer pattern.
-    
-    This function creates an ObserverLogger that can be used as a drop-in
-    replacement for GUILogger in existing code.
-    
-    Args:
-        observer_registry: Registry for event distribution
-        
-    Returns:
-        ObserverLogger configured for GUILogger compatibility
-    """
-    logger = ObserverLogger(observer_registry)
-    
-    # Add any additional configuration for GUI compatibility
-    if os.environ.get("ECONSIM_DEBUG_OBSERVERS", "0") == "1":
-        print("ObserverLogger created as GUILogger replacement")
-    
-    return logger
-
-
-# Module-level singleton for easy global access (like GUILogger.get_instance())
+# Module-level singleton for global access
 _global_logger: Optional[ObserverLogger] = None
 _global_registry: Optional[ObserverRegistry] = None
 
@@ -519,20 +479,14 @@ _global_registry: Optional[ObserverRegistry] = None
 def get_global_observer_logger() -> Optional[ObserverLogger]:
     """Get the global ObserverLogger instance.
     
-    Returns the globally configured ObserverLogger, similar to
-    GUILogger.get_instance(). Must be initialized first.
-    
     Returns:
-        Global ObserverLogger instance, or None if not initialized
+        Global ObserverLogger instance or None if not initialized
     """
     return _global_logger
 
 
 def initialize_global_observer_logger(observer_registry: ObserverRegistry) -> ObserverLogger:
     """Initialize the global ObserverLogger instance.
-    
-    This should be called once during application startup to establish
-    the global observer logger that can replace GUILogger.get_instance().
     
     Args:
         observer_registry: Registry for event distribution

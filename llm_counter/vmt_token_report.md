@@ -1,43 +1,43 @@
 # VMT Repository Token Analysis Report
 
-*Generated on 2025-10-01 21:52:09*
+*Generated on 2025-10-02 00:05:16*
 
 ## 📊 Executive Summary
 
 | Metric | Value |
 |--------|--------|
-| **Total Tokens** | 298.9K tokens |
-| **Total Files** | 359 files |
-| **Repository Size** | 2.3 MB |
-| **Average Tokens/File** | 832 tokens |
+| **Total Tokens** | 286.4K tokens |
+| **Total Files** | 362 files |
+| **Repository Size** | 2.2 MB |
+| **Average Tokens/File** | 791 tokens |
 
 ## 📄 File Type Breakdown
 
 | File Type | Token Count | Percentage | Files |
 |-----------|-------------|------------|-------|
-| Python | 196.0K | 65.6% | 276 |
-| Markdown | 96.4K | 32.2% | 64 |
+| Python | 183.0K | 63.9% | 279 |
+| Markdown | 96.9K | 33.8% | 64 |
 | Build/Meta | 3.1K | 1.1% | 3 |
-| JSON | 2.5K | 0.8% | 7 |
-| Shell | 430 | 0.1% | 2 |
+| JSON | 2.5K | 0.9% | 7 |
+| Shell | 430 | 0.2% | 2 |
 | TOML | 215 | 0.1% | 1 |
-| Text | 171 | 0.1% | 5 |
+| Text | 177 | 0.1% | 5 |
 | YAML | 111 | 0.0% | 1 |
 
 ## 🔥 Top 10 Largest Files
 
 | File | Tokens | Size |
 |------|--------|------|
-| `src/econsim/gui/debug_logger.py` | 13.0K | 0.1 MB |
-| `src/econsim/simulation/agent.py` | 6.5K | 0.1 MB |
+| `src/econsim/simulation/agent.py` | 6.6K | 0.1 MB |
 | `README.md` | 5.5K | 0.0 MB |
-| `src/econsim/gui/embedded_pygame.py` | 5.0K | 0.0 MB |
+| `src/econsim/gui/embedded_pygame.py` | 5.1K | 0.0 MB |
 | `src/econsim/tools/widgets/config_editor.py` | 4.7K | 0.1 MB |
-| `src/econsim/simulation/world.py` | 4.4K | 0.0 MB |
+| `src/econsim/simulation/world.py` | 4.3K | 0.0 MB |
 | `src/econsim/tools/launcher/app_window.py` | 4.2K | 0.0 MB |
 | `tmp_plans/CURRENT/CRITICAL/debug_logger_code_review.md` | 3.9K | 0.0 MB |
 | `...s/CURRENT/REVIEWS/PHASE_C_GUILOGGER_ELIMINATION_REVIEW.md` | 3.5K | 0.0 MB |
 | `tmp_plans/CURRENT/CRITICAL/UNIFIED_REFACTOR_PLAN.md` | 3.5K | 0.0 MB |
+| `src/econsim/observability/validation/validation_framework.py` | 3.2K | 0.0 MB |
 
 
 ## 🤖 LLM Context Analysis
@@ -46,22 +46,22 @@
 
 | Model | Context Window | VMT Coverage |
 |-------|---------------|--------------|
-| GPT-4 | ~128K tokens | 42.8% |
-| Claude 3 | ~200K tokens | 66.9% |
-| Claude 3.5 Sonnet | ~200K tokens | 66.9% |
+| GPT-4 | ~128K tokens | 44.7% |
+| Claude 3 | ~200K tokens | 69.8% |
+| Claude 3.5 Sonnet | ~200K tokens | 69.8% |
 
 ### Recommendations
 
-- **Full Repository**: 298.9K tokens requires chunking for any LLM
+- **Full Repository**: 286.4K tokens requires chunking for any LLM
 - **Focused Analysis**: Select 25-40% of files for single-context analysis
 - **Code Reviews**: Use token counts to prioritize which files to include
-- **Documentation**: 32.2% of tokens are documentation
+- **Documentation**: 33.8% of tokens are documentation
 
 ## 📈 Analysis Metadata
 
 - **Analysis Tool**: VMT Token Counter (demo version)
 - **Tokenization**: Simple estimation (~1.3 tokens/word)
-- **Files Processed**: 359 code files
+- **Files Processed**: 362 code files
 - **Excluded**: Binary files, caches, logs, virtual environments
 - **Repository**: VMT EconSim Platform
 

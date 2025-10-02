@@ -1,7 +1,7 @@
 """GUI utility functions for VMT EconSim.
 
 Simple formatting functions extracted from legacy debug_logger
-to support GUI components after GUILogger elimination.
+to support GUI components with utility functions.
 """
 
 def format_agent_id(agent_id: int) -> str:
