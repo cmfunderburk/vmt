@@ -109,22 +109,23 @@ class ObserverLogger:
 
 ### Phase 2: GUILogger Elimination (Days 3-4)
 
-**Day 3: Core Simulation Changes**
+**Day 3: Core Simulation Changes** ✅ **COMPLETED**
 
-**Step 2.1: Remove GUILogger from Simulation Core**
-- Remove all `gui_logger` parameters from `Simulation` class
-- Remove GUILogger imports from `world.py`
-- Remove GUILogger initialization code
+**Step 2.1: Remove GUILogger from Simulation Core** ✅ **COMPLETED**
+- ✅ Removed all `gui_logger` parameters from `Simulation` class
+- ✅ Removed GUILogger imports from `world.py` (3 locations converted to ObserverLogger)
+- ✅ Added global observer logger initialization in `Simulation.__post_init__()`
 
-**Step 2.2: Update Step Execution Pipeline**
-- Remove GUILogger from `StepExecutor`
-- Remove GUILogger from all step handlers
-- Update handler initialization to use pure observer pattern
+**Step 2.2: Update Step Execution Pipeline** ✅ **COMPLETED**  
+- ✅ Confirmed StepExecutor was already clean (no GUILogger usage)
+- ✅ Removed GUILogger from TradingHandler (trade funnel logging converted)
+- ✅ Removed GUILogger from MetricsHandler (performance spike logging converted)
+- ✅ All handlers now use pure observer pattern
 
-**Step 2.3: Convert Agent Mode Changes**
-- Ensure all agent mode changes use `_set_mode()` helper
-- Verify `AgentModeChangeEvent` emission covers all cases
-- Remove any direct GUILogger calls from agent code
+**Step 2.3: Convert Agent Mode Changes** ✅ **COMPLETED**
+- ✅ Confirmed all agent mode changes use `_set_mode()` helper correctly
+- ✅ Verified `AgentModeChangeEvent` emission covers all cases via `_set_mode()`
+- ✅ Removed 5 direct GUILogger calls from agent code (converted to observer events)
 
 **Day 4: Handler and Component Updates**
 
@@ -305,8 +306,8 @@ If critical issues arise:
 |-----|-------|------------------|--------|
 | 1 | Observer Events | Missing events, registry enhancement | ✅ **COMPLETED** |
 | 2 | GUI Listeners | Observer-based GUI, validation framework | ✅ **COMPLETED** |
-| 3 | Core Elimination | Simulation core GUILogger removal | 🔄 **NEXT** |
-| 4 | Handler Updates | All handlers converted to observers | 📋 **PLANNED** |
+| 3 | Core Elimination | Simulation core GUILogger removal | ✅ **COMPLETED** |
+| 4 | Handler Updates | All handlers converted to observers | � **NEXT** |
 | 5 | GUI Integration | GUI observer implementation | 📋 **PLANNED** |
 | 6 | Testing Infrastructure | Test updates, performance testing | 📋 **PLANNED** |
 | 7 | Validation | Comprehensive testing and verification | 📋 **PLANNED** |
