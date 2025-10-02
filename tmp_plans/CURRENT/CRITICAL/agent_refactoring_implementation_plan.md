@@ -252,16 +252,23 @@ class Agent:
         )
 ```
 
-### 1.3 Simple Utility Method Extractions
+### 1.3 Complete Movement Component Integration
 
 **Timeline**: Week 2-3  
 **Risk**: Very Low  
 **Lines Reduced**: ~20
 
-#### Step 1.3.1: Extract Mathematical Utilities
-**File**: `src/econsim/simulation/components/utils.py`
+#### Step 1.3.1: Add Movement Utilities to Movement Component
+**File**: `src/econsim/simulation/components/movement.py`
 ```python
-"""Utility functions for agent calculations."""
+"""Agent movement component for spatial navigation and pathfinding."""
+
+from __future__ import annotations
+import random
+from typing import TYPE_CHECKING
+from ..grid import Grid
+
+# ... existing AgentMovement class ...
 
 def manhattan_distance(x1: int, y1: int, x2: int, y2: int) -> int:
     """Calculate Manhattan distance between two points."""
@@ -274,9 +281,9 @@ def calculate_meeting_point(pos1: tuple[int, int], pos2: tuple[int, int]) -> tup
     return (x1 + x2) // 2, (y1 + y2) // 2
 ```
 
-#### Step 1.3.2: Update Agent to Use Utilities
+#### Step 1.3.2: Update Agent to Use Movement Utilities
 ```python
-from .components.utils import manhattan_distance, calculate_meeting_point
+from .components.movement import AgentMovement, manhattan_distance, calculate_meeting_point
 
 class Agent:
     def _manhattan(self, x1: int, y1: int, x2: int, y2: int) -> int:
@@ -464,7 +471,7 @@ def collect(self, grid: Grid, step: int = -1, observer_registry: Optional['Obser
 from __future__ import annotations
 from typing import Optional, Dict, List, Tuple, TYPE_CHECKING
 from ..constants import default_PERCEPTION_RADIUS
-from .utils import manhattan_distance, calculate_meeting_point
+from .movement import manhattan_distance, calculate_meeting_point
 
 if TYPE_CHECKING:
     from ..agent import Agent
@@ -663,7 +670,7 @@ class LeontieProspectingStrategy(TargetSelectionStrategy):
 from __future__ import annotations
 from typing import Dict, List, Tuple, Optional, TYPE_CHECKING
 from ...constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS
-from ..utils import manhattan_distance
+from ..movement import manhattan_distance
 
 if TYPE_CHECKING:
     from ...grid import Grid
