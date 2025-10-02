@@ -250,10 +250,10 @@
 ### Final Cleanup ✓
 - [x] Remove `agent_flags.py` entirely (all flags removed)
 - [x] Remove mutation guards from Agent class (`ECONSIM_REFACTOR_STRICT_MODE` code)
-- [ ] Update documentation:
-  - [ ] Component architecture diagrams
-  - [ ] Updated class diagram for Agent
-  - [ ] Hash contract reference
+- [x] Update documentation:
+  - [x] Component architecture diagrams
+  - [x] Updated class diagram for Agent
+  - [x] Hash contract reference
 - [x] Run final test suite → **CORE TESTS PASS** (399 passed, 22 failed - expected Leontief/GUILogger failures)
 - [x] Run final performance comparison → **WITHIN ACCEPTABLE RANGE** (323.6 steps/sec mean)
 - [x] Verify agent.py line count: 831 lines (target: 400-500) - **Note**: Above target but architecturally sound

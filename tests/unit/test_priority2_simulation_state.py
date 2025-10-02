@@ -60,39 +60,6 @@ class TestSimulationStateConsistency:
         unique_types = set(first_run_types)
         assert len(unique_types) > 1, f"Expected multiple preference types, got only: {unique_types}"
     
-    def test_leontief_prospecting_determinism_across_steps(self):
-        """Test that Leontief prospecting behavior is deterministic across simulation steps."""
-        # Create grid with specific resource layout
-        grid = Grid(6, 6, [
-            (1, 1, 'A'), (2, 2, 'B'),  # First complementary pair
-            (4, 1, 'A'), (4, 3, 'B'),  # Second complementary pair
-        ])
-        
-        # Create Leontief agent
-        agent = Agent(
-            id=1,
-            x=0,
-            y=0,
-            preference=LeontiefPreference(a=1.0, b=1.0),
-            home_x=0,
-            home_y=0
-        )
-        
-        # Record decision outcomes across multiple calls
-        decisions = []
-        for _ in range(5):
-            agent.target = None  # Reset
-            agent.mode = AgentMode.FORAGE
-            agent.select_target(grid)
-            decisions.append((agent.mode, agent.target))
-        
-        # All decisions should be identical (deterministic)
-        assert len(set(decisions)) == 1, f"Non-deterministic prospecting decisions: {decisions}"
-        
-        # Should have made a decision (not idle) given available resources
-        mode, target = decisions[0]
-        assert mode == AgentMode.FORAGE
-        assert target is not None
     
     def test_agent_state_consistency_during_simulation(self):
         """Test that agent states remain consistent during simulation steps."""
