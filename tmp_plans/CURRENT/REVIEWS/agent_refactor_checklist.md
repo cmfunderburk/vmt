@@ -71,20 +71,20 @@
 
 ### Phase 1.2: Event Emitter (Days 3-5)
 
-#### Day 3: Implementation ✓ / ✗
-- [ ] Create directory: `src/econsim/simulation/components/event_emitter/`
-- [ ] Create `event_emitter/core.py` with `AgentEventEmitter`
-- [ ] Integrate with Agent class (flag=0)
-- [ ] Update `_set_mode()` to use emitter
-- [ ] Create unit tests
-- [ ] **Commit**: `agent: extract event emitter (flag=0, day 3 of 5)`
+#### Day 3: Implementation ✓
+- [x] Create directory: `src/econsim/simulation/components/event_emitter/`
+- [x] Create `event_emitter/core.py` with `AgentEventEmitter`
+- [x] Integrate with Agent class (flag=0)
+- [x] Update `_set_mode()` to use emitter
+- [x] Create unit tests
+- [x] **Commit**: `agent: extract event emitter (flag=0, day 3 of 5)`
 
-#### Day 4: Testing & Validation ✓ / ✗
-- [ ] Set `ECONSIM_AGENT_EVENTS_REFACTOR=1`
-- [ ] Run full test suite → **ALL PASS**
-- [ ] Run performance benchmark → **REPORT GENERATED**
-- [ ] Verify event emission unchanged
-- [ ] **Status**: Event emitter validated
+#### Day 4: Testing & Validation ✓
+- [x] Set `ECONSIM_AGENT_EVENTS_REFACTOR=1`
+- [x] Run full test suite → **ALL PASS**
+- [x] Run performance benchmark → **REPORT GENERATED**
+- [x] Verify event emission unchanged
+- [x] **Status**: Event emitter validated
 
 #### Day 5: Flag Removal ✓ / ✗
 - [ ] Remove flag checks
