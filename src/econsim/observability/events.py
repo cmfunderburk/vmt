@@ -132,6 +132,8 @@ class ResourceCollectionEvent(SimulationEvent):
     y: int
     resource_type: str
     amount_collected: int = 1
+    utility_gained: float = 0.0  # Utility gained from this collection
+    carrying_after: dict[str, int] = field(default_factory=dict)  # Agent's inventory after collection
     
     def __post_init__(self) -> None:
         """Validate resource collection event data."""
@@ -152,7 +154,9 @@ class ResourceCollectionEvent(SimulationEvent):
             raise ValueError(f"Amount collected must be positive, got {self.amount_collected}")
 
     @classmethod
-    def create(cls, step: int, agent_id: int, x: int, y: int, resource_type: str, amount_collected: int = 1) -> ResourceCollectionEvent:
+    def create(cls, step: int, agent_id: int, x: int, y: int, resource_type: str, 
+               amount_collected: int = 1, utility_gained: float = 0.0, 
+               carrying_after: dict[str, int] = None) -> ResourceCollectionEvent:
         """Factory method for creating resource collection events.
         
         Args:
@@ -162,6 +166,8 @@ class ResourceCollectionEvent(SimulationEvent):
             y: Y coordinate of resource
             resource_type: Type of resource collected
             amount_collected: Amount collected (default 1)
+            utility_gained: Utility gained from this collection (default 0.0)
+            carrying_after: Agent's inventory after collection (default empty dict)
             
         Returns:
             ResourceCollectionEvent with current timestamp
@@ -174,10 +180,12 @@ class ResourceCollectionEvent(SimulationEvent):
             x=x,
             y=y,
             resource_type=resource_type,
-            amount_collected=amount_collected
+            amount_collected=amount_collected,
+            utility_gained=utility_gained,
+            carrying_after=carrying_after or {}
         )
     
-    def to_dict(self) -> dict[str, int | str]:
+    def to_dict(self) -> dict[str, int | str | float | dict]:
         """Convert event to dictionary for serialization."""
         return {
             'type': 'resource_collection',
@@ -185,7 +193,10 @@ class ResourceCollectionEvent(SimulationEvent):
             'agent_id': self.agent_id,
             'x': self.x,
             'y': self.y,
-            'resource_type': self.resource_type
+            'resource_type': self.resource_type,
+            'amount_collected': self.amount_collected,
+            'utility_gained': self.utility_gained,
+            'carrying_after': self.carrying_after
         }
 
 
@@ -492,6 +503,106 @@ class ResourceEvent(SimulationEvent):
             amount=amount,
             agent_id=agent_id
         )
+
+
+@dataclass(frozen=True, slots=True)
+class EconomicDecisionEvent(SimulationEvent):
+    """Event for detailed economic decision-making processes.
+    
+    Captures comprehensive economic decision information including
+    utility calculations, opportunity costs, and decision reasoning
+    for advanced economic analysis.
+    """
+    
+    agent_id: int
+    decision_type: str  # "resource_selection", "trade_proposal", "movement_choice", etc.
+    decision_context: str  # Detailed context of the decision
+    utility_before: float = 0.0  # Agent's utility before decision
+    utility_after: float = 0.0  # Agent's utility after decision
+    opportunity_cost: float = 0.0  # Cost of not choosing alternatives
+    alternatives_considered: int = 0  # Number of alternatives evaluated
+    decision_time_ms: float = 0.0  # Time taken to make decision
+    position_x: int = -1  # Agent position context
+    position_y: int = -1  # Agent position context
+    
+    def __post_init__(self) -> None:
+        """Validate economic decision event data."""
+        # Validate parent fields
+        if self.step < 0:
+            raise ValueError(f"Step must be non-negative, got {self.step}")
+        if self.timestamp <= 0:
+            raise ValueError(f"Timestamp must be positive, got {self.timestamp}")
+        if not self.event_type:
+            raise ValueError("Event type cannot be empty")
+        
+        # Validate decision-specific fields
+        if self.agent_id < 0:
+            raise ValueError(f"Agent ID must be non-negative, got {self.agent_id}")
+        if not self.decision_type:
+            raise ValueError("Decision type cannot be empty")
+        if not self.decision_context:
+            raise ValueError("Decision context cannot be empty")
+        if self.alternatives_considered < 0:
+            raise ValueError(f"Alternatives considered must be non-negative, got {self.alternatives_considered}")
+        if self.decision_time_ms < 0:
+            raise ValueError(f"Decision time must be non-negative, got {self.decision_time_ms}")
+    
+    @classmethod
+    def create(cls, step: int, agent_id: int, decision_type: str, decision_context: str,
+               utility_before: float = 0.0, utility_after: float = 0.0,
+               opportunity_cost: float = 0.0, alternatives_considered: int = 0,
+               decision_time_ms: float = 0.0, position_x: int = -1, position_y: int = -1) -> EconomicDecisionEvent:
+        """Factory method for creating economic decision events.
+        
+        Args:
+            step: Current simulation step
+            agent_id: ID of the agent making the decision
+            decision_type: Type of economic decision being made
+            decision_context: Detailed context of the decision
+            utility_before: Agent's utility before decision
+            utility_after: Agent's utility after decision
+            opportunity_cost: Cost of not choosing alternatives
+            alternatives_considered: Number of alternatives evaluated
+            decision_time_ms: Time taken to make decision
+            position_x: Optional X coordinate context
+            position_y: Optional Y coordinate context
+            
+        Returns:
+            EconomicDecisionEvent with current timestamp
+        """
+        return cls(
+            step=step,
+            timestamp=time.time(),
+            event_type="economic_decision",
+            agent_id=agent_id,
+            decision_type=decision_type,
+            decision_context=decision_context,
+            utility_before=utility_before,
+            utility_after=utility_after,
+            opportunity_cost=opportunity_cost,
+            alternatives_considered=alternatives_considered,
+            decision_time_ms=decision_time_ms,
+            position_x=position_x,
+            position_y=position_y
+        )
+    
+    def to_dict(self) -> dict[str, int | str | float]:
+        """Convert event to dictionary for serialization."""
+        return {
+            'type': 'economic_decision',
+            'step': self.step,
+            'agent_id': self.agent_id,
+            'decision_type': self.decision_type,
+            'decision_context': self.decision_context,
+            'utility_before': self.utility_before,
+            'utility_after': self.utility_after,
+            'utility_delta': self.utility_after - self.utility_before,
+            'opportunity_cost': self.opportunity_cost,
+            'alternatives_considered': self.alternatives_considered,
+            'decision_time_ms': self.decision_time_ms,
+            'position_x': self.position_x,
+            'position_y': self.position_y,
+        }
 
 
 @dataclass(frozen=True, slots=True)

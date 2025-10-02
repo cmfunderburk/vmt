@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "log_level": "INFO",
+  "categories": [
+    "ALL"
+  ],
+  "output_dir": null,
+  "format": "optimized",
+  "buffer_size": 100,
+  "auto_rotate": true,
+  "max_file_size": 10485760,
+  "use_optimized_format": true,
+  "batch_size": 5,
+  "enable_relative_timestamps": true
+}

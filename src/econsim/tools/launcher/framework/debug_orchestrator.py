@@ -76,6 +76,17 @@ class DebugOrchestrator:
         if 'ECONSIM_LOG_DECISION_REASONING' not in os.environ:
             os.environ['ECONSIM_LOG_DECISION_REASONING'] = '1'
         
+        # ===== ECONOMIC LOGGING SYSTEM (DEFAULT: ENABLED) =====
+        # Enable economic logging by default for comprehensive behavior analysis
+        if 'ECONSIM_ECONOMIC_LOGGING' not in os.environ:
+            os.environ['ECONSIM_ECONOMIC_LOGGING'] = '1'
+        if 'ECONSIM_ECONOMIC_LOG_LEVEL' not in os.environ:
+            os.environ['ECONSIM_ECONOMIC_LOG_LEVEL'] = 'INFO'
+        if 'ECONSIM_ECONOMIC_LOG_CATEGORIES' not in os.environ:
+            os.environ['ECONSIM_ECONOMIC_LOG_CATEGORIES'] = 'ALL'
+        if 'ECONSIM_ECONOMIC_USE_OPTIMIZED' not in os.environ:
+            os.environ['ECONSIM_ECONOMIC_USE_OPTIMIZED'] = '1'  # 73%+ size reduction
+        
     def configure_test_specific_logging(self):
         """Configure debug categories specific to this test."""
         if self.test_config.debug_categories:

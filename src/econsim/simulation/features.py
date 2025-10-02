@@ -25,7 +25,7 @@ Usage:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,10 +40,16 @@ class SimulationFeatures:
         forage_enabled: Allow agents to collect resources from grid
         trade_draft_enabled: Enable enumeration of trading intents
         trade_execution_enabled: Enable execution of trading intents
+        economic_logging_enabled: Enable economic behavior logging
+        economic_log_level: Logging level for economic events
+        economic_log_categories: Categories of economic events to log
     """
     forage_enabled: bool = True
     trade_draft_enabled: bool = False  
     trade_execution_enabled: bool = False
+    economic_logging_enabled: bool = True
+    economic_log_level: str = "INFO"
+    economic_log_categories: list[str] = field(default_factory=lambda: ["ALL"])
 
     @classmethod
     def from_environment(cls) -> SimulationFeatures:
@@ -72,10 +78,18 @@ class SimulationFeatures:
         # Trading intent execution (default disabled, requires draft to be meaningful)
         trade_execution_enabled = os.environ.get("ECONSIM_TRADE_EXEC", "0") == "1"
         
+        # Economic logging features
+        economic_logging_enabled = os.environ.get("ECONSIM_ECONOMIC_LOGGING", "1") == "1"
+        economic_log_level = os.environ.get("ECONSIM_ECONOMIC_LOG_LEVEL", "INFO")
+        economic_log_categories = os.environ.get("ECONSIM_ECONOMIC_LOG_CATEGORIES", "ALL").split(",")
+        
         return cls(
             forage_enabled=forage_enabled,
             trade_draft_enabled=trade_draft_enabled,
             trade_execution_enabled=trade_execution_enabled,
+            economic_logging_enabled=economic_logging_enabled,
+            economic_log_level=economic_log_level,
+            economic_log_categories=economic_log_categories,
         )
 
     def is_decision_mode_enabled(self) -> bool:
@@ -98,6 +112,17 @@ class SimulationFeatures:
             True if trading intent drafting or execution is enabled
         """
         return self.trade_draft_enabled or self.trade_execution_enabled
+
+    def is_economic_logging_enabled(self) -> bool:
+        """Check if economic logging is enabled.
+        
+        Economic logging provides comprehensive behavior analysis
+        and educational insights into agent decision-making.
+        
+        Returns:
+            True if economic logging is enabled
+        """
+        return self.economic_logging_enabled
 
     def validate_configuration(self) -> list[str]:
         """Validate feature flag consistency and return warnings.

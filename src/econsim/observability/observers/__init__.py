@@ -22,6 +22,7 @@ from .file_observer import FileObserver
 from .memory_observer import MemoryObserver
 from .educational_observer import EducationalObserver
 from .performance_observer import PerformanceObserver
+from .economic_observer import EconomicObserver
 
 __all__ = [
     'BaseObserver',
@@ -29,4 +30,5 @@ __all__ = [
     'MemoryObserver', 
     'EducationalObserver',
     'PerformanceObserver',
+    'EconomicObserver',
 ]

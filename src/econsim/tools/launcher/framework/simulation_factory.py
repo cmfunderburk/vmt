@@ -44,7 +44,8 @@ class SimulationFactory:
             respawn_target_density=test_config.resource_density,
             respawn_rate=0.25,  # Standard rate from existing tests
             distance_scaling_factor=getattr(test_config, 'distance_scaling_factor', 0.0),
-            viewport_size=test_config.viewport_size
+            viewport_size=test_config.viewport_size,
+            economic_logging=SimulationFactory._create_economic_logging_config(test_config)
         )
         
         # Create and return simulation
@@ -121,3 +122,41 @@ class SimulationFactory:
             raise ValueError(f"Unknown preference mix: {test_config.preference_mix}")
             
         return preference_factory
+    
+    @staticmethod
+    def _create_economic_logging_config(test_config: TestConfiguration):
+        """Create economic logging configuration for the test.
+        
+        Uses environment variables to configure economic logging,
+        with sensible defaults for test scenarios.
+        """
+        from econsim.simulation.config import EconomicLoggingConfig
+        
+        # Check if economic logging is enabled via environment
+        enabled = os.environ.get("ECONSIM_ECONOMIC_LOGGING", "1") == "1"
+        
+        if not enabled:
+            return None
+        
+        # Create output directory for this test run
+        from pathlib import Path
+        import datetime
+        
+        # Create human-readable timestamped directory for this test run
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        test_name = test_config.name.replace(" ", "_").replace("/", "_")
+        output_dir = Path("economic_analysis_logs") / f"{test_name}_{timestamp}"
+        
+        return EconomicLoggingConfig(
+            enabled=True,
+            log_level=os.environ.get("ECONSIM_ECONOMIC_LOG_LEVEL", "INFO"),
+            categories=os.environ.get("ECONSIM_ECONOMIC_LOG_CATEGORIES", "ALL").split(","),
+            output_dir=output_dir,
+            format="optimized",  # Use optimized format for 73%+ size reduction
+            buffer_size=int(os.environ.get("ECONSIM_ECONOMIC_LOG_BUFFER_SIZE", "1000")),
+            auto_rotate=True,
+            max_file_size=10 * 1024 * 1024,  # 10MB
+            use_optimized_format=True,
+            batch_size=int(os.environ.get("ECONSIM_ECONOMIC_BATCH_SIZE", "5")),
+            enable_relative_timestamps=True,
+        )

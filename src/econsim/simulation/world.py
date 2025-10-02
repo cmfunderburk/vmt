@@ -100,6 +100,8 @@ class Simulation:
     pre_step_resource_count: int | None = None
     # Captured aggregated step metrics (non-deterministic hash; for testing/diagnostics)
     last_step_metrics: dict[str, Any] | None = None
+    # Economic logging file manager (Phase 1: Economic Logging Integration)
+    _economic_file_manager: Any | None = None
 
     def __post_init__(self) -> None:
         """Initialize internal RNG from config seed if available."""
@@ -110,6 +112,10 @@ class Simulation:
         # Initialize global observer logger
         from ..observability.observer_logger import initialize_global_observer_logger
         initialize_global_observer_logger(self._observer_registry)
+        
+        # Set up economic logging if enabled
+        if self.config and getattr(self.config, 'enable_economic_logging', True):
+            self._setup_economic_logging()
 
     def step(self, rng: random.Random) -> None:
         """Advance simulation by one step using decomposed handler system.
@@ -210,6 +216,67 @@ class Simulation:
         ]
         
         self._step_executor = StepExecutor(handlers)
+
+    def _setup_economic_logging(self) -> None:
+        """Set up economic logging observers and file management.
+        
+        Creates economic logging infrastructure including file observers,
+        session directories, and configuration files based on the
+        simulation configuration and environment variables.
+        """
+        try:
+            from ..observability.logging.economic_logger import create_economic_log_file_manager
+            from ..observability.logging.config import EconomicLoggingConfig
+            from ..observability.observers.file_observer import FileObserver
+            from ..observability.config import ObservabilityConfig
+            
+            # Get economic logging configuration
+            if hasattr(self.config, 'economic_logging') and self.config.economic_logging:
+                economic_config = self.config.economic_logging
+            else:
+                # Create default configuration from environment
+                economic_config = EconomicLoggingConfig()
+            
+            if not economic_config.enabled:
+                return
+            
+            # Create file manager for economic logs
+            file_manager = create_economic_log_file_manager(economic_config)
+            if file_manager is None:
+                return
+            
+            # Write session configuration
+            file_manager.write_session_config()
+            
+            # Create observability config for file observer
+            observability_config = ObservabilityConfig(
+                log_level=economic_config.log_level,
+                behavioral_aggregation=False,
+                trade_logging=True,  # Enable trade logging for economic events
+            )
+            
+            # Create file observer for economic events
+            economic_events_file = file_manager.get_economic_events_file()
+            file_observer = FileObserver(
+                config=observability_config,
+                output_path=economic_events_file,
+                buffer_size=economic_config.buffer_size,
+                format=economic_config.format,
+                use_optimized_format=economic_config.use_optimized_format,
+            )
+            
+            # Register the file observer
+            self._observer_registry.register(file_observer)
+            
+            # Store file manager for later use
+            self._economic_file_manager = file_manager
+            
+            print(f"Economic logging enabled: {economic_events_file}")
+            
+        except Exception as e:
+            print(f"Warning: Failed to set up economic logging: {e}")
+            # Don't fail the simulation if logging setup fails
+            pass
 
     @property
     def steps(self) -> int:
