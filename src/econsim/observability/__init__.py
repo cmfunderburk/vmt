@@ -24,18 +24,42 @@ Usage:
     registry.notify(event)
 """
 
-from .events import SimulationEvent, AgentModeChangeEvent
+from .events import (
+    SimulationEvent, AgentModeChangeEvent, ResourceCollectionEvent, 
+    TradeExecutionEvent, DebugLogEvent, PerformanceMonitorEvent,
+    AgentDecisionEvent, ResourceEvent, GUIDisplayEvent
+)
 from .observers import BaseObserver  
 from .registry import ObserverRegistry
 from .config import ObservabilityConfig
 from .legacy_adapter import LegacyLoggerAdapter, create_legacy_adapter
+from .observer_logger import (
+    ObserverLogger, get_observer_logger, create_gui_logger_replacement,
+    get_global_observer_logger, initialize_global_observer_logger
+)
 
 __all__ = [
+    # Core events
     "SimulationEvent", 
     "AgentModeChangeEvent",
+    "ResourceCollectionEvent", 
+    "TradeExecutionEvent",
+    "DebugLogEvent",
+    "PerformanceMonitorEvent",
+    "AgentDecisionEvent",
+    "ResourceEvent",
+    "GUIDisplayEvent",
+    # Core infrastructure
     "BaseObserver", 
     "ObserverRegistry",
     "ObservabilityConfig",
+    # Legacy compatibility
     "LegacyLoggerAdapter",
     "create_legacy_adapter",
+    # Observer-based logging (Step 1.3)
+    "ObserverLogger",
+    "get_observer_logger",
+    "create_gui_logger_replacement",
+    "get_global_observer_logger",
+    "initialize_global_observer_logger",
 ]

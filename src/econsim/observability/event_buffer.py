@@ -46,6 +46,45 @@ class PendingResourceCollection:
     amount: int
 
 
+@dataclass
+class PendingDebugLog:
+    """Lightweight debug log record for batching."""
+    category: str
+    message: str
+    agent_id: int
+
+
+@dataclass  
+class PendingPerformanceMonitor:
+    """Lightweight performance monitor record for batching."""
+    metric_name: str
+    metric_value: float
+    threshold_exceeded: bool
+    details: str
+
+
+@dataclass
+class PendingAgentDecision:
+    """Lightweight agent decision record for batching."""
+    agent_id: int
+    decision_type: str
+    decision_details: str
+    utility_delta: float
+    position_x: int
+    position_y: int
+
+
+@dataclass
+class PendingResourceEvent:
+    """Lightweight resource event record for batching."""
+    event_type_detail: str
+    position_x: int
+    position_y: int
+    resource_type: str
+    amount: int
+    agent_id: int
+
+
 class EventBuffer:
     """Event buffer for deferred observer notification.
     
@@ -65,6 +104,10 @@ class EventBuffer:
         """Initialize empty event buffer."""
         self._pending_mode_changes: List[PendingModeChange] = []
         self._pending_collections: List[PendingResourceCollection] = []
+        self._pending_debug_logs: List[PendingDebugLog] = []
+        self._pending_performance_monitors: List[PendingPerformanceMonitor] = []
+        self._pending_agent_decisions: List[PendingAgentDecision] = []
+        self._pending_resource_events: List[PendingResourceEvent] = []
         self._current_step: Optional[int] = None
         self._step_start_time: Optional[float] = None
         
@@ -112,6 +155,64 @@ class EventBuffer:
             PendingResourceCollection(agent_id, x, y, resource_type, amount)
         )
     
+    def queue_debug_log(self, category: str, message: str, agent_id: int = -1) -> None:
+        """Queue a debug log message for batch processing.
+        
+        Args:
+            category: Log category (TRADE, MODE, ECON, etc.)
+            message: Debug message text
+            agent_id: Optional agent context
+        """
+        self._pending_debug_logs.append(
+            PendingDebugLog(category, message, agent_id)
+        )
+    
+    def queue_performance_monitor(self, metric_name: str, metric_value: float, 
+                                threshold_exceeded: bool = False, details: str = "") -> None:
+        """Queue a performance monitor event for batch processing.
+        
+        Args:
+            metric_name: Name of the performance metric
+            metric_value: Numeric value of the metric
+            threshold_exceeded: Whether metric exceeded a threshold
+            details: Additional context or details
+        """
+        self._pending_performance_monitors.append(
+            PendingPerformanceMonitor(metric_name, metric_value, threshold_exceeded, details)
+        )
+    
+    def queue_agent_decision(self, agent_id: int, decision_type: str, decision_details: str,
+                           utility_delta: float = 0.0, position_x: int = -1, position_y: int = -1) -> None:
+        """Queue an agent decision event for batch processing.
+        
+        Args:
+            agent_id: ID of the agent making the decision
+            decision_type: Type of decision being made
+            decision_details: Detailed description of the decision
+            utility_delta: Utility change associated with decision
+            position_x: Optional X coordinate context
+            position_y: Optional Y coordinate context
+        """
+        self._pending_agent_decisions.append(
+            PendingAgentDecision(agent_id, decision_type, decision_details, utility_delta, position_x, position_y)
+        )
+    
+    def queue_resource_event(self, event_type_detail: str, position_x: int, position_y: int,
+                           resource_type: str, amount: int = 1, agent_id: int = -1) -> None:
+        """Queue a resource event for batch processing.
+        
+        Args:
+            event_type_detail: Specific type of resource event (spawn, despawn, etc.)
+            position_x: X coordinate of resource
+            position_y: Y coordinate of resource
+            resource_type: Type of resource
+            amount: Amount of resource
+            agent_id: Optional agent context
+        """
+        self._pending_resource_events.append(
+            PendingResourceEvent(event_type_detail, position_x, position_y, resource_type, amount, agent_id)
+        )
+    
     def flush_step(self, observer_registry: ObserverRegistry) -> int:
         """Process all queued events and notify observers.
         
@@ -127,7 +228,9 @@ class EventBuffer:
         """
         if not observer_registry.has_observers():
             # Clear buffers but skip event creation if no observers
-            event_count = len(self._pending_mode_changes) + len(self._pending_collections)
+            event_count = (len(self._pending_mode_changes) + len(self._pending_collections) + 
+                          len(self._pending_debug_logs) + len(self._pending_performance_monitors) +
+                          len(self._pending_agent_decisions) + len(self._pending_resource_events))
             self._clear_buffers()
             return event_count
             
@@ -171,6 +274,77 @@ class EventBuffer:
                 observer_registry.notify(event)
                 events_created += 1
         
+        # Process debug log events
+        if self._pending_debug_logs:
+            from .events import DebugLogEvent
+            
+            for debug_log in self._pending_debug_logs:
+                event = DebugLogEvent(
+                    step=self._current_step,
+                    timestamp=self._step_start_time,
+                    event_type="debug_log",
+                    category=debug_log.category,
+                    message=debug_log.message,
+                    agent_id=debug_log.agent_id
+                )
+                observer_registry.notify(event)
+                events_created += 1
+        
+        # Process performance monitor events
+        if self._pending_performance_monitors:
+            from .events import PerformanceMonitorEvent
+            
+            for perf_monitor in self._pending_performance_monitors:
+                event = PerformanceMonitorEvent(
+                    step=self._current_step,
+                    timestamp=self._step_start_time,
+                    event_type="performance_monitor",
+                    metric_name=perf_monitor.metric_name,
+                    metric_value=perf_monitor.metric_value,
+                    threshold_exceeded=perf_monitor.threshold_exceeded,
+                    details=perf_monitor.details
+                )
+                observer_registry.notify(event)
+                events_created += 1
+        
+        # Process agent decision events
+        if self._pending_agent_decisions:
+            from .events import AgentDecisionEvent
+            
+            for decision in self._pending_agent_decisions:
+                event = AgentDecisionEvent(
+                    step=self._current_step,
+                    timestamp=self._step_start_time,
+                    event_type="agent_decision",
+                    agent_id=decision.agent_id,
+                    decision_type=decision.decision_type,
+                    decision_details=decision.decision_details,
+                    utility_delta=decision.utility_delta,
+                    position_x=decision.position_x,
+                    position_y=decision.position_y
+                )
+                observer_registry.notify(event)
+                events_created += 1
+        
+        # Process resource events
+        if self._pending_resource_events:
+            from .events import ResourceEvent
+            
+            for resource_event in self._pending_resource_events:
+                event = ResourceEvent(
+                    step=self._current_step,
+                    timestamp=self._step_start_time,
+                    event_type="resource_event",
+                    event_type_detail=resource_event.event_type_detail,
+                    position_x=resource_event.position_x,
+                    position_y=resource_event.position_y,
+                    resource_type=resource_event.resource_type,
+                    amount=resource_event.amount,
+                    agent_id=resource_event.agent_id
+                )
+                observer_registry.notify(event)
+                events_created += 1
+        
         self._clear_buffers()
         return events_created
     
@@ -178,6 +352,10 @@ class EventBuffer:
         """Clear all pending events."""
         self._pending_mode_changes.clear()
         self._pending_collections.clear()
+        self._pending_debug_logs.clear()
+        self._pending_performance_monitors.clear()
+        self._pending_agent_decisions.clear()
+        self._pending_resource_events.clear()
         self._current_step = None
         self._step_start_time = None
         
@@ -187,7 +365,9 @@ class EventBuffer:
         Returns:
             Total number of queued events
         """
-        return len(self._pending_mode_changes) + len(self._pending_collections)
+        return (len(self._pending_mode_changes) + len(self._pending_collections) + 
+                len(self._pending_debug_logs) + len(self._pending_performance_monitors) +
+                len(self._pending_agent_decisions) + len(self._pending_resource_events))
     
     def is_empty(self) -> bool:
         """Check if buffer has no pending events.
@@ -195,7 +375,9 @@ class EventBuffer:
         Returns:
             True if no events are queued
         """
-        return len(self._pending_mode_changes) == 0 and len(self._pending_collections) == 0
+        return (len(self._pending_mode_changes) == 0 and len(self._pending_collections) == 0 and
+                len(self._pending_debug_logs) == 0 and len(self._pending_performance_monitors) == 0 and
+                len(self._pending_agent_decisions) == 0 and len(self._pending_resource_events) == 0)
 
 
 class StepEventBuffer:
@@ -238,6 +420,40 @@ class StepEventBuffer:
                                 resource_type: str, amount: int = 1) -> None:
         """Queue resource collection event (delegate to buffer)."""
         self._buffer.queue_resource_collection(agent_id, x, y, resource_type, amount)
+    
+    def queue_debug_log(self, category: str, message: str, agent_id: int = -1) -> None:
+        """Queue debug log event (delegate to buffer)."""
+        self._buffer.queue_debug_log(category, message, agent_id)
+    
+    def queue_performance_monitor(self, metric_name: str, metric_value: float, 
+                                threshold_exceeded: bool = False, details: str = "") -> None:
+        """Queue performance monitor event (delegate to buffer)."""
+        self._buffer.queue_performance_monitor(metric_name, metric_value, threshold_exceeded, details)
+    
+    def queue_agent_decision(self, agent_id: int, decision_type: str, decision_details: str,
+                           utility_delta: float = 0.0, position_x: int = -1, position_y: int = -1) -> None:
+        """Queue agent decision event (delegate to buffer)."""
+        self._buffer.queue_agent_decision(agent_id, decision_type, decision_details, utility_delta, position_x, position_y)
+    
+    def queue_resource_event(self, event_type_detail: str, position_x: int, position_y: int,
+                           resource_type: str, amount: int = 1, agent_id: int = -1) -> None:
+        """Queue resource event (delegate to buffer)."""
+        self._buffer.queue_resource_event(event_type_detail, position_x, position_y, resource_type, amount, agent_id)
+    
+    def get_observer_logger(self) -> Any:
+        """Get an ObserverLogger that integrates with this buffer.
+        
+        Returns:
+            ObserverLogger configured to work with buffer registry integration
+        """
+        # Import here to avoid circular dependencies
+        from .observer_logger import ObserverLogger
+        from .registry import ObserverRegistry
+        
+        # This would typically use the simulation's observer registry
+        # For now, return a simple pattern for integration
+        registry = ObserverRegistry()
+        return ObserverLogger(registry)
         
     def get_stats(self) -> Dict[str, Any]:
         """Get buffer statistics.

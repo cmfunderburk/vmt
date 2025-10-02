@@ -20,7 +20,9 @@ Usage Pattern:
 from __future__ import annotations
 
 import logging
-from typing import List, TYPE_CHECKING
+import os
+import time
+from typing import List, Dict, Set, Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .events import SimulationEvent
@@ -43,6 +45,23 @@ class ObserverRegistry:
     def __init__(self) -> None:
         """Initialize empty observer registry."""
         self._observers: List[SimulationObserver] = []
+        
+        # Event filtering for performance
+        self._event_filters: Dict[str, Set[SimulationObserver]] = {}  # event_type -> observers
+        self._global_filters: Set[str] = set()  # Globally filtered event types
+        
+        # Batch event emission
+        self._batch_mode: bool = False
+        self._batched_events: List[SimulationEvent] = []
+        
+        # Debug event logging
+        self._debug_logging: bool = os.environ.get("ECONSIM_DEBUG_OBSERVERS", "0") == "1"
+        self._debug_stats: Dict[str, Any] = {
+            "events_processed": 0,
+            "events_filtered": 0,
+            "observers_failed": 0,
+            "batch_flushes": 0
+        }
 
     def register(self, observer: SimulationObserver) -> None:
         """Register an observer to receive simulation events.
@@ -75,24 +94,49 @@ class ObserverRegistry:
             raise ValueError("Observer not found in registry")
 
     def notify(self, event: SimulationEvent) -> None:
-        """Distribute an event to all registered observers.
+        """Distribute an event to all registered observers with filtering.
         
-        Calls notify() on each registered observer. If an observer
-        raises an exception, logs the error but continues distributing
-        to other observers to maintain simulation stability.
+        Applies event filtering for performance, handles batch mode,
+        and provides debug logging when enabled. Calls notify() on each 
+        registered observer that should receive this event type.
         
         Args:
             event: Event to distribute to observers
         """
-        for observer in self._observers[:]:  # Copy to avoid modification during iteration
+        # Check global event filters first
+        if event.event_type in self._global_filters:
+            if self._debug_logging:
+                logger.debug(f"Event {event.event_type} globally filtered")
+            self._debug_stats["events_filtered"] += 1
+            return
+        
+        # Handle batch mode
+        if self._batch_mode:
+            self._batched_events.append(event)
+            return
+        
+        # Debug logging
+        if self._debug_logging:
+            logger.debug(f"Processing event {event.event_type} for {len(self._observers)} observers")
+            
+        # Get filtered observers for this event type
+        target_observers = self._get_target_observers(event.event_type)
+        
+        # Distribute to target observers
+        for observer in target_observers:
             try:
                 observer.notify(event)
+                if self._debug_logging:
+                    logger.debug(f"Event {event.event_type} processed by {type(observer).__name__}")
             except Exception as e:
+                self._debug_stats["observers_failed"] += 1
                 logger.error(
                     f"Observer {type(observer).__name__} failed processing event "
                     f"{type(event).__name__}: {e}", 
                     exc_info=True
                 )
+        
+        self._debug_stats["events_processed"] += 1
 
     def flush_step(self, step: int) -> None:
         """Notify all observers of step boundary.
@@ -146,3 +190,139 @@ class ObserverRegistry:
             True if at least one observer is registered
         """
         return len(self._observers) > 0
+
+    # Enhanced functionality for Step 1.2
+    
+    def _get_target_observers(self, event_type: str) -> List[Any]:
+        """Get observers that should receive this event type.
+        
+        Applies event-specific filtering to determine which observers
+        should receive events of the given type.
+        
+        Args:
+            event_type: Type of event being distributed
+            
+        Returns:
+            List of observers that should receive this event type
+        """
+        # If no specific filters for this event type, send to all observers
+        if event_type not in self._event_filters:
+            return self._observers[:]  # Return copy
+        
+        # Return only observers that have not filtered out this event type
+        filtered_observers = self._event_filters[event_type]
+        return [obs for obs in self._observers if obs not in filtered_observers]
+    
+    def add_event_filter(self, event_type: str, observer: Optional[Any] = None) -> None:
+        """Add event filter to improve performance.
+        
+        Args:
+            event_type: Type of event to filter
+            observer: Specific observer to filter (None = global filter)
+        """
+        if observer is None:
+            # Global filter - no observer will receive this event type
+            self._global_filters.add(event_type)
+            if self._debug_logging:
+                logger.debug(f"Added global filter for event type: {event_type}")
+        else:
+            # Observer-specific filter
+            if event_type not in self._event_filters:
+                self._event_filters[event_type] = set()
+            self._event_filters[event_type].add(observer)
+            if self._debug_logging:
+                logger.debug(f"Added filter for {type(observer).__name__} on event type: {event_type}")
+    
+    def remove_event_filter(self, event_type: str, observer: Optional[Any] = None) -> None:
+        """Remove event filter.
+        
+        Args:
+            event_type: Type of event to unfilter
+            observer: Specific observer to unfilter (None = global filter)
+        """
+        if observer is None:
+            self._global_filters.discard(event_type)
+            if self._debug_logging:
+                logger.debug(f"Removed global filter for event type: {event_type}")
+        else:
+            if event_type in self._event_filters:
+                self._event_filters[event_type].discard(observer)
+                if not self._event_filters[event_type]:  # Clean up empty sets
+                    del self._event_filters[event_type]
+            if self._debug_logging:
+                logger.debug(f"Removed filter for {type(observer).__name__} on event type: {event_type}")
+    
+    def start_batch_mode(self) -> None:
+        """Enable batch event processing.
+        
+        Events will be collected instead of immediately distributed.
+        Call flush_batch() to process collected events.
+        """
+        self._batch_mode = True
+        self._batched_events.clear()
+        if self._debug_logging:
+            logger.debug("Started batch mode for event processing")
+    
+    def flush_batch(self) -> int:
+        """Process all batched events and return to normal mode.
+        
+        Returns:
+            Number of events processed
+        """
+        if not self._batch_mode:
+            return 0
+        
+        event_count = len(self._batched_events)
+        batch_start = time.perf_counter()
+        
+        # Temporarily disable batch mode to process events
+        self._batch_mode = False
+        
+        try:
+            for event in self._batched_events:
+                self.notify(event)
+        finally:
+            # Re-enable batch mode and clear buffer
+            self._batch_mode = True
+            self._batched_events.clear()
+        
+        batch_duration = time.perf_counter() - batch_start
+        self._debug_stats["batch_flushes"] += 1
+        
+        if self._debug_logging:
+            logger.debug(f"Processed {event_count} batched events in {batch_duration:.4f}s")
+        
+        return event_count
+    
+    def stop_batch_mode(self) -> int:
+        """Stop batch mode and process any remaining events.
+        
+        Returns:
+            Number of events processed from final batch
+        """
+        final_count = self.flush_batch() if self._batch_mode else 0
+        self._batch_mode = False
+        
+        if self._debug_logging:
+            logger.debug("Stopped batch mode for event processing")
+        
+        return final_count
+    
+    def get_debug_stats(self) -> Dict[str, Any]:
+        """Get debug statistics for performance analysis.
+        
+        Returns:
+            Dictionary with processing statistics
+        """
+        return self._debug_stats.copy()
+    
+    def reset_debug_stats(self) -> None:
+        """Reset debug statistics counters."""
+        self._debug_stats = {
+            "events_processed": 0,
+            "events_filtered": 0,
+            "observers_failed": 0,
+            "batch_flushes": 0
+        }
+        if self._debug_logging:
+            logger.debug("Reset observer debug statistics")
