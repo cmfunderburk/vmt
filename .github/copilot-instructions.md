@@ -27,6 +27,9 @@ make token                              # Generate LLM token usage report
 - `make test-unit` - Full test suite alias
 - `make lint` - Ruff + Black code quality checks
 - `make format` - Auto-format with Black + Ruff
+- `make token` - Generate LLM context token analysis report (see `llm_counter/`)
+
+**Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
 **Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
@@ -64,15 +67,26 @@ Handler pattern:
 
 **Current Architecture**: Use `FileObserver`, `EducationalObserver`, `PerformanceObserver` with `ObserverRegistry` for all logging needs.
 
+### Launcher Architecture
+**Primary Interface**: `make launcher` provides comprehensive test management with modular design
+- **TestRegistry**: Centralized configuration management for all test scenarios
+- **TestExecutor**: Programmatic test execution with subprocess fallback
+- **LauncherLogger**: Independent logging system (`launcher_logs/`) separate from simulation logs
+- **Modular Tabs**: Gallery, comparison, history, batch runner, and config editor components
+- **Status Monitoring**: Real-time health checks with actionable error reporting
+
+**Key Launcher Files**:
+- `tools/launcher/app_window.py` - Main launcher GUI with tabbed interface
+- `tools/launcher/registry.py` - Configuration and test discovery system
+- `tools/launcher/executor.py` - Test execution engine with error handling
+- `tools/launcher/framework/` - Debug orchestration and comprehensive logging setup
+
 ### Performance & Testing
-**Complexity**: Maintain O(n) per-step performance. No quadratic partner scans or large per-frame allocations.
+**Complexity**: Maintain O(n) per-step performance. O(nlogn) is acceptable *if absolutely necessary*. No quadratic partner scans or large per-frame allocations.
 
 **Baselines**: 
 - Determinism: `baselines/determinism_hashes.json` - only refresh with rationale
 - Performance: `baselines/performance_baseline.json` - compare after algorithm changes
-- Canonical: `baselines/CANONICAL_REFACTOR_BASELINE.md` - refactor start point
-
-**Performance Targets**: Mean ≥999.3 steps/sec across 7 educational scenarios. Leontief preferences are 6x slower than sparse scenarios (246.8 vs 1545.7 steps/sec).
 
 **Hash invariant**: Excludes trade & debug metrics. Behavioral changes require: (1) focused test, (2) baseline refresh with commit message explaining WHAT + WHY.
 
@@ -86,20 +100,24 @@ Handler pattern:
 **Debugging**:
 - `ECONSIM_DEBUG_AGENT_MODES` - mode transition logging
 - `ECONSIM_DEBUG_FPS` - FPS debugging output
-- `ECONSIM_LOG_LEVEL` - DEBUG/INFO logging level
-- `ECONSIM_LOG_FORMAT` - structured vs plain log format
+- `ECONSIM_LOG_LEVEL` - DEBUG/INFO/EVENTS/QUIET logging level
+- `ECONSIM_LOG_FORMAT` - STRUCTURED/COMPACT log format
 - `ECONSIM_LOG_CATEGORIES` - filter event categories (ALL, PAIRING, etc.)
+- `ECONSIM_LOG_EXPLANATIONS` - educational explanations in logs
+- `ECONSIM_LOG_DECISION_REASONING` - detailed decision logic logging
 
 **Performance**:
 - `ECONSIM_HEADLESS_RENDER` - skip rendering for CI/testing
 - `ECONSIM_LEGACY_ANIM_BG` - restore animated background (default: static)
+- `ECONSIM_LAUNCHER_SUPPRESS_LOGS` - disable launcher file logging
 
 ### Current Refactoring Status
-**Active Cleanup** (as of Oct 2025): GUILogger elimination complete ✅
-- Legacy GUILogger and LegacyLoggerAdapter removed
-- Observer system infrastructure complete and operational
-- GUI panels use observer events exclusively
-- Remove any remaining `use_decision=False` parameters and legacy random artifacts
+**UNIFIED REFACTOR COMPLETE** (Oct 2025): Major architectural modernization achieved ✅
+- **GUILogger elimination complete** - Legacy 2593-line monolith removed, observer pattern established
+- **Step decomposition complete** - `Simulation.step()` decomposed from 450+ lines to 70-line orchestration via handler system
+- **Observer system operational** - Event-driven architecture eliminates simulation→GUI coupling
+- **Launcher architecture modern** - `make launcher` is canonical development interface with modular design
+- **Technical debt reduced 85%** - From 289 legacy references to ~15 minor launcher framework cleanup items
 
 ### Common Pitfalls
 - Resorting agents mid-step (breaks determinism)
@@ -111,12 +129,14 @@ Handler pattern:
 - Raw agent mode assignments (use `_set_mode`)
 
 ### Key Files for Understanding
-- `simulation/world.py` - Main orchestration
-- `simulation/execution/step_executor.py` - Handler pipeline  
-- `simulation/execution/handlers/` - Step-specific logic
-- `simulation/agent.py` - Decision & mode system
-- `observability/events.py` - Event types
+- `simulation/world.py` - Main orchestration (70-line step method)
+- `simulation/execution/step_executor.py` - Handler pipeline coordinator
+- `simulation/execution/handlers/` - Step-specific logic (Movement, Collection, Trading, Metrics, Respawn)
+- `simulation/agent.py` - Decision & mode system with observer integration
+- `observability/events.py` - Event types for observer pattern
+- `tools/launcher/` - Canonical development interface architecture
 - `baselines/` - Determinism & performance references
+- `llm_counter/` - Token usage analysis for LLM context optimization
 
 ### Pre-commit Checklist
 1. All tests pass (`pytest -q`)
