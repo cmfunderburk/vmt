@@ -33,16 +33,16 @@
 
 ### Phase 1.1: Movement Component (Days 1-3)
 
-#### Day 1: Implementation ✓ / ✗
-- [ ] Create directory: `src/econsim/simulation/components/movement/`
-- [ ] Create `movement/__init__.py`
-- [ ] Create `movement/core.py` with `AgentMovement` class
-- [ ] Create `movement/utils.py` with spatial functions
-- [ ] Create `src/econsim/simulation/agent_flags.py`
-- [ ] Integrate with Agent class (flag=0)
-- [ ] Create unit tests: `tests/unit/components/test_movement.py`
-- [ ] Verify tests pass with flag=0 (legacy path)
-- [ ] **Commit**: `agent: extract movement component (flag=0, day 1 of 3)`
+#### Day 1: Implementation ✓
+- [x] Create directory: `src/econsim/simulation/components/movement/`
+- [x] Create `movement/__init__.py`
+- [x] Create `movement/core.py` with `AgentMovement` class
+- [x] Create `movement/utils.py` with spatial functions
+- [x] Create `src/econsim/simulation/agent_flags.py`
+- [x] Integrate with Agent class (flag=0)
+- [x] Create unit tests: `tests/unit/components/test_movement.py`
+- [x] Verify tests pass with flag=0 (legacy path)
+- [x] **Commit**: `agent: extract movement component (flag=0, day 1 of 3)`
 
 #### Day 2: Testing & Validation ✓ / ✗
 - [ ] Set `ECONSIM_AGENT_MOVEMENT_REFACTOR=1`
