@@ -141,20 +141,22 @@ class TradingHandler(BaseStepHandler):
 		# Pairing cleanup for stale sessions
 		self._cleanup_pairings(sim, executed)
 
-		# Funnel instrumentation (GUI debug logger, non-fatal)
+		# Funnel instrumentation using observer pattern
 		if funnel_stats.drafted > 0:
 			try:  # pragma: no cover - logging side-effect only
-				from ...gui.debug_logger import get_gui_logger  # type: ignore
-				logger = get_gui_logger()
-				executed_count = 1 if executed is not None else 0
-				builder_result = logger.build_trade_intent_funnel(
-					drafted=funnel_stats.drafted,
-					pruned_micro=funnel_stats.pruned_micro,
-					pruned_nonpositive=funnel_stats.pruned_nonpositive,
-					executed=executed_count,
-					max_delta_u=funnel_stats.max_delta_u,
-				)
-				logger.emit_built_event(context.step_number, builder_result)
+				from ....observability.observer_logger import get_global_observer_logger
+				logger = get_global_observer_logger()
+				if logger:
+					executed_count = 1 if executed is not None else 0
+					# Create structured trade funnel analysis message
+					message = (
+						f"Trade funnel - Drafted: {funnel_stats.drafted}, "
+						f"Pruned micro: {funnel_stats.pruned_micro}, "
+						f"Pruned non-positive: {funnel_stats.pruned_nonpositive}, "
+						f"Executed: {executed_count}, "
+						f"Max delta U: {funnel_stats.max_delta_u:.3f}"
+					)
+					logger.log_trade(message, context.step_number)
 			except Exception:
 				pass
 

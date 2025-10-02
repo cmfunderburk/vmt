@@ -48,19 +48,20 @@ class MetricsHandler(BaseStepHandler):
 				if rolling_mean_ms > 0 and current_ms > rolling_mean_ms * spike_factor:
 					spike = True
 
-					# Emit debug logger event (non-fatal) - parity with legacy
+					# Emit performance spike event using observer pattern
 					try:  # pragma: no cover
-						from ...gui.debug_logger import get_gui_logger  # type: ignore
-						logger = get_gui_logger()
-						builder_result = logger.build_perf_spike(
-							step=context.step_number,
-							time_ms=current_ms,
-							rolling_mean_ms=rolling_mean_ms,
-							agents=len(context.simulation.agents),
-							resources=context.simulation.grid.resource_count(),
-							phase=None,
-						)
-						logger.emit_built_event(context.step_number, builder_result)
+						from ....observability.observer_logger import get_global_observer_logger
+						logger = get_global_observer_logger()
+						if logger:
+							# Create structured performance spike message
+							message = (
+								f"Performance spike - Step: {context.step_number}, "
+								f"Time: {current_ms:.2f}ms, "
+								f"Rolling mean: {rolling_mean_ms:.2f}ms, "
+								f"Agents: {len(context.simulation.agents)}, "
+								f"Resources: {context.simulation.grid.resource_count()}"
+							)
+							logger.log_performance(message, context.step_number)
 					except Exception:
 						pass
 

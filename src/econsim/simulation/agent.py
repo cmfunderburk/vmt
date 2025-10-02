@@ -102,11 +102,12 @@ class Agent:
             if len(self._recent_retargets) > 100:
                 self._recent_retargets = self._recent_retargets[-100:]
             
-            # Track retargeting for behavioral analysis
+            # Track retargeting for behavioral analysis using observer pattern
             try:
-                from ..gui.debug_logger import get_gui_logger
-                logger = get_gui_logger()
-                logger.track_agent_retargeting(step, self.id)
+                from ..observability.observer_logger import get_global_observer_logger
+                logger = get_global_observer_logger()
+                if logger:
+                    logger.track_agent_retargeting(step, self.id)
             except Exception:
                 pass  # Don't break simulation if logging fails
     # Unified target selection metadata (resource vs partner) for GUI/testing
@@ -211,12 +212,20 @@ class Agent:
             return False
         if rtype == "A":
             self.carrying["good1"] += 1
-            # Track acquisition for behavioral analysis
+            # Track acquisition for behavioral analysis using observer pattern
             if step >= 0:
                 try:
-                    from ..gui.debug_logger import get_gui_logger
-                    logger = get_gui_logger()
-                    logger.track_agent_resource_acquisition(step, self.id)
+                    from ..observability.observer_logger import get_global_observer_logger
+                    logger = get_global_observer_logger()
+                    if logger:
+                        # Use log_resource_event for resource acquisition tracking
+                        logger.log_resource_event(
+                            event_type="pickup",
+                            position=(self.x, self.y),
+                            resource_type=rtype,
+                            agent_id=self.id,
+                            step=step
+                        )
                 except Exception:
                     pass  # Don't break simulation if logging fails
             
@@ -235,12 +244,20 @@ class Agent:
             return True
         if rtype == "B":
             self.carrying["good2"] += 1
-            # Track acquisition for behavioral analysis
+            # Track acquisition for behavioral analysis using observer pattern
             if step >= 0:
                 try:
-                    from ..gui.debug_logger import get_gui_logger
-                    logger = get_gui_logger()
-                    logger.track_agent_resource_acquisition(step, self.id)
+                    from ..observability.observer_logger import get_global_observer_logger
+                    logger = get_global_observer_logger()
+                    if logger:
+                        # Use log_resource_event for resource acquisition tracking
+                        logger.log_resource_event(
+                            event_type="pickup",
+                            position=(self.x, self.y),
+                            resource_type=rtype,
+                            agent_id=self.id,
+                            step=step
+                        )
                 except Exception:
                     pass  # Don't break simulation if logging fails
             
@@ -828,13 +845,16 @@ class Agent:
             else:  # same cell already (shouldn't happen due to earlier check)
                 pass
             
-            # Track movement for behavioral analysis
+            # Track movement for behavioral analysis using observer pattern
             new_pos = (self.x, self.y)
             if new_pos != old_pos:
                 try:
-                    from ..gui.debug_logger import get_gui_logger
-                    logger = get_gui_logger()
-                    logger.track_agent_movement(0, self.id, old_pos, new_pos)  # step will be updated by caller
+                    from ..observability.observer_logger import get_global_observer_logger
+                    logger = get_global_observer_logger()
+                    if logger:
+                        # Log movement as spatial event
+                        message = f"Agent {self.id} moved from {old_pos} to {new_pos}"
+                        logger.log_spatial(message, step_number)
                 except Exception:
                     pass  # Don't break simulation if logging fails
         # Interactions
@@ -999,22 +1019,22 @@ class Agent:
             sample_period = int(os.environ.get("ECONSIM_PARTNER_SEARCH_SAMPLE_PERIOD", "1"))
             
             if step % sample_period == 0:
-                from ..gui.debug_logger import get_gui_logger
-                logger = get_gui_logger()
-                
-                # Emit consolidated partner search event with rejection data
-                # Sample first 3 rejections to keep log size manageable
-                rejection_sample = rejected_partners[:3] if rejected_partners else None
-                
-                # Use new PAIRING aggregation system for volume reduction
-                logger.accumulate_partner_search(
-                    step=step,
-                    agent_id=self.id,
-                    scanned=scanned_count,
-                    eligible=eligible_count,
-                    chosen_id=chosen_partner_id if chosen_partner_id is not None else -1,
-                    rejected_partners=rejection_sample  # Consolidated rejection data
-                )
+                from ..observability.observer_logger import get_global_observer_logger
+                logger = get_global_observer_logger()
+                if logger:
+                    # Emit consolidated partner search event with rejection data using observer pattern
+                    # Sample first 3 rejections to keep log size manageable
+                    rejection_sample = rejected_partners[:3] if rejected_partners else []
+                    
+                    # Create structured partner search analysis message
+                    message = (
+                        f"Partner search - Agent {self.id}: "
+                        f"Scanned: {scanned_count}, "
+                        f"Eligible: {eligible_count}, "
+                        f"Chosen: {chosen_partner_id if chosen_partner_id is not None else 'None'}, "
+                        f"Rejections: {len(rejection_sample)}"
+                    )
+                    logger.log_trade(message, step)
                     
         self.current_unified_task = best_choice
         return best_choice

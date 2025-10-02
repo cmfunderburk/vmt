@@ -5,9 +5,9 @@ Core flow (single thread): PyQt6 QTimer (≈16ms) → `Simulation.step(ext_rng)`
 
 **Primary Development Interface**: `make launcher` (canonical build with enhanced GUI, scenario registry, and optimized logging). Use this over `make dev` for development work.
 
-**CURRENT STATUS (Oct 2025)**: Post-unified refactor cleanup in progress. The unified refactor (Phases 1-4) successfully introduced modern architecture with observer patterns and decomposed step handlers. We are now executing a systematic legacy deprecation plan to eliminate 289+ legacy system usages across 330 files. Priority: Phase A immediate cleanup (removing deprecated flags, parameters, and obsolete tests) followed by GUILogger migration to observer pattern. See `tmp_plans/CURRENT/REVIEWS/LEGACY_DEPRECATION_PLAN.md` for details.
+**CURRENT STATUS (Oct 2025)**: Post-unified refactor cleanup in progress. The unified refactor (Phases 1-4) successfully introduced modern architecture with observer patterns and decomposed step handlers. **Phase 2 COMPLETE**: Monolithic 450-line `Simulation.step()` method decomposed into 5 focused handlers (Movement → Collection → Trading → Metrics → Respawn) executed by `StepExecutor`. Current priority: Phase A legacy cleanup (removing 82+ deprecated flags, parameters, obsolete tests) and planning GUILogger migration to observer pattern. See `tmp_plans/CURRENT/REVIEWS/` for active plans.
 
-**Phase A Timeline**: 1-2 weeks, 8-10 working days focused on low-risk component elimination. Current targets: 82+ legacy references across 4 component categories (flags, tests, documentation, parameters). Implementation follows systematic detection → automated cleanup → component removal → validation pattern. See `tmp_plans/CURRENT/REVIEWS/PHASE_A_IMMEDIATE_CLEANUP_REVIEW.md` for complete implementation plan.
+**Active Phase A**: Eliminating `ECONSIM_LEGACY_RANDOM` flag system (26 references), legacy mode test scenarios (15+ files), deprecated documentation, and `use_decision=False` parameters (51 calls). These create maintenance overhead and test noise without functional value.
 
 Canonical construction:
 ```python
@@ -24,7 +24,7 @@ Determinism invariants (DO NOT break):
 4. External RNG passed to `step` separate from internal `_rng` (no extra / reordered draws)
 5. ≤ 1 trade executed per step when execution enabled
 
-Handler pipeline (Phase 2 complete): Movement → Collection → Trading → Metrics → Respawn. Put new per‑step logic in a handler (inherit `BaseStepHandler`), not back into `Simulation.step()`.
+**Step Execution Architecture (Phase 2 complete)**: `Simulation.step()` now orchestrates via `StepExecutor` with handler pipeline: Movement → Collection → Trading → Metrics → Respawn. Each handler inherits `BaseStepHandler`, receives immutable `StepContext`, returns structured `StepResult`. Add new per‑step logic as handlers in `src/econsim/simulation/execution/handlers/`, not back into `Simulation.step()`.
 
 Selection / decision system: Distance‑discounted utility `ΔU' = ΔU / (1 + k*d^2)`; reject non‑positive ΔU early. Complexity must remain O(agents + visible_resources); avoid quadratic partner scans.
 
@@ -46,7 +46,7 @@ Safe extension checklist: tests green; perf within baseline; no new unordered it
 
 Common pitfalls: resorting agents mid‑step; iterating unsorted resource containers; multiple trades per step; silent RNG draws; quadratic partner scans; per‑frame big object creation; modifying inventories from rendering/observer code; adding parity hacks that undo real trades; direct `agent.mode = ` assignments (use `_set_mode()` helper instead).
 
-Where to look first: `simulation/world.py` (orchestration), `simulation/execution/step_executor.py`, handlers under `simulation/execution/handlers/`, `simulation/agent.py`, `simulation/grid.py`, `observability/events.py`, `simulation/trade.py` (enumeration + execution), `metrics.py` (hash + trade metrics), `tools/launcher/` (enhanced GUI system).
+Where to look first: `simulation/world.py` (step orchestration, ~70 lines), `simulation/execution/step_executor.py` (handler coordination), `simulation/execution/handlers/` (5 focused handlers), `simulation/agent.py` (decision logic), `simulation/grid.py` (spatial indexing), `observability/events.py` (event system), `simulation/trade.py` (bilateral exchange), `metrics.py` (determinism hashing), `tools/launcher/` (primary dev interface).
 
 When unsure: add a focused determinism or perf test instead of speculative refactor. Commit messages: concise WHAT + WHY (e.g. `selection: prune zero ΔU early (perf +1.2%, hash stable)`).
 
@@ -105,5 +105,19 @@ ECONSIM_DEBUG_AGENT_MODES=1 make launcher # Debug mode transitions
 6. **xfail tests**: Remove xfail markers for legacy determinism tests
 
 **Success Criteria**: Zero legacy flags, clean parameters, updated docs, test stability, no deprecation warnings.
+
+**Development Environment Setup**:
+```bash
+make venv && source vmt-dev/bin/activate  # Essential first step
+make launcher                             # Primary development interface
+ECONSIM_DEBUG_AGENT_MODES=1 make launcher # Debug mode transitions
+```
+
+**Core Architecture Boundaries**:
+- Simulation Core: `src/econsim/simulation/` (deterministic step execution)
+- Step Pipeline: `src/econsim/simulation/execution/` (Movement → Collection → Trading → Metrics → Respawn)
+- Event System: `src/econsim/observability/` (NO direct GUI calls from simulation)
+- Launcher Framework: `src/econsim/tools/launcher/` (enhanced GUI + scenario registry)
+- Configuration Registry: Use `TestConfiguration` dataclass pattern, not scattered manual setup
 
 Performance note: Legacy compatibility layers currently cause ~65% regression. Removing them is high priority for Phase C.
