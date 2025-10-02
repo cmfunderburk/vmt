@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -9,8 +10,8 @@ if TYPE_CHECKING:
     from ..observability.event_buffer import StepEventBuffer
     from .event_emitter import AgentEventEmitter
 
-# Import the correct AgentMode from the main agent module
-from ..agent import AgentMode
+# Import AgentMode from constants to avoid circular dependency
+from ..constants import AgentMode
 
 
 class AgentModeStateMachine:
@@ -79,8 +80,11 @@ class AgentModeStateMachine:
         try:
             from_enum = AgentMode(old_mode)
             to_enum = AgentMode(new_mode)
-        except ValueError:
+        except ValueError as e:
             # Invalid mode strings - transition not valid
+            logging.warning(
+                f"Agent {self.agent_id}: Invalid mode string in transition from '{old_mode}' to '{new_mode}': {e}"
+            )
             return False
         
         # Validate transition

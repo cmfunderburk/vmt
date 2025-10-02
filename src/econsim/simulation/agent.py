@@ -27,7 +27,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from econsim.preferences.base import Preference
 
-from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS
+from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS, AgentMode
 from .grid import Grid
 
 if TYPE_CHECKING:
@@ -40,20 +40,6 @@ if TYPE_CHECKING:
     from .components.mode_state_machine import AgentModeStateMachine
 
 Position = tuple[int, int]
-
-
-class AgentMode(str, Enum):  # str for readable serialization/debug
-    """Agent behavioral modes determining movement and interaction patterns.
-    
-    FORAGE: Actively seek and collect resources based on utility maximization
-    RETURN_HOME: Move toward home position to deposit carried goods
-    IDLE: Stationary or random movement, available for partner pairing
-    MOVE_TO_PARTNER: Move toward established meeting point for trading
-    """
-    FORAGE = "forage"
-    RETURN_HOME = "return_home"
-    IDLE = "idle"
-    MOVE_TO_PARTNER = "move_to_partner"
 
 
 # Manhattan distance perception radius for resource detection

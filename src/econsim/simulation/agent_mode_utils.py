@@ -16,7 +16,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..agent import Agent, AgentMode
+    from ..agent import Agent
+    from ..constants import AgentMode
     from ...observability.registry import ObserverRegistry
     from ...observability.event_buffer import StepEventBuffer
 

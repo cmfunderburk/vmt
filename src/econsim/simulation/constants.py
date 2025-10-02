@@ -4,6 +4,7 @@ Centralizes tunable parameters for decision logic & perception.
 """
 
 from __future__ import annotations
+from enum import Enum
 
 # Perception radius (Manhattan) for candidate resource scan
 default_PERCEPTION_RADIUS: int = 8
@@ -21,9 +22,25 @@ UTILITY_SCALE_FACTOR: float = 10.0
 # Range enforced at config level [0.0, 10.0]. Kept here for deterministic default.
 DEFAULT_DISTANCE_SCALING_FACTOR: float = 0.0
 
+
+class AgentMode(str, Enum):  # str for readable serialization/debug
+    """Agent behavioral modes determining movement and interaction patterns.
+    
+    FORAGE: Actively seek and collect resources based on utility maximization
+    RETURN_HOME: Move toward home position to deposit carried goods
+    IDLE: Stationary or random movement, available for partner pairing
+    MOVE_TO_PARTNER: Move toward established meeting point for trading
+    """
+    FORAGE = "forage"
+    RETURN_HOME = "return_home"
+    IDLE = "idle"
+    MOVE_TO_PARTNER = "move_to_partner"
+
+
 __all__ = [
 	"default_PERCEPTION_RADIUS",
 	"EPSILON_UTILITY",
 	"UTILITY_SCALE_FACTOR",
 	"DEFAULT_DISTANCE_SCALING_FACTOR",
+	"AgentMode",
 ]
