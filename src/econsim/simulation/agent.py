@@ -29,7 +29,6 @@ from econsim.preferences.base import Preference
 
 from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS
 from .grid import Grid
-from .agent_flags import is_refactor_enabled
 
 if TYPE_CHECKING:
     from ..observability.registry import ObserverRegistry
@@ -92,12 +91,7 @@ class Agent:
     # Backward compatibility alias (legacy code/tests may still read 'inventory')
     inventory: dict[str, int] = field(init=False, repr=False)
     
-    # Trade partner tracking for bilateral exchange
-    trade_partner_id: int | None = field(default=None, init=False, repr=False)
-    meeting_point: Position | None = field(default=None, init=False, repr=False)
-    is_trading: bool = field(default=False, init=False, repr=False)
-    trade_cooldown: int = field(default=0, init=False, repr=False)  # Steps to wait before re-pairing
-    partner_cooldowns: dict[int, int] = field(default_factory=dict, init=False, repr=False)  # Per-partner cooldown tracking
+    # Trade partner tracking for bilateral exchange (now handled by properties)
     # Bilateral exchange stagnation tracking: utility at last improvement and steps since
     last_trade_mode_utility: float = field(default=0.0, init=False, repr=False)
     trade_stagnation_steps: int = field(default=0, init=False, repr=False)
@@ -164,15 +158,59 @@ class Agent:
         object.__setattr__(self, "inventory", self._inventory.inventory)
         
         # Initialize trading partner component
-        if is_refactor_enabled("trading"):
-            from .components.trading_partner import TradingPartner
-            self._trading_partner = TradingPartner(self.id)
-            # Set up aliases for trading state
-            object.__setattr__(self, "trade_partner_id", self._trading_partner.trade_partner_id)
-            object.__setattr__(self, "meeting_point", self._trading_partner.meeting_point)
-            object.__setattr__(self, "is_trading", self._trading_partner.is_trading)
-            object.__setattr__(self, "trade_cooldown", self._trading_partner.trade_cooldown)
-            object.__setattr__(self, "partner_cooldowns", self._trading_partner.partner_cooldowns)
+        from .components.trading_partner import TradingPartner
+        self._trading_partner = TradingPartner(self.id)
+    
+    # Trading partner properties that delegate to component
+    @property
+    def trade_partner_id(self) -> int | None:
+        """Get trade partner ID from component."""
+        return self._trading_partner.trade_partner_id
+    
+    @trade_partner_id.setter
+    def trade_partner_id(self, value: int | None) -> None:
+        """Set trade partner ID in component."""
+        self._trading_partner.trade_partner_id = value
+    
+    @property
+    def meeting_point(self) -> Position | None:
+        """Get meeting point from component."""
+        return self._trading_partner.meeting_point
+    
+    @meeting_point.setter
+    def meeting_point(self, value: Position | None) -> None:
+        """Set meeting point in component."""
+        self._trading_partner.meeting_point = value
+    
+    @property
+    def is_trading(self) -> bool:
+        """Get trading status from component."""
+        return self._trading_partner.is_trading
+    
+    @is_trading.setter
+    def is_trading(self, value: bool) -> None:
+        """Set trading status in component."""
+        self._trading_partner.is_trading = value
+    
+    @property
+    def trade_cooldown(self) -> int:
+        """Get trade cooldown from component."""
+        return self._trading_partner.trade_cooldown
+    
+    @trade_cooldown.setter
+    def trade_cooldown(self, value: int) -> None:
+        """Set trade cooldown in component."""
+        self._trading_partner.trade_cooldown = value
+    
+    @property
+    def partner_cooldowns(self) -> dict[int, int]:
+        """Get partner cooldowns from component."""
+        return self._trading_partner.partner_cooldowns
+    
+    @partner_cooldowns.setter
+    def partner_cooldowns(self, value: dict[int, int]) -> None:
+        """Set partner cooldowns in component."""
+        self._trading_partner.partner_cooldowns = value
 
     def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
         """Log agent mode transitions for debugging via observer events."""
@@ -1067,24 +1105,7 @@ class Agent:
         Returns list of (agent, distance) tuples sorted by distance, then by agent position
         for deterministic tiebreaking. Excludes self from the results.
         """
-        if is_refactor_enabled("trading"):
-            return self._trading_partner.find_nearby_agents((self.x, self.y), all_agents)
-        else:
-            # LEGACY: Existing implementation
-            from .constants import default_PERCEPTION_RADIUS
-            
-            candidates = []
-            for other_agent in all_agents:
-                if other_agent is self:  # Skip self
-                    continue
-                    
-                distance = self._manhattan(self.x, self.y, other_agent.x, other_agent.y)
-                if distance <= default_PERCEPTION_RADIUS:
-                    candidates.append((other_agent, distance))
-            
-            # Sort by distance first, then by position for deterministic tiebreaking
-            candidates.sort(key=lambda x: (x[1], x[0].x, x[0].y))
-            return candidates
+        return self._trading_partner.find_nearby_agents((self.x, self.y), all_agents)
 
     def calculate_meeting_point(self, other_agent: "Agent") -> Position:
         """Calculate the midpoint between this agent and another agent for meeting.
@@ -1100,72 +1121,30 @@ class Agent:
         
         Sets up meeting point and partner tracking for both agents.
         """
-        if is_refactor_enabled("trading"):
-            self._trading_partner.establish_pairing((self.x, self.y), other_agent)
-        else:
-            # LEGACY: Existing implementation
-            meeting_point = self.calculate_meeting_point(other_agent)
-            
-            # Set up mutual pairing
-            self.trade_partner_id = other_agent.id
-            self.meeting_point = meeting_point
-            
-            other_agent.trade_partner_id = self.id
-            other_agent.meeting_point = meeting_point
+        self._trading_partner.establish_pairing((self.x, self.y), other_agent)
 
     def clear_trade_partner(self) -> None:
         """Clear trade partner state without setting cooldowns."""
-        if is_refactor_enabled("trading"):
-            self._trading_partner.clear_trade_partner()
-        else:
-            # LEGACY: Existing implementation
-            self.trade_partner_id = None
-            self.meeting_point = None
-            self.is_trading = False
-            self.trade_cooldown = 3  # Keep general cooldown for immediate re-pairing
+        self._trading_partner.clear_trade_partner()
 
     def end_trading_session(self, partner: "Agent") -> None:
         """End trading session with partner and set per-partner cooldowns."""
-        if is_refactor_enabled("trading"):
-            self._trading_partner.end_trading_session(partner)
-        else:
-            # LEGACY: Existing implementation
-            # Set per-partner cooldown to prevent immediate re-pairing with same agent
-            self.partner_cooldowns[partner.id] = 20
-            partner.partner_cooldowns[self.id] = 20
-            
-            # Clear trade partner state for both agents
-            self.clear_trade_partner()
-            partner.clear_trade_partner()
+        self._trading_partner.end_trading_session(partner)
 
     def update_partner_cooldowns(self) -> None:
         """Decrement all partner-specific cooldowns by 1."""
-        if is_refactor_enabled("trading"):
-            self._trading_partner.update_cooldowns()
-        else:
-            # LEGACY: Existing implementation
-            # Decrement all cooldowns
-            for partner_id in list(self.partner_cooldowns.keys()):
-                self.partner_cooldowns[partner_id] -= 1
-                # Remove expired cooldowns
-                if self.partner_cooldowns[partner_id] <= 0:
-                    del self.partner_cooldowns[partner_id]
+        self._trading_partner.update_cooldowns()
 
     def can_trade_with_partner(self, partner_id: int) -> bool:
         """Check if this agent can trade with a specific partner (no active cooldown)."""
-        if is_refactor_enabled("trading"):
-            return self._trading_partner.can_trade_with_partner(partner_id)
-        else:
-            # LEGACY: Existing implementation
-            return partner_id not in self.partner_cooldowns
+        return self._trading_partner.can_trade_with_partner(partner_id)
 
     def move_toward_meeting_point(self, grid: "Grid") -> None:
         """Move one step toward the established meeting point."""
-        meeting_point = self._trading_partner.meeting_point if is_refactor_enabled("trading") else self.meeting_point
-        if meeting_point is None:
+        if self._trading_partner.meeting_point is None:
             return
             
-        new_pos = self._movement.move_toward_meeting_point((self.x, self.y), meeting_point)
+        new_pos = self._movement.move_toward_meeting_point((self.x, self.y), self._trading_partner.meeting_point)
         self.x, self.y = new_pos
 
     def attempt_trade_with_partner(self, other_agent: "Agent", metrics_collector: Any = None, current_step: int = 0) -> bool:
