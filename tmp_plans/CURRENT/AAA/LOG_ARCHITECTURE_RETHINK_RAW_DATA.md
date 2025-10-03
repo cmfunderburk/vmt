@@ -1,9 +1,10 @@
 # LOG ARCHITECTURE RETHINK: RAW DATA RECORDING
 
-**Date**: October 2, 2025  
+**Date**: October 2, 2025 (Updated: October 3, 2025)  
 **Context**: Performance analysis revealed that even compressed JSON emission has ~0.009ms overhead per event  
 **Problem**: Current approach still exceeds <2% overhead target by 22x - need zero-overhead solution  
-**Solution**: Raw data recording with deferred translation
+**Solution**: Raw data recording with deferred translation  
+**Strategic Update**: GUI integration deferred - Phase 4 focuses on clean separation instead
 
 ## Current Performance Bottleneck
 
@@ -195,11 +196,11 @@ class RawDataObserver:
 3. **Remove all event object creation** - direct data recording
 4. **Test performance** - validate <0.1% overhead target
 
-### Phase 3: GUI Integration
-1. **Update GUI components** to use `DataTranslator`
-2. **Implement real-time translation** for select GUI options
-3. **Add batch translation** for analysis tools
-4. **Test GUI performance** - ensure translation doesn't block UI
+### Phase 3: GUI Integration Removal
+1. **Remove GUI event dependencies** from simulation core
+2. **Establish clean separation** between simulation and GUI layers  
+3. **Replace GUI observers** with file-based logging approach
+4. **Decouple GUI performance monitoring** from simulation execution
 
 ### Phase 4: Legacy System Removal
 1. **Delete entire event system** - `events.py`, all event classes

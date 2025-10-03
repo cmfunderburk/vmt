@@ -74,7 +74,7 @@ def _apply_platform_styling(app: QApplication) -> None:
             QTextEdit, QPlainTextEdit {
                 background-color: #1e1e1e;
                 color: #ffffff;
-                font-family: 'Monaco', 'Courier New', 'DejaVu Sans Mono', monospace;
+                font-family: 'Monaco', 'Menlo', 'Courier New', 'DejaVu Sans Mono', monospace;
                 font-size: 11pt;
                 border: 1px solid #555555;
                 selection-background-color: #0078d4;
@@ -347,7 +347,7 @@ def _apply_platform_styling(app: QApplication) -> None:
             QTextEdit, QPlainTextEdit {
                 background-color: #1e1e1e;
                 color: #ffffff;
-                font-family: 'Consolas', 'Courier New', monospace;
+                font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
                 font-size: 10pt;
                 border: 1px solid #555555;
             }

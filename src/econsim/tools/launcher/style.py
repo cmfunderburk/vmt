@@ -100,7 +100,7 @@ class PlatformStyler:
             """
             QMainWindow, QWidget, QDialog { background-color: #2b2b2b; color: #ffffff; border: 1px solid #555555; }
             QMainWindow { border: 2px solid #555555; background-color: #2b2b2b; }
-            QTextEdit, QPlainTextEdit { background-color:#1e1e1e; color:#ffffff; font-family:'Monaco','Courier New','DejaVu Sans Mono',monospace; font-size:11pt; border:1px solid #555555; selection-background-color:#0078d4; selection-color:#ffffff; }
+            QTextEdit, QPlainTextEdit { background-color:#1e1e1e; color:#ffffff; font-family:'Monaco','Menlo','Courier New','DejaVu Sans Mono',monospace; font-size:11pt; border:1px solid #555555; selection-background-color:#0078d4; selection-color:#ffffff; }
             QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox { background-color:#1e1e1e !important; color:#ffffff !important; border:1px solid #555555 !important; padding:4px; }
             QFrame, QGroupBox, QScrollArea, QWidget { background-color:#2b2b2b !important; color:#ffffff !important; border:1px solid #555555 !important; }
             QLabel, QTextEdit, QPlainTextEdit { background-color:#1e1e1e !important; color:#ffffff !important; border:1px solid #555555 !important; }
@@ -130,7 +130,7 @@ class PlatformStyler:
             QPushButton { background-color:#404040; color:#ffffff; font-weight:bold; padding:8px 16px; border-radius:4px; border:1px solid #666666; }
             QPushButton:hover { background-color:#4a4a4a; border-color:#888888; }
             QCheckBox { color:#ffffff; font-weight:bold; spacing:8px; }
-            QTextEdit, QPlainTextEdit { background-color:#1e1e1e; color:#ffffff; font-family:'Consolas','Courier New',monospace; font-size:10pt; border:1px solid #555555; }
+            QTextEdit, QPlainTextEdit { background-color:#1e1e1e; color:#ffffff; font-family:'Monaco','Menlo','Consolas','Courier New',monospace; font-size:10pt; border:1px solid #555555; }
             QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox { background-color:#1e1e1e !important; color:#ffffff !important; border:1px solid #555555 !important; padding:4px; }
             QFrame, QGroupBox, QScrollArea, QWidget { background-color:#2b2b2b !important; color:#ffffff !important; border:1px solid #555555 !important; }
             QLabel, QTextEdit, QPlainTextEdit { background-color:#1e1e1e !important; color:#ffffff !important; border:1px solid #555555 !important; }

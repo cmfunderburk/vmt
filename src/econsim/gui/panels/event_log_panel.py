@@ -64,7 +64,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                 color: rgb(0, 0, 0);
                 border: 2px solid rgb(51, 51, 51);
                 padding: 4px;
-                font-family: 'Monaco', 'Courier New', monospace;
+                font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
                 font-size: 10pt;
             }
         """)
@@ -105,7 +105,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                 color: rgb(0, 0, 0);
                 border: 2px solid rgb(51, 51, 51);
                 padding: 4px;
-                font-family: 'Monaco', 'Courier New', monospace;
+                font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
                 font-size: 10pt;
             }
         """)
@@ -146,7 +146,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                     color: rgb(136, 136, 136);
                     border: 1px solid rgb(221, 221, 221);
                     padding: 4px;
-                    font-family: 'Monaco', 'Courier New', monospace;
+                    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
                     font-size: 10pt;
                 }
             """)
@@ -161,7 +161,7 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
                     color: rgb(0, 0, 0);
                     border: 2px solid rgb(51, 51, 51);
                     padding: 4px;
-                    font-family: 'Monaco', 'Courier New', monospace;
+                    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
                     font-size: 10pt;
                 }
             """)
@@ -284,41 +284,9 @@ class EventLogPanel(QWidget):  # pragma: no cover (GUI)
         self._log_display.ensureCursorVisible()
 
     def _refresh_debug_display(self) -> None:
-        # Display content from observer events (replacing legacy structured debug logs)
+        # Debug display functionality removed - will be rebuilt with current architecture if needed
         if self._debug_enabled:
-            try:
-                from ...observability.observer_logger import get_global_observer_logger
-                
-                # Get the observer logger
-                logger = get_global_observer_logger()
-                if logger is None:
-                    self._debug_display.setPlainText("Observer logger not available")
-                    return
-                
-                # For Step 2 GUI Migration: Simple fallback display until observer buffering added
-                # This provides functional GUI during transition period
-                formatted_lines = [
-                    "Observer-based debug display active",
-                    f"Debug enabled: {self._debug_enabled}", 
-                    f"Max entries: {self._max_entries}",
-                    "Debug events will be captured via observer pattern",
-                    "(Full event buffering to be implemented in observer logger)"
-                ]
-
-                # Update the debug display with formatted content
-                dbg_text = '\n'.join(formatted_lines)
-                self._debug_display.setPlainText(dbg_text)
-                
-                # Auto-scroll to bottom to show latest entries
-                cur = self._debug_display.textCursor()
-                cur.movePosition(cur.MoveOperation.End)
-                self._debug_display.setTextCursor(cur)
-                self._debug_display.ensureCursorVisible()
-                
-            except Exception as e:
-                # Fallback to show error if observer access fails
-                error_text = f"Observer debug error: {str(e)}\nFallback: Observer-based debug logging..."
-                self._debug_display.setPlainText(error_text)
+            self._debug_display.setPlainText("Debug display functionality removed - to be rebuilt with current architecture")
         else:
             # Clear display when debug is disabled
             self._debug_display.setPlainText("Debug logging disabled (check 'show' to enable)")

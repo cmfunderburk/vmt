@@ -508,38 +508,15 @@ class SimulationController:
         # If we have a new step, check for new trades
         if current_step > self._last_checked_step:
             try:
-                # Use observer events for trade debugging (replacing legacy log_trade)
-                try:
-                    from ..observability.observer_logger import get_global_observer_logger
-                    
-                    logger = get_global_observer_logger()
-                    if logger is not None:
-                        last_trade = mc.last_executed_trade
-                        # DEBUG: Trade detection logic and delta utility values using raw data
-                        message1 = f"current_step={current_step}, last_checked_step={self._last_checked_step}"
-                        message2 = f"last_trade={last_trade}"
-                        for observer in logger.observer_registry._observers:
-                            observer.record_debug_log(step=current_step, category="trade_detection", message=message1)
-                            observer.record_debug_log(step=current_step, category="trade_detection", message=message2)
-                except Exception:  # pragma: no cover
-                    pass
+                # GUI debug logging removed - will be rebuilt with current architecture if needed
                 
                 last_trade = mc.last_executed_trade
                 
                 if (last_trade and 
                     last_trade.get('step', -1) > self._last_checked_step):
                     
-                    # DEBUG: Check the raw delta_utility value
+                    # DEBUG: Check the raw delta_utility value - logging removed
                     raw_delta_u = last_trade.get('delta_utility', 0)
-                    # Debug via observer events using raw data
-                    try:
-                        from ..observability.observer_logger import get_global_observer_logger
-                        logger = get_global_observer_logger()
-                        if logger is not None:
-                            message = f"Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})"
-                            for observer in logger.observer_registry._observers:
-                                observer.record_debug_log(step=current_step, category="trade_detection", message=message)
-                    except: pass
                     
                     # Format trade for display (use trade's actual step, not current step)
                     trade_step = last_trade.get('step', current_step)
