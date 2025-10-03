@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Any
 
-from src.econsim.observability.raw_data.raw_data_writer import RawDataWriter
+from econsim.observability.raw_data.raw_data_writer import RawDataWriter
 
 
 class TestRawDataWriterBasicOperations:

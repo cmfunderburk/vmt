@@ -17,7 +17,7 @@ import pytest
 import time
 from typing import Dict, List, Any
 
-from src.econsim.observability.raw_data.raw_data_observer import RawDataObserver
+from econsim.observability.raw_data.raw_data_observer import RawDataObserver
 
 
 class TestRawDataObserverRecording:

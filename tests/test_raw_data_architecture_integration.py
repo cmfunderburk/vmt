@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any
 
-from src.econsim.observability.raw_data import RawDataObserver, DataTranslator, RawDataWriter
+from econsim.observability.raw_data import RawDataObserver, DataTranslator, RawDataWriter
 
 
 class TestRawDataArchitectureIntegration:
