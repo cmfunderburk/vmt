@@ -10,7 +10,7 @@
 - `src/econsim/gui/` - PyQt6 GUI with embedded Pygame surface  
 - `src/econsim/observability/` - Event system & logging infrastructure
 - `src/econsim/tools/launcher/` - Main GUI application entry point
-- `tests/` - Comprehensive test suite (436 tests) with performance baselines
+- `tests/` - Comprehensive test suite (533+ tests) with performance baselines
 - `baselines/` - Determinism hashes and performance references for validation
 - `MANUAL_TESTS/` - Interactive GUI test scenarios and launcher components
 
@@ -18,7 +18,7 @@
 ```bash
 make venv && source vmt-dev/bin/activate  # Create dev environment
 make launcher                             # Primary development interface (canonical)
-pytest -q                               # Run 436 tests for validation
+pytest -q                               # Run 533+ tests for validation
 make perf                               # Performance comparison vs baselines
 make token                              # Generate LLM token usage report
 ```
@@ -163,7 +163,7 @@ Handler pattern:
 
 **Performance Validation Workflow**:
 ```bash
-pytest -q                    # Run full test suite (436+ tests)
+pytest -q                    # Run full test suite (533+ tests)
 make perf                    # Compare performance against baselines  
 make baseline-capture        # Capture new baselines (requires justification)
 ```
@@ -269,22 +269,3 @@ make baseline-capture        # Capture new baselines (requires justification)
 6. No new non-deterministic iteration sources
 
 **Commit format**: `component: concise change (perf/determinism impact, hash stable|updated)`
-
-### Key Files for Understanding
-- `simulation/world.py` - Main orchestration (70-line step method)
-- `simulation/execution/step_executor.py` - Handler pipeline coordinator
-- `simulation/execution/handlers/` - Step-specific logic (Movement, Collection, Trading, Metrics, Respawn)
-- `simulation/agent.py` - Modular agent with 6 component architecture
-- `simulation/components/` - Agent component implementations (Movement, EventEmitter, Inventory, TradingPartner, TargetSelection, ModeStateMachine)
-- `observability/events.py` - Event types for observer pattern
-- `observability/serializers/optimized_serializer.py` - ⚠️ Complex 1500-line pipeline (needs refactoring)
-- `tools/launcher/` - Canonical development interface architecture
-- `baselines/` - Determinism & performance references
-- `llm_counter/` - Token usage analysis for LLM context optimization
-- `tmp_plans/CURRENT/AAA/LOG_ARCHITECTURE_RETHINK.md` - Planned logging system simplification
-
-### Token Usage Analysis
-**Unique Feature**: This project includes `llm_counter/` for analyzing LLM token consumption. Use `make token` to generate reports on codebase size for AI context optimization.
-- Reports generated in `llm_counter/vmt_token_report_*.md` with comprehensive analysis
-- Tracks token usage patterns for efficient LLM context management
-- Essential for large codebases to understand AI assistant limitations
