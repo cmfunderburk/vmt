@@ -93,6 +93,7 @@ gui_logs/compact/
 
 
 # Economic analysis logs (ignore bulk logs but keep documentation)
-economic_analysis_logs/
+# Use pattern to ignore contents, not the directory itself, so README may be whitelisted
+economic_analysis_logs/*
 !economic_analysis_logs/README.md
 
