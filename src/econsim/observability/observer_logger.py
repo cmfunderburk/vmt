@@ -24,9 +24,7 @@ from typing import Optional, Dict, Any, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from .registry import ObserverRegistry
 
-from .events import (
-    AgentModeChangeEvent
-)
+# PHASE 5.1: Event classes removed - using raw data architecture
 
 
 class ObserverLogger:

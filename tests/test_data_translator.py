@@ -16,7 +16,7 @@ Test Categories:
 import pytest
 from typing import Dict, List, Any
 
-from src.econsim.observability.raw_data.data_translator import DataTranslator
+from econsim.observability.raw_data.data_translator import DataTranslator
 
 
 class TestDataTranslatorSpecificMethods:

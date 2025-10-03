@@ -45,7 +45,7 @@ import os
 
 # Observer system imports (Phase 1.3: Observer Foundation)
 from ..observability.registry import ObserverRegistry
-from ..observability.events import AgentModeChangeEvent
+# PHASE 5.1/5.2: Event classes removed - using raw data architecture
 from ..observability.event_buffer import StepEventBuffer
 
 
@@ -160,8 +160,8 @@ class Simulation:
         # Execute step through handler system
         step_metrics = self._step_executor.execute_step(context)
         
-        # Flush buffered events to observers after step completion
-        events_processed = self._event_buffer.end_step(self._observer_registry)
+        # Raw data architecture: Events are recorded directly by handlers via observer.record_*() calls
+        # No event buffer needed - zero overhead recording during simulation
         self.last_step_metrics = step_metrics  # store for tests/analytics (excluded from hash logic)
 
         # Update determinism metrics/hash (must occur before step counter increment to preserve historical ordering semantics)
@@ -262,15 +262,9 @@ class Simulation:
             file_observer = FileObserver(
                 config=observability_config,
                 output_path=economic_events_file,
-                buffer_size=economic_config.buffer_size,
-                format=economic_config.format,
-                use_optimized_format=economic_config.use_optimized_format,
+                format='jsonl',  # Raw data architecture uses JSON lines format
+                compress=False,  # Default to uncompressed for easier inspection (can be enabled if needed)
             )
-            
-            # Set simulation start time for relative timestamps
-            import time
-            simulation_start_time = time.time()
-            file_observer.set_simulation_start_time(simulation_start_time)
             
             # Register the file observer
             self._observer_registry.register(file_observer)

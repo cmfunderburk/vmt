@@ -276,7 +276,12 @@ class BaseManualTest(QWidget):
         if self.current_turn >= total_turns:
             self.step_timer.stop()
             
-            # Legacy debug logging removed - observer system handles cleanup automatically
+            # Close all observers to write raw data to disk
+            if self.simulation and hasattr(self.simulation, '_observer_registry'):
+                print("🔧 Closing observers to write raw data to disk...")
+                self.simulation._observer_registry.close_all()
+                print("✅ Observer cleanup complete - raw data written to disk")
+            
             print("🔧 Test logging session complete (observer system)")
             
             self.test_layout.control_panel.start_button.setText("Test Completed!")

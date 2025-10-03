@@ -32,7 +32,7 @@ import threading
 from contextlib import contextmanager
 
 from ..config import ObservabilityConfig
-from ..events import SimulationEvent, AgentModeChangeEvent, TradeExecutionEvent
+from ..events import SimulationEvent
 from ..registry import ObserverRegistry
 from ..observers.gui_observer import GUIEventObserver, DisplayUpdate
 from ..observer_logger import ObserverLogger

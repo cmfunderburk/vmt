@@ -11,8 +11,8 @@ from pathlib import Path
 
 # Test imports with fallback handling
 try:
-    from src.econsim.tools.launcher.test_runner import TestRunner, create_test_runner
-    from src.econsim.tools.launcher.framework.test_configs import ALL_TEST_CONFIGS
+    from econsim.tools.launcher.test_runner import TestRunner, create_test_runner
+    from econsim.tools.launcher.framework.test_configs import ALL_TEST_CONFIGS
     _test_runner_available = True
 except ImportError:
     TestRunner = None  # type: ignore
@@ -27,7 +27,7 @@ class TestProgrammaticRunner:
     @pytest.fixture
     def mock_qt_available(self):
         """Mock PyQt6 availability for testing."""
-        with patch('src.econsim.tools.launcher.test_runner._qt_available', True):
+        with patch('econsim.tools.launcher.test_runner._qt_available', True):
             yield
     
     @pytest.fixture
