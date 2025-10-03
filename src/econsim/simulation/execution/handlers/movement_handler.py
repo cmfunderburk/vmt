@@ -176,16 +176,18 @@ class MovementHandler(BaseStepHandler):
     
     def _notify_mode_change(self, context: StepContext, agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str) -> None:
         """DEPRECATED: Use _set_agent_mode instead."""
-        from ...observability.events import AgentModeChangeEvent
         
         if context.observer_registry.has_observers():
-            event = AgentModeChangeEvent.create(
-                step=context.step_number,
-                agent_id=agent.id,
-                old_mode=old_mode.value,
-                new_mode=new_mode.value,
-                reason=reason
-            )
-            context.observer_registry.notify(event)
+            # Record mode change using raw data architecture
+            # Call record_mode_change() on all observers that support raw data recording
+            for observer in context.observer_registry._observers:
+                if hasattr(observer, 'record_mode_change'):
+                    observer.record_mode_change(
+                        step=context.step_number,
+                        agent_id=agent.id,
+                        old_mode=old_mode.value,
+                        new_mode=new_mode.value,
+                        reason=reason
+                    )
 
     # NOTE: execute override removed; transient assignment handled inside _execute_impl

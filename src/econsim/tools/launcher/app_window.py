@@ -925,7 +925,7 @@ class LauncherWindow(QMainWindow):  # type: ignore[misc] # pragma: no cover - GU
         try:
             status_area.setReadOnly(True)  # type: ignore[attr-defined]
             status_area.setMaximumHeight(100)  # type: ignore[attr-defined]
-            status_area.setStyleSheet("background-color: #1e1e1e; color: #ffffff; font-family: monospace;")  # type: ignore[attr-defined]
+            status_area.setStyleSheet("background-color: #1e1e1e; color: #ffffff; font-family: 'Monaco', 'Menlo', 'Courier New', monospace;")  # type: ignore[attr-defined]
             status_area.append("Enhanced Test Launcher initialized.")  # type: ignore[attr-defined]
         except Exception:
             pass

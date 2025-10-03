@@ -230,7 +230,6 @@ class Agent:
         """Log agent mode transitions for debugging via observer events."""
         try:
             from ..observability.observer_logger import get_global_observer_logger
-            from ..observability.events import DebugLogEvent
             
             logger = get_global_observer_logger()
             if logger is not None:
@@ -245,10 +244,10 @@ class Agent:
                 if reason:
                     context = f"({reason}), {context}"
                 
-                # Emit debug event for mode switch
+                # Emit debug event for mode switch using raw data recording
                 debug_msg = f"MODE_SWITCH agent={self.id} {old_mode.value}->{new_mode.value} {context}"
-                debug_event = DebugLogEvent.create(step=0, category="agent_mode", message=debug_msg)
-                logger.observer_registry.notify(debug_event)
+                for observer in logger.observer_registry._observers:
+                    observer.record_debug_log(step=0, category="agent_mode", message=debug_msg)
         except Exception:  # pragma: no cover
             pass  # Graceful degradation when observer system not available
 

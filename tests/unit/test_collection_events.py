@@ -1,39 +1,22 @@
-"""Tests for ResourceCollectionEvent emission during resource collection.
+"""Tests for resource collection event recording using raw data architecture.
 
-Verifies that ResourceCollectionEvent is emitted correctly when agents
-collect resources in both decision mode and legacy mode.
+Verifies that resource collection even    # Assert: No collection events should be emitted using raw data format
+    all_events = observer.get_all_events()
+    collection_events = [e for e in all_events if e['type'] == 'resource_collection']
+    assert len(collection_events) == 0, f"Expected no collection events, got {len(collection_events)}"are recorded correctly when agents
+collect resources using the new raw data recording system.
 """
 
 import random
-from typing import List, Tuple, Any, Optional
+from typing import List, Tuple, Optional
 
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
-from econsim.observability.events import ResourceCollectionEvent
-from econsim.observability.observers import BaseObserver
+from econsim.observability.observers.memory_observer import MemoryObserver
+from econsim.observability.config import ObservabilityConfig
 
 
-class TestCollectionObserver(BaseObserver):
-    """Test observer that captures ResourceCollectionEvents."""
-    
-    def __init__(self):
-        self.events: List[ResourceCollectionEvent] = []
-    
-    def notify(self, event: Any) -> None:
-        """Capture ResourceCollectionEvent instances."""
-        if isinstance(event, ResourceCollectionEvent):
-            self.events.append(event)
-    
-    def flush_step(self, step: int) -> None:
-        """No-op for test observer."""
-        pass
-    
-    def close(self) -> None:
-        """No-op for test observer.""" 
-        pass
-
-
-def build_sim_with_observer(agent_positions: List[Tuple[int,int]], resources: Optional[List[Tuple[int, int, str]]] = None) -> Tuple[Simulation, TestCollectionObserver]:
+def build_sim_with_observer(agent_positions: List[Tuple[int,int]], resources: Optional[List[Tuple[int, int, str]]] = None) -> Tuple[Simulation, MemoryObserver]:
     """Build simulation with test observer for event capture."""
     cfg = SimConfig(
         grid_size=(6,6),
@@ -48,8 +31,9 @@ def build_sim_with_observer(agent_positions: List[Tuple[int,int]], resources: Op
     )
     sim = Simulation.from_config(cfg, agent_positions=agent_positions)
     
-    # Set up observer to capture events
-    observer = TestCollectionObserver()
+    # Set up memory observer to capture raw data events
+    obs_config = ObservabilityConfig()
+    observer = MemoryObserver(obs_config)
     sim._observer_registry.register(observer)
     
     return sim, observer
@@ -71,16 +55,19 @@ def test_collection_event_emission_decision_mode():
     for step_num in range(5):  # Give agent time to move and collect
         sim.step(rng)
         
-        # Check if we got an event
-        if len(observer.events) > 0:
-            event = observer.events[0]
+        # Check if we got a resource collection event using raw data architecture
+        all_events = observer.get_all_events()
+        resource_events = [e for e in all_events if e['type'] == 'resource_collection']
+        
+        if len(resource_events) > 0:
+            event = resource_events[0]
             
-            # Validate event fields
-            assert event.agent_id == 0, f"Expected agent_id=0, got {event.agent_id}"
-            assert event.x == 2, f"Expected x=2, got {event.x}"
-            assert event.y == 2, f"Expected y=2, got {event.y}"
-            assert event.resource_type == 'A', f"Expected resource_type='A', got {event.resource_type}"
-            assert event.step >= 0, f"Expected step >= 0, got {event.step}"
+            # Validate event fields using raw data format
+            assert event['agent_id'] == 0, f"Expected agent_id=0, got {event['agent_id']}"
+            assert event['x'] == 2, f"Expected x=2, got {event['x']}"
+            assert event['y'] == 2, f"Expected y=2, got {event['y']}"
+            assert event['resource_type'] == 'A', f"Expected resource_type='A', got {event['resource_type']}"
+            assert event['step'] >= 0, f"Expected step >= 0, got {event['step']}"
             return  # Test passed
     
     # If we get here, no events were captured
@@ -105,18 +92,21 @@ def test_collection_event_fields():
     rng = random.Random(789)
     for _ in range(10):
         sim.step(rng)
-        if len(observer.events) > 0:
+        all_events = observer.get_all_events()
+        resource_events = [e for e in all_events if e['type'] == 'resource_collection']
+        if len(resource_events) > 0:
             break
     
-    # Verify event structure
-    assert len(observer.events) >= 1, "Expected ResourceCollectionEvent"
-    event = observer.events[0]
+    # Verify event structure using raw data format
+    all_events = observer.get_all_events()
+    resource_events = [e for e in all_events if e['type'] == 'resource_collection']
+    assert len(resource_events) >= 1, "Expected resource collection event"
+    event = resource_events[0]
     
-    # Test to_dict method
-    event_dict = event.to_dict()
-    expected_keys = {'type', 'step', 'agent_id', 'x', 'y', 'resource_type'}
-    assert set(event_dict.keys()) == expected_keys, f"Expected keys {expected_keys}, got {set(event_dict.keys())}"
-    assert event_dict['type'] == 'resource_collection', f"Expected type='resource_collection', got {event_dict['type']}"
+    # Test raw data structure (event is already a dictionary)
+    expected_keys = {'type', 'step', 'agent_id', 'x', 'y', 'resource_type', 'amount_collected'}
+    assert set(event.keys()).issuperset(expected_keys), f"Expected keys {expected_keys}, got {set(event.keys())}"
+    assert event['type'] == 'resource_collection', f"Expected type='resource_collection', got {event['type']}"
 
 
 def test_no_collection_no_event():
@@ -128,6 +118,7 @@ def test_no_collection_no_event():
     rng = random.Random(999)
     sim.step(rng)
     
-    # Assert: No collection events should be emitted
-    collection_events = [e for e in observer.events if isinstance(e, ResourceCollectionEvent)]
-    assert len(collection_events) == 0, f"Expected no ResourceCollectionEvent, got {len(collection_events)}"
+    # Assert: No collection events should be emitted using raw data format
+    all_events = observer.get_all_events()
+    collection_events = [e for e in all_events if e['type'] == 'resource_collection']
+    assert len(collection_events) == 0, f"Expected no resource collection events, got {len(collection_events)}"

@@ -1,5 +1,7 @@
 **Goal**: Maintain a deterministic educational microeconomics simulation (PyQt6 + Pygame) while safely refactoring legacy systems. Economic coherence > visual consistency. Never add rollback/ghost state to "preserve hashes."
 
+**🚨 CRITICAL REFACTOR CONTEXT (October 2025)**: This codebase is undergoing a **comprehensive refactor pass**. All invariants, patterns, and architectural decisions are open to change during this process, but **ANY invariant change must be explicitly approved by the user first**. When proposing changes that affect determinism, performance baselines, API contracts, or core architectural patterns, always seek user approval before implementation.
+
 ### Architecture Overview
 **Core Loop**: PyQt6 QTimer (16ms) → `Simulation.step(ext_rng)` → `StepExecutor` pipeline (Movement → Collection → Trading → Metrics → Respawn) → Pygame blit → Qt paint
 
@@ -8,7 +10,7 @@
 - `src/econsim/gui/` - PyQt6 GUI with embedded Pygame surface  
 - `src/econsim/observability/` - Event system & logging infrastructure
 - `src/econsim/tools/launcher/` - Main GUI application entry point
-- `tests/` - Comprehensive test suite (436 tests) with performance baselines
+- `tests/` - Comprehensive test suite (533+ tests) with performance baselines
 - `baselines/` - Determinism hashes and performance references for validation
 - `MANUAL_TESTS/` - Interactive GUI test scenarios and launcher components
 
@@ -16,7 +18,7 @@
 ```bash
 make venv && source vmt-dev/bin/activate  # Create dev environment
 make launcher                             # Primary development interface (canonical)
-pytest -q                               # Run 436 tests for validation
+pytest -q                               # Run 533+ tests for validation
 make perf                               # Performance comparison vs baselines
 make token                              # Generate LLM token usage report
 ```
@@ -30,17 +32,40 @@ make token                              # Generate LLM token usage report
 - `make format` - Auto-format with Black + Ruff
 - `make token` - Generate LLM context token analysis report (see `llm_counter/`)
 
-**⚠️ LOGGING REWRITE PLANNING CONTEXT**:
-When working on logging-related code during this planning phase, focus on:
-- Schema design prototyping in `tmp_plans/` (not production code)
-- Extensibility validation and testing approaches
-- Performance analysis of compression strategies
-- **Avoid production changes** to existing logging pipeline until plan is finalized
+**⚠️ ACTIVE LOGGING ARCHITECTURE REWRITE (October 2025)**:
+**STATUS**: Raw Data Recording implementation in progress - Phases 1-2 complete, Phase 3+ in active development
+**APPROACH**: Zero-overhead raw dictionary storage replacing 6-layer transformation pipeline
+
+**Current Implementation Context**:
+- **Phase 1-2 COMPLETE**: `RawDataObserver`, `DataTranslator`, `RawDataWriter` implemented with 112 tests
+- **Phase 3+ ACTIVE**: Migrating simulation handlers from event objects to `observer.record_*()` calls
+- **Target**: <0.1% overhead (100x improvement), eliminate ~3500 lines of complex serialization
+- **Architecture**: Raw dictionaries → DataTranslator → Human-readable (on-demand only)
+
+**AI Agent Guidelines During Active Implementation**:
+- **DO** replace `Event.create()` calls with `observer.record_*()` direct dictionary storage
+- **DO** use raw data architecture for new event types (simple dictionary append)
+- **DO NOT** extend the legacy `optimized_serializer.py` 6-layer pipeline
+- **DO NOT** create new event classes - use raw dictionaries exclusively
+- **REFERENCE**: `tmp_plans/CURRENT/AAA/LOG_ARCHITECTURE_IMPLEMENTATION_CHECKLIST_RAW_DATA.md` for current status
 
 **Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
-### Simulation Construction Pattern
-**ALWAYS use factory method** - never direct instantiation:
+### Development Environment Setup
+**Virtual Environment Required**: Always use the canonical development setup to ensure consistent dependencies and avoid environment conflicts:
+```bash
+make venv                             # Creates vmt-dev/ virtual environment
+source vmt-dev/bin/activate           # Activate for development sessions
+make install                          # Install package in editable mode with dev dependencies
+```
+
+**Key Development Files**:
+- `pyproject.toml` - Modern Python packaging with setuptools>=68
+- `tests/conftest.py` - Global test fixtures with automatic trade flag cleanup
+- `Makefile` - Comprehensive development workflow automation
+
+### Simulation Construction Pattern ⚠️ REFACTOR-MUTABLE
+**Current pattern** - factory method (subject to refactor improvement):
 ```python
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
@@ -48,12 +73,18 @@ cfg = SimConfig(grid_size=(12,12), seed=123, enable_respawn=True, enable_metrics
 sim = Simulation.from_config(cfg, agent_positions=[(0,0)])
 ```
 
-### Critical Determinism Invariants
+**⚠️ REFACTOR PROTOCOL**: If you identify improvements to the construction pattern, propose changes to the user before implementing.
+
+### Critical Determinism Invariants ⚠️ REFACTOR-MUTABLE
+**Note**: During comprehensive refactor, these invariants may change with user approval.
+
 1. Resources: iterate only via `Grid.iter_resources_sorted()`
 2. Selection tie-breaking: `(-ΔU, distance, x, y)`; trade priority: `(-ΔU, seller_id, buyer_id, give_type, take_type)`
 3. Agent order: preserve original list order within each step (no mid-step resorting)
 4. RNG separation: external `step(ext_rng)` parameter vs internal `_rng` (no extra draws)
 5. Trade execution: maximum one executed trade per step when enabled
+
+**⚠️ REFACTOR PROTOCOL**: If you identify opportunities to improve these invariants (performance, clarity, maintainability), propose the change to the user with rationale before implementing.
 
 ### Modular Handler Architecture
 **Add new step logic**: Create handlers in `simulation/execution/handlers/` subclassing `BaseStepHandler`. Never expand `Simulation.step()` directly.
@@ -86,23 +117,22 @@ Handler pattern:
 
 **Current Architecture**: Use `FileObserver`, `EducationalObserver`, `PerformanceObserver` with `ObserverRegistry` for all logging needs.
 
-**CRITICAL LOGGING CONSTRAINT**: The current `optimized_serializer.py` system (~1500 lines) has a 6-layer transformation pipeline that is complex and fragile. **MAJOR ARCHITECTURAL REWRITE IN PLANNING PHASE**:
+**CRITICAL LOGGING CONSTRAINT**: The current `optimized_serializer.py` system (~1500 lines) has a 6-layer transformation pipeline that is complex and fragile. **MAJOR ARCHITECTURAL REWRITE IN ACTIVE IMPLEMENTATION**:
 
-**Current Problems**:
+**Legacy Problems Being Eliminated**:
 - 6-layer pipeline: `SimulationEvent → Buffer → Dictionary → Optimize → Compress → Semantic → JSON`
 - Field transformation hell: `seller_id` → `sid` → `seller_id:1` → `sid:1`
 - Multiple serializer classes creating debugging nightmares
 
-**Planned Solution - Source-Level Compression**:
-- **Direct emission**: `SimulationEvent → Observer → Compressed JSON → File`
-- **Schema-driven**: Declarative event definitions auto-generate compression
-- **Extensibility-first**: Adding new fields = 1 line in schema
+**Current Solution Implementation - Raw Data Recording**:
+- **Direct storage**: `observer.record_trade(dict)` → Raw dictionary storage → File
+- **Zero overhead**: No processing during simulation, only storage
+- **On-demand translation**: `DataTranslator` provides human-readable format when needed
 
-**AI Agent Guidelines During Planning Phase**:
-- **DO NOT** extend existing `optimized_serializer.py` pipeline
-- **DO NOT** add new buffer transformation layers
-- **DO** focus on schema design and compression engine prototyping
-- **DO** prioritize extensibility over immediate performance optimization
+**Implementation Status**:
+- ✅ **Phase 1-2 Complete**: `RawDataObserver`, `DataTranslator`, `RawDataWriter` with 112 tests
+- 🚧 **Phase 3+ Active**: Replacing event objects with raw dictionary recording in simulation handlers
+- 🎯 **Target Architecture**: Raw dict storage + optional translation (100x performance improvement)
 
 ### Launcher Architecture
 **Primary Interface**: `make launcher` provides comprehensive test management with modular design
@@ -127,7 +157,22 @@ Handler pattern:
 
 **Hash invariant**: Excludes trade & debug metrics. Behavioral changes require: (1) focused test, (2) baseline refresh with commit message explaining WHAT + WHY.
 
+**⚠️ REFACTOR CONTEXT**: During comprehensive refactor, baseline changes may be more frequent. Always document rationale and get user approval for changes that affect core determinism or performance characteristics.
+
 **Test Structure**: Use `tests/conftest.py` fixtures - `clear_trade_flags` and `reset_forage_flag` ensure clean test isolation. All tests use factory construction pattern via `SimConfig`.
+
+**Performance Validation Workflow**:
+```bash
+pytest -q                    # Run full test suite (533+ tests)
+make perf                    # Compare performance against baselines  
+make baseline-capture        # Capture new baselines (requires justification)
+```
+
+**Test Organization**:
+- `tests/unit/` - Component-level tests with determinism validation
+- `tests/integration/` - Cross-component behavior verification
+- `tests/performance/` - Baseline capture and regression detection
+- `MANUAL_TESTS/` - Interactive GUI scenarios for launcher testing
 
 ### Feature Flags (Active)
 **Core Behavior**:
@@ -164,31 +209,37 @@ Handler pattern:
 - **Launcher architecture modern** - `make launcher` is canonical development interface with modular design
 - **Technical debt reduced 85%** - From 289 legacy references to ~15 minor launcher framework cleanup items
 
-### ⚠️ ACTIVE PLANNING: Logging Architecture Rewrite
-**STATUS**: Major logging system rewrite in planning phase (Oct 2025)
-**PROBLEM**: Current 6-layer transformation pipeline (~1500 lines) is unmaintainable
-**SOLUTION**: Schema-driven source-level compression with extensibility-first design
+### ⚠️ ACTIVE IMPLEMENTATION: Raw Data Recording Architecture Rewrite
+**STATUS**: Major logging system rewrite in active implementation (Oct 2025)
+**SOLUTION**: Zero-overhead raw dictionary storage with on-demand translation
 
-**Key Planning Decisions**:
-- ✅ **Migration Strategy**: Clean rewrite (not incremental)
-- ✅ **Performance**: Hardcoded compression for hot path
-- ✅ **Compatibility**: No backward compatibility required
-- ⚠️ **Validation Strategy**: Needs detailed design (compile-time vs runtime)
+**Implementation Progress**:
+- ✅ **Phase 1-2 COMPLETE**: Core architecture implemented (112 tests passing)
+  - ✅ `RawDataObserver` - Zero-overhead storage with `record_*()` methods
+  - ✅ `DataTranslator` - Human-readable translation layer  
+  - ✅ `RawDataWriter` - Disk persistence with compression
+  - ✅ All 7 observers migrated to raw data architecture
+- 🚧 **Phase 3+ ACTIVE**: Simulation handler migration in progress
+  - 🚧 Replace `Event.create()` calls with `observer.record_*()` calls
+  - 🚧 Update trading, mode change, resource collection handlers
+  - 🚧 Migrate debug logging and performance monitoring
 
-**Planning Priorities**:
-1. **Schema format design** - Declarative event type definitions
-2. **Compression engine** - Auto-generate emission methods from schemas
-3. **Validation framework** - Data integrity without performance cost
-4. **Extensibility validation** - Test adding new event types/fields
+**Current Implementation Priorities**:
+1. **Handler Migration** - Replace event objects with raw dict recording
+2. **GUI Integration** - Real-time translation for display components  
+3. **Legacy Cleanup** - Remove ~3500 lines of complex serialization code
+4. **Performance Validation** - Achieve <0.1% overhead target (100x improvement)
 
 ### Common Pitfalls
 - Resorting agents mid-step (breaks determinism)
-- Iterating unsorted resource containers
+- Iterating unsorted resource containers  
 - Multiple trade executions per step
 - Hidden RNG draws in new code
 - Per-frame heavy allocations
 - Direct GUI calls from simulation
 - Raw agent mode assignments (use `_set_mode`)
+
+**⚠️ REFACTOR EXCEPTION**: During comprehensive refactor, these "pitfalls" may become intentional changes if they improve the architecture. Always propose such changes to the user with clear rationale before implementing.
 
 ### Key Files for Understanding
 - `simulation/world.py` - Main orchestration (70-line step method)

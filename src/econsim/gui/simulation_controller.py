@@ -508,38 +508,15 @@ class SimulationController:
         # If we have a new step, check for new trades
         if current_step > self._last_checked_step:
             try:
-                # Use observer events for trade debugging (replacing legacy log_trade)
-                try:
-                    from ..observability.observer_logger import get_global_observer_logger
-                    from ..observability.events import DebugLogEvent
-                    
-                    logger = get_global_observer_logger()
-                    if logger is not None:
-                        last_trade = mc.last_executed_trade
-                        # DEBUG: Trade detection logic and delta utility values
-                        logger.observer_registry.notify(DebugLogEvent.create(
-                            step=current_step, category="trade_detection", 
-                            message=f"current_step={current_step}, last_checked_step={self._last_checked_step}"))
-                        logger.observer_registry.notify(DebugLogEvent.create(
-                            step=current_step, category="trade_detection", 
-                            message=f"last_trade={last_trade}"))
-                except Exception:  # pragma: no cover
-                    pass
+                # GUI debug logging removed - will be rebuilt with current architecture if needed
                 
                 last_trade = mc.last_executed_trade
                 
                 if (last_trade and 
                     last_trade.get('step', -1) > self._last_checked_step):
                     
-                    # DEBUG: Check the raw delta_utility value
+                    # DEBUG: Check the raw delta_utility value - logging removed
                     raw_delta_u = last_trade.get('delta_utility', 0)
-                    # Debug via observer events
-                    try:
-                        if logger is not None:
-                            logger.observer_registry.notify(DebugLogEvent.create(
-                                step=current_step, category="trade_detection", 
-                                message=f"Raw delta_utility from metrics: {raw_delta_u} (type: {type(raw_delta_u)})"))
-                    except: pass
                     
                     # Format trade for display (use trade's actual step, not current step)
                     trade_step = last_trade.get('step', current_step)

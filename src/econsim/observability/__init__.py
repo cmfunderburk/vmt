@@ -24,11 +24,7 @@ Usage:
     registry.notify(event)
 """
 
-from .events import (
-    SimulationEvent, AgentModeChangeEvent, ResourceCollectionEvent, 
-    TradeExecutionEvent, DebugLogEvent, PerformanceMonitorEvent,
-    AgentDecisionEvent, ResourceEvent, GUIDisplayEvent
-)
+from .events import SimulationEvent
 from .observers import BaseObserver  
 from .registry import ObserverRegistry
 from .config import ObservabilityConfig
@@ -36,22 +32,11 @@ from .observer_logger import (
     ObserverLogger, get_observer_logger, 
     get_global_observer_logger, initialize_global_observer_logger
 )
-from .serializers import (
-    OptimizedEventSerializer, OptimizedLogWriter,
-    create_optimized_serializer, create_optimized_log_writer
-)
+# PHASE 5.2: Serializers directory removed - using raw data architecture
 
 __all__ = [
-    # Core events
-    "SimulationEvent", 
-    "AgentModeChangeEvent",
-    "ResourceCollectionEvent", 
-    "TradeExecutionEvent",
-    "DebugLogEvent",
-    "PerformanceMonitorEvent",
-    "AgentDecisionEvent",
-    "ResourceEvent",
-    "GUIDisplayEvent",
+    # Core events (Phase 5.1 - Only base class preserved for type annotations)
+    "SimulationEvent",
     # Core infrastructure
     "BaseObserver", 
     "ObserverRegistry",
@@ -61,9 +46,5 @@ __all__ = [
     "get_observer_logger",
     "get_global_observer_logger",
     "initialize_global_observer_logger",
-    # Optimized serialization
-    "OptimizedEventSerializer",
-    "OptimizedLogWriter",
-    "create_optimized_serializer",
-    "create_optimized_log_writer",
+    # Raw data architecture (Phase 5.2 - Serializers removed for 100x performance)
 ]

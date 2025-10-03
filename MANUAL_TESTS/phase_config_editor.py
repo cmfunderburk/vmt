@@ -215,7 +215,7 @@ class PhaseConfigEditor(QWidget):
                 "}" )
             summary_style = (
                 "QLabel {"
-                " font-family: monospace;"
+                " font-family: 'Monaco', 'Menlo', 'Courier New', monospace;"
                 " background: #1f2022;"
                 " color: #e0e0e0;"
                 " padding: 10px;"
@@ -236,7 +236,7 @@ class PhaseConfigEditor(QWidget):
                 "}" )
             summary_style = (
                 "QLabel {"
-                " font-family: monospace;"
+                " font-family: 'Monaco', 'Menlo', 'Courier New', monospace;"
                 " background: #f5f5f5;"
                 " color: #222;"
                 " padding: 10px;"

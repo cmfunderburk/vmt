@@ -22,19 +22,21 @@ class AgentEventEmitter:
         observer_registry: Optional['ObserverRegistry'] = None,
         event_buffer: Optional['StepEventBuffer'] = None
     ) -> None:
-        """Emit agent mode change event."""
+        """Emit agent mode change event using raw data architecture."""
         if event_buffer is not None:
             event_buffer.queue_mode_change(self.agent_id, old_mode, new_mode, reason)
         elif observer_registry:
-            from econsim.observability.events import AgentModeChangeEvent
-            event = AgentModeChangeEvent.create(
-                step=step_number,
-                agent_id=self.agent_id,
-                old_mode=old_mode,
-                new_mode=new_mode,
-                reason=reason
-            )
-            observer_registry.notify(event)
+            # Record mode change using raw data architecture
+            # Call record_mode_change() on all observers that support raw data recording
+            for observer in observer_registry._observers:
+                if hasattr(observer, 'record_mode_change'):
+                    observer.record_mode_change(
+                        step=step_number,
+                        agent_id=self.agent_id,
+                        old_mode=old_mode,
+                        new_mode=new_mode,
+                        reason=reason
+                    )
     
     def emit_resource_collection(
         self,
@@ -44,15 +46,17 @@ class AgentEventEmitter:
         step: int,
         observer_registry: Optional['ObserverRegistry'] = None
     ) -> None:
-        """Emit resource collection event."""
+        """Emit resource collection event using raw data architecture."""
         if observer_registry:
-            from econsim.observability.events import ResourceCollectionEvent
-            event = ResourceCollectionEvent.create(
-                step=step,
-                agent_id=self.agent_id,
-                x=x,
-                y=y,
-                resource_type=resource_type,
-                amount_collected=1
-            )
-            observer_registry.notify(event)
+            # Record resource collection using raw data architecture
+            # Call record_resource_collection() on all observers that support raw data recording
+            for observer in observer_registry._observers:
+                if hasattr(observer, 'record_resource_collection'):
+                    observer.record_resource_collection(
+                        step=step,
+                        agent_id=self.agent_id,
+                        x=x,
+                        y=y,
+                        resource_type=resource_type,
+                        amount_collected=1
+                    )

@@ -91,12 +91,8 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._on_tick)  # type: ignore[arg-type]
         
-        # Initialize observer logger when simulation timer starts (replacing legacy GUI logger)
-        # Observer pattern handles debug events without requiring explicit file initialization
-        if simulation is not None:
-            from ..observability.observer_logger import get_global_observer_logger
-            logger = get_global_observer_logger()
-            # Observer logger is ready to use immediately, no initialization needed
+        # GUI logging now uses file-based approach (decoupled from simulation observer system)
+        # No observer logger initialization needed - GUI logs directly to files
         
         self._timer.start(self.FRAME_INTERVAL_MS)
         self._closed = False  # guard to stop ticks after close
@@ -248,30 +244,10 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             import os as _os_dbg
             if _os_dbg.environ.get("ECONSIM_DEBUG_FPS") == "1":
                 fps = self._frame / (now - self._start)
-                # Use observer events for performance logging (replacing legacy debug_logger)
-                agent_count = len(getattr(self._simulation, 'agents', []))
-                try:
-                    from ..observability.observer_logger import get_global_observer_logger
-                    from ..observability.events import PerformanceMonitorEvent
-                    
-                    logger = get_global_observer_logger()
-                    if logger is not None:
-                        # Estimate step time and render time (simplified for FPS reporting)
-                        step_time = 1.0 / fps if fps > 0 else 0.0
-                        resource_count = 0  # Simplified: avoid complex grid iteration for FPS logging
-                        
-                        # Emit performance monitor event
-                        perf_event = PerformanceMonitorEvent.create(
-                            step=0,  # GUI performance events don't have specific simulation step
-                            metric_name="fps",
-                            metric_value=fps,
-                            details=f"agents={agent_count} step_time={step_time:.6f} render_time=0.0"
-                        )
-                        logger.observer_registry.notify(perf_event)
-                except Exception:  # pragma: no cover
-                    pass  # Graceful degradation when observer system not available
+                # GUI performance logging removed - will be rebuilt with current architecture if needed
                 
                 # Minimal stdout emission required by test_fps_logging_gate ([FPS] token presence)
+                agent_count = len(getattr(self._simulation, 'agents', []))
                 try:
                     print(f"[FPS] {fps:.2f} agents={agent_count}")
                 except Exception:

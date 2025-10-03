@@ -1,21 +1,24 @@
-"""GUI Event Observer for translating simulation events to GUI updates.
+"""GUI Event Observer using raw data architecture for translating simulation events to GUI updates.
 
 This module implements comprehensive GUI observers that handle all simulation events
-and translate them into GUI display updates without creating circular dependencies.
-The observers provide event-to-display mapping and efficient GUI update batching.
+and translate them into GUI display updates using the new raw data recording
+architecture for zero-overhead performance.
 
 Features:
+- Zero-overhead raw data recording during simulation
+- Deferred GUI translation using DataTranslator
 - Comprehensive event-to-GUI mapping
 - Efficient display update batching
 - Performance monitoring for GUI responsiveness
 - Event filtering for GUI-relevant information
 - Minimal coupling between simulation and GUI layers
+- Raw data storage with human-readable translation on demand
 
 Architecture:
-- GUIEventObserver: Main GUI event handler
+- GUIEventObserver: Main GUI event handler using raw data architecture
 - DisplayUpdateBatcher: Batches GUI updates for performance
 - EventToDisplayMapper: Maps events to display elements
-- GUIPerformanceMonitor: Tracks GUI responsiveness
+- GUIPerformanceMonitor: Tracks GUI responsiveness using raw data
 """
 
 from __future__ import annotations
@@ -26,6 +29,8 @@ from typing import Dict, List, Any, Optional, Callable, Set, Union, TYPE_CHECKIN
 from dataclasses import dataclass, field
 
 from ..observers.base_observer import BaseObserver
+from ..raw_data.raw_data_observer import RawDataObserver
+from ..raw_data.data_translator import DataTranslator
 from ..events import (
     SimulationEvent, AgentModeChangeEvent, TradeExecutionEvent,
     ResourceCollectionEvent, DebugLogEvent, PerformanceMonitorEvent,
@@ -411,21 +416,29 @@ class DisplayUpdateBatcher:
         return update_count
 
 
-class GUIEventObserver(BaseObserver):
-    """Comprehensive GUI event observer for simulation-to-GUI translation.
+class GUIEventObserver(BaseObserver, RawDataObserver):
+    """Comprehensive GUI event observer using raw data architecture for simulation-to-GUI translation.
     
     Handles all simulation events and converts them to appropriate GUI
-    updates while maintaining performance and clean architecture.
+    updates using zero-overhead raw data recording while maintaining performance and clean architecture.
+    
+    Architecture:
+    - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
+    - Uses DataTranslator for converting raw data to GUI-ready format
+    - Zero-overhead recording during simulation, GUI translation deferred to when needed
+    - Raw data storage with human-readable translation on demand
     """
     
     def __init__(self, config: ObservabilityConfig, gui_reference: Optional[Any] = None):
-        """Initialize GUI event observer.
+        """Initialize GUI event observer with raw data architecture.
         
         Args:
             config: Observer configuration
             gui_reference: Optional reference to main GUI window
         """
-        super().__init__(config)
+        # Initialize both parent classes
+        BaseObserver.__init__(self, config)
+        RawDataObserver.__init__(self)
         
         self.gui_reference = gui_reference
         self.event_mapper = EventToDisplayMapper()
@@ -437,6 +450,9 @@ class GUIEventObserver(BaseObserver):
         
         # Event filtering for GUI relevance
         self._setup_gui_event_filtering()
+        
+        # Initialize data translator for GUI translation
+        self._data_translator = DataTranslator()
         
         # Connect batcher to GUI updates
         if gui_reference:
@@ -454,50 +470,135 @@ class GUIEventObserver(BaseObserver):
             self.enable_event_type(event_type)
     
     def notify(self, event: SimulationEvent) -> None:
-        """Process simulation event and generate GUI updates.
+        """Handle a simulation event by recording raw data.
+        
+        This method now uses the raw data recording architecture for zero-overhead
+        performance. Events are stored as raw dictionaries with no processing.
+        GUI translation is deferred to when GUI updates are actually needed.
         
         Args:
-            event: Simulation event to process
+            event: The simulation event to log
         """
         if not self.is_enabled(event.event_type):
             return
         
-        start_time = time.perf_counter()
+        # Extract raw data from event and record using appropriate method
+        step = getattr(event, 'step', 0)
         
-        try:
-            # Convert event to display updates
-            updates = self.event_mapper.map_event_to_updates(event)
-            
-            # Queue updates for batched processing  
-            for update in updates:
-                self.update_batcher.queue_update(update)
-            
-            # Update metrics
-            self.metrics.events_processed += 1
-            self.metrics.updates_generated += len(updates)
-            
-        except Exception as e:
-            print(f"Warning: GUI event processing failed for {event.event_type}: {e}")
+        if event.event_type == 'trade_execution':
+            self.record_trade(
+                step=step,
+                seller_id=getattr(event, 'seller_id', -1),
+                buyer_id=getattr(event, 'buyer_id', -1),
+                give_type=getattr(event, 'give_type', ''),
+                take_type=getattr(event, 'take_type', ''),
+                delta_u_seller=getattr(event, 'delta_u_seller', 0.0),
+                delta_u_buyer=getattr(event, 'delta_u_buyer', 0.0),
+                trade_location_x=getattr(event, 'trade_location_x', -1),
+                trade_location_y=getattr(event, 'trade_location_y', -1)
+            )
+        elif event.event_type == 'agent_mode_change':
+            self.record_mode_change(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                old_mode=getattr(event, 'old_mode', ''),
+                new_mode=getattr(event, 'new_mode', ''),
+                reason=getattr(event, 'reason', '')
+            )
+        elif event.event_type == 'resource_collection':
+            self.record_resource_collection(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                x=getattr(event, 'x', -1),
+                y=getattr(event, 'y', -1),
+                resource_type=getattr(event, 'resource_type', ''),
+                amount_collected=getattr(event, 'amount_collected', 1),
+                utility_gained=getattr(event, 'utility_gained', 0.0),
+                carrying_after=getattr(event, 'carrying_after', None)
+            )
+        elif event.event_type == 'agent_decision':
+            self.record_agent_decision(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                decision_type=getattr(event, 'decision_type', ''),
+                decision_details=getattr(event, 'decision_details', ''),
+                utility_delta=getattr(event, 'utility_delta', 0.0),
+                position_x=getattr(event, 'position_x', -1),
+                position_y=getattr(event, 'position_y', -1)
+            )
+        elif event.event_type == 'debug_log':
+            self.record_debug_log(
+                step=step,
+                category=getattr(event, 'category', ''),
+                message=getattr(event, 'message', ''),
+                agent_id=getattr(event, 'agent_id', -1)
+            )
+        elif event.event_type == 'performance_monitor':
+            self.record_performance_monitor(
+                step=step,
+                metric_name=getattr(event, 'metric_name', ''),
+                metric_value=getattr(event, 'metric_value', 0.0),
+                threshold_exceeded=getattr(event, 'threshold_exceeded', False),
+                details=getattr(event, 'details', '')
+            )
+        elif event.event_type == 'resource_event':
+            self.record_resource_event(
+                step=step,
+                event_type_detail=getattr(event, 'event_type_detail', ''),
+                position_x=getattr(event, 'position_x', -1),
+                position_y=getattr(event, 'position_y', -1),
+                resource_type=getattr(event, 'resource_type', ''),
+                amount=getattr(event, 'amount', 1),
+                agent_id=getattr(event, 'agent_id', -1)
+            )
+        else:
+            # For unknown event types, record as generic debug log
+            self.record_debug_log(
+                step=step,
+                category='UNKNOWN_EVENT',
+                message=f"Unknown event type: {event.event_type}",
+                agent_id=-1
+            )
         
-        # Track processing performance
-        processing_time = time.perf_counter() - start_time
-        self._processing_times.append(processing_time)
-        
-        # Update performance metrics
-        if self._processing_times:
-            self.metrics.average_processing_time = sum(self._processing_times) / len(self._processing_times)
-            self.metrics.peak_processing_time = max(self._processing_times)
+        # Update metrics
+        self.metrics.events_processed += 1
     
     def flush_step(self, step: int) -> None:
-        """Handle step boundary and flush pending updates.
+        """Handle end-of-step boundary with zero overhead.
+        
+        In the raw data architecture, no processing is done at step boundaries.
+        All data is stored in memory and GUI translation is performed only when needed.
         
         Args:
-            step: Simulation step that just completed
+            step: The simulation step that just completed
         """
-        # Flush any remaining updates
-        updates_processed = self.update_batcher.flush_updates()
-        if updates_processed > 0:
-            self.metrics.batches_flushed += 1
+        # Zero overhead - no processing during simulation
+        # Raw data is stored in memory and GUI translation is deferred
+        pass
+    
+    def get_observer_stats(self) -> Dict[str, Any]:
+        """Get GUI event observer statistics.
+        
+        Returns:
+            Dictionary containing GUI event observer metrics
+        """
+        base_stats = super().get_observer_stats()
+        raw_data_stats = self.get_statistics()
+        
+        gui_stats = {
+            'observer_type': 'gui_event',
+            'events_processed': self.metrics.events_processed,
+            'updates_generated': self.metrics.updates_generated,
+            'batches_flushed': self.metrics.batches_flushed,
+            'average_processing_time': self.metrics.average_processing_time,
+            'peak_processing_time': self.metrics.peak_processing_time,
+            'gui_lag_ms': self.metrics.gui_lag_ms,
+            'raw_data_events': raw_data_stats['total_events'],
+            'raw_data_types': list(raw_data_stats['event_types']),
+            'step_range': raw_data_stats['step_range'],
+        }
+        
+        return {**base_stats, **gui_stats}
     
     def _apply_gui_updates(self, updates: List[DisplayUpdate]) -> None:
         """Apply batched display updates to GUI elements.
@@ -655,20 +756,28 @@ class GUIEventObserver(BaseObserver):
         self.event_mapper.register_mapping(event_type, handler)
 
 
-class GUIPerformanceMonitor(BaseObserver):
-    """Specialized observer for monitoring GUI performance and responsiveness.
+class GUIPerformanceMonitor(BaseObserver, RawDataObserver):
+    """Specialized observer using raw data architecture for monitoring GUI performance and responsiveness.
     
     Tracks GUI-specific performance metrics including update latency,
-    event processing overhead, and responsiveness indicators.
+    event processing overhead, and responsiveness indicators using zero-overhead raw data recording.
+    
+    Architecture:
+    - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
+    - Uses DataTranslator for converting raw data to analysis-ready format
+    - Zero-overhead recording during simulation, analysis deferred to when needed
+    - Raw data storage with human-readable translation on demand
     """
     
     def __init__(self, config: ObservabilityConfig):
-        """Initialize GUI performance monitor.
+        """Initialize GUI performance monitor with raw data architecture.
         
         Args:
             config: Observer configuration
         """
-        super().__init__(config)
+        # Initialize both parent classes
+        BaseObserver.__init__(self, config)
+        RawDataObserver.__init__(self)
         
         self.gui_metrics = {
             "total_gui_events": 0,
@@ -680,56 +789,119 @@ class GUIPerformanceMonitor(BaseObserver):
         
         self._gui_processing_times: deque[float] = deque(maxlen=1000)
         self._lag_threshold_ms = 16.0  # 60 FPS threshold
+        
+        # Initialize data translator for analysis
+        self._data_translator = DataTranslator()
     
     def notify(self, event: SimulationEvent) -> None:
-        """Monitor GUI-relevant event processing.
+        """Handle a simulation event by recording raw data.
+        
+        This method now uses the raw data recording architecture for zero-overhead
+        performance. Events are stored as raw dictionaries with no processing.
+        GUI performance analysis is deferred to when data is actually needed.
         
         Args:
-            event: Simulation event being processed
+            event: The simulation event to log
         """
         if not self.is_enabled(event.event_type):
             return
         
-        start_time = time.perf_counter()
+        # Extract raw data from event and record using appropriate method
+        step = getattr(event, 'step', 0)
         
-        # Track GUI-relevant events
-        gui_relevant_events = {
-            "agent_mode_change", "trade_execution", "resource_collection",
-            "performance_monitor", "debug_log"
-        }
+        if event.event_type == 'trade_execution':
+            self.record_trade(
+                step=step,
+                seller_id=getattr(event, 'seller_id', -1),
+                buyer_id=getattr(event, 'buyer_id', -1),
+                give_type=getattr(event, 'give_type', ''),
+                take_type=getattr(event, 'take_type', ''),
+                delta_u_seller=getattr(event, 'delta_u_seller', 0.0),
+                delta_u_buyer=getattr(event, 'delta_u_buyer', 0.0),
+                trade_location_x=getattr(event, 'trade_location_x', -1),
+                trade_location_y=getattr(event, 'trade_location_y', -1)
+            )
+        elif event.event_type == 'agent_mode_change':
+            self.record_mode_change(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                old_mode=getattr(event, 'old_mode', ''),
+                new_mode=getattr(event, 'new_mode', ''),
+                reason=getattr(event, 'reason', '')
+            )
+        elif event.event_type == 'resource_collection':
+            self.record_resource_collection(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                x=getattr(event, 'x', -1),
+                y=getattr(event, 'y', -1),
+                resource_type=getattr(event, 'resource_type', ''),
+                amount_collected=getattr(event, 'amount_collected', 1),
+                utility_gained=getattr(event, 'utility_gained', 0.0),
+                carrying_after=getattr(event, 'carrying_after', None)
+            )
+        elif event.event_type == 'debug_log':
+            self.record_debug_log(
+                step=step,
+                category=getattr(event, 'category', ''),
+                message=getattr(event, 'message', ''),
+                agent_id=getattr(event, 'agent_id', -1)
+            )
+        elif event.event_type == 'performance_monitor':
+            self.record_performance_monitor(
+                step=step,
+                metric_name=getattr(event, 'metric_name', ''),
+                metric_value=getattr(event, 'metric_value', 0.0),
+                threshold_exceeded=getattr(event, 'threshold_exceeded', False),
+                details=getattr(event, 'details', '')
+            )
+        else:
+            # For unknown event types, record as generic debug log
+            self.record_debug_log(
+                step=step,
+                category='UNKNOWN_EVENT',
+                message=f"Unknown event type: {event.event_type}",
+                agent_id=-1
+            )
         
-        if event.event_type in gui_relevant_events:
-            self.gui_metrics["total_gui_events"] += 1
-            
-            # Simulate GUI processing time (in real implementation, this would
-            # measure actual GUI update time)
-            processing_time = time.perf_counter() - start_time
-            self._gui_processing_times.append(processing_time * 1000)  # Convert to ms
-            
-            self.gui_metrics["gui_processing_time"] += processing_time
-            
-            # Check for performance issues
-            if processing_time * 1000 > self._lag_threshold_ms:
-                self.gui_metrics["gui_lag_warnings"] += 1
-            
-            # Track peak latency
-            current_latency = processing_time * 1000
-            if current_latency > self.gui_metrics["peak_gui_latency"]:
-                self.gui_metrics["peak_gui_latency"] = current_latency
+        # Update metrics
+        self.gui_metrics["total_gui_events"] += 1
     
     def flush_step(self, step: int) -> None:
-        """Process step boundary for GUI performance analysis.
+        """Handle end-of-step boundary with zero overhead.
+        
+        In the raw data architecture, no processing is done at step boundaries.
+        All data is stored in memory and GUI performance analysis is performed only when needed.
         
         Args:
-            step: Simulation step that completed
+            step: The simulation step that just completed
         """
-        # Calculate rolling GUI performance metrics
-        if self._gui_processing_times and step % 10 == 0:  # Every 10 steps
-            avg_latency = sum(self._gui_processing_times) / len(self._gui_processing_times)
-            
-            # Emit performance warning if GUI is lagging
-            if avg_latency > self._lag_threshold_ms:
-                print(f"Warning: GUI performance degraded - avg latency {avg_latency:.2f}ms")
+        # Zero overhead - no processing during simulation
+        # Raw data is stored in memory and analysis is deferred
+        pass
+    
+    def get_observer_stats(self) -> Dict[str, Any]:
+        """Get GUI performance monitor statistics.
+        
+        Returns:
+            Dictionary containing GUI performance monitor metrics
+        """
+        base_stats = super().get_observer_stats()
+        raw_data_stats = self.get_statistics()
+        
+        gui_perf_stats = {
+            'observer_type': 'gui_performance',
+            'total_gui_events': self.gui_metrics["total_gui_events"],
+            'gui_processing_time': self.gui_metrics["gui_processing_time"],
+            'gui_update_count': self.gui_metrics["gui_update_count"],
+            'gui_lag_warnings': self.gui_metrics["gui_lag_warnings"],
+            'peak_gui_latency': self.gui_metrics["peak_gui_latency"],
+            'raw_data_events': raw_data_stats['total_events'],
+            'raw_data_types': list(raw_data_stats['event_types']),
+            'step_range': raw_data_stats['step_range'],
+        }
+        
+        return {**base_stats, **gui_perf_stats}
     
     def get_performance_report(self) -> Dict[str, Any]:
         """Get comprehensive GUI performance report.

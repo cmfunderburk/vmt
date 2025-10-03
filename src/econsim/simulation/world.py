@@ -45,23 +45,25 @@ import os
 
 # Observer system imports (Phase 1.3: Observer Foundation)
 from ..observability.registry import ObserverRegistry
-from ..observability.events import AgentModeChangeEvent
+# PHASE 5.1/5.2: Event classes removed - using raw data architecture
 from ..observability.event_buffer import StepEventBuffer
 
 
 def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "", 
                           observer_registry: Optional[ObserverRegistry] = None, step: int = 0) -> None:
-    """Log agent mode transitions using observer system (Phase 1.3: Breaking circular dependency)."""
+    """Log agent mode transitions using raw data architecture."""
     if observer_registry and observer_registry.has_observers():
-        # Use new observer-based event system
-        event = AgentModeChangeEvent.create(
-            step=step,
-            agent_id=agent.id,
-            old_mode=old_mode.value,
-            new_mode=new_mode.value,
-            reason=reason
-        )
-        observer_registry.notify(event)
+        # Record mode change using raw data architecture
+        # Call record_mode_change() on all observers that support raw data recording
+        for observer in observer_registry._observers:
+            if hasattr(observer, 'record_mode_change'):
+                observer.record_mode_change(
+                    step=step,
+                    agent_id=agent.id,
+                    old_mode=old_mode.value,
+                    new_mode=new_mode.value,
+                    reason=reason
+                )
     # Note: Legacy fallback removed - observer system is now required for mode change logging
 
 
@@ -158,8 +160,8 @@ class Simulation:
         # Execute step through handler system
         step_metrics = self._step_executor.execute_step(context)
         
-        # Flush buffered events to observers after step completion
-        events_processed = self._event_buffer.end_step(self._observer_registry)
+        # Raw data architecture: Events are recorded directly by handlers via observer.record_*() calls
+        # No event buffer needed - zero overhead recording during simulation
         self.last_step_metrics = step_metrics  # store for tests/analytics (excluded from hash logic)
 
         # Update determinism metrics/hash (must occur before step counter increment to preserve historical ordering semantics)
@@ -255,28 +257,23 @@ class Simulation:
                 trade_logging=True,  # Enable trade logging for economic events
             )
             
-            # Create file observer for economic events
-            economic_events_file = file_manager.get_economic_events_file()
-            file_observer = FileObserver(
+            # Create comprehensive observer for all simulation events
+            log_dir = file_manager.get_economic_events_file().parent
+            simulation_events_file = log_dir / "simulation_events.jsonl"
+            comprehensive_observer = FileObserver(
                 config=observability_config,
-                output_path=economic_events_file,
-                buffer_size=economic_config.buffer_size,
-                format=economic_config.format,
-                use_optimized_format=economic_config.use_optimized_format,
+                output_path=simulation_events_file,
+                format='jsonl',  # Raw data architecture uses JSON lines format
+                compress=False,  # Default to uncompressed for easier inspection
             )
             
-            # Set simulation start time for relative timestamps
-            import time
-            simulation_start_time = time.time()
-            file_observer.set_simulation_start_time(simulation_start_time)
-            
-            # Register the file observer
-            self._observer_registry.register(file_observer)
+            # Register the comprehensive observer
+            self._observer_registry.register(comprehensive_observer)
             
             # Store file manager for later use
             self._economic_file_manager = file_manager
             
-            print(f"Economic logging enabled: {economic_events_file}")
+            print(f"Comprehensive simulation logging enabled: {simulation_events_file}")
             
         except Exception as e:
             print(f"Warning: Failed to set up economic logging: {e}")

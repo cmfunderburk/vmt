@@ -201,7 +201,7 @@ class CustomTestCardWidget(QFrame):  # pragma: no cover - GUI component extracte
         # File name
         file_label = QLabel(f"File: {self.test_file.name}")  # type: ignore[call-arg]
         try:
-            file_label.setStyleSheet("color: #cccccc; font-size: 10px; font-family: monospace;")  # type: ignore[attr-defined]
+            file_label.setStyleSheet("color: #cccccc; font-size: 10px; font-family: 'Monaco', 'Menlo', 'Courier New', monospace;")  # type: ignore[attr-defined]
         except Exception:
             pass
         layout.addWidget(file_label)  # type: ignore[arg-type]
