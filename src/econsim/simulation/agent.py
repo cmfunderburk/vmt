@@ -245,8 +245,9 @@ class Agent:
                 
                 # Emit debug event for mode switch using raw data recording
                 debug_msg = f"MODE_SWITCH agent={self.id} {old_mode.value}->{new_mode.value} {context}"
-                for observer in logger.observer_registry._observers:
-                    observer.record_debug_log(step=0, category="agent_mode", message=debug_msg)
+                if hasattr(logger, 'observer_registry') and logger.observer_registry:
+                    for observer in logger.observer_registry._observers:
+                        observer.record_debug_log(step=0, category="agent_mode", message=debug_msg)
         except Exception:  # pragma: no cover
             pass  # Graceful degradation when observer system not available
 
@@ -700,6 +701,7 @@ class Agent:
         enable_trade: bool,
         distance_scaling_factor: float,
         step: int,
+        observer_registry: Optional['ObserverRegistry'] = None,
     ) -> tuple[str, object] | None:
         """Unified target selection with distance-discounted utility scoring.
         

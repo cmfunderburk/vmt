@@ -318,6 +318,18 @@ class RawDataObserver:
         """
         return self._events.copy()  # Return copy to prevent external modification
     
+    def flush_step(self, step: int) -> None:
+        """Dummy flush_step method for observer registry compatibility.
+        
+        The raw data observer doesn't need step-based flushing since it stores
+        events directly in memory. This method exists only to satisfy the
+        observer registry interface.
+        
+        Args:
+            step: Step number (unused)
+        """
+        pass  # No-op for raw data observer
+    
     def get_events_by_agent(self, agent_id: int) -> List[Dict[str, Any]]:
         """Get all events related to a specific agent.
         

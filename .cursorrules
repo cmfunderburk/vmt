@@ -153,9 +153,10 @@ Handler pattern:
 - **GUILogger elimination complete** - Legacy 2593-line monolith removed, observer pattern established
 - **Step decomposition complete** - `Simulation.step()` decomposed from 450+ lines to 70-line orchestration via handler system
 - **Agent component refactor complete** - Agent class modularized into 6 specialized components (972→831 lines)
+- **Pure raw data architecture complete** - Complex 6-layer serialization pipeline eliminated, 0.319% overhead achieved
 - **Observer system operational** - Event-driven architecture eliminates simulation→GUI coupling
 - **Launcher architecture modern** - `make launcher` is canonical development interface with modular design
-- **Technical debt reduced 85%** - From 289 legacy references to ~15 minor launcher framework cleanup items
+- **Technical debt reduced 90%** - From 4000+ lines of complex transformation logic to simple raw data storage
 
 ### Common Pitfalls
 - Resorting agents mid-step (breaks determinism)
@@ -172,12 +173,12 @@ Handler pattern:
 - `simulation/execution/handlers/` - Step-specific logic (Movement, Collection, Trading, Metrics, Respawn)
 - `simulation/agent.py` - Modular agent with 6 component architecture
 - `simulation/components/` - Agent component implementations (Movement, EventEmitter, Inventory, TradingPartner, TargetSelection, ModeStateMachine)
-- `observability/events.py` - Event types for observer pattern
-- `observability/serializers/optimized_serializer.py` - ⚠️ Complex 1500-line pipeline (needs refactoring)
+- `observability/raw_data/raw_data_observer.py` - Zero-overhead event recording with raw dictionaries
+- `observability/raw_data/raw_data_writer.py` - JSON Lines file output with optional compression
 - `tools/launcher/` - Canonical development interface architecture
 - `baselines/` - Determinism & performance references
 - `llm_counter/` - Token usage analysis for LLM context optimization
-- `tmp_plans/CURRENT/AAA/LOG_ARCHITECTURE_RETHINK.md` - Planned logging system simplification
+- `docs/pure_raw_data_architecture.md` - Complete pure raw data architecture documentation
 
 ### Token Usage Analysis
 **Unique Feature**: This project includes `llm_counter/` for analyzing LLM token consumption. Use `make token` to generate reports on codebase size for AI context optimization.

@@ -44,8 +44,7 @@ class SimulationFactory:
             respawn_target_density=test_config.resource_density,
             respawn_rate=0.25,  # Standard rate from existing tests
             distance_scaling_factor=getattr(test_config, 'distance_scaling_factor', 0.0),
-            viewport_size=test_config.viewport_size,
-            economic_logging=SimulationFactory._create_economic_logging_config(test_config)
+            viewport_size=test_config.viewport_size
         )
         
         # Create and return simulation

@@ -41,6 +41,62 @@ from econsim.tools.launcher.framework.test_configs import ALL_TEST_CONFIGS
 from econsim.tools.launcher.framework.simulation_factory import SimulationFactory
 
 
+def setup_raw_data_observers(simulation, test_config):
+    """Set up raw data observers externally for performance testing.
+    
+    This function creates the raw data logging infrastructure outside of the simulation,
+    maintaining clean separation between simulation logic and logging.
+    """
+    try:
+        from pathlib import Path
+        import datetime
+        
+        # Create output directory for this test run
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        test_name = test_config.name.replace(" ", "_").replace("/", "_")
+        output_dir = Path("economic_analysis_logs") / f"{timestamp}_{test_name}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Write session configuration
+        config_data = {
+            "scenario_id": test_config.id,
+            "scenario_name": test_config.name,
+            "grid_size": test_config.grid_size,
+            "agent_count": test_config.agent_count,
+            "resource_density": test_config.resource_density,
+            "preference_mix": test_config.preference_mix,
+            "seed": test_config.seed,
+            "timestamp": timestamp,
+            "architecture": "pure_raw_data"
+        }
+        
+        import json
+        with open(output_dir / "config.json", "w") as f:
+            json.dump(config_data, f, indent=2)
+        
+        # Create raw data observer for simulation events
+        from econsim.observability.raw_data.raw_data_observer import RawDataObserver
+        from econsim.observability.raw_data.raw_data_writer import RawDataWriter
+        
+        simulation_events_file = output_dir / "simulation_events.jsonl"
+        raw_data_observer = RawDataObserver()
+        raw_data_writer = RawDataWriter(compress=False)
+        
+        # Register the observer with the simulation's observer registry
+        simulation._observer_registry.register(raw_data_observer)
+        
+        # Store the output file path for later writing
+        raw_data_writer._output_file = simulation_events_file
+        
+        print(f"Comprehensive simulation logging enabled: {simulation_events_file}")
+        
+        return raw_data_writer
+        
+    except Exception as e:
+        print(f"Warning: Failed to set up raw data observers: {e}")
+        return None
+
+
 @dataclass
 class ScenarioPerformanceResult:
     """Performance metrics for a single test scenario."""
@@ -84,8 +140,15 @@ class BaselineCapture:
         print(f"   Grid: {config.grid_size}, Agents: {config.agent_count}, "
               f"Density: {config.resource_density:.2f}")
         
+        # Set up feature flags using the same orchestrator as the test gallery
+        from econsim.tools.launcher.framework.debug_orchestrator import DebugOrchestrator
+        debug_orchestrator = DebugOrchestrator(config)
+        
         # Create simulation using factory
         simulation = SimulationFactory.create_simulation(config)
+        
+        # Set up external raw data observers (clean separation from simulation)
+        raw_data_writer = setup_raw_data_observers(simulation, config)
         
         # Reset external RNG for consistency
         self.ext_rng.seed(999)
@@ -159,6 +222,19 @@ class BaselineCapture:
         
         print(f"   ✅ Result: {steps_per_second:.1f} steps/sec "
               f"({execution_time:.2f}s total)")
+        
+        # Clean up raw data writer and write events to disk
+        if raw_data_writer:
+            try:
+                # Get all events from the observer and write to disk
+                raw_data_observer = simulation._observer_registry._observers[0]  # Should be our RawDataObserver
+                if hasattr(raw_data_observer, 'get_all_events'):
+                    events = raw_data_observer.get_all_events()
+                    output_file = getattr(raw_data_writer, '_output_file', None)
+                    if output_file:
+                        raw_data_writer.flush_to_disk(events, str(output_file))
+            except Exception:
+                pass  # Ignore cleanup errors
         
         return result
     
