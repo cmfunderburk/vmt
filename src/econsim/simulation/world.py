@@ -265,6 +265,11 @@ class Simulation:
                 use_optimized_format=economic_config.use_optimized_format,
             )
             
+            # Set simulation start time for relative timestamps
+            import time
+            simulation_start_time = time.time()
+            file_observer.set_simulation_start_time(simulation_start_time)
+            
             # Register the file observer
             self._observer_registry.register(file_observer)
             

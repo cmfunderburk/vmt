@@ -122,13 +122,20 @@ class EconomicLogFileManager:
         """
         return self.current_session_dir / "config.json"
     
-    def write_session_config(self) -> None:
+    def write_session_config(self, dictionaries: Optional[dict] = None) -> None:
         """Write the current configuration to the session directory.
         
         This creates a record of the configuration used for this session.
+        
+        Args:
+            dictionaries: Optional Level 2B compression dictionaries to include
         """
         config_file = self.get_config_file()
         config_data = self.config.to_dict()
+        
+        # Add Level 2B dictionaries if provided
+        if dictionaries:
+            config_data['compression_dictionaries'] = dictionaries
         
         import json
         with open(config_file, 'w', encoding='utf-8') as f:

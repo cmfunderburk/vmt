@@ -91,3 +91,8 @@ gui_logs/compact/
 !gui_logs/README.md
 !gui_logs/.gitignore
 
+
+# Economic analysis logs (ignore bulk logs but keep documentation)
+economic_analysis_logs/
+!economic_analysis_logs/README.md
+

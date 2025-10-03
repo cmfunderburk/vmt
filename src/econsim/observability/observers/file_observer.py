@@ -66,7 +66,7 @@ class FileObserver(BaseObserver):
         
         # Initialize optimized serialization if enabled
         if self._use_optimized_format:
-            self._optimized_writer = OptimizedLogWriter(output_path)
+            self._optimized_writer = OptimizedLogWriter(str(output_path))
         else:
             self._optimized_writer = None
         
@@ -77,6 +77,15 @@ class FileObserver(BaseObserver):
         
         # Initialize file output
         self._initialize_file_output()
+    
+    def set_simulation_start_time(self, start_time: float) -> None:
+        """Set the simulation start time for relative timestamp calculation.
+        
+        Args:
+            start_time: Absolute timestamp when simulation started
+        """
+        if self._use_optimized_format and self._optimized_writer:
+            self._optimized_writer.set_simulation_start_time(start_time)
 
     def _initialize_file_output(self) -> None:
         """Initialize file output and create directories if needed."""
@@ -125,15 +134,8 @@ class FileObserver(BaseObserver):
         if not self.is_enabled(event.event_type):
             return
         
-        if self._use_optimized_format and self._optimized_writer:
-            # Use optimized writer for direct serialization
-            self._optimized_writer.write_event(event)
-            self._events_written += 1
-        else:
-            # Use traditional buffer-based approach
-            if self._file_handle is None:
-                return
-            self._buffer_manager.add_event(event)
+        # Always use buffer-based approach for step batching
+        self._buffer_manager.add_event(event)
 
     def flush_step(self, step: int) -> None:
         """Flush buffered events to file at step boundary.
@@ -141,21 +143,26 @@ class FileObserver(BaseObserver):
         Args:
             step: The simulation step that just completed
         """
-        if self._use_optimized_format and self._optimized_writer:
-            # Optimized writer handles step flushing automatically
-            return
-        
-        # Traditional buffer-based flushing
-        if self._file_handle is None:
-            return
-            
         # Get all buffered events
         buffered_data = self._buffer_manager.flush_step(step)
         
-        # Write events to file
-        for buffer_name, events in buffered_data.items():
-            if events:  # Only write if there are events
-                self._write_events_batch(events)
+        if self._use_optimized_format and self._optimized_writer:
+            # Use optimized writer for step batching
+            for buffer_name, events in buffered_data.items():
+                if events:  # Only write if there are events
+                    # Convert to optimized format and write
+                    timestamp = time.time()
+                    self._optimized_writer.write_step_batch(step, timestamp, events)
+                    self._events_written += len(events)
+        else:
+            # Traditional buffer-based flushing
+            if self._file_handle is None:
+                return
+                
+            # Write events to file
+            for buffer_name, events in buffered_data.items():
+                if events:  # Only write if there are events
+                    self._write_events_batch(events)
 
     def _write_events_batch(self, events: List[Dict[str, Any]]) -> None:
         """Write a batch of events to file.
@@ -203,10 +210,6 @@ class FileObserver(BaseObserver):
         if self._use_optimized_format and self._optimized_writer:
             # Close optimized writer
             self._optimized_writer.close()
-            # Update statistics from optimized writer
-            optimized_stats = self._optimized_writer.get_stats()
-            self._events_written = optimized_stats['events_written']
-            self._bytes_written = optimized_stats['bytes_written']
         else:
             # Traditional buffer-based cleanup
             # Flush any remaining buffered events
