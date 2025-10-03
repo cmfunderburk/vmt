@@ -194,28 +194,48 @@ def decompress_trade_event(compressed_string):
 - **Approach**: New format only, no transition period needed
 - **Benefit**: No compatibility constraints on new design
 
-### 4. Event Validation: ⚠️ Needs Detailed Design
-**Key Questions to Resolve**:
-- **Where to validate?** At emission time or compilation time?
-- **Performance cost?** Validation in hot path vs pre-compilation
-- **Error handling?** Missing required fields should fail fast or log warning?
-- **Type checking?** String/numeric validation or trust observer?
+### 4. Event Validation: ✅ DECIDED - Compile-Time Only
+**Decision**: Option A - Compile-time validation for maximum maintainability
 
-**Proposed Approach**:
+**Approach**:
 ```python
-# Option A: Compile-time validation (preferred)
+# Compile-time validation (chosen approach)
 # - Generate emission methods with built-in validation
-# - Zero runtime overhead
+# - Zero runtime overhead  
 # - Fail fast during development
+# - Focus on code maintainability over runtime flexibility
 
-# Option B: Runtime validation  
-# - Check fields at emission time
-# - Flexible but slower
-# - Better error messages
+def generate_emission_method(schema):
+    """Generate emission method with compile-time validation built-in"""
+    required_fields = [f for f, meta in schema['fields'].items() if meta.get('required', False)]
+    
+    validation_code = []
+    for field in required_fields:
+        validation_code.append(f"assert '{field}' in kwargs, 'Required field {field} missing'")
+    
+    # Generate method with hardcoded validation
+    method_code = f"""
+def emit_{schema['event_code']}(self, step, **kwargs):
+    # Compile-time generated validation
+    {chr(10).join('    ' + line for line in validation_code)}
+    
+    # Direct compression generation
+    compressed_parts = []
+    for field, value in kwargs.items():
+        if field in {list(schema['fields'].keys())}:
+            code = {schema['field_codes']}[field]
+            compressed_parts.append(f"{{code}}:{{value}}")
+    
+    compressed = ','.join(compressed_parts)
+    self._write_log_entry({{"s": step, "dt": self._get_delta_time(), 
+                          "e": "{schema['event_code']}", "d": compressed}})
+"""
+    return method_code
 
-# Recommendation: Hybrid approach
-# - Compile-time validation for required fields (fast fail)
-# - Optional runtime validation for development mode
+# Error handling: Development-time failures only
+# - Missing required fields = AssertionError during development
+# - Invalid schemas = Import-time failure  
+# - No runtime error recovery needed (fail-fast principle)
 ```
 
 ## CRITICAL REQUIREMENT: Extensibility-First Design
@@ -224,78 +244,122 @@ def decompress_trade_event(compressed_string):
 
 ### Extensibility Design Principles
 
-#### 1. Declarative Event Schema
+#### 1. Declarative Event Schema - ✅ DECIDED FORMAT
 ```python
 # event_schemas.py - Single source of truth for all event types
 TRADE_EXECUTION_SCHEMA = {
     'event_code': 'trade',
+    'version': '1.0',
+    'category': 'economic_transaction',
     'fields': {
-        'seller_id': 'sid',
-        'buyer_id': 'bid', 
-        'give_type': 'gt',
-        'take_type': 'tt',
-        'delta_u_seller': 'dus',
-        'delta_u_buyer': 'dub',
-        'trade_location_x': 'tx',
-        'trade_location_y': 'ty',
+        'seller_id': {'code': 'sid', 'type': 'int', 'required': True},
+        'buyer_id': {'code': 'bid', 'type': 'int', 'required': True},
+        'give_type': {'code': 'gt', 'type': 'str', 'required': True},
+        'take_type': {'code': 'tt', 'type': 'str', 'required': True},
+        'delta_u_seller': {'code': 'dus', 'type': 'float', 'required': False, 'range': (-10.0, 10.0)},
+        'delta_u_buyer': {'code': 'dub', 'type': 'float', 'required': False, 'range': (-10.0, 10.0)},
+        'trade_location_x': {'code': 'tx', 'type': 'int', 'required': False},
+        'trade_location_y': {'code': 'ty', 'type': 'int', 'required': False},
         # FUTURE: Easy to add new fields
-        'trade_volume': 'vol',      # ← Add this line, done!
-        'market_price': 'price',     # ← Add this line, done!
-        'trade_efficiency': 'eff'    # ← Add this line, done!
-    },
-    'required': ['seller_id', 'buyer_id', 'give_type', 'take_type'],
-    'optional': ['delta_u_seller', 'delta_u_buyer', 'trade_location_x', 'trade_location_y']
+        'trade_volume': {'code': 'vol', 'type': 'float', 'required': False},      # ← Add this line, done!
+        'market_price': {'code': 'price', 'type': 'float', 'required': False},   # ← Add this line, done!
+        'trade_efficiency': {'code': 'eff', 'type': 'float', 'required': False}  # ← Add this line, done!
+    }
 }
 
 AGENT_MODE_SCHEMA = {
     'event_code': 'mode',
+    'version': '1.0', 
+    'category': 'agent_behavior',
     'fields': {
-        'agent_id': 'aid',
-        'old_mode': 'om',
-        'new_mode': 'nm', 
-        'reason': 'r',
+        'agent_id': {'code': 'aid', 'type': 'int', 'required': True},
+        'old_mode': {'code': 'om', 'type': 'str', 'required': True},
+        'new_mode': {'code': 'nm', 'type': 'str', 'required': True},
+        'reason': {'code': 'r', 'type': 'str', 'required': True},
         # FUTURE: Easy to add new mode transition data
-        'transition_duration': 'dur',   # ← Add this line, done!
-        'decision_confidence': 'conf',  # ← Add this line, done!
+        'transition_duration': {'code': 'dur', 'type': 'float', 'required': False},   # ← Add this line, done!
+        'decision_confidence': {'code': 'conf', 'type': 'float', 'required': False}, # ← Add this line, done!
     }
 }
 
 # FUTURE: Adding entirely new event types is just adding a new schema
 MARKET_ANALYSIS_SCHEMA = {  # ← Completely new event type
     'event_code': 'market',
+    'version': '1.0',
+    'category': 'economic_statistics', 
     'fields': {
-        'market_equilibrium': 'eq',
-        'supply_demand_ratio': 'sdr',
-        'price_volatility': 'vol'
+        'market_equilibrium': {'code': 'eq', 'type': 'float', 'required': True},
+        'supply_demand_ratio': {'code': 'sdr', 'type': 'float', 'required': True},
+        'price_volatility': {'code': 'vol', 'type': 'float', 'required': False}
     }
 }
 ```
 
-#### 2. Auto-Generated Emission Methods
+#### 2. Simple Direct Methods - ✅ DECIDED APPROACH
 ```python
-# compression_engine.py - Generates emission methods from schemas
-def generate_emitter(schema):
-    """Auto-generate emission method from schema"""
-    def emit_method(observer, step, **kwargs):
-        compressed_parts = []
-        for field, value in kwargs.items():
-            if field in schema['fields']:
-                code = schema['fields'][field]
-                compressed_parts.append(f"{code}:{value}")
-        
-        compressed = ",".join(compressed_parts)
-        observer._write_log_entry({"s": step, "dt": observer._get_delta_time(), 
-                                  "e": schema['event_code'], "d": compressed})
-    return emit_method
-
-# Auto-generate all emission methods
+# extensible_observer.py - Clear, direct emission methods
 class ExtensibleObserver:
-    def __init__(self):
-        # Auto-generate emission methods for all schemas
-        self.emit_trade_execution = generate_emitter(TRADE_EXECUTION_SCHEMA)
-        self.emit_agent_mode = generate_emitter(AGENT_MODE_SCHEMA)
-        # FUTURE: New schemas automatically get emission methods
-        self.emit_market_analysis = generate_emitter(MARKET_ANALYSIS_SCHEMA)  # ← Auto-generated!
+    """Base observer with direct emission methods for maximum clarity and maintainability"""
+    
+    def emit_trade_execution(self, step, seller_id, buyer_id, give_type, take_type, **optional):
+        """Emit trade execution event with required and optional fields"""
+        # Clear, explicit validation
+        assert seller_id is not None, "seller_id required for trade execution"
+        assert buyer_id is not None, "buyer_id required for trade execution"
+        assert give_type is not None, "give_type required for trade execution"
+        assert take_type is not None, "take_type required for trade execution"
+        
+        # Direct compression - no magic, clear field mapping
+        compressed = f"sid:{seller_id},bid:{buyer_id},gt:{give_type},tt:{take_type}"
+        
+        # Optional fields with explicit mapping
+        optional_mapping = {
+            'delta_u_seller': 'dus',
+            'delta_u_buyer': 'dub', 
+            'trade_location_x': 'tx',
+            'trade_location_y': 'ty'
+        }
+        
+        for field, value in optional.items():
+            if field in optional_mapping and value is not None:
+                code = optional_mapping[field]
+                compressed += f",{code}:{value}"
+        
+        # Direct log emission
+        self._write_log_entry({"s": step, "dt": self._get_delta_time(), 
+                              "e": "trade", "d": compressed})
+    
+    def emit_agent_mode_change(self, step, agent_id, old_mode, new_mode, reason, **optional):
+        """Emit agent mode change event"""
+        # Clear validation
+        assert agent_id is not None, "agent_id required for mode change"
+        assert old_mode is not None, "old_mode required for mode change"
+        assert new_mode is not None, "new_mode required for mode change"
+        assert reason is not None, "reason required for mode change"
+        
+        # Direct compression
+        compressed = f"aid:{agent_id},om:{old_mode},nm:{new_mode},r:{reason}"
+        
+        # Optional fields
+        optional_mapping = {
+            'transition_duration': 'dur',
+            'decision_confidence': 'conf'
+        }
+        
+        for field, value in optional.items():
+            if field in optional_mapping and value is not None:
+                code = optional_mapping[field]
+                compressed += f",{code}:{value}"
+        
+        self._write_log_entry({"s": step, "dt": self._get_delta_time(), 
+                              "e": "mode", "d": compressed})
+
+# Benefits of this approach:
+# 1. Crystal clear what each method does - no magic or generation
+# 2. Easy debugging - normal Python stack traces
+# 3. Full IDE support - autocomplete, type hints, documentation
+# 4. Simple extensibility - copy method, modify fields (2-3 minutes per new field)
+# 5. No complex generation system to debug or maintain
 ```
 
 #### 3. Extensible GUI Translation
@@ -343,12 +407,33 @@ def translate_event(compressed_event):
 8. Test entire 6-layer pipeline
 ```
 
-#### New Extensible Approach:
+#### New Simple Approach:
 ```python
 # To add a new trade field, developer just:
-1. Add one line to TRADE_EXECUTION_SCHEMA:
-   'trade_volume': 'vol'  # ← DONE! Everything else auto-generated
+1. Add one line to the optional_mapping dict in emit_trade_execution():
+   'trade_volume': 'vol'  # ← DONE! 2-3 minutes total
+
+# To add a new event type:
+1. Copy emit_trade_execution method
+2. Rename to emit_new_event_type
+3. Update required/optional fields
+4. Update field mappings
+# ← DONE! ~10 minutes total, no magic to debug
 ```
+
+## IMPLEMENTATION DECISIONS SUMMARY
+
+### ✅ DECIDED:
+1. **Schema Format**: Enhanced format with version, category, field metadata (type, required, range)
+2. **Validation Strategy**: Compile-time only validation (Option A) - zero runtime overhead, fail-fast development
+3. **Focus**: Code maintainability over performance improvements (performance gains are bonus)
+4. **Implementation Approach**: Simple Direct Methods (Option D) - No code generation, clear explicit methods
+5. **GUI Integration**: Complete transition to new system, no backward compatibility required
+
+### ✅ FINAL DECISIONS:
+- **Migration Strategy**: Direct Replacement (Option B) - Clean cut, immediate benefits, no code duplication
+- **Error Handling Strategy**: Fail-Fast Development (Option A) - Assert failures for immediate error detection
+- **GUI Real-time Access**: Future feature, not part of initial implementation
 
 ## Expected Outcomes
 
@@ -358,10 +443,10 @@ def translate_event(compressed_event):
 - **Single responsibility** - observers compress, GUI translates
 
 ### Extensibility Benefits
-- **Add new fields**: One line in schema
-- **Add new event types**: One new schema definition  
-- **Auto-generated everything**: Emission methods, translation, validation
-- **Future-proof**: Complex economic scenarios require just schema updates
+- **Add new fields**: 2-3 minutes to copy-paste and modify existing method
+- **Add new event types**: Copy existing method template, modify field mappings (~10 minutes)  
+- **Crystal clear debugging**: No magic, no generation, normal Python stack traces
+- **Future-proof**: Complex economic scenarios require simple method additions
 
 ### Log Format Example
 ```json
@@ -374,10 +459,10 @@ Future complex events just work:
 ```
 
 ### Debugging Experience
-- **Simple**: Compressed string is exactly what observer emitted
-- **Traceable**: One transformation step instead of six  
-- **Maintainable**: Change compression in one schema file
-- **Extensible**: New event types automatically supported
+- **Simple**: Compressed string is exactly what observer method emitted
+- **Traceable**: One transformation step instead of six, normal Python stack traces
+- **Maintainable**: Change compression by editing clear, explicit method code
+- **Debuggable**: No magic generation - you can see exactly what each method does
 
 ## Conclusion
 
@@ -388,24 +473,25 @@ The current approach violated KISS principles by creating a complex multi-layer 
 3. **Maintains same compression ratio** - but with 90% less code complexity
 4. **Follows Unix philosophy** - do one thing well (compress OR translate, not both)
 
-## Extensibility Success Metrics
+## Maintainability Success Metrics
 
 The new architecture will be considered successful if:
 
-1. **Adding a new event field**: Takes 1 line of code (schema update)
-2. **Adding a new event type**: Takes 1 schema definition (~10 lines)  
-3. **Complex economic scenarios**: Require only schema extensions, no pipeline changes
-4. **Performance**: Maintained or improved vs current system
-5. **Maintainability**: <500 lines total vs current 1500+ line monster
+1. **Adding a new event field**: Takes 2-3 minutes (add to optional_mapping dict)
+2. **Adding a new event type**: Takes ~10 minutes (copy existing method, modify fields)  
+3. **Complex economic scenarios**: Require simple method additions, no pipeline debugging
+4. **Debugging**: Crystal clear stack traces, no magic to debug
+5. **Code size**: <500 lines total vs current 1500+ line monster
+6. **Developer experience**: New developers can immediately understand what each method does
 
 ## Implementation Priorities
 
-### Immediate Priority: Schema-Driven Architecture
-The schema-driven approach is critical for extensibility. Before writing any code:
+### Immediate Priority: Schema-Driven Architecture ✅ READY FOR IMPLEMENTATION
+The schema-driven approach is critical for extensibility. **Key decisions resolved:**
 
-1. **Design the schema format** - How do we define event types declaratively?
-2. **Design the emission API** - How do observers emit compressed events?
-3. **Design the validation strategy** - How do we ensure data integrity?
+1. **✅ Schema format designed** - Enhanced format with version, category, field metadata
+2. **✅ Emission API designed** - Compile-time generated methods with hardcoded validation  
+3. **✅ Validation strategy decided** - Compile-time only, fail-fast development approach
 
 ### Example Schema-First Design Session:
 ```python
@@ -447,10 +533,94 @@ observer.emit_advanced_market_analysis(
 # → {"s":150,"dt":0.01,"e":"mkt_analysis","d":"eq_p:1.5,eq_q:100,pareto:0.85"}
 ```
 
-**Next Steps**: 
-1. **Design schema format** - What's the optimal structure for extensibility?
-2. **Prototype compression engine** - Can we auto-generate efficient emission methods?
-3. **Validate performance assumptions** - Will hardcoded compression be fast enough?
-4. **Plan validation strategy** - How to ensure data integrity without sacrificing performance?
+## IMPLEMENTATION PLAN - READY TO EXECUTE
 
-This architecture rethink represents a fundamental shift from "complex pipeline with multiple transformations" to "simple emission with automatic tooling." The extensibility requirement makes this even more critical - future economic scenarios shouldn't require rewriting the logging infrastructure.
+### 1. Migration Strategy - ✅ DECIDED: Direct Replacement (Option B)
+**Approach**: Clean cut replacement of existing observer system
+
+**Benefits**:
+- **No code duplication** - Single clean implementation path
+- **Immediate maintainability wins** - Start benefiting from simple architecture right away  
+- **Single code path** - No branching logic or feature flags to maintain
+- **Faster completion** - No gradual migration overhead
+
+**Phase 1 Implementation Structure**:
+```
+src/econsim/observability/
+├── events.py (existing)
+├── observers.py (existing) 
+├── new_architecture/
+│   ├── __init__.py
+│   ├── event_schemas.py      # ← New: Schema definitions (for translation layer)
+│   ├── extensible_observer.py # ← New: Direct methods observer class
+│   └── translator.py         # ← New: GUI decompression
+└── serializers/ (existing - will be deleted in Phase 4)
+```
+
+**Implementation Steps**:
+1. **Create new files** in `new_architecture/` directory
+2. **Replace observer base classes** - EconomicObserver, FileObserver inherit from ExtensibleObserver
+3. **Update simulation handlers** - Replace `TradeExecutionEvent.create()` with `observer.emit_trade_execution()`
+4. **Run comprehensive tests** - Validate all 436 tests pass with new system
+5. **Delete old serialization pipeline** - Remove entire `serializers/` directory (~1500 lines)
+
+### 2. Error Handling Strategy - ✅ DECIDED: Fail-Fast Development (Option A)  
+**Approach**: Crash immediately on any error with clear assertion messages
+
+**Benefits**:
+- **Quick error detection** - Issues found immediately during development
+- **Clean development** - Forces fixing problems rather than ignoring them
+- **Simple implementation** - Straightforward assert statements, no complex error handling
+- **No silent failures** - Every problem is visible and must be addressed
+
+**Implementation Pattern**:
+```python
+def emit_trade_execution(self, step, seller_id, buyer_id, give_type, take_type, **optional):
+    # Fail-fast validation with clear error messages
+    assert seller_id is not None, f"seller_id required for trade execution at step {step}"
+    assert buyer_id is not None, f"buyer_id required for trade execution at step {step}"
+    assert give_type is not None, f"give_type required for trade execution at step {step}"
+    assert take_type is not None, f"take_type required for trade execution at step {step}"
+    assert isinstance(seller_id, int), f"seller_id must be integer, got {type(seller_id)} at step {step}"
+    assert isinstance(buyer_id, int), f"buyer_id must be integer, got {type(buyer_id)} at step {step}"
+    
+    # Direct compression with hardcoded field mapping
+    compressed = f"sid:{seller_id},bid:{buyer_id},gt:{give_type},tt:{take_type}"
+    # ... rest of method
+```
+
+**Error Handling Philosophy**: 
+- **Development time**: Fix the root cause, don't work around it
+- **Assertion messages**: Include step number and specific field for easy debugging
+- **Type checking**: Validate expected types to catch integration errors early
+- **Required fields**: Must be present - no "optional" behavior for required data
+
+## NEXT STEPS - IMPLEMENTATION READY
+
+**All Critical Decisions Made**: ✅ Schema format, ✅ Implementation approach, ✅ Migration strategy, ✅ Error handling
+
+### Phase 1: Create Core Architecture (Week 1)
+1. **Create `new_architecture/` directory** with base files
+2. **Implement `ExtensibleObserver`** with `emit_trade_execution()` and `emit_agent_mode_change()` methods
+3. **Create basic `translator.py`** for GUI decompression (future use)
+4. **Write unit tests** for new emission methods
+
+### Phase 2: Replace Observer System (Week 1-2)  
+1. **Update `EconomicObserver`** to inherit from `ExtensibleObserver`
+2. **Update `FileObserver`** to inherit from `ExtensibleObserver`  
+3. **Update simulation handlers** - Replace event creation with direct emission calls
+4. **Run test suite** - Validate all 436 tests pass
+
+### Phase 3: Cleanup and Validation (Week 2)
+1. **Delete entire `serializers/` directory** (~1500 lines of complex pipeline code)
+2. **Remove unused event classes** - `TradeExecutionEvent`, etc.
+3. **Update baselines** - Refresh determinism hashes if log format changes
+4. **Performance validation** - Ensure new system meets performance baselines
+
+### Expected Timeline: 2 weeks total
+- **Week 1**: Core implementation and basic integration
+- **Week 2**: Full replacement, testing, and cleanup
+
+This architecture rethink represents a fundamental shift from "complex pipeline with multiple transformations" to "simple emission with direct methods." The maintainability focus makes this critical - future development shouldn't require debugging complex serialization pipelines.
+
+**IMPLEMENTATION STATUS**: 🚀 **READY TO BEGIN** - All architectural decisions finalized, clear implementation path defined.
