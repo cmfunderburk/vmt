@@ -1,15 +1,24 @@
-"""Performance monitoring observer for optimization and analysis.
+"""Performance monitoring observer using raw data architecture for optimization and analysis.
 
 This module implements the PerformanceObserver class that tracks
 simulation performance metrics, identifies bottlenecks, and provides
-optimization insights for maintaining efficient execution.
+optimization insights using the new raw data recording architecture
+for zero-overhead performance monitoring.
 
 Features:
-- Performance monitoring and profiling
+- Zero-overhead raw data recording during simulation
+- Deferred performance analysis using DataTranslator
 - Step execution timing analysis
 - Memory usage tracking
 - Bottleneck identification
 - Performance optimization recommendations
+- Raw data storage with human-readable translation on demand
+
+Architecture:
+- Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
+- Uses DataTranslator for converting raw data to analysis-ready format
+- No processing overhead during simulation execution
+- Performance analysis performed only when needed (GUI display, file output)
 """
 
 from __future__ import annotations
@@ -32,36 +41,50 @@ PerformanceData = Dict[str, Any]
 StepRecord = Dict[str, Union[int, float]]  # For slowest/fastest step records
 
 from .base_observer import BaseObserver
+from ..raw_data.raw_data_observer import RawDataObserver
+from ..raw_data.data_translator import DataTranslator
+from ..raw_data.raw_data_writer import RawDataWriter
 
 if TYPE_CHECKING:
     from ..config import ObservabilityConfig
     from ..events import SimulationEvent
 
 
-class PerformanceObserver(BaseObserver):
-    """Performance monitoring observer for optimization insights.
+class PerformanceObserver(BaseObserver, RawDataObserver):
+    """Performance monitoring observer using raw data architecture for optimization insights.
     
     Tracks simulation performance metrics including timing, memory usage,
     and execution patterns to identify optimization opportunities and
-    ensure efficient simulation execution.
+    ensure efficient simulation execution using zero-overhead raw data recording.
+    
+    Architecture:
+    - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
+    - Uses DataTranslator for converting raw data to analysis-ready format
+    - Zero-overhead recording during simulation, analysis deferred to when needed
+    - Raw data storage with human-readable translation on demand
     """
 
     def __init__(self, config: ObservabilityConfig, 
                  history_size: int = 1000, 
-                 enable_profiling: bool = True):
-        """Initialize the performance observer.
+                 enable_profiling: bool = True,
+                 output_dir: str = None):
+        """Initialize the performance observer with raw data architecture.
         
         Args:
             config: Observability configuration
-            history_size: Number of performance samples to keep in memory
-            enable_profiling: Whether to enable detailed profiling
+            history_size: Number of performance samples to keep in memory (legacy, kept for compatibility)
+            enable_profiling: Whether to enable detailed profiling (legacy, kept for compatibility)
+            output_dir: Optional output directory for performance analysis files
         """
-        super().__init__(config)
+        # Initialize both parent classes
+        BaseObserver.__init__(self, config)
+        RawDataObserver.__init__(self)
         
-        self._history_size = history_size
-        self._enable_profiling = enable_profiling
+        self._history_size = history_size  # Legacy compatibility
+        self._enable_profiling = enable_profiling  # Legacy compatibility
+        self.output_dir = output_dir
         
-        # Performance metrics storage
+        # Performance metrics storage (legacy compatibility - will be replaced by raw data analysis)
         self._step_timings: Deque[Dict[str, Any]] = deque(maxlen=history_size)
         self._event_timings: Deque[Dict[str, Any]] = deque(maxlen=history_size)
         self._memory_samples: Deque[Dict[str, Any]] = deque(maxlen=history_size)
@@ -85,6 +108,18 @@ class PerformanceObserver(BaseObserver):
         
         # Process handle for memory monitoring
         self._process = psutil.Process() if psutil else None
+        
+        # Initialize data translator for analysis
+        self._data_translator = DataTranslator()
+        
+        # Initialize raw data writer for disk persistence
+        self._raw_data_writer = RawDataWriter(
+            compress=True,
+            compression_level=6,
+            max_file_size_mb=100,
+            enable_rotation=True,
+            atomic_writes=True
+        )
 
     def _initialize_event_filtering(self) -> None:
         """Initialize event filtering for performance monitoring.
@@ -93,33 +128,130 @@ class PerformanceObserver(BaseObserver):
         performance across all simulation activities.
         """
         # Monitor all events for comprehensive performance analysis
-        self._enabled_event_types = None  # Accept all events
+        self._enabled_event_types = {
+            'agent_mode_change',
+            'trade_execution', 
+            'resource_collection',
+            'agent_movement',
+            'debug_log',
+            'performance_monitor',
+            'agent_decision',
+            'resource_event',
+            'economic_decision',
+            'gui_display'
+        }
 
     def notify(self, event: SimulationEvent) -> None:
-        """Process an event and track performance metrics.
+        """Handle a simulation event by recording raw data.
+        
+        This method now uses the raw data recording architecture for zero-overhead
+        performance. Events are stored as raw dictionaries with no processing.
+        Performance analysis is deferred to when data is actually needed.
         
         Args:
-            event: The simulation event to process
+            event: The simulation event to log
         """
         if not self.is_enabled(event.event_type):
             return
         
-        # Track event processing performance
-        start_time = time.perf_counter() if self._enable_profiling else 0.0
+        # Extract raw data from event and record using appropriate method
+        step = getattr(event, 'step', 0)
         
-        # Update event counts
-        self._total_events_processed += 1
-        self._events_this_step += 1
-        
-        # Track step boundary changes
-        if event.step != self._current_step:
-            self._finalize_step_metrics()
-            self._start_new_step(event.step)
-        
-        # Record event timing if profiling enabled
-        if self._enable_profiling:
-            processing_time = time.perf_counter() - start_time
-            self._record_event_timing(event, processing_time)
+        if event.event_type == 'trade_execution':
+            self.record_trade(
+                step=step,
+                seller_id=getattr(event, 'seller_id', -1),
+                buyer_id=getattr(event, 'buyer_id', -1),
+                give_type=getattr(event, 'give_type', ''),
+                take_type=getattr(event, 'take_type', ''),
+                delta_u_seller=getattr(event, 'delta_u_seller', 0.0),
+                delta_u_buyer=getattr(event, 'delta_u_buyer', 0.0),
+                trade_location_x=getattr(event, 'trade_location_x', -1),
+                trade_location_y=getattr(event, 'trade_location_y', -1)
+            )
+        elif event.event_type == 'agent_mode_change':
+            self.record_mode_change(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                old_mode=getattr(event, 'old_mode', ''),
+                new_mode=getattr(event, 'new_mode', ''),
+                reason=getattr(event, 'reason', '')
+            )
+        elif event.event_type == 'resource_collection':
+            self.record_resource_collection(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                x=getattr(event, 'x', -1),
+                y=getattr(event, 'y', -1),
+                resource_type=getattr(event, 'resource_type', ''),
+                amount_collected=getattr(event, 'amount_collected', 1),
+                utility_gained=getattr(event, 'utility_gained', 0.0),
+                carrying_after=getattr(event, 'carrying_after', None)
+            )
+        elif event.event_type == 'agent_decision':
+            self.record_agent_decision(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                decision_type=getattr(event, 'decision_type', ''),
+                decision_details=getattr(event, 'decision_details', ''),
+                utility_delta=getattr(event, 'utility_delta', 0.0),
+                position_x=getattr(event, 'position_x', -1),
+                position_y=getattr(event, 'position_y', -1)
+            )
+        elif event.event_type == 'debug_log':
+            self.record_debug_log(
+                step=step,
+                category=getattr(event, 'category', ''),
+                message=getattr(event, 'message', ''),
+                agent_id=getattr(event, 'agent_id', -1)
+            )
+        elif event.event_type == 'performance_monitor':
+            self.record_performance_monitor(
+                step=step,
+                metric_name=getattr(event, 'metric_name', ''),
+                metric_value=getattr(event, 'metric_value', 0.0),
+                threshold_exceeded=getattr(event, 'threshold_exceeded', False),
+                details=getattr(event, 'details', '')
+            )
+        elif event.event_type == 'economic_decision':
+            self.record_economic_decision(
+                step=step,
+                agent_id=getattr(event, 'agent_id', -1),
+                decision_type=getattr(event, 'decision_type', ''),
+                decision_context=getattr(event, 'decision_context', ''),
+                utility_before=getattr(event, 'utility_before', 0.0),
+                utility_after=getattr(event, 'utility_after', 0.0),
+                opportunity_cost=getattr(event, 'opportunity_cost', 0.0),
+                alternatives_considered=getattr(event, 'alternatives_considered', 0),
+                decision_time_ms=getattr(event, 'decision_time_ms', 0.0),
+                position_x=getattr(event, 'position_x', -1),
+                position_y=getattr(event, 'position_y', -1)
+            )
+        elif event.event_type == 'resource_event':
+            self.record_resource_event(
+                step=step,
+                event_type_detail=getattr(event, 'event_type_detail', ''),
+                position_x=getattr(event, 'position_x', -1),
+                position_y=getattr(event, 'position_y', -1),
+                resource_type=getattr(event, 'resource_type', ''),
+                amount=getattr(event, 'amount', 1),
+                agent_id=getattr(event, 'agent_id', -1)
+            )
+        elif event.event_type == 'gui_display':
+            self.record_gui_display(
+                step=step,
+                display_type=getattr(event, 'display_type', ''),
+                element_id=getattr(event, 'element_id', ''),
+                data=getattr(event, 'data', None)
+            )
+        else:
+            # For unknown event types, record as generic debug log
+            self.record_debug_log(
+                step=step,
+                category='UNKNOWN_EVENT',
+                message=f"Unknown event type: {event.event_type}",
+                agent_id=-1
+            )
 
     def _start_new_step(self, step: int) -> None:
         """Start tracking metrics for a new simulation step.
@@ -231,59 +363,296 @@ class PerformanceObserver(BaseObserver):
         pass
 
     def flush_step(self, step: int) -> None:
-        """Finalize performance metrics for the completed step.
+        """Handle end-of-step boundary with zero overhead.
+        
+        In the raw data architecture, no processing is done at step boundaries.
+        All data is stored in memory and performance analysis is performed only when needed.
         
         Args:
             step: The simulation step that just completed
         """
-        # Finalize current step if it matches
-        if step == self._current_step and self._step_start_time > 0:
-            self._finalize_step_metrics()
+        # Zero overhead - no processing during simulation
+        # Raw data is stored in memory and analysis is deferred
+        self._current_step = step
 
     def get_performance_summary(self) -> Dict[str, Any]:
-        """Get comprehensive performance summary.
+        """Get comprehensive performance summary from raw data.
         
         Returns:
             Dictionary containing performance analysis and metrics
         """
-        if not self._step_timings:
+        # Get all raw events
+        all_events = self.get_all_events()
+        
+        if not all_events:
             return {'status': 'no_data', 'message': 'No performance data available'}
         
-        # Calculate timing statistics
-        step_durations = [metrics['duration'] for metrics in self._step_timings]
-        avg_step_duration = sum(step_durations) / len(step_durations)
+        # Generate performance analysis from raw data
+        performance_analysis = self._generate_performance_analysis_from_raw_data()
         
-        # Calculate throughput
-        total_steps = len(self._step_timings)
-        steps_per_second = total_steps / self._total_processing_time if self._total_processing_time > 0 else 0
+        return performance_analysis
+
+    def _generate_performance_analysis_from_raw_data(self) -> Dict[str, Any]:
+        """Generate comprehensive performance analysis from raw data using DataTranslator.
         
-        # Memory statistics
-        memory_stats = {}
-        if self._memory_samples:
-            memory_values = [sample['memory_rss'] for sample in self._memory_samples]
-            memory_stats = {
-                'peak_memory_mb': self._peak_memory_usage / (1024 * 1024),
-                'avg_memory_mb': sum(memory_values) / len(memory_values) / (1024 * 1024),
-                'current_memory_mb': memory_values[-1] / (1024 * 1024) if memory_values else 0,
-            }
+        Returns:
+            Dictionary containing comprehensive performance analysis
+        """
+        # Get all raw events
+        all_events = self.get_all_events()
+        
+        # Translate events to human-readable format
+        translated_events = []
+        for event in all_events:
+            try:
+                if event['type'] == 'trade':
+                    translated_events.append(self._data_translator.translate_trade_event(event))
+                elif event['type'] == 'mode_change':
+                    translated_events.append(self._data_translator.translate_mode_change_event(event))
+                elif event['type'] == 'resource_collection':
+                    translated_events.append(self._data_translator.translate_resource_collection_event(event))
+                elif event['type'] == 'agent_decision':
+                    translated_events.append(self._data_translator.translate_agent_decision_event(event))
+                elif event['type'] == 'performance_monitor':
+                    translated_events.append(self._data_translator.translate_performance_monitor_event(event))
+                elif event['type'] == 'economic_decision':
+                    translated_events.append(self._data_translator.translate_economic_decision_event(event))
+                else:
+                    # Keep raw event for unknown types
+                    translated_events.append(event)
+            except Exception as e:
+                # Keep raw event if translation fails
+                translated_events.append(event)
+        
+        # Generate comprehensive performance analysis
+        analysis = {
+            "total_events": len(all_events),
+            "event_types": self.get_event_type_counts(),
+            "step_range": self.get_statistics()['step_range'],
+            "translated_events": translated_events,
+            "performance_metrics": self._calculate_performance_metrics_from_raw_data(),
+            "event_distribution_analysis": self._analyze_event_distribution_from_raw_data(),
+            "step_performance_analysis": self._analyze_step_performance_from_raw_data(),
+            "memory_usage_analysis": self._analyze_memory_usage_from_raw_data(),
+            "performance_assessment": self._assess_performance_from_raw_data(),
+        }
+        
+        return analysis
+    
+    def _calculate_performance_metrics_from_raw_data(self) -> Dict[str, Any]:
+        """Calculate performance metrics from raw data."""
+        all_events = self.get_all_events()
+        
+        if not all_events:
+            return {}
+        
+        # Calculate basic metrics
+        total_events = len(all_events)
+        event_types = self.get_event_type_counts()
+        
+        # Calculate step distribution
+        step_counts = self.get_step_event_counts()
+        total_steps = len(step_counts)
+        
+        # Calculate events per step
+        events_per_step = total_events / total_steps if total_steps > 0 else 0
+        
+        # Calculate performance monitor events
+        performance_events = self.get_events_by_type('performance_monitor')
+        performance_metrics = {}
+        
+        for event in performance_events:
+            metric_name = event.get('metric_name', 'unknown')
+            metric_value = event.get('metric_value', 0.0)
+            threshold_exceeded = event.get('threshold_exceeded', False)
+            
+            if metric_name not in performance_metrics:
+                performance_metrics[metric_name] = {
+                    'values': [],
+                    'threshold_exceeded_count': 0,
+                    'avg_value': 0.0,
+                    'max_value': 0.0,
+                    'min_value': float('inf')
+                }
+            
+            performance_metrics[metric_name]['values'].append(metric_value)
+            if threshold_exceeded:
+                performance_metrics[metric_name]['threshold_exceeded_count'] += 1
+            
+            # Update min/max
+            if metric_value > performance_metrics[metric_name]['max_value']:
+                performance_metrics[metric_name]['max_value'] = metric_value
+            if metric_value < performance_metrics[metric_name]['min_value']:
+                performance_metrics[metric_name]['min_value'] = metric_value
+        
+        # Calculate averages
+        for metric_name, data in performance_metrics.items():
+            if data['values']:
+                data['avg_value'] = sum(data['values']) / len(data['values'])
+                if data['min_value'] == float('inf'):
+                    data['min_value'] = 0.0
         
         return {
-            'timing_stats': {
-                'total_steps': total_steps,
-                'total_processing_time': self._total_processing_time,
-                'avg_step_duration': avg_step_duration,
-                'steps_per_second': steps_per_second,
-                'slowest_step': self._slowest_step,
-                'fastest_step': self._fastest_step if self._fastest_step['duration'] != float('inf') else None,
-            },
-            'event_stats': {
-                'total_events_processed': self._total_events_processed,
-                'events_per_step': self._total_events_processed / total_steps if total_steps > 0 else 0,
-                'avg_events_per_second': self._total_events_processed / self._total_processing_time if self._total_processing_time > 0 else 0,
-            },
-            'memory_stats': memory_stats,
-            'performance_assessment': self._assess_performance(),
+            "total_events": total_events,
+            "total_steps": total_steps,
+            "events_per_step": events_per_step,
+            "event_type_distribution": event_types,
+            "step_distribution": step_counts,
+            "performance_metrics": performance_metrics,
         }
+    
+    def _analyze_event_distribution_from_raw_data(self) -> Dict[str, Any]:
+        """Analyze event distribution patterns from raw data."""
+        all_events = self.get_all_events()
+        
+        if not all_events:
+            return {}
+        
+        # Analyze event distribution by type
+        event_types = self.get_event_type_counts()
+        total_events = len(all_events)
+        
+        # Calculate percentages
+        event_percentages = {}
+        for event_type, count in event_types.items():
+            event_percentages[event_type] = (count / total_events) * 100
+        
+        # Find most common event types
+        most_common_events = sorted(event_types.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        # Analyze event distribution by step
+        step_counts = self.get_step_event_counts()
+        if step_counts:
+            avg_events_per_step = sum(step_counts.values()) / len(step_counts)
+            max_events_in_step = max(step_counts.values())
+            min_events_in_step = min(step_counts.values())
+        else:
+            avg_events_per_step = 0
+            max_events_in_step = 0
+            min_events_in_step = 0
+        
+        return {
+            "total_events": total_events,
+            "event_type_counts": event_types,
+            "event_type_percentages": event_percentages,
+            "most_common_events": most_common_events,
+            "step_distribution": {
+                "avg_events_per_step": avg_events_per_step,
+                "max_events_in_step": max_events_in_step,
+                "min_events_in_step": min_events_in_step,
+                "total_steps_with_events": len(step_counts)
+            }
+        }
+    
+    def _analyze_step_performance_from_raw_data(self) -> Dict[str, Any]:
+        """Analyze step performance patterns from raw data."""
+        step_counts = self.get_step_event_counts()
+        
+        if not step_counts:
+            return {}
+        
+        # Analyze step performance
+        steps = list(step_counts.keys())
+        event_counts = list(step_counts.values())
+        
+        # Calculate performance statistics
+        avg_events_per_step = sum(event_counts) / len(event_counts)
+        max_events_per_step = max(event_counts)
+        min_events_per_step = min(event_counts)
+        
+        # Find steps with highest and lowest event counts
+        max_step = max(step_counts.items(), key=lambda x: x[1])
+        min_step = min(step_counts.items(), key=lambda x: x[1])
+        
+        # Analyze performance trends
+        if len(steps) > 1:
+            # Simple trend analysis
+            first_half = steps[:len(steps)//2]
+            second_half = steps[len(steps)//2:]
+            
+            first_half_avg = sum(step_counts[step] for step in first_half) / len(first_half)
+            second_half_avg = sum(step_counts[step] for step in second_half) / len(second_half)
+            
+            if second_half_avg > first_half_avg * 1.1:
+                trend = "increasing"
+            elif second_half_avg < first_half_avg * 0.9:
+                trend = "decreasing"
+            else:
+                trend = "stable"
+        else:
+            trend = "insufficient_data"
+        
+        return {
+            "total_steps": len(steps),
+            "step_range": (min(steps), max(steps)),
+            "avg_events_per_step": avg_events_per_step,
+            "max_events_per_step": max_events_per_step,
+            "min_events_per_step": min_events_per_step,
+            "max_event_step": max_step,
+            "min_event_step": min_step,
+            "performance_trend": trend,
+            "step_distribution": step_counts
+        }
+    
+    def _analyze_memory_usage_from_raw_data(self) -> Dict[str, Any]:
+        """Analyze memory usage patterns from raw data."""
+        # For now, return basic memory analysis
+        # In a full implementation, this would analyze memory-related events
+        return {
+            "memory_analysis": "Memory usage analysis not yet implemented in raw data architecture",
+            "note": "Memory monitoring would be implemented through performance_monitor events"
+        }
+    
+    def _assess_performance_from_raw_data(self) -> Dict[str, Any]:
+        """Assess overall performance from raw data and provide recommendations."""
+        all_events = self.get_all_events()
+        
+        if not all_events:
+            return {
+                'overall_rating': 'no_data',
+                'bottlenecks': [],
+                'recommendations': ['No performance data available for analysis']
+            }
+        
+        assessment = {
+            'overall_rating': 'good',
+            'bottlenecks': [],
+            'recommendations': [],
+        }
+        
+        # Analyze event distribution
+        event_types = self.get_event_type_counts()
+        total_events = len(all_events)
+        
+        # Check for performance monitor events with threshold exceeded
+        performance_events = self.get_events_by_type('performance_monitor')
+        threshold_exceeded_count = 0
+        
+        for event in performance_events:
+            if event.get('threshold_exceeded', False):
+                threshold_exceeded_count += 1
+        
+        if threshold_exceeded_count > 0:
+            assessment['overall_rating'] = 'poor'
+            assessment['bottlenecks'].append('performance_thresholds_exceeded')
+            assessment['recommendations'].append(f'{threshold_exceeded_count} performance thresholds exceeded - investigate bottlenecks')
+        
+        # Check for high event density
+        step_counts = self.get_step_event_counts()
+        if step_counts:
+            avg_events_per_step = sum(step_counts.values()) / len(step_counts)
+            if avg_events_per_step > 100:  # High event density threshold
+                assessment['bottlenecks'].append('high_event_density')
+                assessment['recommendations'].append('High event density detected - consider optimizing event generation')
+        
+        # Check for unbalanced event distribution
+        if event_types:
+            most_common_count = max(event_types.values())
+            if most_common_count > total_events * 0.8:  # 80% of events are one type
+                assessment['bottlenecks'].append('unbalanced_event_distribution')
+                assessment['recommendations'].append('Unbalanced event distribution - consider diversifying simulation activities')
+        
+        return assessment
 
     def _assess_performance(self) -> Dict[str, Any]:
         """Assess overall performance and provide recommendations.
@@ -374,12 +743,43 @@ class PerformanceObserver(BaseObserver):
             return 'stable'
 
     def close(self) -> None:
-        """Close the performance observer."""
-        # Finalize any ongoing step
-        if self._step_start_time > 0:
-            self._finalize_step_metrics()
+        """Close the performance observer and write final results."""
+        # Write final performance analysis if output directory is specified
+        if self.output_dir and len(self._events) > 0:
+            try:
+                import json
+                from pathlib import Path
+                
+                output_path = Path(self.output_dir)
+                output_path.mkdir(parents=True, exist_ok=True)
+                
+                # Generate final performance analysis
+                performance_analysis = self._generate_performance_analysis_from_raw_data()
+                
+                # Write performance analysis file
+                analysis_file = output_path / f"performance_analysis_final.json"
+                with open(analysis_file, 'w', encoding='utf-8') as f:
+                    json.dump(performance_analysis, f, indent=2)
+                
+                # Write raw data using RawDataWriter
+                raw_data_file = output_path / f"performance_raw_data_final.jsonl.gz"
+                write_result = self._raw_data_writer.flush_to_disk(
+                    events=self.get_all_events(),
+                    filepath=raw_data_file,
+                    append=False
+                )
+                
+                print(f"PerformanceObserver closed. Wrote {write_result['events_written']} events "
+                      f"({write_result['bytes_written']} bytes) to {raw_data_file}")
+                
+            except Exception as e:
+                print(f"Warning: Failed to write final performance data: {e}")
         
+        # Call parent close method
         super().close()
+        
+        # Clear raw data from memory after writing
+        self.clear_events()
 
     def get_observer_stats(self) -> Dict[str, Any]:
         """Get performance observer statistics.
@@ -388,8 +788,10 @@ class PerformanceObserver(BaseObserver):
             Dictionary containing performance observer metrics
         """
         base_stats = super().get_observer_stats()
+        raw_data_stats = self.get_statistics()
         
         performance_stats = {
+            'observer_type': 'performance',
             'total_events_processed': self._total_events_processed,
             'total_processing_time': self._total_processing_time,
             'step_samples': len(self._step_timings),
@@ -397,12 +799,18 @@ class PerformanceObserver(BaseObserver):
             'memory_samples': len(self._memory_samples),
             'peak_memory_mb': self._peak_memory_usage / (1024 * 1024),
             'profiling_enabled': self._enable_profiling,
+            'output_dir': self.output_dir,
+            'raw_data_events': raw_data_stats['total_events'],
+            'raw_data_types': list(raw_data_stats['event_types']),
+            'step_range': raw_data_stats['step_range'],
         }
         
         return {**base_stats, **performance_stats}
 
     def __repr__(self) -> str:
         """String representation of the performance observer."""
-        return (f"PerformanceObserver(events={self._total_events_processed}, "
-                f"steps={len(self._step_timings)}, profiling={self._enable_profiling}, "
-                f"closed={self._closed})")
+        raw_data_stats = self.get_statistics()
+        return (f"PerformanceObserver(events={raw_data_stats['total_events']}, "
+                f"types={len(raw_data_stats['event_types'])}, "
+                f"steps={raw_data_stats['step_range']}, "
+                f"profiling={self._enable_profiling}, closed={self._closed})")
