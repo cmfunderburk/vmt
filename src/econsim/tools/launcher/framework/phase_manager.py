@@ -185,11 +185,8 @@ class PhaseManager:
                 os.environ['ECONSIM_TRADE_DRAFT'] = '1' if phase_def.trade_enabled else '0'
                 os.environ['ECONSIM_TRADE_EXEC'] = '1' if phase_def.trade_enabled else '0'
                 
-                # Log transition using centralized debug logger
-                # Use structured logging for phase transitions
-                # Legacy debug logging removed - observer system handles phase transitions
-                # Phase transition logged via console for launcher framework
-                print(f"[LAUNCHER] Phase Transition: Phase {phase_num} at turn {current_turn} - {phase_def.description}")
+                # Phase transition logging now handled by base_test.py via observer system
+                # Removed console print to avoid duplication with observer logging
                 
                 return PhaseTransition(
                     new_phase=phase_num,
