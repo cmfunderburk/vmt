@@ -19,12 +19,10 @@ if TYPE_CHECKING:
     from ..agent import Agent
     from ..constants import AgentMode
     from ...observability.registry import ObserverRegistry
-    from ...observability.event_buffer import StepEventBuffer
 
 
 def set_agent_mode(agent: 'Agent', new_mode: 'AgentMode', reason: str = "", 
-                   step: int = 0, observer_registry: 'ObserverRegistry' = None, 
-                   event_buffer: 'StepEventBuffer' = None) -> None:
+                   step: int = 0, observer_registry: 'ObserverRegistry' = None) -> None:
     """Set agent mode with observer event emission.
     
     Centralized method for changing agent modes that ensures observer
@@ -36,7 +34,6 @@ def set_agent_mode(agent: 'Agent', new_mode: 'AgentMode', reason: str = "",
         reason: Reason for mode change (for logging)
         step: Current step number
         observer_registry: Observer registry for event emission (optional)
-        event_buffer: Event buffer for batched processing (preferred for performance)
     """
     # Use the agent's centralized _set_mode() helper to ensure consistent event emission
-    agent._set_mode(new_mode, reason, observer_registry, step, event_buffer)
+    agent._set_mode(new_mode, reason, observer_registry, step)

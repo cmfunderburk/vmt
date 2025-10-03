@@ -46,7 +46,7 @@ import os
 # Observer system imports (Phase 1.3: Observer Foundation)
 from ..observability.registry import ObserverRegistry
 # PHASE 5.1/5.2: Event classes removed - using raw data architecture
-from ..observability.event_buffer import StepEventBuffer
+# PHASE 4.1.2: Event buffer system removed - using direct observer.record_*() calls only
 
 
 def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "", 
@@ -94,8 +94,7 @@ class Simulation:
     _step_times: list[float] = field(default_factory=list)
     # Observer system integration (Phase 1.3: Observer Foundation)  
     _observer_registry: ObserverRegistry = field(default_factory=ObserverRegistry)
-    # Event buffering system for performance optimization
-    _event_buffer: StepEventBuffer = field(default_factory=StepEventBuffer)
+    # Phase 4.1.2: Event buffer system removed - using direct observer.record_*() calls only
     # Step execution system (Phase 2: Step Decomposition)
     _step_executor: Any = field(default=None)
     # Pre-step resource snapshot for collection metrics (not part of determinism hash)
@@ -150,12 +149,10 @@ class Simulation:
             step_number=step_num,
             ext_rng=rng,
             feature_flags=feature_flags,
-            observer_registry=self._observer_registry,
-            event_buffer=self._event_buffer
+            observer_registry=self._observer_registry
         )
         
-        # Begin event buffering for this step
-        self._event_buffer.begin_step(step_num)
+        # Phase 4.1.2: Direct observer.record_*() calls - no event buffering needed
         
         # Execute step through handler system
         step_metrics = self._step_executor.execute_step(context)
@@ -642,7 +639,7 @@ class Simulation:
                         if prospect is not None and prospect not in claimed_resources:
                             claimed_resources.add(prospect)
                             a.target = prospect
-                            a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step, self._event_buffer)
+                            a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step)
                             # Move one step toward prospect immediately
                             if (a.x, a.y) != prospect:
                                 tx, ty = prospect
@@ -663,7 +660,7 @@ class Simulation:
                             if fallback_target is not None:
                                 claimed_resources.add(fallback_target)
                                 a.target = fallback_target
-                                a._set_mode(AgentMode.FORAGE, "resource_selection_fallback", self._observer_registry, step, self._event_buffer)
+                                a._set_mode(AgentMode.FORAGE, "resource_selection_fallback", self._observer_registry, step)
                                 # Move one step toward fallback immediately
                                 tx, ty = fallback_target
                                 dx = tx - a.x; dy = ty - a.y
@@ -676,12 +673,12 @@ class Simulation:
                         pass
                 # No target found - fall back to deposit/idle logic
                 if a.carrying_total() > 0:
-                    a._set_mode(AgentMode.RETURN_HOME, "carrying_capacity_full", self._observer_registry, step, self._event_buffer)
+                    a._set_mode(AgentMode.RETURN_HOME, "carrying_capacity_full", self._observer_registry, step)
                     new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                     a._track_target_change(new_target, step)
                     a.target = new_target
                 else:
-                    a._set_mode(AgentMode.IDLE, "no_target_available", self._observer_registry, step, self._event_buffer)
+                    a._set_mode(AgentMode.IDLE, "no_target_available", self._observer_registry, step)
                     a._track_target_change(None, step)
                     a.target = None
                 continue
@@ -691,19 +688,19 @@ class Simulation:
                 if pos in claimed_resources:
                     # Already claimed; idle fallback
                     if a.carrying_total() > 0:
-                        a._set_mode(AgentMode.RETURN_HOME, "resource_claimed_fallback", self._observer_registry, step, self._event_buffer)
+                        a._set_mode(AgentMode.RETURN_HOME, "resource_claimed_fallback", self._observer_registry, step)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
                     else:
-                        a._set_mode(AgentMode.IDLE, "resource_claimed_fallback", self._observer_registry, step, self._event_buffer)
+                        a._set_mode(AgentMode.IDLE, "resource_claimed_fallback", self._observer_registry, step)
                         a._track_target_change(None, step)
                         a.target = None
                     continue
                 claimed_resources.add(pos)
                 a._track_target_change(pos, step)
                 a.target = pos
-                a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step, self._event_buffer)
+                a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step)
                 # Immediate attempt collect if already on cell
                 collected = a.collect(self.grid, step)
                 if collected:
@@ -712,7 +709,7 @@ class Simulation:
                     a.target = None
                     # After collecting, check if should return home
                     if a.carrying_total() > 0:
-                        a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step, self._event_buffer)
+                        a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
@@ -732,7 +729,7 @@ class Simulation:
                                 a.target = None
                                 # After collecting, check if should return home
                                 if a.carrying_total() > 0:
-                                    a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step, self._event_buffer)
+                                    a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step)
                                     a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                 a.maybe_deposit()
             elif kind == "partner":
@@ -740,12 +737,12 @@ class Simulation:
                 if pid in claimed_partners:
                     # Partner already claimed; fallback
                     if a.carrying_total() > 0:
-                        a._set_mode(AgentMode.RETURN_HOME, "partner_claimed_fallback", self._observer_registry, step, self._event_buffer)
+                        a._set_mode(AgentMode.RETURN_HOME, "partner_claimed_fallback", self._observer_registry, step)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
                     else:
-                        a._set_mode(AgentMode.IDLE, "partner_claimed_fallback", self._observer_registry, step, self._event_buffer)
+                        a._set_mode(AgentMode.IDLE, "partner_claimed_fallback", self._observer_registry, step)
                         a._track_target_change(None, step)
                         a.target = None
                     continue
@@ -781,10 +778,10 @@ class Simulation:
                 if a.mode == _AM.FORAGE and a.target is None:
                     # Safety check: agents with cargo should return home first
                     if a.carrying_total() > 0 and not a.at_home():
-                        a._set_mode(_AM.RETURN_HOME, "no_target_available", self._observer_registry, step, self._event_buffer)
+                        a._set_mode(_AM.RETURN_HOME, "no_target_available", self._observer_registry, step)
                         a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                     elif a.at_home():
-                        a._set_mode(_AM.IDLE, "idle_at_home", self._observer_registry, step, self._event_buffer)  # Only idle at home
+                        a._set_mode(_AM.IDLE, "idle_at_home", self._observer_registry, step)  # Only idle at home
                     # If no cargo and not at home, let them continue seeking or return home
         # Emit selection sample instrumentation (periodic)
         import os

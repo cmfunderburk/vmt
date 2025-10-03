@@ -32,7 +32,6 @@ from .grid import Grid
 
 if TYPE_CHECKING:
     from ..observability.registry import ObserverRegistry
-    from ..observability.event_buffer import StepEventBuffer
     from .components.event_emitter import AgentEventEmitter
     from .components.inventory import AgentInventory
     from .components.trading_partner import TradingPartner
@@ -251,7 +250,7 @@ class Agent:
         except Exception:  # pragma: no cover
             pass  # Graceful degradation when observer system not available
 
-    def _set_mode(self, new_mode: AgentMode, reason: str = "", observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0, event_buffer: Optional['StepEventBuffer'] = None) -> None:
+    def _set_mode(self, new_mode: AgentMode, reason: str = "", observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
         """
         Centralized mode setter with state machine validation and event emission.
         
@@ -260,7 +259,6 @@ class Agent:
             reason: Brief description for analytics (e.g., "resource_found", "returned_home")
             observer_registry: Event registry (optional, for testing - immediate mode)
             step_number: Current step for event context
-            event_buffer: Event buffer for batched processing (preferred for performance)
         """
         if self.mode == new_mode:
             return  # No-op if mode unchanged
@@ -269,7 +267,7 @@ class Agent:
         
         # Validate transition using state machine
         if not self._mode_state_machine.validate_and_emit_transition(
-            old_mode.value, new_mode.value, reason, step_number, observer_registry, event_buffer
+            old_mode.value, new_mode.value, reason, step_number, observer_registry
         ):
             # Invalid transition - log and reject
             self._debug_log_mode_change(old_mode, new_mode, f"REJECTED: {reason}")

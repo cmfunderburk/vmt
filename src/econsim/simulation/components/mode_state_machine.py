@@ -1,4 +1,6 @@
-"""Agent mode state machine with explicit transitions and validation."""
+"""Agenif TYPE_CHECKING:
+    from ...observability.registry import ObserverRegistry
+    from .event_emitter import AgentEventEmitterde state machine with explicit transitions and validation."""
 
 from __future__ import annotations
 
@@ -60,8 +62,7 @@ class AgentModeStateMachine:
         new_mode: str,
         reason: str,
         step_number: int,
-        observer_registry: Optional['ObserverRegistry'] = None,
-        event_buffer: Optional['StepEventBuffer'] = None
+        observer_registry: Optional['ObserverRegistry'] = None
     ) -> bool:
         """Validate transition and emit event if valid.
         
@@ -71,7 +72,6 @@ class AgentModeStateMachine:
             reason: Reason for mode change
             step_number: Current simulation step
             observer_registry: Observer registry for event emission
-            event_buffer: Event buffer for step-based events
             
         Returns:
             True if transition is valid, False otherwise
@@ -98,8 +98,7 @@ class AgentModeStateMachine:
                 new_mode=new_mode,
                 reason=reason,
                 step_number=step_number,
-                observer_registry=observer_registry,
-                event_buffer=event_buffer
+                observer_registry=observer_registry
             )
         
         return True

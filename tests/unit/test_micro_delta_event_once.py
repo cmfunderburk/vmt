@@ -11,29 +11,34 @@ from unittest.mock import patch
 
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
-from econsim.observability.events import DebugLogEvent
-from econsim.observability.registry import ObserverRegistry
-from econsim.observability.observers.base_observer import BaseObserver
+from econsim.observability.raw_data.raw_data_observer import RawDataObserver
 from econsim.preferences.cobb_douglas import CobbDouglasPreference
 
 
-class MicroDeltaEventCapture(BaseObserver):
-    """Test observer that captures micro-delta debug events."""
+class MicroDeltaEventCapture(RawDataObserver):
+    """Test observer that captures micro-delta debug events using raw data recording."""
     
-    def __init__(self, config=None):
-        # Use default config if none provided
-        from econsim.observability.config import ObservabilityConfig
-        if config is None:
-            config = ObservabilityConfig()
-        super().__init__(config)
-        self.captured_events: List[DebugLogEvent] = []
+    def __init__(self):
+        super().__init__()
+        self.micro_delta_events = []
     
-    def notify(self, event) -> None:
-        if isinstance(event, DebugLogEvent) and "MICRO_DELTA" in event.category:
-            self.captured_events.append(event)
+    def record_debug_log(self, step: int, category: str, message: str, 
+                        agent_id: int = -1, **optional) -> None:
+        """Override to capture micro-delta debug logs."""
+        super().record_debug_log(step, category, message, agent_id, **optional)
+        # Capture micro-delta threshold events
+        if 'Micro-delta threshold applied' in message:
+            self.micro_delta_events.append({
+                'step': step,
+                'category': category,
+                'message': message,
+                'agent_id': agent_id
+            })
     
     def flush_step(self, step: int) -> None:
-        pass  # No step processing needed
+        """Required by observer protocol - no action needed."""
+        pass
+
 
 
 @pytest.fixture
@@ -101,14 +106,14 @@ def test_micro_delta_event_emitted_once(reset_micro_delta_flag):
             sim.step(ext_rng)
         
         # Should have exactly one micro-delta event despite multiple potential triggers
-        micro_delta_events = observer.captured_events
+        micro_delta_events = observer.micro_delta_events
         assert len(micro_delta_events) == 1, f"Expected exactly 1 micro-delta event, got {len(micro_delta_events)}"
         
-        # Verify event structure
+        # Verify event structure (raw dictionary format)
         event = micro_delta_events[0]
-        assert event.category == "TRADE_MICRO_DELTA"
-        assert "threshold applied" in event.message
-        assert "1.00e-01" in event.message  # Should reflect our override threshold
+        assert event['category'] == "TRADE_MICRO_DELTA"
+        assert "threshold applied" in event['message']
+        assert "1.00e-01" in event['message']  # Should reflect our override threshold
         
     finally:
         # Clean up environment

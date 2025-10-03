@@ -7,9 +7,7 @@ from pathlib import Path
 from econsim.simulation.world import Simulation
 from econsim.simulation.config import SimConfig
 from econsim.simulation.grid import Grid
-from econsim.observability.observer_logger import get_global_observer_logger
-from econsim.observability.events import DebugLogEvent
-from econsim.observability.observers.base_observer import BaseObserver
+from econsim.observability.raw_data.raw_data_observer import RawDataObserver
 import econsim.simulation.trade as trade_mod
 
 # This test validates that enabling trade execution (which prunes micro-delta intents)
@@ -18,19 +16,25 @@ import econsim.simulation.trade as trade_mod
 # and a control run where the pruning still occurs (hash excludes the log event).
 
 
-class MicroDeltaEventCapture(BaseObserver):
-    """Observer to capture micro-delta threshold debug events."""
+class MicroDeltaEventCapture(RawDataObserver):
+    """Observer to capture micro-delta threshold debug events using raw data recording."""
     
     def __init__(self) -> None:
-        self.captured_events: list[DebugLogEvent] = []
+        super().__init__()
+        self.micro_delta_events = []
     
-    def notify(self, event) -> None:
-        # Capture all debug events for debugging
-        if isinstance(event, DebugLogEvent):
-            self.captured_events.append(event)
-    
-    def flush_step(self, step: int) -> None:
-        pass
+    def record_debug_log(self, step: int, category: str, message: str, 
+                        agent_id: int = -1, **optional) -> None:
+        """Override to capture micro-delta debug logs."""
+        super().record_debug_log(step, category, message, agent_id, **optional)
+        # Capture micro-delta threshold events
+        if 'Micro-delta threshold applied' in message:
+            self.micro_delta_events.append({
+                'step': step,
+                'category': category,
+                'message': message,
+                'agent_id': agent_id
+            })
 
 
 def _build_sim(seed: int) -> Simulation:
@@ -96,8 +100,8 @@ def test_micro_delta_threshold_emitted_once(tmp_path: Path):
         _run_steps(sim, 5)
         
         # Check captured events for micro-delta threshold
-        micro_delta_events = [e for e in observer.captured_events if 'Micro-delta threshold applied' in e.message]
-        assert len(micro_delta_events) == 1, f"Expected 1 micro_delta_threshold event, found {len(micro_delta_events)}"  # type: ignore[truthy-bool]
+        micro_delta_events = observer.micro_delta_events
+        assert len(micro_delta_events) == 1, f"Expected 1 micro_delta_threshold event, found {len(micro_delta_events)}"
     finally:
         # Cleanup observer from simulation registry
         try:
@@ -124,8 +128,8 @@ def test_micro_delta_threshold_not_emitted_when_exec_disabled(tmp_path: Path):
         _run_steps(sim, 5)
 
         # Check that no micro-delta events were emitted when execution disabled
-        micro_delta_events = [e for e in observer.captured_events if 'Micro-delta threshold applied' in e.message]
-        assert len(micro_delta_events) == 0, f"Expected no micro_delta_threshold events when exec disabled, found {len(micro_delta_events)}"  # type: ignore[truthy-bool]
+        micro_delta_events = observer.micro_delta_events
+        assert len(micro_delta_events) == 0, f"Expected no micro_delta_threshold events when exec disabled, found {len(micro_delta_events)}"
     finally:
         # Cleanup observer from simulation registry
         try:

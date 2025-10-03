@@ -1,1 +1,0 @@
-"""Validation framework package for observer pattern testing."""

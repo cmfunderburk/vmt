@@ -5,7 +5,6 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ...observability.registry import ObserverRegistry
-    from ...observability.event_buffer import StepEventBuffer
 
 class AgentEventEmitter:
     """Handles all agent event emission with consistent error handling."""
@@ -19,13 +18,10 @@ class AgentEventEmitter:
         new_mode: str,
         reason: str,
         step_number: int,
-        observer_registry: Optional['ObserverRegistry'] = None,
-        event_buffer: Optional['StepEventBuffer'] = None
+        observer_registry: Optional['ObserverRegistry'] = None
     ) -> None:
         """Emit agent mode change event using raw data architecture."""
-        if event_buffer is not None:
-            event_buffer.queue_mode_change(self.agent_id, old_mode, new_mode, reason)
-        elif observer_registry:
+        if observer_registry:
             # Record mode change using raw data architecture
             # Call record_mode_change() on all observers that support raw data recording
             for observer in observer_registry._observers:
