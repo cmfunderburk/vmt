@@ -27,8 +27,18 @@ from collections import defaultdict, Counter
 from dataclasses import asdict
 from typing import Dict, Any, List, Optional, Union, Tuple
 from pathlib import Path
+from enum import Enum
 
 from ..events import SimulationEvent
+
+
+class LogFormatVersion(Enum):
+    """Phase 4E: Log format versions for backward compatibility."""
+    V1_BASIC = "1.0"           # Original format
+    V2_OPTIMIZED = "2.0"       # Phase 1+2+3 format
+    V3_ADVANCED = "3.0"        # Phase 4A+4B format
+    V4_ULTRA = "4.0"          # Phase 4C+4D format
+    V5_SEMANTIC = "5.0"       # Phase 4E format (semantic compression)
 
 
 class OptimizedEventSerializer:
@@ -105,12 +115,14 @@ class OptimizedEventSerializer:
     
     # Level 2B+: Behavioral Pattern Dictionary (Phase 1)
     BEHAVIORAL_PATTERNS = {
-        # Single transitions (most common)
-        'P1': ['hf', 'rs'],          # home→forage, resource_selection
-        'P2': ['fh', 'cr'],          # forage→home, collected_resource  
+        # Phase 4C: Frequency-based pattern codes (most common → shortest codes)
+        '1': ['hf', 'rs'],           # P1: home→forage, resource_selection (598 occurrences)
+        '2': ['fh', 'cr'],           # P2: forage→home, collected_resource (600 occurrences)
+        'P5': ['hi', 'dg'],          # P5: home→idle, deposited_goods (25 occurrences)
+        'P4': ['if', 'rs'],          # P4: idle→forage, resource_selection (2 occurrences)
+        
+        # Legacy patterns (kept for backward compatibility)
         'P3': ['fi', 'nt'],          # forage→idle, no_target_available
-        'P4': ['if', 'rs'],          # idle→forage, resource_selection
-        'P5': ['hi', 'dg'],          # home→idle, deposited_goods
         'P6': ['ih', 'fd'],          # idle→home, force_de
         
         # Double transitions (common sequences)
@@ -123,17 +135,31 @@ class OptimizedEventSerializer:
         'P21': ['fi', 'nt', 'if', 'rs', 'fh', 'cr'],  # Retry success
     }
     
+    # Phase 4C: Pattern frequency metadata for dynamic optimization
+    PATTERN_FREQUENCY = {
+        '1': 598,    # Most common pattern
+        '2': 600,    # Second most common pattern
+        'P5': 25,    # Rare pattern
+        'P4': 2,     # Very rare pattern
+        'P3': 0,     # Unused in current data
+        'P6': 0,     # Unused in current data
+    }
+    
     # Level 2B: String Dictionary for frequent values (only when compression is achieved)
     STRING_DICTIONARY = {
         # Time patterns (only when they save space)
         't0': '0.0',  # Most common time offset
         
+        # Phase 4A: High-frequency verbose strings (major compression gains)
+        'rcf': 'resource_claimed_fallback',  # 25 chars -> 3 chars (88% reduction!)
+        'cr': 'collected_resource',          # 16 chars -> 2 chars (87% reduction!)
+        'rs': 'resource_selection',          # 16 chars -> 2 chars (87% reduction!)
+        'nta': 'no_target_available',        # 17 chars -> 3 chars (82% reduction!)
+        'ccf': 'carrying_capacity_full',     # 22 chars -> 3 chars (86% reduction!)
+        
         # Long strings that benefit from compression
         'dg': 'deposited_goods',  # 14 chars -> 2 chars (87% reduction)
         'fd': 'force_de',         # 8 chars -> 2 chars (75% reduction)
-        'cr': 'collected_resource', # 17 chars -> 2 chars (88% reduction)
-        'rs': 'resource_selection', # 17 chars -> 2 chars (88% reduction)
-        'nt': 'no_target_available', # 18 chars -> 2 chars (89% reduction)
         'to': 'timeout',          # 7 chars -> 2 chars (71% reduction)
         'if': 'inventory_full',   # 14 chars -> 2 chars (86% reduction)
         
@@ -153,6 +179,24 @@ class OptimizedEventSerializer:
     def get_dict_to_string(cls):
         """Get reverse mapping of dictionary codes to strings."""
         return {v: k for k, v in cls.STRING_DICTIONARY.items()}
+    
+    @classmethod
+    def get_frequency_optimized_patterns(cls):
+        """Get frequency-optimized pattern mapping for Phase 4C.
+        
+        Returns:
+            Dictionary mapping frequency-optimized codes to pattern sequences
+        """
+        return {k: v for k, v in cls.BEHAVIORAL_PATTERNS.items() if k in ['1', '2', 'P5', 'P4']}
+    
+    @classmethod
+    def get_pattern_frequency_metadata(cls):
+        """Get pattern frequency metadata for Phase 4C optimization.
+        
+        Returns:
+            Dictionary containing pattern frequency statistics
+        """
+        return cls.PATTERN_FREQUENCY.copy()
     
     def __init__(self, enable_batching: bool = True, enable_relative_timestamps: bool = True,
                  batch_size: int = 10):
@@ -294,9 +338,9 @@ class OptimizedEventSerializer:
             elif new_mode:
                 optimized['n'] = new_mode
             
-            # Optimize reason
+            # Optimize reason using Phase 4A dictionary compression
             reason = event_dict.get('reason', '')
-            optimized['r'] = self.REASON_CODES.get(reason, reason[:8] if reason else '')
+            optimized['r'] = self._abbreviate_reason(reason)
         
         # Handle trade execution events
         elif event_dict['event_type'] == 'trade_execution':
@@ -317,6 +361,78 @@ class OptimizedEventSerializer:
             optimized['m'] = event_dict.get('message', '')[:50]  # Truncate long messages
         
         return optimized
+    
+    def _get_dictionary_code(self, text: str) -> Optional[str]:
+        """Get dictionary code for a text string if available.
+        
+        Args:
+            text: Text string to look up
+            
+        Returns:
+            Dictionary code if found, None otherwise
+        """
+        for code, full_string in OptimizedEventSerializer.STRING_DICTIONARY.items():
+            if full_string == text:
+                return code
+        return None
+    
+    def _abbreviate_reason(self, reason: str) -> str:
+        """Abbreviate a reason string using Phase 4A dictionary compression.
+        
+        Args:
+            reason: Full reason string
+            
+        Returns:
+            Abbreviated reason string using dictionary codes
+        """
+        # First check STRING_DICTIONARY for Phase 4A compression
+        dict_code = self._get_dictionary_code(reason)
+        if dict_code:
+            return dict_code
+        
+        # Fallback to legacy abbreviations for strings not in dictionary
+        reasons = {
+            'force_de': 'fd',
+            'resource': 'r',
+            'idle': 'i',
+            'timeout': 't',
+            'target_reached': 'tr',
+            'trade_completed': 'tc',
+            'trade_failed': 'tf',
+            'step_complete': 'sc'
+        }
+        return reasons.get(reason, reason)
+    
+    def export_dictionaries(self) -> Dict[str, Any]:
+        """Export pattern and string dictionaries for GUI translation.
+        
+        Returns:
+            Dictionary containing all compression dictionaries
+        """
+        return {
+            'behavioral_patterns': OptimizedEventSerializer.BEHAVIORAL_PATTERNS,
+            'string_dictionary': OptimizedEventSerializer.STRING_DICTIONARY,
+            'pattern_to_behavior': OptimizedEventSerializer.get_pattern_to_behavior(),
+            'dict_to_string': OptimizedEventSerializer.get_dict_to_string(),
+            'frequency_optimized_patterns': OptimizedEventSerializer.get_frequency_optimized_patterns(),
+            'pattern_frequency_metadata': OptimizedEventSerializer.get_pattern_frequency_metadata(),
+            'format_version': LogFormatVersion.V5_SEMANTIC.value,
+            'optimization_level': '2B+Phase4A+Phase4B+Phase4C+Phase4D+Phase4E',
+            'compression_features': [
+                'field_abbreviations',
+                'relative_timestamps', 
+                'mode_transition_compression',
+                'behavioral_pattern_recognition',
+                'string_dictionary_compression',
+                'run_length_encoding',
+                'agent_range_compression',
+                'phase4a_verbose_string_compression',
+                'phase4b_advanced_agent_range_compression',
+                'phase4c_frequency_based_pattern_optimization',
+                'phase4d_ultra_compact_step_format',
+                'phase4e_semantic_compression'
+            ]
+        }
     
     def finalize_batch(self) -> Optional[Dict[str, Any]]:
         """Finalize any remaining batched events.
@@ -419,7 +535,7 @@ class OptimizedLogWriter:
             self._events_written += len(events)
     
     def _create_optimized_step_batch(self, step: int, timestamp: Union[float, Dict[str, float]], events: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Create an optimized step batch with Level 2B optimizations.
+        """Create an optimized step batch with Phase 4E semantic compression.
         
         Args:
             step: Step number
@@ -427,7 +543,7 @@ class OptimizedLogWriter:
             events: List of event dictionaries
             
         Returns:
-            Optimized step batch dictionary with advanced compression
+            Semantically compressed step batch dictionary with context inference
         """
         # Group events by type for optimization
         collect_events = []
@@ -481,27 +597,8 @@ class OptimizedLogWriter:
         collect_events = self._apply_pattern_compression(collect_events, 'collection')
         mode_events = self._apply_pattern_compression(mode_events, 'mode')
         
-        # Build optimized structure with Phase 3 compressed timestamp
-        result = {
-            's': step,  # Step number (only once)
-        }
-        
-        # Handle both absolute timestamps and delta timestamps
-        if isinstance(timestamp, dict):
-            # Delta timestamp format: {'dt': 0.01}
-            result.update(timestamp)
-        else:
-            # Absolute timestamp format: t0: 0.32
-            result['t0'] = round(timestamp, 2)
-        
-        # Add grouped events if they exist
-        if collect_events:
-            result['c'] = collect_events
-        if mode_events:
-            result['m'] = mode_events
-        if other_events:
-            result['o'] = other_events
-            
+        # Phase 4E: Apply semantic compression with context inference
+        result = self._apply_semantic_compression(step, timestamp, collect_events, mode_events, other_events)
         return result
     
     def _compress_mode_transition(self, transition: str) -> str:
@@ -538,26 +635,6 @@ class OptimizedLogWriter:
             'idle': 'i'
         }
         return modes.get(mode, mode)
-    
-    def _abbreviate_reason(self, reason: str) -> str:
-        """Abbreviate a reason string.
-        
-        Args:
-            reason: Full reason string
-            
-        Returns:
-            Abbreviated reason string
-        """
-        reasons = {
-            'collected_resource': 'c',
-            'resource_selection': 's', 
-            'no_target_available': 'nt',
-            'force_de': 'fd',
-            'resource': 'r',
-            'idle': 'i',
-            'timeout': 't'
-        }
-        return reasons.get(reason, reason)
     
     def _compress_collection_event(self, time_val: float, agent_id: int) -> Union[List, str]:
         """Level 2B: Compress collection event with dictionary and RLE.
@@ -610,21 +687,16 @@ class OptimizedLogWriter:
                 transition_dict_code = code
                 break
         
-        # Dictionary compression for reason
-        reason_dict_code = None
-        for code, pattern in OptimizedEventSerializer.STRING_DICTIONARY.items():
-            if pattern == reason:
-                reason_dict_code = code
-                break
+        # Phase 4A: Use improved dictionary compression for reason
+        final_reason = self.serializer._abbreviate_reason(reason)
         
         # Use dictionary codes if available and they provide compression, otherwise use compressed values
         final_transition = transition_dict_code if transition_dict_code else compressed_transition
-        final_reason = reason_dict_code if reason_dict_code else self._abbreviate_reason(reason)
         
         return [time_compressed, agent_id, final_transition, final_reason]
     
     def _compress_other_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """Level 2B: Apply dictionary compression to other event types.
+        """Level 2B: Apply Phase 4A dictionary compression to other event types.
         
         Args:
             event: Event dictionary
@@ -638,13 +710,9 @@ class OptimizedLogWriter:
             if key in ['s', 'step']:
                 continue
                 
-            # Apply dictionary compression for string values
+            # Apply Phase 4A dictionary compression for string values
             if isinstance(value, str):
-                dict_code = None
-                for code, pattern in OptimizedEventSerializer.STRING_DICTIONARY.items():
-                    if pattern == value:
-                        dict_code = code
-                        break
+                dict_code = self.serializer._get_dictionary_code(value)
                 compressed[key] = dict_code if dict_code else value
             else:
                 compressed[key] = value
@@ -762,7 +830,7 @@ class OptimizedLogWriter:
         return True
     
     def _compress_agent_list(self, agent_list: List[int]) -> Union[str, List]:
-        """Phase 2: Advanced range compression for agent lists.
+        """Phase 4B: Advanced range compression with sparse list optimization.
         
         Args:
             agent_list: Sorted list of agent IDs
@@ -773,44 +841,375 @@ class OptimizedLogWriter:
         if len(agent_list) < 2:
             return agent_list[0] if agent_list else []
         
-        # Find all sequential ranges
-        ranges = []
-        current_range = [agent_list[0]]
+        # Phase 4B: Find optimal ranges with advanced range detection
+        ranges = self._find_optimal_ranges(agent_list)
         
-        for i in range(1, len(agent_list)):
-            if agent_list[i] == agent_list[i-1] + 1:
-                # Continue current range
-                current_range.append(agent_list[i])
-            else:
-                # End current range, start new one
-                ranges.append(current_range)
-                current_range = [agent_list[i]]
-        
-        # Add the last range
-        ranges.append(current_range)
-        
-        # Compress ranges
+        # Phase 4B: Compress ranges with improved algorithm
         compressed_parts = []
-        for range_list in ranges:
-            if len(range_list) == 1:
-                compressed_parts.append(str(range_list[0]))
-            elif len(range_list) == 2:
+        for start, end in ranges:
+            if start == end:
+                compressed_parts.append(str(start))
+            elif end - start == 1:
                 # Two consecutive: keep as individual numbers (more readable)
-                compressed_parts.extend([str(range_list[0]), str(range_list[1])])
+                compressed_parts.extend([str(start), str(end)])
             else:
                 # Three or more: use range notation
-                compressed_parts.append(f"{range_list[0]}-{range_list[-1]}")
+                compressed_parts.append(f"{start}-{end}")
         
-        # Return format based on compression efficiency
+        # Phase 4B: Return format based on compression efficiency
         if len(compressed_parts) == 1:
             # Single range or single number
             return compressed_parts[0]
-        elif len(compressed_parts) <= 3:
-            # Small number of parts: return as list
-            return compressed_parts
         else:
-            # Many parts: return as list (original format might be more efficient)
-            return agent_list
+            # Always use comma-separated string for better compression
+            compressed_string = ",".join(compressed_parts)
+            original_string = str(agent_list)
+            
+            # Only use compressed format if it's actually more efficient
+            if len(compressed_string) < len(original_string):
+                return compressed_string
+            else:
+                return agent_list
+    
+    def _find_optimal_ranges(self, agent_list: List[int]) -> List[Tuple[int, int]]:
+        """Phase 4B: Find optimal ranges for agent list compression.
+        
+        Args:
+            agent_list: Sorted list of agent IDs
+            
+        Returns:
+            List of (start, end) tuples representing optimal ranges
+        """
+        if not agent_list:
+            return []
+        
+        ranges = []
+        current_start = agent_list[0]
+        current_end = agent_list[0]
+        
+        for i in range(1, len(agent_list)):
+            if agent_list[i] == current_end + 1:
+                # Continue current range
+                current_end = agent_list[i]
+            else:
+                # End current range, start new one
+                ranges.append((current_start, current_end))
+                current_start = agent_list[i]
+                current_end = agent_list[i]
+        
+        # Add the last range
+        ranges.append((current_start, current_end))
+        
+        return ranges
+    
+    def _compress_collection_events_ultra_compact(self, collect_events: List[Union[List, Dict]]) -> Union[str, List]:
+        """Phase 4D: Ultra-compact compression for collection events.
+        
+        Args:
+            collect_events: List of collection events
+            
+        Returns:
+            Ultra-compact representation with minimal nesting
+        """
+        if not collect_events:
+            return []
+        
+        # If single event type per step, use ultra-compact format
+        if len(collect_events) == 1:
+            event = collect_events[0]
+            if isinstance(event, list) and len(event) == 2:
+                time_val, agent_data = event
+                # Ultra-compact: "t0,1-5" instead of [["t0",[1,2,3,4,5]]]
+                return f"{time_val},{agent_data}"
+        
+        # Multiple events - use compact list format
+        return collect_events
+    
+    def _compress_mode_events_ultra_compact(self, mode_events: List[Union[List, Dict]]) -> Union[str, List]:
+        """Phase 4D: Ultra-compact compression for mode events.
+        
+        Args:
+            mode_events: List of mode events
+            
+        Returns:
+            Ultra-compact representation with minimal nesting
+        """
+        if not mode_events:
+            return []
+        
+        # If single event type per step, use ultra-compact format
+        if len(mode_events) == 1:
+            event = mode_events[0]
+            if isinstance(event, list):
+                if len(event) == 2:
+                    # Pattern format: ["1", ["t0", "1-5"]]
+                    pattern, time_agent_data = event
+                    if isinstance(time_agent_data, list) and len(time_agent_data) == 2:
+                        time_val, agent_data = time_agent_data
+                        # Ultra-compact: "1,t0,1-5" instead of [["1",["t0","1-5"]]]
+                        return f"{pattern},{time_val},{agent_data}"
+                elif len(event) == 4:
+                    # Individual format: ["t0", 6, "fi", "nta"]
+                    time_val, agent_id, transition, reason = event
+                    # Ultra-compact: "t0,6,fi,nta" instead of ["t0",6,"fi","nta"]
+                    return f"{time_val},{agent_id},{transition},{reason}"
+        
+        # Multiple events - use compact list format
+        return mode_events
+    
+    def _apply_semantic_compression(self, step: int, timestamp: Union[float, Dict[str, float]], 
+                                   collect_events: List, mode_events: List, other_events: List) -> Dict[str, Any]:
+        """Phase 4E: Apply semantic compression with context-aware inference.
+        
+        Args:
+            step: Step number
+            timestamp: Base timestamp for the step
+            collect_events: List of collection events
+            mode_events: List of mode events
+            other_events: List of other events
+            
+        Returns:
+            Semantically compressed step batch dictionary
+        """
+        # Phase 4E: Build semantically compressed structure
+        result = {
+            's': step,  # Step number (only once)
+        }
+        
+        # Handle both absolute timestamps and delta timestamps
+        if isinstance(timestamp, dict):
+            # Delta timestamp format: {'dt': 0.01}
+            result.update(timestamp)
+        else:
+            # Absolute timestamp format: t0: 0.32
+            result['t0'] = round(timestamp, 2)
+        
+        # Phase 4E: Context-aware event compression with semantic inference
+        if collect_events:
+            result['c'] = self._compress_events_semantic(collect_events, 'collection')
+        if mode_events:
+            result['m'] = self._compress_events_semantic(mode_events, 'mode')
+        if other_events:
+            result['o'] = self._compress_events_semantic(other_events, 'other')
+            
+        return result
+    
+    def _compress_events_semantic(self, events: List, event_type: str) -> Union[str, List]:
+        """Phase 4E: Compress events using semantic inference and context awareness.
+        
+        Args:
+            events: List of events to compress
+            event_type: Type of events ('collection', 'mode', 'other')
+            
+        Returns:
+            Semantically compressed event representation
+        """
+        if not events:
+            return []
+        
+        # Phase 4E: Single event semantic compression
+        if len(events) == 1:
+            return self._compress_single_event_semantic(events[0], event_type)
+        
+        # Phase 4E: Multiple events - use context-aware grouping
+        return self._compress_multiple_events_semantic(events, event_type)
+    
+    def _compress_single_event_semantic(self, event: Union[List, Dict], event_type: str) -> str:
+        """Phase 4E: Compress single event using semantic inference.
+        
+        Args:
+            event: Single event to compress
+            event_type: Type of event ('collection', 'mode', 'other')
+            
+        Returns:
+            Semantically compressed string representation
+        """
+        if event_type == 'collection' and isinstance(event, list):
+            # Collection events: infer context from structure
+            if len(event) == 2:
+                time_val, agent_data = event
+                # Semantic: 'c' implies collection, time_val implies timestamp
+                return f"{time_val},{agent_data}"
+        
+        elif event_type == 'mode' and isinstance(event, list):
+            # Mode events: infer context from structure
+            if len(event) == 2:
+                # Pattern format: ["1", ["t0", "1-5"]]
+                pattern, time_agent_data = event
+                if isinstance(time_agent_data, list) and len(time_agent_data) == 2:
+                    time_val, agent_data = time_agent_data
+                    # Semantic: 'm' implies mode, pattern implies behavioral pattern
+                    return f"{pattern},{time_val},{agent_data}"
+            elif len(event) == 4:
+                # Individual format: ["t0", 6, "fi", "nta"]
+                time_val, agent_id, transition, reason = event
+                # Semantic: 'm' implies mode, infer transition and reason context
+                return f"{time_val},{agent_id},{transition},{reason}"
+        
+        # Fallback to string representation
+        return str(event)
+    
+    def _compress_multiple_events_semantic(self, events: List, event_type: str) -> List:
+        """Phase 4E: Compress multiple events using context-aware grouping.
+        
+        Args:
+            events: List of events to compress
+            event_type: Type of events ('collection', 'mode', 'other')
+            
+        Returns:
+            Context-aware compressed events list
+        """
+        # Phase 4E: Group events by semantic similarity
+        semantic_groups = self._group_events_semantic(events, event_type)
+        
+        # Phase 4E: Compress each semantic group
+        compressed_groups = []
+        for group in semantic_groups:
+            if len(group) == 1:
+                # Single event in group - use semantic compression
+                compressed_groups.append(self._compress_single_event_semantic(group[0], event_type))
+            else:
+                # Multiple events in group - use context-aware compression
+                compressed_groups.append(self._compress_semantic_group(group, event_type))
+        
+        return compressed_groups
+    
+    def _group_events_semantic(self, events: List, event_type: str) -> List[List]:
+        """Phase 4E: Group events by semantic similarity for context-aware compression.
+        
+        Args:
+            events: List of events to group
+            event_type: Type of events ('collection', 'mode', 'other')
+            
+        Returns:
+            List of semantically similar event groups
+        """
+        if event_type == 'collection':
+            # Group collection events by time pattern
+            time_groups = defaultdict(list)
+            for event in events:
+                if isinstance(event, list) and len(event) >= 1:
+                    time_pattern = event[0]
+                    time_groups[time_pattern].append(event)
+            return list(time_groups.values())
+        
+        elif event_type == 'mode':
+            # Group mode events by pattern similarity
+            pattern_groups = defaultdict(list)
+            for event in events:
+                if isinstance(event, list):
+                    if len(event) == 2:
+                        # Pattern format: ["1", ["t0", "1-5"]]
+                        pattern = event[0]
+                        pattern_groups[f"pattern_{pattern}"].append(event)
+                    elif len(event) == 4:
+                        # Individual format: ["t0", 6, "fi", "nta"]
+                        transition = event[2]
+                        reason = event[3]
+                        pattern_key = f"individual_{transition}_{reason}"
+                        pattern_groups[pattern_key].append(event)
+            return list(pattern_groups.values())
+        
+        # Default: no grouping
+        return [[event] for event in events]
+    
+    def _compress_semantic_group(self, group: List, event_type: str) -> Union[str, List]:
+        """Phase 4E: Compress a group of semantically similar events.
+        
+        Args:
+            group: List of similar events
+            event_type: Type of events ('collection', 'mode', 'other')
+            
+        Returns:
+            Compressed representation of the group
+        """
+        if event_type == 'collection':
+            # Collection groups: merge by time pattern
+            if len(group) > 1:
+                # Multiple collection events - merge agent lists
+                merged_agents = []
+                time_pattern = None
+                
+                for event in group:
+                    if isinstance(event, list) and len(event) == 2:
+                        time_val, agent_data = event
+                        if time_pattern is None:
+                            time_pattern = time_val
+                        
+                        if isinstance(agent_data, (list, str)):
+                            if isinstance(agent_data, str):
+                                # Parse range string back to list for merging
+                                agent_list = self._parse_agent_range(agent_data)
+                            else:
+                                agent_list = agent_data
+                            merged_agents.extend(agent_list)
+                
+                if merged_agents:
+                    # Remove duplicates and sort
+                    unique_agents = sorted(list(set(merged_agents)))
+                    compressed_agents = self._compress_agent_list(unique_agents)
+                    return [time_pattern, compressed_agents]
+        
+        elif event_type == 'mode':
+            # Mode groups: merge by pattern
+            if len(group) > 1:
+                # Multiple mode events - merge agent lists
+                merged_agents = []
+                pattern = None
+                time_pattern = None
+                
+                for event in group:
+                    if isinstance(event, list):
+                        if len(event) == 2:
+                            # Pattern format: ["1", ["t0", "1-5"]]
+                            pat, time_agent_data = event
+                            if pattern is None:
+                                pattern = pat
+                            
+                            if isinstance(time_agent_data, list) and len(time_agent_data) == 2:
+                                time_val, agent_data = time_agent_data
+                                if time_pattern is None:
+                                    time_pattern = time_val
+                                
+                                if isinstance(agent_data, (list, str)):
+                                    if isinstance(agent_data, str):
+                                        agent_list = self._parse_agent_range(agent_data)
+                                    else:
+                                        agent_list = agent_data
+                                    merged_agents.extend(agent_list)
+                
+                if merged_agents:
+                    # Remove duplicates and sort
+                    unique_agents = sorted(list(set(merged_agents)))
+                    compressed_agents = self._compress_agent_list(unique_agents)
+                    return [pattern, [time_pattern, compressed_agents]]
+        
+        # Fallback: return original group
+        return group
+    
+    def _parse_agent_range(self, range_string: str) -> List[int]:
+        """Phase 4E: Parse agent range string back to list of agent IDs.
+        
+        Args:
+            range_string: Compressed agent range string like "1-5,7,9-12"
+            
+        Returns:
+            List of agent IDs
+        """
+        agents = []
+        parts = range_string.split(',')
+        
+        for part in parts:
+            part = part.strip()
+            if '-' in part:
+                # Range: "1-5"
+                start, end = map(int, part.split('-'))
+                agents.extend(range(start, end + 1))
+            else:
+                # Single: "7"
+                agents.append(int(part))
+        
+        return sorted(agents)
     
     def _find_behavioral_pattern(self, transition: str, reason: str) -> Optional[str]:
         """Find matching behavioral pattern for transition and reason.
@@ -935,7 +1334,10 @@ class OptimizedLogWriter:
             'string_dictionary': OptimizedEventSerializer.STRING_DICTIONARY,
             'pattern_to_behavior': OptimizedEventSerializer.get_pattern_to_behavior(),
             'dict_to_string': OptimizedEventSerializer.get_dict_to_string(),
-            'optimization_level': '2B',
+            'frequency_optimized_patterns': OptimizedEventSerializer.get_frequency_optimized_patterns(),
+            'pattern_frequency_metadata': OptimizedEventSerializer.get_pattern_frequency_metadata(),
+            'format_version': LogFormatVersion.V5_SEMANTIC.value,
+            'optimization_level': '2B+Phase4A+Phase4B+Phase4C+Phase4D+Phase4E',
             'compression_features': [
                 'field_abbreviations',
                 'relative_timestamps', 
@@ -943,7 +1345,12 @@ class OptimizedLogWriter:
                 'behavioral_pattern_recognition',
                 'string_dictionary_compression',
                 'run_length_encoding',
-                'agent_range_compression'
+                'agent_range_compression',
+                'phase4a_verbose_string_compression',
+                'phase4b_advanced_agent_range_compression',
+                'phase4c_frequency_based_pattern_optimization',
+                'phase4d_ultra_compact_step_format',
+                'phase4e_semantic_compression'
             ]
         }
 
