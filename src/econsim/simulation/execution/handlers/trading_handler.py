@@ -180,9 +180,7 @@ class TradingHandler(BaseStepHandler):
 					pass
 
 	def _notify_trade_execution_event(self, context: StepContext, executed_intent) -> None:
-		"""Emit trade execution event to observer system."""
-		from ....observability.events import TradeExecutionEvent
-		
+		"""Record trade execution event using raw data architecture."""
 		if context.observer_registry.has_observers():
 			# Calculate utility changes (approximation for now)
 			seller_delta_u = getattr(executed_intent, "delta_utility", 0.0)
@@ -200,18 +198,21 @@ class TradingHandler(BaseStepHandler):
 			except Exception:
 				pass  # Keep default -1, -1
 			
-			event = TradeExecutionEvent.create(
-				step=context.step_number,
-				seller_id=executed_intent.seller_id,
-				buyer_id=executed_intent.buyer_id,
-				give_type=executed_intent.give_type,
-				take_type=executed_intent.take_type,
-				delta_u_seller=seller_delta_u,
-				delta_u_buyer=buyer_delta_u,
-				trade_location_x=trade_x,
-				trade_location_y=trade_y
-			)
-			context.observer_registry.notify(event)
+			# Record trade execution using raw data architecture
+			# Call record_trade() on all observers that support raw data recording
+			for observer in context.observer_registry._observers:
+				if hasattr(observer, 'record_trade'):
+					observer.record_trade(
+						step=context.step_number,
+						seller_id=executed_intent.seller_id,
+						buyer_id=executed_intent.buyer_id,
+						give_type=executed_intent.give_type,
+						take_type=executed_intent.take_type,
+						delta_u_seller=seller_delta_u,
+						delta_u_buyer=buyer_delta_u,
+						trade_location_x=trade_x,
+						trade_location_y=trade_y
+					)
 
 	def _cleanup_pairings(self, sim, executed: TradeIntent | None) -> None:
 		try:

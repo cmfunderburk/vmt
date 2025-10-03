@@ -29,30 +29,33 @@ class TestAgentEventEmitter:
         )
     
     def test_emit_mode_change_with_observer_registry(self):
-        """Test mode change emission via observer registry."""
+        """Test mode change emission via observer registry using raw data architecture."""
         emitter = AgentEventEmitter(agent_id=2)
-        observer_registry = Mock()
         
-        with patch('econsim.observability.events.AgentModeChangeEvent') as mock_event_class:
-            mock_event = Mock()
-            mock_event_class.create.return_value = mock_event
-            
-            emitter.emit_mode_change(
-                old_mode="idle",
-                new_mode="forage",
-                reason="target_found",
-                step_number=10,
-                observer_registry=observer_registry
-            )
-            
-            mock_event_class.create.assert_called_once_with(
-                step=10,
-                agent_id=2,
-                old_mode="idle",
-                new_mode="forage",
-                reason="target_found"
-            )
-            observer_registry.notify.assert_called_once_with(mock_event)
+        # Mock observer with record_mode_change method
+        mock_observer = Mock()
+        mock_observer.record_mode_change = Mock()
+        
+        # Mock observer registry
+        observer_registry = Mock()
+        observer_registry._observers = [mock_observer]
+        
+        emitter.emit_mode_change(
+            old_mode="idle",
+            new_mode="forage",
+            reason="target_found",
+            step_number=10,
+            observer_registry=observer_registry
+        )
+        
+        # Verify raw data recording was called correctly
+        mock_observer.record_mode_change.assert_called_once_with(
+            step=10,
+            agent_id=2,
+            old_mode="idle",
+            new_mode="forage",
+            reason="target_found"
+        )
     
     def test_emit_mode_change_no_observers(self):
         """Test mode change emission with no observers (graceful degradation)."""
@@ -67,31 +70,34 @@ class TestAgentEventEmitter:
         )
     
     def test_emit_resource_collection_with_observer_registry(self):
-        """Test resource collection emission via observer registry."""
+        """Test resource collection emission via observer registry using raw data architecture."""
         emitter = AgentEventEmitter(agent_id=4)
-        observer_registry = Mock()
         
-        with patch('econsim.observability.events.ResourceCollectionEvent') as mock_event_class:
-            mock_event = Mock()
-            mock_event_class.create.return_value = mock_event
-            
-            emitter.emit_resource_collection(
-                x=5,
-                y=7,
-                resource_type="A",
-                step=20,
-                observer_registry=observer_registry
-            )
-            
-            mock_event_class.create.assert_called_once_with(
-                step=20,
-                agent_id=4,
-                x=5,
-                y=7,
-                resource_type="A",
-                amount_collected=1
-            )
-            observer_registry.notify.assert_called_once_with(mock_event)
+        # Mock observer with record_resource_collection method
+        mock_observer = Mock()
+        mock_observer.record_resource_collection = Mock()
+        
+        # Mock observer registry
+        observer_registry = Mock()
+        observer_registry._observers = [mock_observer]
+        
+        emitter.emit_resource_collection(
+            x=5,
+            y=7,
+            resource_type="A",
+            step=20,
+            observer_registry=observer_registry
+        )
+        
+        # Verify raw data recording was called correctly
+        mock_observer.record_resource_collection.assert_called_once_with(
+            step=20,
+            agent_id=4,
+            x=5,
+            y=7,
+            resource_type="A",
+            amount_collected=1
+        )
     
     def test_emit_resource_collection_no_observers(self):
         """Test resource collection emission with no observers (graceful degradation)."""

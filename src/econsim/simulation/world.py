@@ -51,17 +51,19 @@ from ..observability.event_buffer import StepEventBuffer
 
 def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "", 
                           observer_registry: Optional[ObserverRegistry] = None, step: int = 0) -> None:
-    """Log agent mode transitions using observer system (Phase 1.3: Breaking circular dependency)."""
+    """Log agent mode transitions using raw data architecture."""
     if observer_registry and observer_registry.has_observers():
-        # Use new observer-based event system
-        event = AgentModeChangeEvent.create(
-            step=step,
-            agent_id=agent.id,
-            old_mode=old_mode.value,
-            new_mode=new_mode.value,
-            reason=reason
-        )
-        observer_registry.notify(event)
+        # Record mode change using raw data architecture
+        # Call record_mode_change() on all observers that support raw data recording
+        for observer in observer_registry._observers:
+            if hasattr(observer, 'record_mode_change'):
+                observer.record_mode_change(
+                    step=step,
+                    agent_id=agent.id,
+                    old_mode=old_mode.value,
+                    new_mode=new_mode.value,
+                    reason=reason
+                )
     # Note: Legacy fallback removed - observer system is now required for mode change logging
 
 

@@ -25,8 +25,7 @@ if TYPE_CHECKING:
     from .registry import ObserverRegistry
 
 from .events import (
-    DebugLogEvent, PerformanceMonitorEvent, AgentDecisionEvent, 
-    ResourceEvent, AgentModeChangeEvent
+    AgentModeChangeEvent
 )
 
 
@@ -126,12 +125,10 @@ class ObserverLogger:
         if not self._should_log_category(category):
             return
             
-        event = DebugLogEvent.create(
-            step=self._get_step(step),
-            category=category,
-            message=message
-        )
-        self.observer_registry.notify(event)
+        # Record debug event using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_debug_log(step=step_number, category=category, message=message)
     
     def log_agent_mode(self, agent_id: int, old_mode: str, new_mode: str, 
                        reason: str = "", step: Optional[int] = None) -> None:
@@ -147,14 +144,16 @@ class ObserverLogger:
         if not self._env_cache["debug_agent_modes"]:
             return
             
-        event = AgentModeChangeEvent.create(
-            step=self._get_step(step),
-            agent_id=agent_id,
-            old_mode=old_mode,
-            new_mode=new_mode,
-            reason=reason
-        )
-        self.observer_registry.notify(event)
+        # Record agent mode change using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_mode_change(
+                step=step_number,
+                agent_id=agent_id,
+                old_mode=old_mode,
+                new_mode=new_mode,
+                reason=reason
+            )
     
     def log_trade(self, message: str, step: Optional[int] = None) -> None:
         """Log trade debug information.
@@ -166,12 +165,10 @@ class ObserverLogger:
         if not self._env_cache["debug_trades"]:
             return
             
-        event = DebugLogEvent.create(
-            step=self._get_step(step),
-            category="TRADE",
-            message=message
-        )
-        self.observer_registry.notify(event)
+        # Record trade debug event using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_debug_log(step=step_number, category="TRADE", message=message)
     
     def log_simulation(self, message: str, step: Optional[int] = None) -> None:
         """Log simulation debug information.
@@ -183,12 +180,10 @@ class ObserverLogger:
         if not self._env_cache["debug_simulation"]:
             return
             
-        event = DebugLogEvent.create(
-            step=self._get_step(step),
-            category="SIMULATION",
-            message=message
-        )
-        self.observer_registry.notify(event)
+        # Record simulation debug event using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_debug_log(step=step_number, category="SIMULATION", message=message)
     
     def log_agent_decision(self, agent_id: int, decision_type: str, details: str, 
                           step: Optional[int] = None) -> None:
@@ -203,13 +198,15 @@ class ObserverLogger:
         if not self._env_cache["debug_decisions"]:
             return
             
-        event = AgentDecisionEvent.create(
-            step=self._get_step(step),
-            agent_id=agent_id,
-            decision_type=decision_type,
-            decision_details=details
-        )
-        self.observer_registry.notify(event)
+        # Record agent decision using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_agent_decision(
+                step=step_number,
+                agent_id=agent_id,
+                decision_type=decision_type,
+                decision_details=details
+            )
     
     def log_resource_event(self, event_type: str, position: Tuple[int, int], 
                           resource_type: str, agent_id: Optional[int] = None, 
@@ -226,15 +223,17 @@ class ObserverLogger:
         if not self._env_cache["debug_resources"]:
             return
             
-        event = ResourceEvent.create(
-            step=self._get_step(step),
-            event_type_detail=event_type,
-            position_x=position[0],
-            position_y=position[1],
-            resource_type=resource_type,
-            agent_id=agent_id if agent_id is not None else -1
-        )
-        self.observer_registry.notify(event)
+        # Record resource event using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_resource_event(
+                step=step_number,
+                event_type_detail=event_type,
+                position_x=position[0],
+                position_y=position[1],
+                resource_type=resource_type,
+                agent_id=agent_id if agent_id is not None else -1
+            )
     
     def log_performance(self, message: str, step: Optional[int] = None) -> None:
         """Log performance metrics.
@@ -251,31 +250,32 @@ class ObserverLogger:
         steps_per_sec_match = re.search(r'([0-9.]+) steps/sec', message)
         frame_time_match = re.search(r'([0-9.]+)ms frame', message)
         
+        step_number = self._get_step(step)
+        
         if steps_per_sec_match:
             metric_value = float(steps_per_sec_match.group(1))
-            event = PerformanceMonitorEvent.create(
-                step=self._get_step(step),
-                metric_name="steps_per_sec",
-                metric_value=metric_value,
-                details=message
-            )
+            # Record performance monitor event using raw data architecture
+            for observer in self.observer_registry._observers:
+                observer.record_performance_monitor(
+                    step=step_number,
+                    metric_name="steps_per_sec",
+                    metric_value=metric_value,
+                    details=message
+                )
         elif frame_time_match:
             metric_value = float(frame_time_match.group(1))
-            event = PerformanceMonitorEvent.create(
-                step=self._get_step(step),
-                metric_name="frame_time_ms", 
-                metric_value=metric_value,
-                details=message
-            )
+            # Record performance monitor event using raw data architecture
+            for observer in self.observer_registry._observers:
+                observer.record_performance_monitor(
+                    step=step_number,
+                    metric_name="frame_time_ms",
+                    metric_value=metric_value,
+                    details=message
+                )
         else:
-            # Fall back to debug log event
-            event = DebugLogEvent.create(
-                step=self._get_step(step),
-                category="PERFORMANCE",
-                message=message
-            )
-        
-        self.observer_registry.notify(event)
+            # Fall back to debug log event using raw data architecture
+            for observer in self.observer_registry._observers:
+                observer.record_debug_log(step=step_number, category="PERFORMANCE", message=message)
     
     # Additional convenience methods for common patterns
     
@@ -290,12 +290,10 @@ class ObserverLogger:
         if not self._env_cache["debug_phases"]:
             return
             
-        event = DebugLogEvent.create(
-            step=turn,
-            category="PHASE",
-            message=f"Phase {phase}: {description}"
-        )
-        self.observer_registry.notify(event)
+        # Record phase transition using raw data architecture
+        message = f"Phase {phase}: {description}"
+        for observer in self.observer_registry._observers:
+            observer.record_debug_log(step=turn, category="PHASE", message=message)
     
     def log_mode_switch(self, agent_id: int, old_mode: str, new_mode: str, 
                        context: str = "", step: Optional[int] = None) -> None:
@@ -317,12 +315,10 @@ class ObserverLogger:
             message: Economic system message
             step: Optional simulation step
         """
-        event = DebugLogEvent.create(
-            step=self._get_step(step),
-            category="ECON",
-            message=message
-        )
-        self.observer_registry.notify(event)
+        # Record economic debug event using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_debug_log(step=step_number, category="ECON", message=message)
     
     def log_spatial(self, message: str, step: Optional[int] = None) -> None:
         """Log spatial/movement messages.
@@ -331,12 +327,10 @@ class ObserverLogger:
             message: Spatial system message
             step: Optional simulation step
         """
-        event = DebugLogEvent.create(
-            step=self._get_step(step),
-            category="SPATIAL",
-            message=message
-        )
-        self.observer_registry.notify(event)
+        # Record spatial debug event using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_debug_log(step=step_number, category="SPATIAL", message=message)
     
     def log_utility_change(self, agent_id: int, old_utility: float, new_utility: float,
                           reason: str = "", step: Optional[int] = None, good_type: str = "") -> None:
@@ -357,14 +351,16 @@ class ObserverLogger:
         if good_type:
             details += f" [{good_type}]"
             
-        event = AgentDecisionEvent.create(
-            step=self._get_step(step),
-            agent_id=agent_id,
-            decision_type="utility_change",
-            decision_details=details,
-            utility_delta=utility_delta
-        )
-        self.observer_registry.notify(event)
+        # Record agent decision (utility change) using raw data architecture
+        step_number = self._get_step(step)
+        for observer in self.observer_registry._observers:
+            observer.record_agent_decision(
+                step=step_number,
+                agent_id=agent_id,
+                decision_type="utility_change",
+                decision_details=details,
+                utility_delta=utility_delta
+            )
     
     # Builder methods for complex logging patterns
     
@@ -397,12 +393,9 @@ class ObserverLogger:
             builder_result: Result from builder method
         """
         category, _, message = builder_result  # data not used in observer pattern
-        event = DebugLogEvent.create(
-            step=step,
-            category=category,
-            message=message
-        )
-        self.observer_registry.notify(event)
+        # Record built event using raw data architecture
+        for observer in self.observer_registry._observers:
+            observer.record_debug_log(step=step, category=category, message=message)
     
     # Tracking methods (behavioral analysis compatibility)
     
@@ -413,13 +406,14 @@ class ObserverLogger:
             step: Simulation step
             agent_id: Agent that retargeted
         """
-        event = AgentDecisionEvent.create(
-            step=step,
-            agent_id=agent_id,
-            decision_type="retargeting",
-            decision_details="Agent changed target selection"
-        )
-        self.observer_registry.notify(event)
+        # Record agent decision (retargeting) using raw data architecture
+        for observer in self.observer_registry._observers:
+            observer.record_agent_decision(
+                step=step,
+                agent_id=agent_id,
+                decision_type="retargeting",
+                decision_details="Agent changed target selection"
+            )
     
     # Performance and analysis methods
     

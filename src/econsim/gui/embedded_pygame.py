@@ -252,7 +252,6 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 agent_count = len(getattr(self._simulation, 'agents', []))
                 try:
                     from ..observability.observer_logger import get_global_observer_logger
-                    from ..observability.events import PerformanceMonitorEvent
                     
                     logger = get_global_observer_logger()
                     if logger is not None:
@@ -260,14 +259,15 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                         step_time = 1.0 / fps if fps > 0 else 0.0
                         resource_count = 0  # Simplified: avoid complex grid iteration for FPS logging
                         
-                        # Emit performance monitor event
-                        perf_event = PerformanceMonitorEvent.create(
-                            step=0,  # GUI performance events don't have specific simulation step
-                            metric_name="fps",
-                            metric_value=fps,
-                            details=f"agents={agent_count} step_time={step_time:.6f} render_time=0.0"
-                        )
-                        logger.observer_registry.notify(perf_event)
+                        # Record performance monitor event using raw data architecture
+                        details = f"agents={agent_count} step_time={step_time:.6f} render_time=0.0"
+                        for observer in logger.observer_registry._observers:
+                            observer.record_performance_monitor(
+                                step=0,  # GUI performance events don't have specific simulation step
+                                metric_name="fps",
+                                metric_value=fps,
+                                details=details
+                            )
                 except Exception:  # pragma: no cover
                     pass  # Graceful degradation when observer system not available
                 
