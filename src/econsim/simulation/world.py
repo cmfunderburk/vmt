@@ -257,22 +257,23 @@ class Simulation:
                 trade_logging=True,  # Enable trade logging for economic events
             )
             
-            # Create file observer for economic events
-            economic_events_file = file_manager.get_economic_events_file()
-            file_observer = FileObserver(
+            # Create comprehensive observer for all simulation events
+            log_dir = file_manager.get_economic_events_file().parent
+            simulation_events_file = log_dir / "simulation_events.jsonl"
+            comprehensive_observer = FileObserver(
                 config=observability_config,
-                output_path=economic_events_file,
+                output_path=simulation_events_file,
                 format='jsonl',  # Raw data architecture uses JSON lines format
-                compress=False,  # Default to uncompressed for easier inspection (can be enabled if needed)
+                compress=False,  # Default to uncompressed for easier inspection
             )
             
-            # Register the file observer
-            self._observer_registry.register(file_observer)
+            # Register the comprehensive observer
+            self._observer_registry.register(comprehensive_observer)
             
             # Store file manager for later use
             self._economic_file_manager = file_manager
             
-            print(f"Economic logging enabled: {economic_events_file}")
+            print(f"Comprehensive simulation logging enabled: {simulation_events_file}")
             
         except Exception as e:
             print(f"Warning: Failed to set up economic logging: {e}")
