@@ -146,16 +146,78 @@ def decompress_trade_event(compressed_string):
 **Decision**: Clean rewrite to avoid introducing more technical debt through incremental migration.
 
 ### Phase 1: Core Extensible Architecture
-1. **Create `event_schemas.py`** - Declarative schema definitions for all event types
-2. **Create `compression_engine.py`** - Auto-generates emission methods from schemas  
-3. **Create `translator.py`** - Auto-translates any schema back to human readable
-4. **Create `ExtensibleLogWriter`** - Simple JSON writer with hardcoded performance optimization
+1. **Create `event_schemas.py`** - Declarative schema definitions (documentation & translation only)
+2. **Create `extensible_observer.py`** - Direct emission methods with hardcoded compression (no code generation)
+3. **Create `translator.py`** - Decompresses events using schemas for GUI/analysis tools
+4. **Create `log_writer.py`** - Simple buffered JSON writer with newline-delimited output
 
-### Phase 2: Schema Definition & Validation
-1. **Define all current event schemas** (trade, mode change, resource collection, etc.)
-2. **Design validation framework** - ensure required fields present, types correct
-3. **Auto-generate emission methods** for all current event types
-4. **Create schema registry** for runtime schema lookup
+**Log Writer Requirements**:
+- Buffered writes (flush every N events or M seconds)
+- Newline-delimited JSON for easy parsing
+- File handle management with context manager support
+- No complex optimization - let filesystem buffering handle I/O
+- Thread-safe if needed for future parallel execution
+
+**Sketch Implementation**:
+```python
+# log_writer.py
+class ExtensibleLogWriter:
+    """Simple buffered log writer with context manager support"""
+    
+    def __init__(self, filepath, buffer_size=100, flush_interval_sec=1.0):
+        self.filepath = filepath
+        self.buffer_size = buffer_size
+        self.flush_interval = flush_interval_sec
+        self._buffer = []
+        self._file = None
+        self._last_flush = time.time()
+    
+    def __enter__(self):
+        self._file = open(self.filepath, 'a', buffering=8192)  # OS buffering
+        return self
+    
+    def __exit__(self, *args):
+        self.flush()
+        if self._file:
+            self._file.close()
+    
+    def write_entry(self, entry_dict):
+        """Write a log entry (dict) to buffer"""
+        self._buffer.append(entry_dict)
+        
+        # Auto-flush conditions
+        if len(self._buffer) >= self.buffer_size or \
+           (time.time() - self._last_flush) >= self.flush_interval:
+            self.flush()
+    
+    def flush(self):
+        """Flush buffer to disk"""
+        if not self._buffer or not self._file:
+            return
+        
+        for entry in self._buffer:
+            json_line = json.dumps(entry, separators=(',', ':'))  # Compact
+            self._file.write(json_line + '\n')
+        
+        self._file.flush()
+        self._buffer.clear()
+        self._last_flush = time.time()
+```
+
+### Phase 2: Schema Definition & Direct Methods
+1. **Define all current event schemas** - Must cover all existing event types from `observability/events.py`:
+   - `AgentModeChangeEvent` → `emit_agent_mode_change()`
+   - `ResourceCollectionEvent` → `emit_resource_collection()`
+   - `TradeExecutionEvent` → `emit_trade_execution()`
+   - `DebugLogEvent` → `emit_debug_log()`
+   - `PerformanceMonitorEvent` → `emit_performance_monitor()`
+   - `AgentDecisionEvent` → `emit_agent_decision()`
+   - `ResourceEvent` → `emit_resource_event()`
+   - `EconomicDecisionEvent` → `emit_economic_decision()`
+   - `GUIDisplayEvent` → `emit_gui_display()` (may skip if GUI-only)
+2. **Implement direct emission methods** - Write explicit emit_* methods with hardcoded compression
+3. **Add fail-fast validation** - Assert statements in each emission method
+4. **Create schema registry** - For translator to lookup schemas when decompressing logs
 
 ### Phase 3: Observer Migration  
 1. **Replace all observers** with new ExtensibleObserver base class
@@ -173,9 +235,16 @@ def decompress_trade_event(compressed_string):
 
 ### Phase 5: Validation & Performance
 1. **Verify compression ratios** maintained or improved
-2. **Performance benchmarking** vs old system
-3. **Extensibility testing** - add new event type to verify ease
-4. **Production validation** with existing test scenarios
+2. **Performance benchmarking** vs old system:
+   - **Target**: <2% overhead per step (existing project constraint)
+   - **Baseline comparison**: Run `make perf` to compare against `baselines/performance_baseline.json`
+   - **Hot path validation**: Profile string formatting in emission methods
+   - **Memory profiling**: Ensure no per-frame allocations or memory leaks
+3. **Extensibility testing** - add new event type to verify ease (should take ~10 minutes)
+4. **Production validation** with existing test scenarios:
+   - All 436 tests must pass
+   - Determinism hashes validated (may need baseline refresh)
+   - Launcher integration tests successful
 
 ## Critical Design Decisions (Based on Discussion)
 
@@ -189,53 +258,71 @@ def decompress_trade_event(compressed_string):
 - **Implementation**: Compile-time generation of compression strings
 - **Benefit**: Maximum performance, minimal runtime overhead  
 
-### 3. Backward Compatibility: ✅ Not Required
+### 3. Backward Compatibility: ✅ Not Required (With Caveats)
 - **Rationale**: Clean break from legacy format
 - **Approach**: New format only, no transition period needed
 - **Benefit**: No compatibility constraints on new design
 
-### 4. Event Validation: ✅ DECIDED - Compile-Time Only
-**Decision**: Option A - Compile-time validation for maximum maintainability
+**⚠️ IMPORTANT CAVEAT**: Existing economic analysis logs in `economic_analysis_logs/` will become unreadable with new format. Consider:
+1. **Archive strategy** - Keep old logs with timestamp/version marker
+2. **Legacy translator** - Optional tool to read old format if needed for historical analysis
+3. **Documentation** - Clear commit message explaining format change and rationale
+
+**Decision**: Accept breaking change. Existing logs (as of Oct 2025) represent development/validation data, not production data requiring long-term compatibility.
+
+### 4. Event Validation: ✅ DECIDED - Fail-Fast Runtime Validation
+**Decision**: Option A - Fail-fast runtime validation for immediate error detection
+
+**NOTE**: Previously labeled "compile-time" but this was misleading. The actual approach uses **runtime assertions** 
+in direct emission methods (no code generation). The "compile-time" terminology referred to validation being 
+**hardcoded into methods** rather than dynamic schema lookup - but the checks still execute at runtime.
 
 **Approach**:
 ```python
-# Compile-time validation (chosen approach)
-# - Generate emission methods with built-in validation
-# - Zero runtime overhead  
-# - Fail fast during development
-# - Focus on code maintainability over runtime flexibility
+# Fail-fast runtime validation (chosen approach)
+# - Explicit assertion statements in direct emission methods
+# - Clear error messages with context (step number, field name)
+# - Type checking to catch integration errors early
+# - Zero schema lookup overhead in hot path
 
-def generate_emission_method(schema):
-    """Generate emission method with compile-time validation built-in"""
-    required_fields = [f for f, meta in schema['fields'].items() if meta.get('required', False)]
+def emit_trade_execution(self, step, seller_id, buyer_id, give_type, take_type, **optional):
+    """Emit trade execution event with required and optional fields"""
+    # Fail-fast validation with clear error messages
+    assert seller_id is not None, f"seller_id required for trade execution at step {step}"
+    assert buyer_id is not None, f"buyer_id required for trade execution at step {step}"
+    assert give_type is not None, f"give_type required for trade execution at step {step}"
+    assert take_type is not None, f"take_type required for trade execution at step {step}"
+    assert isinstance(seller_id, int), f"seller_id must be integer, got {type(seller_id)} at step {step}"
+    assert isinstance(buyer_id, int), f"buyer_id must be integer, got {type(buyer_id)} at step {step}"
     
-    validation_code = []
-    for field in required_fields:
-        validation_code.append(f"assert '{field}' in kwargs, 'Required field {field} missing'")
+    # Direct compression with hardcoded field mapping
+    compressed = f"sid:{seller_id},bid:{buyer_id},gt:{give_type},tt:{take_type}"
     
-    # Generate method with hardcoded validation
-    method_code = f"""
-def emit_{schema['event_code']}(self, step, **kwargs):
-    # Compile-time generated validation
-    {chr(10).join('    ' + line for line in validation_code)}
+    # Optional fields with explicit mapping
+    optional_mapping = {
+        'delta_u_seller': 'dus',
+        'delta_u_buyer': 'dub', 
+        'trade_location_x': 'tx',
+        'trade_location_y': 'ty'
+    }
     
-    # Direct compression generation
-    compressed_parts = []
-    for field, value in kwargs.items():
-        if field in {list(schema['fields'].keys())}:
-            code = {schema['field_codes']}[field]
-            compressed_parts.append(f"{{code}}:{{value}}")
+    for field, value in optional.items():
+        if field in optional_mapping and value is not None:
+            code = optional_mapping[field]
+            compressed += f",{code}:{value}"
     
-    compressed = ','.join(compressed_parts)
-    self._write_log_entry({{"s": step, "dt": self._get_delta_time(), 
-                          "e": "{schema['event_code']}", "d": compressed}})
-"""
-    return method_code
+    self._write_log_entry({"s": step, "dt": self._get_delta_time(), 
+                          "e": "trade", "d": compressed})
 
 # Error handling: Development-time failures only
 # - Missing required fields = AssertionError during development
-# - Invalid schemas = Import-time failure  
+# - Invalid types = AssertionError during development
 # - No runtime error recovery needed (fail-fast principle)
+
+# ⚠️ PYTHON ASSERTION WARNING:
+# - Assertions removed with `python -O` optimization flag
+# - Project never uses -O flag in production (educational tool, not performance-critical deployment)
+# - If production deployment needed in future, replace asserts with explicit if/raise checks
 ```
 
 ## CRITICAL REQUIREMENT: Extensibility-First Design
@@ -244,13 +331,21 @@ def emit_{schema['event_code']}(self, step, **kwargs):
 
 ### Extensibility Design Principles
 
-#### 1. Declarative Event Schema - ✅ DECIDED FORMAT
+#### 1. Declarative Event Schema - ✅ DECIDED FORMAT (Documentation & Translation Only)
+
+**CRITICAL CLARIFICATION**: With the direct methods approach (Option D), schemas serve **two purposes**:
+1. **Documentation** - Single source of truth for field codes and compression format
+2. **Translation** - Used by `translator.py` to decompress logs for GUI/analysis tools
+
+**Schemas are NOT used during emission** - Direct methods have hardcoded compression for performance.
+
 ```python
-# event_schemas.py - Single source of truth for all event types
+# event_schemas.py - Documentation and translation layer reference
 TRADE_EXECUTION_SCHEMA = {
     'event_code': 'trade',
     'version': '1.0',
     'category': 'economic_transaction',
+    'description': 'Trade execution event between two agents',
     'fields': {
         'seller_id': {'code': 'sid', 'type': 'int', 'required': True},
         'buyer_id': {'code': 'bid', 'type': 'int', 'required': True},
@@ -266,6 +361,11 @@ TRADE_EXECUTION_SCHEMA = {
         'trade_efficiency': {'code': 'eff', 'type': 'float', 'required': False}  # ← Add this line, done!
     }
 }
+
+# Usage:
+# - Developer reference: Check schema when writing emit_trade_execution() method
+# - Translation: GUI uses schema to decompress "sid:1,bid:2" → {'seller_id': 1, 'buyer_id': 2}
+# - NOT used: During event emission (hardcoded for performance)
 
 AGENT_MODE_SCHEMA = {
     'event_code': 'mode',
@@ -617,10 +717,59 @@ def emit_trade_execution(self, step, seller_id, buyer_id, give_type, take_type, 
 3. **Update baselines** - Refresh determinism hashes if log format changes
 4. **Performance validation** - Ensure new system meets performance baselines
 
-### Expected Timeline: 2 weeks total
-- **Week 1**: Core implementation and basic integration
-- **Week 2**: Full replacement, testing, and cleanup
+### Expected Timeline: 2-3 weeks total
+- **Week 1**: Core implementation (schemas, direct methods, log writer, translator)
+- **Week 2**: Observer migration and handler updates (9 event types × multiple observers)
+- **Week 3**: Testing, performance validation, cleanup, and baseline updates
+
+**Timeline risks**:
+- 9 event types to implement with direct methods
+- Multiple observers to migrate (FileObserver, EconomicObserver, PerformanceObserver, EducationalObserver)
+- 436 test suite validation
+- Determinism hash baseline may need refresh
+- Performance profiling and optimization
 
 This architecture rethink represents a fundamental shift from "complex pipeline with multiple transformations" to "simple emission with direct methods." The maintainability focus makes this critical - future development shouldn't require debugging complex serialization pipelines.
+
+## IMPLEMENTATION CHECKLIST - Pre-Start Verification
+
+Before beginning implementation, verify:
+
+### ✅ Architectural Decisions Complete
+- [x] Migration strategy decided: Direct replacement (Option B)
+- [x] Implementation approach decided: Simple direct methods (Option D)
+- [x] Validation strategy decided: Fail-fast runtime assertions
+- [x] Error handling decided: Development-time failures only
+- [x] Backward compatibility: Not required (with caveat about existing logs)
+- [x] Schema role clarified: Documentation and translation only
+
+### ✅ Technical Requirements Clear
+- [x] Performance target: <2% overhead per step
+- [x] Test validation: All 436 tests must pass
+- [x] Determinism: May need baseline refresh
+- [x] Event coverage: 9 event types identified
+- [x] Observer coverage: 4+ observers to migrate
+
+### ✅ Implementation Components Designed
+- [x] Log writer sketch provided
+- [x] Emission method pattern established
+- [x] Schema format defined
+- [x] Translation layer approach clear
+- [x] File structure planned
+
+### ⚠️ Open Questions Resolved
+- [x] Schema redundancy clarified (documentation & translation only)
+- [x] Validation terminology corrected (runtime, not compile-time)
+- [x] Backward compatibility caveat documented
+- [x] Python assertion warning added
+- [x] Performance validation requirements specified
+
+### 📋 Implementation Order
+1. **Core files first**: `log_writer.py`, `event_schemas.py`, `extensible_observer.py`
+2. **Test incrementally**: Unit tests for each emission method
+3. **Migrate observers**: One at a time (FileObserver → EconomicObserver → ...)
+4. **Update handlers**: Replace `Event.create()` calls with `observer.emit_*()` calls
+5. **Validate determinism**: Check hash stability, refresh baselines if needed
+6. **Delete legacy**: Remove `serializers/` directory last (after validation complete)
 
 **IMPLEMENTATION STATUS**: 🚀 **READY TO BEGIN** - All architectural decisions finalized, clear implementation path defined.
