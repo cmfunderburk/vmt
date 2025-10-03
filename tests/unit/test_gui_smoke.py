@@ -1,14 +1,10 @@
-"""Smoke test for new GUI scaffolding (headless friendly).
-
-Skips if ECONSIM_NEW_GUI not enabled to avoid affecting legacy pipeline.
-"""
+"""Smoke test for GUI scaffolding (headless friendly)."""
 from __future__ import annotations
 
 import os
 import pytest
 
 
-@pytest.mark.skipif(os.environ.get("ECONSIM_NEW_GUI") != "1", reason="New GUI not enabled")
 def test_session_factory_headless_import():
     # Basic import + descriptor build path
     from econsim.gui.session_factory import SimulationSessionDescriptor, SessionFactory

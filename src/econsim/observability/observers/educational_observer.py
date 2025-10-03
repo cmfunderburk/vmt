@@ -1,7 +1,7 @@
 """Educational analytics observer using raw data architecture for behavioral insights and learning.
 
 This module implements the EducationalObserver class that preserves and
-enhances the educational features from the legacy GUILogger using the new
+provides educational features using the new
 raw data recording architecture for zero-overhead performance.
 
 Features:
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 class EducationalObserver(BaseObserver, RawDataObserver):
     """Educational analytics observer using raw data architecture for learning and insights.
     
-    Preserves and enhances educational features from the legacy GUILogger,
+    Provides educational features for learning and analysis,
     providing comprehensive behavioral analysis and educational metrics
     for understanding agent behavior and simulation dynamics using zero-overhead raw data recording.
     
@@ -57,8 +57,8 @@ class EducationalObserver(BaseObserver, RawDataObserver):
         
         Args:
             config: Observability configuration
-            behavioral_window: Window size for behavioral aggregation (legacy, kept for compatibility)
-            correlation_window: Window size for correlation analysis (legacy, kept for compatibility)
+            behavioral_window: Window size for behavioral aggregation
+            correlation_window: Window size for correlation analysis
             output_dir: Optional output directory for educational analysis files
         """
         # Initialize both parent classes

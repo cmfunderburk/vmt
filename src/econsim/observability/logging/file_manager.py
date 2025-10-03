@@ -85,10 +85,7 @@ class EconomicLogFileManager:
         Returns:
             Path to the economic events log file
         """
-        if self.config.use_optimized_format:
-            return self.get_log_file_path("economic_events.jsonl")
-        else:
-            return self.get_log_file_path("economic_events_legacy.jsonl")
+        return self.get_log_file_path("economic_events.jsonl")
     
     def get_analysis_file(self) -> Path:
         """Get the path for the economic analysis results file.

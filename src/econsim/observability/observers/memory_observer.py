@@ -52,18 +52,13 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         
         Args:
             config: Observability configuration
-            max_events: Maximum number of events to store in memory (legacy, kept for compatibility)
+            max_events: Maximum number of events to store in memory
         """
         # Initialize both parent classes
         BaseObserver.__init__(self, config)
         RawDataObserver.__init__(self)
         
-        self._max_events = max_events  # Legacy compatibility
-        
-        # Legacy event storage (kept for backward compatibility)
-        self._all_events: Deque[Dict[str, Any]] = deque(maxlen=max_events)
-        self._events_by_step: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
-        self._events_by_type: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        self._max_events = max_events
         
         # Statistics
         self._total_events_received = 0
@@ -195,62 +190,12 @@ class MemoryObserver(BaseObserver, RawDataObserver):
                 agent_id=-1
             )
         
-        # Legacy compatibility - also store in legacy format
+        # Update event count
         self._total_events_received += 1
-        
-        # Convert event to dictionary for legacy storage
-        event_dict = {
-            'step': step,
-            'timestamp': getattr(event, 'timestamp', 0),
-            'event_type': event.event_type,
-        }
-        
-        # Add event-specific fields
-        for field_name in ['agent_id', 'old_mode', 'new_mode', 'reason']:
-            if hasattr(event, field_name):
-                event_dict[field_name] = getattr(event, field_name)
-        
-        # Check if we're at capacity
-        if len(self._all_events) >= self._max_events:
-            # Remove oldest events to make room
-            oldest_event = self._all_events[0] if self._all_events else None
-            if oldest_event:
-                self._remove_event_from_indices(oldest_event)
-                self._events_dropped += 1
-        
-        # Store event in all indices
-        self._all_events.append(event_dict)
-        self._events_by_step[step].append(event_dict)
-        self._events_by_type[event.event_type].append(event_dict)
         
         # Update current step
         self._current_step = max(self._current_step, step)
 
-    def _remove_event_from_indices(self, event_dict: Dict[str, Any]) -> None:
-        """Remove an event from secondary indices when evicted.
-        
-        Args:
-            event_dict: Event dictionary to remove from indices
-        """
-        # Remove from step index
-        step = event_dict.get('step')
-        if step is not None and step in self._events_by_step:
-            try:
-                self._events_by_step[step].remove(event_dict)
-                if not self._events_by_step[step]:  # Clean up empty lists
-                    del self._events_by_step[step]
-            except ValueError:
-                pass  # Event not found, already removed
-        
-        # Remove from type index
-        event_type = event_dict.get('event_type')
-        if event_type and event_type in self._events_by_type:
-            try:
-                self._events_by_type[event_type].remove(event_dict)
-                if not self._events_by_type[event_type]:  # Clean up empty lists
-                    del self._events_by_type[event_type]
-            except ValueError:
-                pass  # Event not found, already removed
 
     def flush_step(self, step: int) -> None:
         """Handle end-of-step boundary with zero overhead.
@@ -325,12 +270,7 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         Returns:
             List of event dictionaries in the step range
         """
-        range_events = []
-        for event in self._all_events:
-            step = event.get('step', -1)
-            if start_step <= step <= end_step:
-                range_events.append(event)
-        return range_events
+        return super().get_events_in_range(start_step, end_step)
 
     def count_events_by_type(self) -> Dict[str, int]:
         """Count events by type.
@@ -338,7 +278,7 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         Returns:
             Dictionary mapping event types to their counts
         """
-        return {event_type: len(events) for event_type, events in self._events_by_type.items()}
+        return super().count_events_by_type()
 
     def get_steps_with_events(self) -> Set[int]:
         """Get set of all steps that have events.
@@ -346,13 +286,11 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         Returns:
             Set of step numbers that contain events
         """
-        return set(self._events_by_step.keys())
+        return super().get_steps_with_events()
 
     def clear_events(self) -> None:
         """Clear all stored events."""
-        self._all_events.clear()
-        self._events_by_step.clear()
-        self._events_by_type.clear()
+        super().clear_events()
         self._total_events_received = 0
         self._events_dropped = 0
         self._current_step = 0
@@ -375,13 +313,9 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         memory_stats = {
             'observer_type': 'memory',
             'max_events': self._max_events,
-            'stored_events': len(self._all_events),
             'total_events_received': self._total_events_received,
             'events_dropped': self._events_dropped,
             'current_step': self._current_step,
-            'unique_event_types': len(self._events_by_type),
-            'steps_with_events': len(self._events_by_step),
-            'memory_utilization': len(self._all_events) / self._max_events if self._max_events > 0 else 0,
             'raw_data_events': raw_data_stats['total_events'],
             'raw_data_types': list(raw_data_stats['event_types']),
             'step_range': raw_data_stats['step_range'],
@@ -439,7 +373,7 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         raw_data_stats = self.get_statistics()
         return (f"MemoryObserver(events={raw_data_stats['total_events']}, "
                 f"types={len(raw_data_stats['event_types'])}, "
-                f"legacy={len(self._all_events)}/{self._max_events}, closed={self._closed})")
+                f"max_events={self._max_events}, closed={self._closed})")
 
     def __len__(self) -> int:
         """Get number of stored events."""

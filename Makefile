@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PACKAGE = econsim
 
-.PHONY: install dev lint format type test-unit perf manual-tests launcher enhanced-tests batch-tests bookmarks test tests clean venv token token-analysis token-analysis-full
+.PHONY: install lint format type test-unit perf manual-tests launcher enhanced-tests batch-tests bookmarks test tests clean venv token token-analysis token-analysis-full
 
 # Create canonical development virtual environment (vmt-dev) and install deps
 .PHONY: venv
@@ -17,10 +17,6 @@ venv:
 install:
 	$(PYTHON) -m pip install -e .[dev]
 
-dev:
-	# Launch the enhanced GUI with observer-based architecture (modernized)
-	# Legacy bootstrap available with: ECONSIM_NEW_GUI=0 make dev
-	ECONSIM_NEW_GUI=1 $(PYTHON) -m $(PACKAGE).main
 
 lint:
 	ruff check src tests

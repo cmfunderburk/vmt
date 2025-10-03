@@ -1,38 +1,52 @@
 """Application entry point for EconSim VMT.
 
-Gate 1 Objective: Launch a PyQt6 window (no embedded pygame yet) to verify
-basic event loop and packaging skeleton. Pygame integration will be added in
-`gui/embedded_pygame.py` in a subsequent increment.
+This module provides the legacy main entry point for backward compatibility.
+The canonical workflow is now through the launcher system: make launcher
 """
 
 from __future__ import annotations
 
 import sys
 
-from PyQt6.QtWidgets import QApplication, QMainWindow
-from PyQt6.QtCore import Qt
-
-from econsim.gui.embedded_pygame import EmbeddedPygameWidget
-try:  # feature flag import (optional during transition)
-    from econsim.gui.main_window import MainWindow, should_use_new_gui
-except Exception:  # pragma: no cover - fallback if new GUI not present
-    MainWindow = None  # type: ignore
-    def should_use_new_gui() -> bool:  # type: ignore
-        return False
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 
-def create_window() -> QMainWindow:
-    # Feature flag path
-    if should_use_new_gui():
-        if MainWindow is None:  # defensive
-            raise RuntimeError("New GUI requested but unavailable")
-        return MainWindow()
-    # Legacy bootstrap
+def create_window():
+    """Create a simple message window directing users to the launcher."""
+    from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton
+    from PyQt6.QtCore import Qt
+    
     window = QMainWindow()
-    window.setWindowTitle("EconSim – Gate 1 Bootstrap")
-    widget = EmbeddedPygameWidget()
-    window.setCentralWidget(widget)
-    window.resize(640, 480)
+    window.setWindowTitle("EconSim VMT - Deprecated Entry Point")
+    window.resize(400, 200)
+    
+    # Create central widget with message
+    central_widget = QWidget()
+    layout = QVBoxLayout(central_widget)
+    
+    # Title
+    title = QLabel("EconSim VMT")
+    title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    title.setStyleSheet("font-size: 18px; font-weight: bold; margin: 20px;")
+    layout.addWidget(title)
+    
+    # Message
+    message = QLabel(
+        "The 'make dev' command has been deprecated.\n\n"
+        "Please use the canonical workflow:\n"
+        "make launcher"
+    )
+    message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    message.setStyleSheet("margin: 20px; font-size: 12px;")
+    layout.addWidget(message)
+    
+    # Close button
+    close_button = QPushButton("Close")
+    close_button.clicked.connect(window.close)
+    close_button.setStyleSheet("margin: 20px; padding: 10px;")
+    layout.addWidget(close_button)
+    
+    window.setCentralWidget(central_widget)
     return window
 
 

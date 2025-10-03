@@ -2,7 +2,6 @@
 """Visual verification script for sprite rendering."""
 
 import os
-os.environ["ECONSIM_NEW_GUI"] = "0"  # Use minimal bootstrap for quick test
 
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation

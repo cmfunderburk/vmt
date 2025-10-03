@@ -71,19 +71,19 @@ class PerformanceObserver(BaseObserver, RawDataObserver):
         
         Args:
             config: Observability configuration
-            history_size: Number of performance samples to keep in memory (legacy, kept for compatibility)
-            enable_profiling: Whether to enable detailed profiling (legacy, kept for compatibility)
+            history_size: Number of performance samples to keep in memory
+            enable_profiling: Whether to enable detailed profiling
             output_dir: Optional output directory for performance analysis files
         """
         # Initialize both parent classes
         BaseObserver.__init__(self, config)
         RawDataObserver.__init__(self)
         
-        self._history_size = history_size  # Legacy compatibility
-        self._enable_profiling = enable_profiling  # Legacy compatibility
+        self._history_size = history_size
+        self._enable_profiling = enable_profiling
         self.output_dir = output_dir
         
-        # Performance metrics storage (legacy compatibility - will be replaced by raw data analysis)
+        # Performance metrics storage
         self._step_timings: Deque[Dict[str, Any]] = deque(maxlen=history_size)
         self._event_timings: Deque[Dict[str, Any]] = deque(maxlen=history_size)
         self._memory_samples: Deque[Dict[str, Any]] = deque(maxlen=history_size)

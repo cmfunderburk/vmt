@@ -1,7 +1,4 @@
-"""Validation tests for StartMenuPage input constraints (feature-flagged GUI).
-
-Skips when ECONSIM_NEW_GUI not enabled to avoid affecting legacy pipeline.
-"""
+"""Validation tests for StartMenuPage input constraints."""
 from __future__ import annotations
 
 import os
@@ -9,7 +6,6 @@ import pytest
 
 from PyQt6.QtWidgets import QApplication
 
-pytestmark = pytest.mark.skipif(os.environ.get("ECONSIM_NEW_GUI") != "1", reason="New GUI flag not enabled")
 
 
 @pytest.fixture(scope="module")

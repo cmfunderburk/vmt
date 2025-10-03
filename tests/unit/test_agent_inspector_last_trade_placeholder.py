@@ -8,7 +8,6 @@ from econsim.preferences.cobb_douglas import CobbDouglasPreference
 from econsim.simulation.metrics import MetricsCollector
 from econsim.gui.simulation_controller import SimulationController
 
-@pytest.mark.skipif(os.environ.get('ECONSIM_NEW_GUI') != '1', reason='New GUI not enabled')
 @pytest.mark.skipif('DISPLAY' not in os.environ, reason='Headless environment without DISPLAY variable')
 def test_agent_inspector_last_trade_placeholder(monkeypatch):  # type: ignore[no-untyped-def]
     # Enable bilateral flags via controller method to avoid global leak complexity

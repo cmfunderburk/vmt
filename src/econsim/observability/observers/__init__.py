@@ -13,7 +13,7 @@ Observer Types:
 Design Principles:
 - Single responsibility for each observer type
 - Efficient event processing with minimal overhead
-- Educational features preserved from legacy GUILogger
+- Educational features for learning and analysis
 - Buffer-based architecture for performance optimization
 """
 

@@ -1,7 +1,4 @@
-"""Main GUI window with Start Menu → Simulation stack (Phase A scaffold).
-
-Environment opt-in: set ECONSIM_NEW_GUI=1 to launch this window instead of
-legacy EmbeddedPygame-only frame. Keeps legacy tests stable while scaffolding.
+"""Main GUI window with Start Menu → Simulation stack.
 
 Design notes:
 * Uses QStackedWidget with two pages (menu, simulation)
@@ -275,7 +272,8 @@ class MainWindow(QMainWindow):  # pragma: no cover (GUI; exercised via smoke tes
 
 
 def should_use_new_gui() -> bool:
-    return os.environ.get("ECONSIM_NEW_GUI") == "1"
+    # Always return True since legacy bootstrap is deprecated
+    return True
 
 
 __all__ = ["MainWindow", "should_use_new_gui"]
