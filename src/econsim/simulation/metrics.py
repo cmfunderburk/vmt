@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import hashlib
+import statistics
 from typing import Any, Iterable, List, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -43,6 +44,16 @@ class MetricsCollector:
     last_executed_trade: dict[str, object] | None = None  # {seller,buyer,give,take,delta_utility,step}
     fairness_round: int = 0  # Increments per executed trade (advisory metric)
     agent_trade_histories: Dict[int, List[Dict[str, Any]]] = field(default_factory=lambda: {})  # Rolling history (last 5 trades per agent)
+    
+    # Utility & Wealth Metrics (hash-excluded for determinism stability):
+    _utility_history: List[List[float]] = field(default_factory=lambda: [])  # Per-step utility snapshots
+    _wealth_distribution_history: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Per-step wealth stats
+    total_system_utility: float = 0.0
+    avg_utility_per_agent: float = 0.0
+    utility_variance: float = 0.0
+    utility_gini_coefficient: float = 0.0
+    utility_growth_rate: float = 0.0
+    previous_total_utility: float = 0.0
     
     # Determinism tracking (hash-included):
     _records: List[Dict[str, Any]] = field(default_factory=lambda: [])
@@ -111,6 +122,98 @@ class MetricsCollector:
         ]
         payload = "|".join(comp)
         self._update_hash(payload)
+        
+        # Update utility & wealth metrics (hash-excluded)
+        self._update_utility_metrics(step, sim)
+
+    def _update_utility_metrics(self, step: int, sim: "Simulation") -> None:
+        """Update utility and wealth distribution metrics for current step."""
+        if not self.enabled:
+            return
+            
+        # Calculate per-agent utilities
+        agent_utilities = []
+        agent_wealth_data = []
+        
+        for agent in sim.agents:
+            utility = agent.current_utility()
+            agent_utilities.append(utility)
+            
+            # Collect wealth data for distribution analysis
+            carrying_total = sum(agent.carrying.values())
+            home_total = sum(agent.home_inventory.values())
+            total_wealth = carrying_total + home_total
+            
+            agent_wealth_data.append({
+                'agent_id': agent.id,
+                'utility': utility,
+                'carrying_wealth': carrying_total,
+                'home_wealth': home_total,
+                'total_wealth': total_wealth,
+                'preference_type': type(agent.preference).__name__
+            })
+        
+        # Store utility snapshot
+        self._utility_history.append(agent_utilities.copy())
+        
+        # Calculate aggregate statistics
+        if agent_utilities:
+            self.total_system_utility = sum(agent_utilities)
+            self.avg_utility_per_agent = self.total_system_utility / len(agent_utilities)
+            
+            if len(agent_utilities) > 1:
+                self.utility_variance = statistics.variance(agent_utilities)
+                self.utility_gini_coefficient = self._calculate_gini_coefficient(agent_utilities)
+            else:
+                self.utility_variance = 0.0
+                self.utility_gini_coefficient = 0.0
+            
+            # Calculate growth rate
+            if self.previous_total_utility > 0:
+                self.utility_growth_rate = (self.total_system_utility - self.previous_total_utility) / self.previous_total_utility
+            else:
+                self.utility_growth_rate = 0.0
+            self.previous_total_utility = self.total_system_utility
+        
+        # Store wealth distribution data
+        wealth_stats = {
+            'step': step,
+            'agent_count': len(agent_wealth_data),
+            'total_system_utility': self.total_system_utility,
+            'avg_utility': self.avg_utility_per_agent,
+            'utility_variance': self.utility_variance,
+            'utility_gini': self.utility_gini_coefficient,
+            'utility_growth_rate': self.utility_growth_rate,
+            'agents': agent_wealth_data
+        }
+        self._wealth_distribution_history.append(wealth_stats)
+        
+        # Keep only last 100 steps to prevent memory growth
+        if len(self._utility_history) > 100:
+            self._utility_history.pop(0)
+        if len(self._wealth_distribution_history) > 100:
+            self._wealth_distribution_history.pop(0)
+
+    def _calculate_gini_coefficient(self, values: List[float]) -> float:
+        """Calculate Gini coefficient for wealth/utility inequality measurement."""
+        if len(values) <= 1:
+            return 0.0
+        
+        # Sort values
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+        
+        # Calculate Gini coefficient using standard formula
+        cumsum = 0.0
+        for i, value in enumerate(sorted_values):
+            cumsum += value * (2 * i - n + 1)
+        
+        mean_value = sum(sorted_values) / n
+        if mean_value == 0:
+            return 0.0
+            
+        gini = cumsum / (n * n * mean_value)
+        return abs(gini)  # Ensure positive result
 
     def determinism_hash(self) -> str:
         """Return current SHA256 hash digest for regression testing."""
@@ -215,6 +318,50 @@ class MetricsCollector:
             agent1_delta_u=agent1_delta_u,
             agent2_delta_u=agent2_delta_u,
         )
+
+    def get_utility_stats(self) -> Dict[str, Any]:
+        """Get current utility and wealth distribution statistics."""
+        return {
+            "total_system_utility": round(self.total_system_utility, 3),
+            "avg_utility_per_agent": round(self.avg_utility_per_agent, 3),
+            "utility_growth_rate": round(self.utility_growth_rate, 6),
+            "utility_variance": round(self.utility_variance, 3),
+            "utility_gini_coefficient": round(self.utility_gini_coefficient, 3)
+        }
+    
+    def get_utility_history(self, steps: int = 10) -> List[List[float]]:
+        """Get recent utility history for trend analysis."""
+        return self._utility_history[-steps:]
+    
+    def get_wealth_distribution_history(self, steps: int = 10) -> List[Dict[str, Any]]:
+        """Get recent wealth distribution data."""
+        return self._wealth_distribution_history[-steps:]
+    
+    def get_utility_trend_slope(self, window: int = 10) -> float:
+        """Calculate utility trend slope over recent window."""
+        if len(self._utility_history) < 2:
+            return 0.0
+            
+        recent_totals = []
+        for step_utilities in self._utility_history[-window:]:
+            recent_totals.append(sum(step_utilities))
+        
+        if len(recent_totals) < 2:
+            return 0.0
+            
+        # Simple linear regression slope
+        n = len(recent_totals)
+        x_values = list(range(n))
+        x_mean = sum(x_values) / n
+        y_mean = sum(recent_totals) / n
+        
+        numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_values, recent_totals))
+        denominator = sum((x - x_mean) ** 2 for x in x_values)
+        
+        if denominator == 0:
+            return 0.0
+            
+        return numerator / denominator
 
 
 __all__ = ["MetricsCollector"]

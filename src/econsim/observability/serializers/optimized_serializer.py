@@ -534,6 +534,77 @@ class OptimizedLogWriter:
             self._write_serialized_event(optimized_batch)
             self._events_written += len(events)
     
+    def _optimize_event_dictionary(self, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Optimize an event dictionary (from buffer) with field abbreviations.
+        
+        Args:
+            event_dict: Raw event dictionary from buffer
+            
+        Returns:
+            Optimized event dictionary with abbreviated field names
+        """
+        optimized = {}
+        
+        # Handle timestamp - use relative if available  
+        timestamp = event_dict.get('timestamp', 0.0)
+        if self.serializer.enable_relative_timestamps and self.serializer._step_timestamp > 0:
+            relative_time = timestamp - self.serializer._step_timestamp
+            optimized['t'] = round(relative_time, 3)
+        else:
+            optimized['t'] = round(timestamp, 3)
+        
+        # Optimize step field
+        optimized['s'] = event_dict.get('step', 0)
+        
+        # Optimize event type
+        event_type = event_dict.get('event_type', '')
+        optimized['e'] = self.serializer.EVENT_TYPE_CODES.get(event_type, event_type[:6])
+        
+        # Handle trade execution events
+        if event_type == 'trade_execution':
+            for field in ['seller_id', 'buyer_id', 'give_type', 'take_type', 
+                         'delta_u_seller', 'delta_u_buyer', 'trade_location_x', 'trade_location_y']:
+                if field in event_dict and event_dict[field] is not None:
+                    abbrev = self.serializer.FIELD_ABBREVIATIONS[field]
+                    optimized[abbrev] = event_dict[field]
+        
+        # Handle agent mode change events
+        elif event_type == 'agent_mode_change':
+            if 'agent_id' in event_dict:
+                optimized['a'] = event_dict['agent_id']
+                
+            old_mode = self.serializer.MODE_CODES.get(event_dict.get('old_mode', ''), event_dict.get('old_mode', ''))
+            new_mode = self.serializer.MODE_CODES.get(event_dict.get('new_mode', ''), event_dict.get('new_mode', ''))
+            
+            if old_mode and new_mode:
+                optimized['trans'] = f"{old_mode}->{new_mode}"
+            elif old_mode:
+                optimized['o'] = old_mode
+            elif new_mode:
+                optimized['n'] = new_mode
+                
+            reason = event_dict.get('reason', '')
+            optimized['r'] = self.serializer._abbreviate_reason(reason)
+        
+        # Handle resource collection events  
+        elif event_type == 'resource_collection':
+            if 'agent_id' in event_dict:
+                optimized['a'] = event_dict['agent_id']
+        
+        # Handle debug log events
+        elif event_type == 'debug_log':
+            optimized['c'] = event_dict.get('category', '')
+            optimized['m'] = event_dict.get('message', '')[:50]
+        
+        # Handle other event types - copy remaining fields with abbreviations
+        else:
+            for field, value in event_dict.items():
+                if field not in ['step', 'timestamp', 'event_type'] and value is not None:
+                    abbrev = self.serializer.FIELD_ABBREVIATIONS.get(field, field)
+                    optimized[abbrev] = value
+        
+        return optimized
+
     def _create_optimized_step_batch(self, step: int, timestamp: Union[float, Dict[str, float]], events: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Create an optimized step batch with Phase 4E semantic compression.
         
@@ -554,7 +625,10 @@ class OptimizedLogWriter:
         agent_patterns = defaultdict(list)
         time_patterns = defaultdict(list)
         
-        for event in events:
+        for raw_event in events:
+            # First optimize the raw event dictionary to get abbreviated field names
+            event = self._optimize_event_dictionary(raw_event)
+            
             event_type = event.get('e', event.get('event_type', ''))
             if event_type == 'resource_collection':
                 time_val = event.get('t', 0.0)
@@ -958,7 +1032,8 @@ class OptimizedLogWriter:
         return mode_events
     
     def _apply_semantic_compression(self, step: int, timestamp: Union[float, Dict[str, float]], 
-                                   collect_events: List, mode_events: List, other_events: List) -> Dict[str, Any]:
+                                   collect_events: List, mode_events: List, other_events: List,
+                                   utility_stats: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Phase 4E: Apply semantic compression with context-aware inference.
         
         Args:
@@ -967,6 +1042,7 @@ class OptimizedLogWriter:
             collect_events: List of collection events
             mode_events: List of mode events
             other_events: List of other events
+            utility_stats: Optional utility & wealth metrics for this step
             
         Returns:
             Semantically compressed step batch dictionary
@@ -991,8 +1067,47 @@ class OptimizedLogWriter:
             result['m'] = self._compress_events_semantic(mode_events, 'mode')
         if other_events:
             result['o'] = self._compress_events_semantic(other_events, 'other')
+        
+        # NEW: Phase 4E Utility & Wealth Metrics Integration
+        if utility_stats:
+            result['u'] = self._compress_utility_stats(utility_stats)
             
         return result
+    
+    def _compress_utility_stats(self, utility_stats: Dict[str, Any]) -> str:
+        """Compress utility & wealth metrics into Phase 4E semantic format.
+        
+        Args:
+            utility_stats: Dictionary containing utility metrics
+            
+        Returns:
+            Compressed utility string: "U:1247.8,G:0.34,E:0.87,T:0.031,S:0.76"
+        """
+        # Dictionary compression for economic metrics
+        UTILITY_CODES = {
+            'total_system_utility': 'U',
+            'utility_gini_coefficient': 'G', 
+            'collection_success_rate': 'E',
+            'trade_velocity': 'T',
+            'performance_stability': 'S',
+            'avg_utility_per_agent': 'A',
+            'utility_growth_rate': 'R',
+            'utility_variance': 'V'
+        }
+        
+        # Build compressed utility string
+        compressed_parts = []
+        for key, value in utility_stats.items():
+            if key in UTILITY_CODES and value is not None:
+                code = UTILITY_CODES[key]
+                # Round to reasonable precision for compression
+                if isinstance(value, float):
+                    rounded_value = round(value, 3)
+                    compressed_parts.append(f"{code}:{rounded_value}")
+                else:
+                    compressed_parts.append(f"{code}:{value}")
+        
+        return ",".join(compressed_parts)
     
     def _compress_events_semantic(self, events: List, event_type: str) -> Union[str, List]:
         """Phase 4E: Compress events using semantic inference and context awareness.
@@ -1045,6 +1160,27 @@ class OptimizedLogWriter:
                 time_val, agent_id, transition, reason = event
                 # Semantic: 'm' implies mode, infer transition and reason context
                 return f"{time_val},{agent_id},{transition},{reason}"
+        
+        elif event_type == 'other' and isinstance(event, dict):
+            # Other events: handle trade_execution and other dictionary events
+            if 'e' in event and event['e'] == 'trade':
+                # Trade execution events: use semantic compression
+                compressed_parts = []
+                
+                # Essential trade data only (remove redundant timestamp/event_type)
+                for key, value in event.items():
+                    if key not in ['t', 'e']:  # Skip timestamp and event_type
+                        compressed_parts.append(f"{key}:{value}")
+                
+                return ",".join(compressed_parts)
+            else:
+                # Other dictionary events: compress key-value pairs
+                compressed_pairs = []
+                for key, value in event.items():
+                    # Skip redundant fields that are already in parent structure
+                    if key not in ['timestamp', 'event_type']:
+                        compressed_pairs.append(f"{key}:{value}")
+                return ",".join(compressed_pairs) if compressed_pairs else "empty"
         
         # Fallback to string representation
         return str(event)

@@ -53,17 +53,10 @@ class BasicEventBuffer(EventBuffer):
         Raises:
             BufferStateError: If event step is before current buffer step
         """
-        # Convert event to dictionary format for storage
-        event_dict = {
-            'step': event.step,
-            'timestamp': event.timestamp,
-            'event_type': event.event_type,
-        }
-        
-        # Add event-specific fields by checking for their existence
-        for field_name in ['agent_id', 'old_mode', 'new_mode', 'reason']:
-            if hasattr(event, field_name):
-                event_dict[field_name] = getattr(event, field_name)
+        # Convert event to dictionary format for storage using dataclasses.asdict()
+        # This ensures ALL fields from the event are preserved, including trade-specific fields
+        from dataclasses import asdict
+        event_dict = asdict(event)
         
         # Check for step ordering (events should not go backwards in time)
         if event.step < self._current_step:

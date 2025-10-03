@@ -8,7 +8,7 @@
 - `src/econsim/gui/` - PyQt6 GUI with embedded Pygame surface  
 - `src/econsim/observability/` - Event system & logging infrastructure
 - `src/econsim/tools/launcher/` - Main GUI application entry point
-- `tests/` - Comprehensive test suite (210+ tests) with performance baselines
+- `tests/` - Comprehensive test suite (436 tests) with performance baselines
 - `baselines/` - Determinism hashes and performance references for validation
 - `MANUAL_TESTS/` - Interactive GUI test scenarios and launcher components
 
@@ -16,7 +16,7 @@
 ```bash
 make venv && source vmt-dev/bin/activate  # Create dev environment
 make launcher                             # Primary development interface (canonical)
-pytest -q                               # Run 210+ tests for validation
+pytest -q                               # Run 436 tests for validation
 make perf                               # Performance comparison vs baselines
 make token                              # Generate LLM token usage report
 ```
@@ -29,6 +29,13 @@ make token                              # Generate LLM token usage report
 - `make lint` - Ruff + Black code quality checks
 - `make format` - Auto-format with Black + Ruff
 - `make token` - Generate LLM context token analysis report (see `llm_counter/`)
+
+**⚠️ LOGGING REWRITE PLANNING CONTEXT**:
+When working on logging-related code during this planning phase, focus on:
+- Schema design prototyping in `tmp_plans/` (not production code)
+- Extensibility validation and testing approaches
+- Performance analysis of compression strategies
+- **Avoid production changes** to existing logging pipeline until plan is finalized
 
 **Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
@@ -70,7 +77,7 @@ Handler pattern:
 **Component Integration**: Components initialized in `Agent.__post_init__()` with proper event emitter wiring.
 
 ### Observer Event System
-**Current Status**: Legacy GUILogger eliminated. Observer pattern is authoritative.
+**Current Status**: Legacy GUILogger eliminated. Observer pattern is authoritative. ⚠️ **LOGGING PIPELINE COMPLEXITY WARNING** - Current multi-layer compression system is unwieldy (see `tmp_plans/CURRENT/AAA/LOG_ARCHITECTURE_RETHINK.md` for planned simplification).
 
 **Use Observer Events**: Emit via `observability/events.py` (e.g., `AgentModeChangeEvent`, `TradeExecutionEvent`, `DebugLogEvent`)
 - Simulation never calls GUI directly
@@ -78,6 +85,24 @@ Handler pattern:
 - Performance target: <2% logging overhead per step
 
 **Current Architecture**: Use `FileObserver`, `EducationalObserver`, `PerformanceObserver` with `ObserverRegistry` for all logging needs.
+
+**CRITICAL LOGGING CONSTRAINT**: The current `optimized_serializer.py` system (~1500 lines) has a 6-layer transformation pipeline that is complex and fragile. **MAJOR ARCHITECTURAL REWRITE IN PLANNING PHASE**:
+
+**Current Problems**:
+- 6-layer pipeline: `SimulationEvent → Buffer → Dictionary → Optimize → Compress → Semantic → JSON`
+- Field transformation hell: `seller_id` → `sid` → `seller_id:1` → `sid:1`
+- Multiple serializer classes creating debugging nightmares
+
+**Planned Solution - Source-Level Compression**:
+- **Direct emission**: `SimulationEvent → Observer → Compressed JSON → File`
+- **Schema-driven**: Declarative event definitions auto-generate compression
+- **Extensibility-first**: Adding new fields = 1 line in schema
+
+**AI Agent Guidelines During Planning Phase**:
+- **DO NOT** extend existing `optimized_serializer.py` pipeline
+- **DO NOT** add new buffer transformation layers
+- **DO** focus on schema design and compression engine prototyping
+- **DO** prioritize extensibility over immediate performance optimization
 
 ### Launcher Architecture
 **Primary Interface**: `make launcher` provides comprehensive test management with modular design
@@ -139,6 +164,23 @@ Handler pattern:
 - **Launcher architecture modern** - `make launcher` is canonical development interface with modular design
 - **Technical debt reduced 85%** - From 289 legacy references to ~15 minor launcher framework cleanup items
 
+### ⚠️ ACTIVE PLANNING: Logging Architecture Rewrite
+**STATUS**: Major logging system rewrite in planning phase (Oct 2025)
+**PROBLEM**: Current 6-layer transformation pipeline (~1500 lines) is unmaintainable
+**SOLUTION**: Schema-driven source-level compression with extensibility-first design
+
+**Key Planning Decisions**:
+- ✅ **Migration Strategy**: Clean rewrite (not incremental)
+- ✅ **Performance**: Hardcoded compression for hot path
+- ✅ **Compatibility**: No backward compatibility required
+- ⚠️ **Validation Strategy**: Needs detailed design (compile-time vs runtime)
+
+**Planning Priorities**:
+1. **Schema format design** - Declarative event type definitions
+2. **Compression engine** - Auto-generate emission methods from schemas
+3. **Validation framework** - Data integrity without performance cost
+4. **Extensibility validation** - Test adding new event types/fields
+
 ### Common Pitfalls
 - Resorting agents mid-step (breaks determinism)
 - Iterating unsorted resource containers
@@ -155,12 +197,17 @@ Handler pattern:
 - `simulation/agent.py` - Modular agent with 6 component architecture
 - `simulation/components/` - Agent component implementations (Movement, EventEmitter, Inventory, TradingPartner, TargetSelection, ModeStateMachine)
 - `observability/events.py` - Event types for observer pattern
+- `observability/serializers/optimized_serializer.py` - ⚠️ Complex 1500-line pipeline (needs refactoring)
 - `tools/launcher/` - Canonical development interface architecture
 - `baselines/` - Determinism & performance references
 - `llm_counter/` - Token usage analysis for LLM context optimization
+- `tmp_plans/CURRENT/AAA/LOG_ARCHITECTURE_RETHINK.md` - Planned logging system simplification
 
 ### Token Usage Analysis
 **Unique Feature**: This project includes `llm_counter/` for analyzing LLM token consumption. Use `make token` to generate reports on codebase size for AI context optimization.
+- Reports generated in `llm_counter/vmt_token_report_*.md` with comprehensive analysis
+- Tracks token usage patterns for efficient LLM context management
+- Essential for large codebases to understand AI assistant limitations
 
 ### Pre-commit Checklist
 1. All tests pass (`pytest -q`)
