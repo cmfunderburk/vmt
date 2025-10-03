@@ -34,7 +34,6 @@ from contextlib import contextmanager
 from ..config import ObservabilityConfig
 from ..events import SimulationEvent
 from ..registry import ObserverRegistry
-from ..observers.gui_observer import GUIEventObserver, DisplayUpdate
 from ..observer_logger import ObserverLogger
 
 
@@ -433,58 +432,6 @@ class ObserverValidator:
         self.validation_results.append(result)
         return result
     
-    def validate_gui_observer(self, gui_observer: GUIEventObserver) -> ValidationResult:
-        """Validate GUI observer event handling.
-        
-        Args:
-            gui_observer: GUI observer to validate
-            
-        Returns:
-            ValidationResult with GUI observer validation details
-        """
-        result = ValidationResult(test_name="gui_observer_validation", success=True)
-        
-        try:
-            # Test various event types
-            test_events = [
-                AgentModeChangeEvent.create(1, 1, "foraging", "trading"),
-                TradeExecutionEvent.create(2, 1, 2, "wood", "food", 5.0, 3.0)
-            ]
-            
-            initial_processed = gui_observer.metrics.events_processed
-            initial_updates = gui_observer.metrics.updates_generated
-            
-            # Process test events
-            for event in test_events:
-                gui_observer.notify(event)
-            
-            # Check processing
-            events_processed = gui_observer.metrics.events_processed - initial_processed
-            updates_generated = gui_observer.metrics.updates_generated - initial_updates
-            
-            if events_processed != len(test_events):
-                result.success = False
-                result.errors.append(f"Expected {len(test_events)} processed, got {events_processed}")
-            
-            if updates_generated == 0:
-                result.warnings.append("No GUI updates generated from events")
-            
-            # Test performance metrics
-            metrics = gui_observer.get_gui_metrics()
-            if metrics["average_processing_time_ms"] < 0:
-                result.errors.append("Invalid processing time metrics")
-            
-            result.details["events_processed"] = events_processed
-            result.details["updates_generated"] = updates_generated
-            result.details["average_processing_ms"] = metrics["average_processing_time_ms"]
-            
-        except Exception as e:
-            result.success = False
-            result.errors.append(f"GUI observer validation failed: {str(e)}")
-        
-        self.validation_results.append(result)
-        return result
-    
     def get_validation_summary(self) -> Dict[str, Any]:
         """Get summary of all validation results.
         
@@ -607,7 +554,7 @@ class IntegrationTester:
     
     def test_observer_pattern_completeness(self, registry: ObserverRegistry,
                                          logger: ObserverLogger,
-                                         gui_observer: GUIEventObserver) -> ValidationResult:
+                                         gui_observer: Any = None) -> ValidationResult:
         """Test completeness of observer pattern implementation.
         
         Args:
@@ -621,9 +568,10 @@ class IntegrationTester:
         result = ValidationResult(test_name="observer_pattern_completeness", success=True)
         
         try:
-            # Register all observers
+            # Register core observers
             registry.register(logger)
-            registry.register(gui_observer)
+            if gui_observer is not None:
+                registry.register(gui_observer)
             
             # Test comprehensive event emission and handling
             test_events = [
@@ -631,24 +579,18 @@ class IntegrationTester:
                 TradeExecutionEvent.create(2, 1, 2, "wood", "food", 5.0, 3.0)
             ]
             
-            initial_gui_processed = gui_observer.metrics.events_processed
-            
             # Emit events through registry
             for event in test_events:
                 registry.emit_event(event)
             
             # Verify observer processing
-            gui_processed = gui_observer.metrics.events_processed - initial_gui_processed
-            
             result.details = {
                 "events_emitted": len(test_events),
-                "gui_events_processed": gui_processed,
                 "observers_registered": registry.observer_count(),
                 "observer_types": "unknown"  # Not exposed in current API
             }
             
-            if gui_processed != len(test_events):
-                result.warnings.append(f"GUI observer processed {gui_processed}/{len(test_events)} events")
+            # Note: GUI-specific validation removed as part of GUI elimination
             
         except Exception as e:
             result.success = False
@@ -737,68 +679,6 @@ class PerformanceTester:
             result.errors.append(f"Performance benchmark failed: {str(e)}")
         
         return result
-    
-    def benchmark_gui_observer_performance(self, gui_observer: GUIEventObserver,
-                                         event_count: int = 1000) -> ValidationResult:
-        """Benchmark GUI observer performance specifically.
-        
-        Args:
-            gui_observer: GUI observer to benchmark
-            event_count: Number of events to process
-            
-        Returns:
-            ValidationResult with GUI observer performance results
-        """
-        result = ValidationResult(test_name="gui_observer_performance", success=True)
-        
-        try:
-            # Create mixed event types for realistic testing
-            test_events = []
-            for i in range(event_count):
-                if i % 3 == 0:
-                    test_events.append(AgentModeChangeEvent.create(i, i % 10, "foraging", "trading"))
-                elif i % 3 == 1:
-                    test_events.append(TradeExecutionEvent.create(i, i % 10, (i + 1) % 10, "wood", "food", 5.0, 3.0))
-                # Skip some events to test filtering
-            
-            initial_processed = gui_observer.metrics.events_processed
-            initial_updates = gui_observer.metrics.updates_generated
-            
-            start_time = time.perf_counter()
-            for event in test_events:
-                gui_observer.notify(event)
-            end_time = time.perf_counter()
-            
-            total_time = end_time - start_time
-            events_processed = gui_observer.metrics.events_processed - initial_processed
-            updates_generated = gui_observer.metrics.updates_generated - initial_updates
-            
-            # Calculate performance metrics
-            time_per_event = (total_time / len(test_events)) * 1000 if test_events else 0
-            updates_per_event = updates_generated / events_processed if events_processed > 0 else 0
-            
-            result.performance_metrics = {
-                "total_time_seconds": total_time,
-                "events_sent": len(test_events),
-                "events_processed": events_processed,
-                "updates_generated": updates_generated,
-                "time_per_event_ms": time_per_event,
-                "updates_per_event": updates_per_event,
-                "gui_processing_efficiency": events_processed / len(test_events) * 100
-            }
-            
-            # Performance validation
-            if time_per_event > 0.2:  # 0.2ms per event for GUI updates
-                result.warnings.append(f"High GUI processing time: {time_per_event:.3f}ms/event")
-            
-            if updates_per_event > 5:  # Reasonable update generation ratio
-                result.warnings.append(f"High update generation ratio: {updates_per_event:.1f} updates/event")
-            
-        except Exception as e:
-            result.success = False
-            result.errors.append(f"GUI performance benchmark failed: {str(e)}")
-        
-        return result
 
 
 # Factory functions for easy validation framework usage
@@ -821,13 +701,13 @@ def create_validation_framework(config: ObservabilityConfig) -> Tuple[EventCaptu
 
 
 def run_comprehensive_validation(registry: ObserverRegistry, logger: ObserverLogger, 
-                               gui_observer: GUIEventObserver, config: ObservabilityConfig) -> Dict[str, Any]:
+                               gui_observer: Any, config: ObservabilityConfig) -> Dict[str, Any]:
     """Run comprehensive validation of observer pattern implementation.
     
     Args:
         registry: Observer registry to validate
         logger: Observer logger to validate
-        gui_observer: GUI observer to validate
+        gui_observer: Optional GUI observer (deprecated, will be ignored)
         config: Observability configuration
         
     Returns:
@@ -841,19 +721,17 @@ def run_comprehensive_validation(registry: ObserverRegistry, logger: ObserverLog
     # Core component validation
     results.append(validator.validate_observer_registry(registry))
     results.append(validator.validate_observer_logger(logger))
-    results.append(validator.validate_gui_observer(gui_observer))
     
-    # Integration testing
-    results.append(integration_tester.test_observer_pattern_completeness(registry, logger, gui_observer))
+    # Integration testing (GUI observer removed from parameters)
+    results.append(integration_tester.test_observer_pattern_completeness(registry, logger, None))
     
     # Performance testing
     results.append(performance_tester.benchmark_observer_overhead(registry))
-    results.append(performance_tester.benchmark_gui_observer_performance(gui_observer))
     
     # Generate comprehensive summary
     summary = validator.get_validation_summary()
     summary["validation_framework"] = "comprehensive"
-    summary["test_categories"] = ["registry", "logger", "gui_observer", "integration", "performance"]
+    summary["test_categories"] = ["registry", "logger", "integration", "performance"]
     
     return {
         "summary": summary,

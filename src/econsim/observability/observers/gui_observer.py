@@ -30,7 +30,6 @@ from dataclasses import dataclass, field
 
 from ..observers.base_observer import BaseObserver
 from ..raw_data.raw_data_observer import RawDataObserver
-from ..raw_data.data_translator import DataTranslator
 from ..events import (
     SimulationEvent, AgentModeChangeEvent, TradeExecutionEvent,
     ResourceCollectionEvent, DebugLogEvent, PerformanceMonitorEvent,
@@ -38,6 +37,8 @@ from ..events import (
 )
 
 if TYPE_CHECKING:
+    # Note: DataTranslator was eliminated - GUI observer is deprecated
+    pass
     from ..config import ObservabilityConfig
     from ...gui.main_window import MainWindow
 

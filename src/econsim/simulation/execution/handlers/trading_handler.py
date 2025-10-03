@@ -141,22 +141,27 @@ class TradingHandler(BaseStepHandler):
 		# Pairing cleanup for stale sessions
 		self._cleanup_pairings(sim, executed)
 
-		# Funnel instrumentation using observer pattern
+		# Funnel instrumentation using raw data architecture
 		if funnel_stats.drafted > 0:
 			try:  # pragma: no cover - logging side-effect only
-				from ....observability.observer_logger import get_global_observer_logger
-				logger = get_global_observer_logger()
-				if logger:
-					executed_count = 1 if executed is not None else 0
-					# Create structured trade funnel analysis message
-					message = (
-						f"Trade funnel - Drafted: {funnel_stats.drafted}, "
-						f"Pruned micro: {funnel_stats.pruned_micro}, "
-						f"Pruned non-positive: {funnel_stats.pruned_nonpositive}, "
-						f"Executed: {executed_count}, "
-						f"Max delta U: {funnel_stats.max_delta_u:.3f}"
-					)
-					logger.log_trade(message, context.step_number)
+				executed_count = 1 if executed is not None else 0
+				# Create structured trade funnel analysis message
+				message = (
+					f"Trade funnel - Drafted: {funnel_stats.drafted}, "
+					f"Pruned micro: {funnel_stats.pruned_micro}, "
+					f"Pruned non-positive: {funnel_stats.pruned_nonpositive}, "
+					f"Executed: {executed_count}, "
+					f"Max delta U: {funnel_stats.max_delta_u:.3f}"
+				)
+				# Record debug log using raw data architecture
+				for observer in context.observer_registry._observers:
+					if hasattr(observer, 'record_debug_log'):
+						observer.record_debug_log(
+							step=context.step_number,
+							category="TRADE_FUNNEL", 
+							message=message,
+							agent_id=-1  # Not agent-specific
+						)
 			except Exception:
 				pass
 

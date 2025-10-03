@@ -7,16 +7,16 @@ architecture for zero-overhead performance.
 
 Features:
 - Zero-overhead raw data recording during simulation
-- Deferred economic analysis using DataTranslator
+- Deferred economic analysis using standalone analysis formatters
 - Comprehensive economic metrics and behavioral insights
-- Raw data storage with human-readable translation on demand
+- Raw data storage with analysis formatters in separate analysis module
 - Performance-optimized for educational and research use
 
 Architecture:
 - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-- Uses DataTranslator for converting raw data to analysis-ready format
+- Uses standalone analysis formatters for converting raw data to analysis-ready format
 - No processing overhead during simulation execution
-- Analysis performed only when needed (GUI display, file output)
+- Analysis performed only when needed using analysis module formatters
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ from dataclasses import dataclass, field
 
 from .base_observer import BaseObserver
 from ..raw_data.raw_data_observer import RawDataObserver
-from ..raw_data.data_translator import DataTranslator
 from ..raw_data.raw_data_writer import RawDataWriter
 
 if TYPE_CHECKING:
@@ -139,9 +138,9 @@ class EconomicObserver(BaseObserver, RawDataObserver):
     
     Architecture:
     - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-    - Uses DataTranslator for converting raw data to analysis-ready format
+    - Uses standalone analysis formatters for converting raw data to analysis-ready format
     - Zero-overhead recording during simulation, analysis deferred to when needed
-    - Raw data storage with human-readable translation on demand
+    - Raw data storage with analysis formatters in separate analysis module
     """
     
     def __init__(self, config: ObservabilityConfig, output_dir: str = None):
@@ -171,9 +170,6 @@ class EconomicObserver(BaseObserver, RawDataObserver):
         self._economic_metrics = EconomicMetrics()
         self._step_start_time = 0.0
         self._current_step = 0
-        
-        # Initialize data translator for analysis
-        self._data_translator = DataTranslator()
         
         # Initialize raw data writer for disk persistence
         self._raw_data_writer = RawDataWriter(
@@ -315,10 +311,10 @@ class EconomicObserver(BaseObserver, RawDataObserver):
         self._current_step = step
     
     def _write_analysis_results(self) -> None:
-        """Write economic analysis results to file using raw data and translation.
+        """Write economic analysis results to file using raw data.
         
         Creates comprehensive analysis files including metrics,
-        summaries, and behavioral insights using the DataTranslator.
+        summaries, and behavioral insights using raw data analysis.
         """
         if not self.output_dir:
             return
@@ -330,7 +326,7 @@ class EconomicObserver(BaseObserver, RawDataObserver):
             output_path = Path(self.output_dir)
             output_path.mkdir(parents=True, exist_ok=True)
             
-            # Generate analysis from raw data using DataTranslator
+            # Generate analysis from raw data
             analysis_results = self._generate_analysis_from_raw_data()
             
             # Write comprehensive analysis
@@ -349,7 +345,7 @@ class EconomicObserver(BaseObserver, RawDataObserver):
             print(f"Warning: Failed to write economic analysis results: {e}")
     
     def _generate_analysis_from_raw_data(self) -> Dict[str, Any]:
-        """Generate comprehensive economic analysis from raw data using DataTranslator.
+        """Generate comprehensive economic analysis from raw data.
         
         Returns:
             Dictionary containing comprehensive economic analysis
@@ -357,34 +353,13 @@ class EconomicObserver(BaseObserver, RawDataObserver):
         # Get all raw events
         all_events = self.get_all_events()
         
-        # Translate events to human-readable format
-        translated_events = []
-        for event in all_events:
-            try:
-                if event['type'] == 'trade':
-                    translated_events.append(self._data_translator.translate_trade_event(event))
-                elif event['type'] == 'mode_change':
-                    translated_events.append(self._data_translator.translate_mode_change_event(event))
-                elif event['type'] == 'resource_collection':
-                    translated_events.append(self._data_translator.translate_resource_collection_event(event))
-                elif event['type'] == 'agent_decision':
-                    translated_events.append(self._data_translator.translate_agent_decision_event(event))
-                elif event['type'] == 'economic_decision':
-                    translated_events.append(self._data_translator.translate_economic_decision_event(event))
-                else:
-                    # Keep raw event for unknown types
-                    translated_events.append(event)
-            except Exception as e:
-                # Keep raw event if translation fails
-                translated_events.append(event)
-        
-        # Generate comprehensive analysis
+        # Generate comprehensive analysis directly from raw data
         analysis = {
             "step": self._current_step,
             "total_events": len(all_events),
             "event_types": self.get_event_type_counts(),
             "step_range": self.get_statistics()['step_range'],
-            "translated_events": translated_events,
+            "raw_events": all_events,  # Use raw events directly instead of translated
             "economic_metrics": self._calculate_economic_metrics_from_raw_data(),
             "agent_behavior_analysis": self._analyze_agent_behavior_from_raw_data(),
             "trading_analysis": self._analyze_trading_behavior_from_raw_data(),

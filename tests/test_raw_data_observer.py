@@ -392,42 +392,7 @@ class TestRawDataObserverRecording:
         assert event['position_x'] == 10
         assert event['position_y'] == 15
     
-    def test_record_gui_display_basic(self):
-        """Test basic GUI display recording functionality."""
-        observer = RawDataObserver()
-        
-        observer.record_gui_display(
-            step=108,
-            display_type="highlight",
-            element_id="agent_1"
-        )
-        
-        events = observer.get_all_events()
-        assert len(events) == 1
-        
-        event = events[0]
-        assert event['type'] == 'gui_display'
-        assert event['step'] == 108
-        assert event['display_type'] == 'highlight'
-        assert event['element_id'] == 'agent_1'
-        assert event['data'] == {}
-    
-    def test_record_gui_display_with_data(self):
-        """Test GUI display recording with data payload."""
-        observer = RawDataObserver()
-        
-        display_data = {"color": "red", "duration": 2.0}
-        observer.record_gui_display(
-            step=108,
-            display_type="overlay",
-            element_id="trade_panel",
-            data=display_data
-        )
-        
-        events = observer.get_all_events()
-        event = events[0]
-        
-        assert event['data'] == display_data
+
 
 
 class TestRawDataObserverDataAccess:

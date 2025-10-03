@@ -1,13 +1,15 @@
 """
-GUI Event Formatters Package
+Analysis Event Formatters Package
 
-This package contains GUI formatting classes that convert raw simulation data
-to human-readable format for display purposes. This implements clean separation
-between business logic (raw data) and presentation logic (GUI formatting).
+This package contains analysis formatting classes that convert raw simulation data
+to human-readable format for analysis and external display purposes. This is 
+completely separate from the core simulation and implements clean separation
+between business logic (raw data) and presentation logic (analysis formatting).
 
 Key Features:
-- Pure GUI formatting logic - no business logic
+- Pure analysis formatting logic - no business logic  
 - On-demand formatting - zero overhead during simulation
+- Standalone module - no dependencies on core simulation
 - Extensible design - easy to add new event types
 - Lazy formatting support - format only when displaying
 - Multiple output formats - display text, analysis data, table rows

@@ -284,27 +284,6 @@ class RawDataObserver:
         event.update(optional)
         self._events.append(event)  # Just append - zero processing
     
-    def record_gui_display(self, step: int, display_type: str, element_id: str,
-                          data: Optional[Dict[str, Any]] = None, **optional) -> None:
-        """Record GUI display data - zero processing overhead.
-        
-        Args:
-            step: Simulation step number
-            display_type: Type of display update (highlight, overlay, panel_update, etc.)
-            element_id: GUI element identifier
-            data: Optional data payload for display (default empty dict)
-            **optional: Additional optional fields
-        """
-        event = {
-            'type': 'gui_display',
-            'step': step,
-            'display_type': display_type,
-            'element_id': element_id,
-            'data': data or {}
-        }
-        event.update(optional)
-        self._events.append(event)  # Just append - zero processing
-    
     # ============================================================================
     # DATA ACCESS METHODS - Event Filtering and Analysis
     # ============================================================================

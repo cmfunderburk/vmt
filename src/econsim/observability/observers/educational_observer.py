@@ -6,18 +6,18 @@ raw data recording architecture for zero-overhead performance.
 
 Features:
 - Zero-overhead raw data recording during simulation
-- Deferred educational analysis using DataTranslator
+- Deferred educational analysis using standalone analysis formatters
 - Educational analytics and behavioral insights
 - Agent behavior pattern analysis
 - System dynamics understanding
 - Learning-focused metrics and summaries
-- Raw data storage with human-readable translation on demand
+- Raw data storage with analysis formatters in separate analysis module
 
 Architecture:
 - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-- Uses DataTranslator for converting raw data to analysis-ready format
+- Uses standalone analysis formatters for converting raw data to analysis-ready format
 - No processing overhead during simulation execution
-- Educational analysis performed only when needed (GUI display, file output)
+- Educational analysis performed only when needed using analysis module formatters
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from typing import Dict, List, Any, Set, TYPE_CHECKING
 
 from .base_observer import BaseObserver
 from ..raw_data.raw_data_observer import RawDataObserver
-from ..raw_data.data_translator import DataTranslator
 from ..raw_data.raw_data_writer import RawDataWriter
 
 if TYPE_CHECKING:
@@ -45,9 +44,9 @@ class EducationalObserver(BaseObserver, RawDataObserver):
     
     Architecture:
     - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-    - Uses DataTranslator for converting raw data to analysis-ready format
+    - Uses standalone analysis formatters for converting raw data to analysis-ready format
     - Zero-overhead recording during simulation, analysis deferred to when needed
-    - Raw data storage with human-readable translation on demand
+    - Raw data storage with analysis formatters in separate analysis module
     """
 
     def __init__(self, config: ObservabilityConfig, 
@@ -95,9 +94,6 @@ class EducationalObserver(BaseObserver, RawDataObserver):
         # Statistics for reporting
         self._total_insights_generated = 0
         self._last_analysis_step = 0
-        
-        # Initialize data translator for analysis
-        self._data_translator = DataTranslator()
         
         # Initialize raw data writer for disk persistence
         self._raw_data_writer = RawDataWriter(
@@ -309,7 +305,7 @@ class EducationalObserver(BaseObserver, RawDataObserver):
         self._last_analysis_step = step
 
     def _generate_educational_insights_from_raw_data(self) -> Dict[str, Any]:
-        """Generate educational insights from raw data using DataTranslator.
+        """Generate educational insights from raw data.
         
         Returns:
             Dictionary containing comprehensive educational insights

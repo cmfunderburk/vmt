@@ -15,7 +15,7 @@ Features:
 
 Architecture:
 - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-- Uses DataTranslator for converting raw data to analysis-ready format
+- Uses standalone analysis formatters for converting raw data to analysis-ready format
 - No processing overhead during simulation execution
 - Analysis performed only when needed (testing, validation)
 """
@@ -27,7 +27,6 @@ from typing import List, Dict, Any, Optional, Set, Deque, TYPE_CHECKING
 
 from .base_observer import BaseObserver
 from ..raw_data.raw_data_observer import RawDataObserver
-from ..raw_data.data_translator import DataTranslator
 
 if TYPE_CHECKING:
     from ..config import ObservabilityConfig
@@ -43,9 +42,9 @@ class MemoryObserver(BaseObserver, RawDataObserver):
     
     Architecture:
     - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-    - Uses DataTranslator for converting raw data to analysis-ready format
+    - Uses standalone analysis formatters for converting raw data to analysis-ready format
     - Zero-overhead recording during simulation, analysis deferred to when needed
-    - Raw data storage with human-readable translation on demand
+    - Raw data storage with analysis formatters in separate analysis module
     """
 
     def __init__(self, config: ObservabilityConfig, max_events: int = 10000):
@@ -70,9 +69,6 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         self._total_events_received = 0
         self._events_dropped = 0
         self._current_step = 0
-        
-        # Initialize data translator for analysis
-        self._data_translator = DataTranslator()
 
     def _initialize_event_filtering(self) -> None:
         """Initialize event filtering for memory observer.
@@ -91,8 +87,7 @@ class MemoryObserver(BaseObserver, RawDataObserver):
             'performance_monitor',
             'agent_decision',
             'resource_event',
-            'economic_decision',
-            'gui_display'
+            'economic_decision'
         }
 
     def notify(self, event: SimulationEvent) -> None:
@@ -190,13 +185,6 @@ class MemoryObserver(BaseObserver, RawDataObserver):
                 resource_type=getattr(event, 'resource_type', ''),
                 amount=getattr(event, 'amount', 1),
                 agent_id=getattr(event, 'agent_id', -1)
-            )
-        elif event.event_type == 'gui_display':
-            self.record_gui_display(
-                step=step,
-                display_type=getattr(event, 'display_type', ''),
-                element_id=getattr(event, 'element_id', ''),
-                data=getattr(event, 'data', None)
             )
         else:
             # For unknown event types, record as generic debug log

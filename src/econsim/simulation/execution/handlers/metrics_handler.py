@@ -48,20 +48,23 @@ class MetricsHandler(BaseStepHandler):
 				if rolling_mean_ms > 0 and current_ms > rolling_mean_ms * spike_factor:
 					spike = True
 
-					# Emit performance spike event using observer pattern
+					# Emit performance spike event using raw data architecture
 					try:  # pragma: no cover
-						from ....observability.observer_logger import get_global_observer_logger
-						logger = get_global_observer_logger()
-						if logger:
-							# Create structured performance spike message
-							message = (
-								f"Performance spike - Step: {context.step_number}, "
-								f"Time: {current_ms:.2f}ms, "
-								f"Rolling mean: {rolling_mean_ms:.2f}ms, "
-								f"Agents: {len(context.simulation.agents)}, "
-								f"Resources: {context.simulation.grid.resource_count()}"
-							)
-							logger.log_performance(message, context.step_number)
+						# Record performance monitoring using raw data architecture
+						for observer in context.observer_registry._observers:
+							if hasattr(observer, 'record_performance_monitor'):
+								observer.record_performance_monitor(
+									step=context.step_number,
+									metric_name="performance_spike",
+									metric_value=current_ms,
+									threshold_exceeded=True,
+									measurement_details={
+										"rolling_mean_ms": rolling_mean_ms,
+										"agents_count": len(context.simulation.agents),
+										"resources_count": context.simulation.grid.resource_count(),
+										"spike_threshold": self._spike_threshold_ms
+									}
+								)
 					except Exception:
 						pass
 

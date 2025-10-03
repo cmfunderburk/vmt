@@ -317,19 +317,21 @@ class Agent:
         self._inventory.collect_resource(rtype)
         
         # Track acquisition for behavioral analysis using observer pattern
-        if step >= 0:
+        if step >= 0 and observer_registry:
             try:
-                from ..observability.observer_logger import get_global_observer_logger
-                logger = get_global_observer_logger()
-                if logger:
-                    # Use log_resource_event for resource acquisition tracking
-                    logger.log_resource_event(
-                        event_type="pickup",
-                        position=(self.x, self.y),
-                        resource_type=rtype,
-                        agent_id=self.id,
-                        step=step
-                    )
+                # Record resource collection using raw data architecture
+                for observer in observer_registry._observers:
+                    if hasattr(observer, 'record_resource_collection'):
+                        observer.record_resource_collection(
+                            step=step,
+                            agent_id=self.id,
+                            resource_type=rtype,
+                            amount_collected=1,  # Always 1 resource per collection
+                            location_x=self.x,
+                            location_y=self.y,
+                            utility_gained=0.0,  # Utility calculation not available at this point
+                            inventory_after=dict(self.carrying)  # Snapshot of inventory after collection
+                        )
             except Exception:
                 pass  # Don't break simulation if logging fails
         
@@ -654,16 +656,20 @@ class Agent:
             # Invalidate target selection cache when agent moves
             self._invalidate_target_selection_cache()
             
-            # Track movement for behavioral analysis using observer pattern
+            # Track movement for behavioral analysis using raw data architecture
             new_pos = (self.x, self.y)
-            if new_pos != old_pos:
+            if new_pos != old_pos and observer_registry:
                 try:
-                    from ..observability.observer_logger import get_global_observer_logger
-                    logger = get_global_observer_logger()
-                    if logger:
-                        # Log movement as spatial event
-                        message = f"Agent {self.id} moved from {old_pos} to {new_pos}"
-                        logger.log_spatial(message, step_number)
+                    # Log movement as debug log event using raw data architecture
+                    message = f"Agent {self.id} moved from {old_pos} to {new_pos}"
+                    for observer in observer_registry._observers:
+                        if hasattr(observer, 'record_debug_log'):
+                            observer.record_debug_log(
+                                step=step_number,
+                                category="MOVEMENT",
+                                message=message,
+                                agent_id=self.id
+                            )
                 except Exception:
                     pass  # Don't break simulation if logging fails
         # Interactions
@@ -852,16 +858,14 @@ class Agent:
                 if best_choice is not None and best_choice[0] == "partner" and best_choice[1]["partner_id"] == other.id:
                     chosen_partner_id = other.id
 
-        # Emit partner search instrumentation with consolidated rejections
-        if enable_trade and nearby_agents and scanned_count > 0:
+        # Emit partner search instrumentation with consolidated rejections using raw data architecture
+        if enable_trade and nearby_agents and scanned_count > 0 and observer_registry:
             import os
             sample_period = int(os.environ.get("ECONSIM_PARTNER_SEARCH_SAMPLE_PERIOD", "1"))
             
             if step % sample_period == 0:
-                from ..observability.observer_logger import get_global_observer_logger
-                logger = get_global_observer_logger()
-                if logger:
-                    # Emit consolidated partner search event with rejection data using observer pattern
+                try:
+                    # Emit consolidated partner search event with rejection data using raw data architecture
                     # Sample first 3 rejections to keep log size manageable
                     rejection_sample = rejected_partners[:3] if rejected_partners else []
                     
@@ -873,7 +877,17 @@ class Agent:
                         f"Chosen: {chosen_partner_id if chosen_partner_id is not None else 'None'}, "
                         f"Rejections: {len(rejection_sample)}"
                     )
-                    logger.log_trade(message, step)
+                    # Record debug log using raw data architecture
+                    for observer in observer_registry._observers:
+                        if hasattr(observer, 'record_debug_log'):
+                            observer.record_debug_log(
+                                step=step,
+                                category="PARTNER_SEARCH", 
+                                message=message,
+                                agent_id=self.id
+                            )
+                except Exception:
+                    pass
         
         # Cache partner selection results for next step
         if enable_trade and nearby_agents:

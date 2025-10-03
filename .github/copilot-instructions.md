@@ -38,16 +38,19 @@ make token                              # Generate LLM token usage report
 
 **Current Implementation Context**:
 - **Phase 1-2 COMPLETE**: `RawDataObserver`, `DataTranslator`, `RawDataWriter` implemented with 112 tests
-- **Phase 3+ ACTIVE**: Migrating simulation handlers from event objects to `observer.record_*()` calls
+- **Phase 2.1 COMPLETE**: GUI formatters relocated to `src/econsim/analysis/formatters/` (standalone analysis module)
+- **Phase 3+ ACTIVE**: Migrating simulation handlers from event objects to `observer.record_*()` calls  
 - **Target**: <0.1% overhead (100x improvement), eliminate ~3500 lines of complex serialization
-- **Architecture**: Raw dictionaries → DataTranslator → Human-readable (on-demand only)
+- **Architecture**: Raw dictionaries → File storage (direct), Analysis formatters (separate module, optional)
 
 **AI Agent Guidelines During Active Implementation**:
 - **DO** replace `Event.create()` calls with `observer.record_*()` direct dictionary storage
 - **DO** use raw data architecture for new event types (simple dictionary append)
+- **DO** eliminate all GUI dependencies from simulation/observability modules
 - **DO NOT** extend the legacy `optimized_serializer.py` 6-layer pipeline
 - **DO NOT** create new event classes - use raw dictionaries exclusively
-- **REFERENCE**: `tmp_plans/CURRENT/AAA/LOG_ARCHITECTURE_IMPLEMENTATION_CHECKLIST_RAW_DATA.md` for current status
+- **DO NOT** maintain GUI backward compatibility - complete elimination during refactor
+- **REFERENCE**: `tmp_plans/CURRENT/AAA/ELIMINATE_GUI_DISPLAY_REQUIREMENTS_CHECKLIST.md` for current status
 
 **Headless mode**: `QT_QPA_PLATFORM=offscreen SDL_VIDEODRIVER=dummy make launcher`
 
@@ -225,8 +228,8 @@ make baseline-capture        # Capture new baselines (requires justification)
   - 🚧 Migrate debug logging and performance monitoring
 
 **Current Implementation Priorities**:
-1. **Handler Migration** - Replace event objects with raw dict recording
-2. **GUI Integration** - Real-time translation for display components  
+1. **Handler Migration** - Replace event objects with raw dict recording (Phase 3+ ACTIVE)
+2. **GUI Elimination** - Complete removal of GUI dependencies from core simulation
 3. **Legacy Cleanup** - Remove ~3500 lines of complex serialization code
 4. **Performance Validation** - Achieve <0.1% overhead target (100x improvement)
 

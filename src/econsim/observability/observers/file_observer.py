@@ -108,8 +108,7 @@ class FileObserver(BaseObserver, RawDataObserver):
             'performance_monitor',
             'agent_decision',
             'resource_event',
-            'economic_decision',
-            'gui_display'
+            'economic_decision'
         }
         
         # Add behavioral events if behavioral aggregation is enabled
@@ -214,13 +213,6 @@ class FileObserver(BaseObserver, RawDataObserver):
                 decision_time_ms=getattr(event, 'decision_time_ms', 0.0),
                 position_x=getattr(event, 'position_x', -1),
                 position_y=getattr(event, 'position_y', -1)
-            )
-        elif event.event_type == 'gui_display':
-            self.record_gui_display(
-                step=step,
-                display_type=getattr(event, 'display_type', ''),
-                element_id=getattr(event, 'element_id', ''),
-                data=getattr(event, 'data', None)
             )
         else:
             # For unknown event types, record as generic debug log

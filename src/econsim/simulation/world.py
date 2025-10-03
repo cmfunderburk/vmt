@@ -428,25 +428,28 @@ class Simulation:
             agent.trade_stagnation_steps >= 100
             and agent.mode not in (AgentMode.RETURN_HOME,)
         ):
-            # Emit stagnation trigger event using observer pattern
+            # Emit stagnation trigger event using raw data architecture
             try:
-                from ..observability.observer_logger import get_global_observer_logger
-                logger = get_global_observer_logger()
-                if logger:
-                    # Calculate last improvement step (approximate)
-                    last_improve_step = self._steps - agent.trade_stagnation_steps
-                    
-                    # Use structured agent decision event for stagnation
-                    details = (
-                        f"Agent stagnated for {agent.trade_stagnation_steps} steps "
-                        f"(threshold=100, last_improve={last_improve_step}, action=return_home, deposit=True)"
-                    )
-                    logger.log_agent_decision(
-                        agent_id=agent.id,
-                        decision_type="stagnation_trigger",
-                        details=details,
-                        step=self._steps
-                    )
+                # Calculate last improvement step (approximate)
+                last_improve_step = self._steps - agent.trade_stagnation_steps
+                
+                # Use structured agent decision event for stagnation
+                details = (
+                    f"Agent stagnated for {agent.trade_stagnation_steps} steps "
+                    f"(threshold=100, last_improve={last_improve_step}, action=return_home, deposit=True)"
+                )
+                # Record agent decision using raw data architecture
+                for observer in self._observer_registry._observers:
+                    if hasattr(observer, 'record_agent_decision'):
+                        observer.record_agent_decision(
+                            step=self._steps,
+                            agent_id=agent.id,
+                            decision_type="stagnation_trigger",
+                            details=details,
+                            utility_before=0.0,  # Could calculate if needed
+                            utility_after=0.0,   # Could calculate if needed
+                            resources_involved={}
+                        )
             except Exception:
                 pass  # Don't break simulation if logging fails
                 
@@ -788,45 +791,50 @@ class Simulation:
         sample_period = int(os.environ.get("ECONSIM_SELECTION_SAMPLE_PERIOD", "200"))
         if step % sample_period == 0:
             try:
-                from ..observability.observer_logger import get_global_observer_logger
-                logger = get_global_observer_logger()
-                if logger:
-                    # Collect top candidates for analysis
-                    resource_candidates = []
-                    partner_candidates = []
-                    
-                    for a in self.agents:
-                        if a.current_unified_task is not None:
-                            kind, payload = a.current_unified_task
-                            if kind == "resource":
-                                resource_candidates.append({
-                                    "agent_id": a.id,
-                                    "pos": payload.get("pos") if hasattr(payload, 'get') else None,
-                                    "score": payload.get("score", 0.0) if hasattr(payload, 'get') else 0.0,
-                                    "delta_u": payload.get("delta_u", 0.0) if hasattr(payload, 'get') else 0.0
-                                })
-                            elif kind == "partner":
-                                partner_candidates.append({
-                                    "agent_id": a.id,
-                                    "partner_id": payload.get("partner_id") if hasattr(payload, 'get') else None,
-                                    "score": payload.get("score", 0.0) if hasattr(payload, 'get') else 0.0,
-                                    "delta_u": payload.get("delta_u", 0.0) if hasattr(payload, 'get') else 0.0
-                                })
-                    
-                    # Sort by score (descending) and take top N
-                    resource_candidates.sort(key=lambda x: x["score"], reverse=True)
-                    partner_candidates.sort(key=lambda x: x["score"], reverse=True)
-                    
-                    # Create structured selection analysis message
-                    active_agents = len([a for a in self.agents if a.current_unified_task is not None])
-                    message = (
-                        f"Selection sample - Total agents: {len(self.agents)}, "
-                        f"Active: {active_agents}, "
-                        f"Top resources: {len(resource_candidates[:5])}, "
-                        f"Top partners: {len(partner_candidates[:5])}"
-                    )
-                    
-                    logger.log_simulation(message, step)
+                # Collect top candidates for analysis
+                resource_candidates = []
+                partner_candidates = []
+                
+                for a in self.agents:
+                    if a.current_unified_task is not None:
+                        kind, payload = a.current_unified_task
+                        if kind == "resource":
+                            resource_candidates.append({
+                                "agent_id": a.id,
+                                "pos": payload.get("pos") if hasattr(payload, 'get') else None,
+                                "score": payload.get("score", 0.0) if hasattr(payload, 'get') else 0.0,
+                                "delta_u": payload.get("delta_u", 0.0) if hasattr(payload, 'get') else 0.0
+                            })
+                        elif kind == "partner":
+                            partner_candidates.append({
+                                "agent_id": a.id,
+                                "partner_id": payload.get("partner_id") if hasattr(payload, 'get') else None,
+                                "score": payload.get("score", 0.0) if hasattr(payload, 'get') else 0.0,
+                                "delta_u": payload.get("delta_u", 0.0) if hasattr(payload, 'get') else 0.0
+                            })
+                
+                # Sort by score (descending) and take top N
+                resource_candidates.sort(key=lambda x: x["score"], reverse=True)
+                partner_candidates.sort(key=lambda x: x["score"], reverse=True)
+                
+                # Create structured selection analysis message
+                active_agents = len([a for a in self.agents if a.current_unified_task is not None])
+                message = (
+                    f"Selection sample - Total agents: {len(self.agents)}, "
+                    f"Active: {active_agents}, "
+                    f"Top resources: {len(resource_candidates[:5])}, "
+                    f"Top partners: {len(partner_candidates[:5])}"
+                )
+                
+                # Record simulation-level debug log using raw data architecture  
+                for observer in self._observer_registry._observers:
+                    if hasattr(observer, 'record_debug_log'):
+                        observer.record_debug_log(
+                            step=step,
+                            category="SELECTION_SAMPLE",
+                            message=message,
+                            agent_id=-1  # Simulation-level event
+                        )
             except Exception:
                 pass  # Don't break simulation if logging fails
 
@@ -834,36 +842,41 @@ class Simulation:
         churn_period = int(os.environ.get("ECONSIM_CHURN_EMIT_PERIOD", "500"))
         if step % churn_period == 0:
             try:
-                from ..observability.observer_logger import get_global_observer_logger
-                logger = get_global_observer_logger()
-                if logger:
-                    # Collect retarget data from all agents
-                    retarget_data = []
-                    total_retargets = 0
-                    
-                    for a in self.agents:
-                        if a._recent_retargets:
-                            # Count retargets in the last window
-                            window_start = max(0, step - int(os.environ.get("ECONSIM_CHURN_WINDOW", "100")))
-                            recent_count = len([s for s in a._recent_retargets if s >= window_start])
-                            if recent_count > 0:
-                                retarget_data.append({
-                                    "agent_id": a.id,
-                                    "retarget_count": recent_count,
-                                    "last_retarget": max(a._recent_retargets) if a._recent_retargets else step
-                                })
-                                total_retargets += recent_count
-                    
-                    # Create structured target churn analysis message
-                    window_size = int(os.environ.get("ECONSIM_CHURN_WINDOW", "100"))
-                    message = (
-                        f"Target churn analysis - Total retargets: {total_retargets}, "
-                        f"Active agents: {len(retarget_data)}, "
-                        f"Window size: {window_size}, "
-                        f"Top agents with retargets: {min(len(retarget_data), 10)}"
-                    )
-                    
-                    logger.log_simulation(message, step)
+                # Collect retarget data from all agents
+                retarget_data = []
+                total_retargets = 0
+                
+                for a in self.agents:
+                    if a._recent_retargets:
+                        # Count retargets in the last window
+                        window_start = max(0, step - int(os.environ.get("ECONSIM_CHURN_WINDOW", "100")))
+                        recent_count = len([s for s in a._recent_retargets if s >= window_start])
+                        if recent_count > 0:
+                            retarget_data.append({
+                                "agent_id": a.id,
+                                "retarget_count": recent_count,
+                                "last_retarget": max(a._recent_retargets) if a._recent_retargets else step
+                            })
+                            total_retargets += recent_count
+                
+                # Create structured target churn analysis message
+                window_size = int(os.environ.get("ECONSIM_CHURN_WINDOW", "100"))
+                message = (
+                    f"Target churn analysis - Total retargets: {total_retargets}, "
+                    f"Active agents: {len(retarget_data)}, "
+                    f"Window size: {window_size}, "
+                    f"Top agents with retargets: {min(len(retarget_data), 10)}"
+                )
+                
+                # Record simulation-level debug log using raw data architecture
+                for observer in self._observer_registry._observers:
+                    if hasattr(observer, 'record_debug_log'):
+                        observer.record_debug_log(
+                            step=step,
+                            category="TARGET_CHURN",
+                            message=message,
+                            agent_id=-1  # Simulation-level event
+                        )
             except Exception:
                 pass  # Don't break simulation if logging fails
 

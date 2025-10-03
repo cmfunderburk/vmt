@@ -7,18 +7,18 @@ for zero-overhead performance monitoring.
 
 Features:
 - Zero-overhead raw data recording during simulation
-- Deferred performance analysis using DataTranslator
+- Deferred performance analysis using standalone analysis formatters
 - Step execution timing analysis
 - Memory usage tracking
 - Bottleneck identification
 - Performance optimization recommendations
-- Raw data storage with human-readable translation on demand
+- Raw data storage with analysis formatters in separate analysis module
 
 Architecture:
 - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-- Uses DataTranslator for converting raw data to analysis-ready format
+- Uses standalone analysis formatters for converting raw data to analysis-ready format
 - No processing overhead during simulation execution
-- Performance analysis performed only when needed (GUI display, file output)
+- Performance analysis performed only when needed using analysis module formatters
 """
 
 from __future__ import annotations
@@ -42,7 +42,6 @@ StepRecord = Dict[str, Union[int, float]]  # For slowest/fastest step records
 
 from .base_observer import BaseObserver
 from ..raw_data.raw_data_observer import RawDataObserver
-from ..raw_data.data_translator import DataTranslator
 from ..raw_data.raw_data_writer import RawDataWriter
 
 if TYPE_CHECKING:
@@ -59,9 +58,9 @@ class PerformanceObserver(BaseObserver, RawDataObserver):
     
     Architecture:
     - Inherits from both BaseObserver (for configuration) and RawDataObserver (for storage)
-    - Uses DataTranslator for converting raw data to analysis-ready format
+    - Uses standalone analysis formatters for converting raw data to analysis-ready format
     - Zero-overhead recording during simulation, analysis deferred to when needed
-    - Raw data storage with human-readable translation on demand
+    - Raw data storage with analysis formatters in separate analysis module
     """
 
     def __init__(self, config: ObservabilityConfig, 
@@ -109,9 +108,6 @@ class PerformanceObserver(BaseObserver, RawDataObserver):
         # Process handle for memory monitoring
         self._process = psutil.Process() if psutil else None
         
-        # Initialize data translator for analysis
-        self._data_translator = DataTranslator()
-        
         # Initialize raw data writer for disk persistence
         self._raw_data_writer = RawDataWriter(
             compress=True,
@@ -137,8 +133,7 @@ class PerformanceObserver(BaseObserver, RawDataObserver):
             'performance_monitor',
             'agent_decision',
             'resource_event',
-            'economic_decision',
-            'gui_display'
+            'economic_decision'
         }
 
     def notify(self, event: SimulationEvent) -> None:
@@ -236,13 +231,6 @@ class PerformanceObserver(BaseObserver, RawDataObserver):
                 resource_type=getattr(event, 'resource_type', ''),
                 amount=getattr(event, 'amount', 1),
                 agent_id=getattr(event, 'agent_id', -1)
-            )
-        elif event.event_type == 'gui_display':
-            self.record_gui_display(
-                step=step,
-                display_type=getattr(event, 'display_type', ''),
-                element_id=getattr(event, 'element_id', ''),
-                data=getattr(event, 'data', None)
             )
         else:
             # For unknown event types, record as generic debug log
@@ -393,7 +381,7 @@ class PerformanceObserver(BaseObserver, RawDataObserver):
         return performance_analysis
 
     def _generate_performance_analysis_from_raw_data(self) -> Dict[str, Any]:
-        """Generate comprehensive performance analysis from raw data using DataTranslator.
+        """Generate comprehensive performance analysis from raw data.
         
         Returns:
             Dictionary containing comprehensive performance analysis
@@ -401,35 +389,12 @@ class PerformanceObserver(BaseObserver, RawDataObserver):
         # Get all raw events
         all_events = self.get_all_events()
         
-        # Translate events to human-readable format
-        translated_events = []
-        for event in all_events:
-            try:
-                if event['type'] == 'trade':
-                    translated_events.append(self._data_translator.translate_trade_event(event))
-                elif event['type'] == 'mode_change':
-                    translated_events.append(self._data_translator.translate_mode_change_event(event))
-                elif event['type'] == 'resource_collection':
-                    translated_events.append(self._data_translator.translate_resource_collection_event(event))
-                elif event['type'] == 'agent_decision':
-                    translated_events.append(self._data_translator.translate_agent_decision_event(event))
-                elif event['type'] == 'performance_monitor':
-                    translated_events.append(self._data_translator.translate_performance_monitor_event(event))
-                elif event['type'] == 'economic_decision':
-                    translated_events.append(self._data_translator.translate_economic_decision_event(event))
-                else:
-                    # Keep raw event for unknown types
-                    translated_events.append(event)
-            except Exception as e:
-                # Keep raw event if translation fails
-                translated_events.append(event)
-        
-        # Generate comprehensive performance analysis
+        # Generate comprehensive performance analysis directly from raw data
         analysis = {
             "total_events": len(all_events),
             "event_types": self.get_event_type_counts(),
             "step_range": self.get_statistics()['step_range'],
-            "translated_events": translated_events,
+            "raw_events": all_events,  # Use raw events directly instead of translated
             "performance_metrics": self._calculate_performance_metrics_from_raw_data(),
             "event_distribution_analysis": self._analyze_event_distribution_from_raw_data(),
             "step_performance_analysis": self._analyze_step_performance_from_raw_data(),
