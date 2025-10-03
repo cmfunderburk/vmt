@@ -143,9 +143,10 @@ class SimulationFactory:
         import datetime
         
         # Create human-readable timestamped directory for this test run
+        # Put timestamp first so folders auto-sort by latest when sorted by name
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         test_name = test_config.name.replace(" ", "_").replace("/", "_")
-        output_dir = Path("economic_analysis_logs") / f"{test_name}_{timestamp}"
+        output_dir = Path("economic_analysis_logs") / f"{timestamp}_{test_name}"
         
         return EconomicLoggingConfig(
             enabled=True,
