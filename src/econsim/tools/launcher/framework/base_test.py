@@ -10,6 +10,7 @@ import random
 import tempfile
 import time
 from pathlib import Path
+from typing import Optional, Dict, Any
 
 # Add src to Python path  
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
@@ -23,9 +24,10 @@ from .debug_orchestrator import DebugOrchestrator
 from .phase_manager import PhaseManager
 from .simulation_factory import SimulationFactory
 
-# Phase 2 imports - Delta system
+# Phase 2 imports - Comprehensive Delta system
 from econsim.recording import HeadlessSimulationRunner
-from econsim.visual import VisualDeltaRecorder, DeltaPlaybackController
+from econsim.delta import ComprehensiveDeltaRecorder, ComprehensivePlaybackController
+from econsim.gui.economic_analysis_widget import EconomicAnalysisWidget
 
 
 class BaseManualTest(QWidget):
@@ -51,8 +53,13 @@ class BaseManualTest(QWidget):
         self.setup_timers()
         
         # Phase 2: Delta system state
-        self.delta_controller: DeltaPlaybackController = None
-        self.delta_file_path: str = None
+        self.delta_controller: Optional[ComprehensivePlaybackController] = None
+        self.delta_file_path: Optional[str] = None
+        self.economic_analysis_widget: Optional[EconomicAnalysisWidget] = None
+        
+        # Playback timer for non-blocking playback
+        self.playback_timer = QTimer()
+        self.playback_timer.timeout.connect(self.playback_timer_tick)
         
         # Store batch mode flag for use in showEvent
         import os
@@ -385,8 +392,8 @@ class BaseManualTest(QWidget):
     
     def run_headless_simulation_with_deltas(self):
         """Run simulation headless with visual delta recording."""
-        # Generate delta file path
-        with tempfile.NamedTemporaryFile(suffix='.delta', delete=False) as tmp_file:
+        # Generate delta file path (MessagePack format)
+        with tempfile.NamedTemporaryFile(suffix='.msgpack', delete=False) as tmp_file:
             self.delta_file_path = tmp_file.name
         
         # Convert TestConfiguration to SimConfig
@@ -395,8 +402,8 @@ class BaseManualTest(QWidget):
         # Generate agent positions
         agent_positions = self._generate_agent_positions()
         
-        # Create visual delta recorder
-        delta_recorder = VisualDeltaRecorder(self.delta_file_path)
+        # Create comprehensive delta recorder
+        delta_recorder = ComprehensiveDeltaRecorder(self.delta_file_path)
         
         # Create simulation using the factory
         simulation = SimulationFactory.create_simulation(self.config)
@@ -408,13 +415,16 @@ class BaseManualTest(QWidget):
         total_turns = self.get_total_turns()
         start_time = time.time()
         
-        print(f"🎬 Recording visual deltas for {total_turns} steps...")
+        print(f"🎬 Recording comprehensive deltas for {total_turns} steps...")
         
         for step in range(1, total_turns + 1):
+            # Start step recording
+            delta_recorder.start_step_recording(step)
+            
             # Step simulation
             simulation.step(random.Random(self.config.seed + step))
             
-            # Record visual delta
+            # Record comprehensive delta
             delta_recorder.record_step(simulation, step)
             
             # Progress update
@@ -425,8 +435,8 @@ class BaseManualTest(QWidget):
         delta_recorder.save_deltas()
         
         end_time = time.time()
-        print(f"✅ Headless simulation with delta recording completed: {end_time - start_time:.2f}s")
-        print(f"📁 Visual deltas saved to: {self.delta_file_path}")
+        print(f"✅ Headless simulation with comprehensive delta recording completed: {end_time - start_time:.2f}s")
+        print(f"📁 Comprehensive deltas saved to: {self.delta_file_path}")
     
     def load_delta_file(self):
         """Load visual deltas for playback."""
@@ -441,12 +451,12 @@ class BaseManualTest(QWidget):
         print(f"📁 Loading delta file: {self.delta_file_path}")
         print(f"📊 File size: {os.path.getsize(self.delta_file_path)} bytes")
         
-        # Load delta controller
-        print("🔄 Loading DeltaPlaybackController...")
+        # Load comprehensive delta controller
+        print("🔄 Loading ComprehensivePlaybackController...")
         load_start = time.time()
-        self.delta_controller = DeltaPlaybackController.load_from_file(self.delta_file_path)
+        self.delta_controller = ComprehensivePlaybackController.load_from_file(self.delta_file_path)
         load_end = time.time()
-        print(f"✅ DeltaPlaybackController loaded in {load_end - load_start:.2f}s")
+        print(f"✅ ComprehensivePlaybackController loaded in {load_end - load_start:.2f}s")
         
         # Initialize to step 0
         print("🔄 Initializing delta playback to step 0...")
@@ -483,21 +493,38 @@ class BaseManualTest(QWidget):
         playback_controls.fast_forward_button.clicked.connect(self.fast_forward_playback)
         playback_controls.speed_combo.currentIndexChanged.connect(self.on_playback_speed_changed)
         
-        # Connect delta controller callbacks to update GUI
-        self.delta_controller.add_step_callback(self.on_delta_step_changed)
-        self.delta_controller.add_state_change_callback(self.on_delta_state_changed)
+        # Connect comprehensive delta controller callbacks to update GUI
+        self.delta_controller.add_step_callback(self.on_comprehensive_step_changed)
+        self.delta_controller.add_state_change_callback(self.on_comprehensive_state_changed)
         
         # Update display to show playback state
         self.update_playback_display()
         
         print("🎮 Playback controls ready - use VCR controls to watch simulation")
     
+    def playback_timer_tick(self):
+        """Handle playback timer tick."""
+        if self.delta_controller and self.delta_controller.current_state.is_playing:
+            self.delta_controller.step_forward()
+            
+            # Check if we've reached the end
+            if self.delta_controller.current_state.current_step >= self.delta_controller.current_state.total_steps:
+                self.delta_controller.pause()
+                self.playback_timer.stop()
+    
     def toggle_playback(self):
         """Toggle playback play/pause."""
-        if self.delta_controller.is_playing():
+        if not self.delta_controller:
+            return
+            
+        if self.delta_controller.current_state.is_playing:
             self.delta_controller.pause()
+            self.playback_timer.stop()
         else:
             self.delta_controller.play()
+            # Start timer with appropriate interval based on playback speed
+            interval_ms = int(1000 / self.delta_controller.current_state.playback_speed)
+            self.playback_timer.start(interval_ms)
     
     def rewind_playback(self):
         """Rewind playback to the beginning."""
@@ -514,12 +541,19 @@ class BaseManualTest(QWidget):
         speed = speed_map[index]
         self.delta_controller.set_playback_speed(speed)
         
+        # Restart timer if currently playing
+        if self.delta_controller.current_state.is_playing:
+            self.playback_timer.stop()
+            if speed > 0:
+                interval_ms = int(1000 / speed)
+                self.playback_timer.start(interval_ms)
+        
         # Update status
         speed_names = ["2 steps/sec", "8 steps/sec", "20 steps/sec", "Unlimited"]
         print(f"🎬 Playback speed changed to: {speed_names[index]}")
     
-    def on_delta_step_changed(self, step: int, visual_state):
-        """Called when playback advances to a new step."""
+    def on_comprehensive_step_changed(self, step: int):
+        """Called when comprehensive playback advances to a new step."""
         # Update pygame widget for this specific step
         if hasattr(self, 'pygame_widget') and self.pygame_widget:
             self.pygame_widget.update_for_step(step)
@@ -527,16 +561,59 @@ class BaseManualTest(QWidget):
         # Update the UI display
         self.update_playback_display()
     
-    def on_delta_state_changed(self, state):
-        """Called when playback state changes (play/pause/stop)."""
+    def on_comprehensive_state_changed(self, visual_state):
+        """Called when comprehensive visual state changes during playback."""
         # Update playback controls display
         playback_controls = self.test_layout.playback_controls
         current_step = self.delta_controller.get_current_step()
         total_steps = self.delta_controller.get_total_steps()
-        playback_controls.update_progress(current_step, total_steps, state.is_playing)
+        playback_controls.update_progress(current_step, total_steps, self.delta_controller.current_state.is_playing)
         
         # Update display
         self.update_playback_display()
+    
+    def get_economic_analysis(self, step: Optional[int] = None) -> Dict[str, Any]:
+        """Get economic analysis data for a specific step or current step.
+        
+        Args:
+            step: Step number (None for current step)
+            
+        Returns:
+            Dictionary containing economic analysis data
+        """
+        if not self.delta_controller:
+            return {}
+        
+        return self.delta_controller.get_economic_data(step)
+    
+    def get_agent_analysis(self, agent_id: int, step: Optional[int] = None) -> Dict[str, Any]:
+        """Get agent analysis data for a specific agent and step.
+        
+        Args:
+            agent_id: Agent ID
+            step: Step number (None for current step)
+            
+        Returns:
+            Dictionary containing agent analysis data
+        """
+        if not self.delta_controller:
+            return {}
+        
+        return self.delta_controller.get_agent_state(agent_id, step)
+    
+    def show_economic_analysis(self):
+        """Show the economic analysis widget."""
+        if not self.delta_controller:
+            print("No delta controller available for economic analysis")
+            return
+        
+        if not self.economic_analysis_widget:
+            self.economic_analysis_widget = EconomicAnalysisWidget()
+            self.economic_analysis_widget.set_delta_controller(self.delta_controller)
+        
+        self.economic_analysis_widget.show()
+        self.economic_analysis_widget.raise_()
+        self.economic_analysis_widget.activateWindow()
     
     def update_playback_display(self):
         """Update UI display with current playback state."""
@@ -564,7 +641,7 @@ class BaseManualTest(QWidget):
         # Update playback controls progress
         if hasattr(self.test_layout, 'playback_controls'):
             playback_controls = self.test_layout.playback_controls
-            is_playing = self.delta_controller.is_playing()
+            is_playing = self.delta_controller.current_state.is_playing
             playback_controls.update_progress(current_step, total_steps, is_playing)
     
     def _convert_to_sim_config(self):

@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import os
 import random
+from typing import Optional
 import pygame
 from PyQt6.QtCore import QRect, QTimer
 from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtWidgets import QWidget
 
-from ..visual.delta_controller import DeltaPlaybackController
-from ..visual.visual_delta import VisualState
+from ..delta.playback_controller import ComprehensivePlaybackController
+from ..delta.data_structures import VisualState
 
 
 class EmbeddedPygameWidget(QWidget):
@@ -26,12 +27,12 @@ class EmbeddedPygameWidget(QWidget):
         self,
         parent: QWidget | None = None,
         *,
-        delta_controller: DeltaPlaybackController = None,
+        delta_controller: Optional[ComprehensivePlaybackController] = None,
     ) -> None:
         super().__init__(parent)
         
         # Store delta controller for visual playback
-        self.delta_controller: DeltaPlaybackController = delta_controller
+        self.delta_controller: Optional[ComprehensivePlaybackController] = delta_controller
         
         # Widget state
         self._surface: pygame.Surface | None = None
@@ -130,7 +131,7 @@ class EmbeddedPygameWidget(QWidget):
         if getattr(self, "_surface", None) is not None:
             # Only update if we have a delta controller and it's not playing
             # (to avoid race conditions with delta controller callbacks)
-            if self.delta_controller and not self.delta_controller.is_playing():
+            if self.delta_controller and not self.delta_controller.current_state.is_playing:
                 self._update_scene()
             elif not self.delta_controller:
                 # Fallback for when no delta controller is set

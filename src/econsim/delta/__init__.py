@@ -38,6 +38,7 @@ from .data_structures import (
 )
 from .serializer import DeltaSerializer, DeltaDebugger
 from .recorder import ComprehensiveDeltaRecorder
+from .playback_controller import ComprehensivePlaybackController
 
 __all__ = [
     "SimulationDelta",
@@ -59,4 +60,5 @@ __all__ = [
     "DeltaSerializer",
     "DeltaDebugger",
     "ComprehensiveDeltaRecorder",
+    "ComprehensivePlaybackController",
 ]
