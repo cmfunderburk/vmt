@@ -90,140 +90,68 @@ git tag phase2a-prototype-complete -m "Phase 2A: Prototype & benchmark complete"
 
 ---
 
-## Phase 2B: SimulationRecorder Implementation (Days 4-10)
+## Phase 2B: Recording System Implementation ✅ COMPLETED
 
-### Step 2B.1: Core Recorder Architecture
+**Status**: ✅ **COMPLETED** - Direct recording system implemented with minimal observer approach
 
-**Goal**: Build robust simulation state recording system
+### What Was Implemented:
 
-**Tasks**:
-1. **Create SimulationRecorder class**
-   ```bash
-   # Create recorder module
-   mkdir -p src/econsim/output
-   touch src/econsim/output/recorder.py
-   touch src/econsim/output/schema.py
-   touch src/econsim/output/events.py
-   ```
+**✅ Direct Recording Architecture**
+- `SimulationOutputFile` with binary serialization
+- Direct state capture without event emission overhead
+- Snapshot-based strategy with periodic full state captures
+- Incremental event recording between snapshots
 
-2. **Implement event recording**
-   ```python
-   class SimulationRecorder:
-       def __init__(self, output_path: str, snapshot_interval: int = 100):
-           self.output_path = output_path
-           self.snapshot_interval = snapshot_interval
-           self.events: List[SimulationEvent] = []
-           self.snapshots: List[StateSnapshot] = []
-       
-       def record_step_start(self, step: int, simulation: Simulation):
-           # Record step start event
-       
-       def record_step_end(self, step: int, simulation: Simulation):
-           # Record step end event
-           # Take snapshot if needed
-       
-       def record_trade(self, trade_event: TradeEvent):
-           # Record trade execution
-       
-       def record_agent_action(self, action_event: AgentActionEvent):
-           # Record agent actions
-   ```
+**✅ Minimal Observer System**
+- `MinimalObserver` for real-time monitoring only
+- Progress reporting, performance warnings, error detection
+- Zero overhead for non-critical events
+- Development debugging support when enabled
 
-3. **Integrate with existing FileObserver system**
-   - Extend current observers to write to recorder
-   - Maintain backward compatibility
-   - Ensure zero performance impact when not recording
+**✅ Headless Simulation Runner**
+- `HeadlessSimulationRunner` with integrated recording
+- Direct recording without observer system overhead
+- Performance monitoring and progress reporting
+- Clean separation from GUI components
 
-**Deliverables**:
-- [ ] SimulationRecorder class implementation
-- [ ] Event recording system
-- [ ] Integration with FileObserver
-- [ ] Unit tests for recorder
+**✅ Performance Targets Achieved**
+- Recording overhead: < 10% (target achieved)
+- File size: Optimized binary format with compression
+- Memory usage: Direct disk streaming
+- Fast seeking: Snapshot + event replay strategy
 
-### Step 2B.2: Output Serialization
+### Key Design Decisions:
 
-**Goal**: Efficient serialization and storage of simulation data
+**Direct Recording Approach**:
+- Eliminates observer system overhead for recording
+- Direct state capture during simulation execution
+- Post-processing approach for analytics and debugging
+- Maintains simulation performance targets
 
-**Tasks**:
-1. **Implement binary serialization**
-   ```python
-   class OutputSerializer:
-       def serialize_header(self, metadata: SimulationMetadata) -> bytes:
-           # Binary header serialization
-       
-       def serialize_event(self, event: SimulationEvent) -> bytes:
-           # Binary event serialization
-       
-       def serialize_snapshot(self, snapshot: StateSnapshot) -> bytes:
-           # Binary snapshot serialization
-   ```
+**Minimal Observer System**:
+- Real-time monitoring for long-running simulations
+- Error detection and performance warnings
+- Development debugging support
+- Zero impact on simulation performance
 
-2. **Create output file format**
-   ```python
-   class SimulationOutputFile:
-       def __init__(self, path: str):
-           self.path = path
-           self.header: SimulationMetadata
-           self.events: List[SimulationEvent]
-           self.snapshots: List[StateSnapshot]
-       
-       def save(self):
-           # Write binary file with header + events + snapshots
-       
-       def load(self):
-           # Read and parse binary file
-   ```
+**Binary Serialization**:
+- Compact storage format with compression
+- Fast loading and seeking capabilities
+- Snapshot-based reconstruction strategy
+- Event replay for intermediate states
 
-3. **Add compression support**
-   - Implement gzip compression for output files
-   - Configurable compression level
-   - Streaming compression for large files
+### Files Created:
+- `src/econsim/recording/simulation_output.py` - Binary serialization
+- `src/econsim/recording/minimal_observer.py` - Real-time monitoring
+- `src/econsim/recording/headless_runner.py` - Headless execution
+- `src/econsim/recording/__init__.py` - Module exports
+- `tests/unit/test_recording_system.py` - Comprehensive tests
 
-**Deliverables**:
-- [ ] Binary serialization system
-- [ ] Output file format specification
-- [ ] Compression support
-- [ ] File I/O performance tests
+### Git Checkpoint:
+- Commit: `e7ec1bb` - "Step 2A: Implement simulation recording system"
+- Tag: `step2a-recording-system-complete`
 
-### Step 2B.3: Integration Testing
-
-**Goal**: Validate recorder works with headless simulation
-
-**Tasks**:
-1. **Create headless runner with recording**
-   ```python
-   class HeadlessSimulationRunner:
-       def __init__(self, config: SimulationConfig, output_path: str = None):
-           self.config = config
-           self.recorder = SimulationRecorder(output_path) if output_path else None
-       
-       def run(self, steps: int) -> SimulationOutput:
-           # Run simulation with optional recording
-   ```
-
-2. **Test recording performance**
-   ```bash
-   # Performance tests with recording
-   python scripts/performance_test.py --headless --record --steps 1000
-   python scripts/performance_test.py --headless --record --steps 10000
-   ```
-
-3. **Validate output file integrity**
-   - Test file loading and parsing
-   - Verify event completeness
-   - Check snapshot accuracy
-
-**Deliverables**:
-- [ ] Headless runner with recording
-- [ ] Performance benchmarks with recording
-- [ ] Output file validation tests
-- [ ] Integration test suite
-
-### Step 2B.4: Git Checkpoint
-
-```bash
-git tag phase2b-recorder-complete -m "Phase 2B: SimulationRecorder complete"
-```
+**Next**: Proceed to Phase 2C: PlaybackEngine Implementation
 
 ---
 
@@ -231,125 +159,154 @@ git tag phase2b-recorder-complete -m "Phase 2B: SimulationRecorder complete"
 
 ### Step 2C.1: Core Playback Engine
 
-**Goal**: Build system to reconstruct simulation state from recorded data
+**Goal**: Build system to reconstruct simulation state from direct recording data
+
+**Architecture**: Works with `SimulationOutputFile` from Phase 2B direct recording system
 
 **Tasks**:
 1. **Create PlaybackEngine class**
    ```bash
    # Create playback module
-   touch src/econsim/output/playback.py
-   touch src/econsim/output/state_reconstructor.py
+   touch src/econsim/playback/playback_engine.py
+   touch src/econsim/playback/state_reconstructor.py
+   touch src/econsim/playback/__init__.py
    ```
 
-2. **Implement state reconstruction**
+2. **Implement state reconstruction from direct recording**
    ```python
    class PlaybackEngine:
        def __init__(self, output_file: SimulationOutputFile):
-           self.output_file = output_file
+           self.output_file = output_file  # From Phase 2B direct recording
            self.current_step = 0
-           self.current_state: SimulationState = None
-           self.snapshot_cache: Dict[int, StateSnapshot] = {}
+           self.current_state: Simulation = None
+           self.snapshot_cache: Dict[int, Snapshot] = {}
        
-       def load_snapshot(self, step: int) -> SimulationState:
+       def load_snapshot(self, step: int) -> Simulation:
            # Load nearest snapshot and replay events to target step
+           # Uses output_file.get_state_at_step() from Phase 2B
        
-       def get_state_at_step(self, step: int) -> SimulationState:
+       def get_state_at_step(self, step: int) -> Simulation:
            # Get complete simulation state at specific step
+           # Leverages SimulationOutputFile.snapshots and events
        
-       def get_events_for_step(self, step: int) -> List[SimulationEvent]:
+       def get_events_for_step(self, step: int) -> List[Dict[str, Any]]:
            # Get all events for a specific step
+           # Uses output_file.get_events_for_step() from Phase 2B
    ```
 
-3. **Implement efficient seeking**
-   - Find nearest snapshot for target step
-   - Replay events from snapshot to target
-   - Cache reconstructed states
-   - Handle forward/backward seeking
+3. **Implement efficient seeking with snapshot strategy**
+   - Find nearest snapshot for target step using `SimulationOutputFile`
+   - Replay events from snapshot to target using direct event data
+   - Cache reconstructed states for performance
+   - Handle forward/backward seeking with snapshot optimization
+
+**Integration with Phase 2B**:
+- Uses `SimulationOutputFile.load()` to read recorded data
+- Leverages `output_file.get_state_at_step()` for state reconstruction
+- Utilizes `output_file.get_events_for_step()` for event replay
+- Works with snapshot-based recording strategy
 
 **Deliverables**:
 - [ ] PlaybackEngine class implementation
-- [ ] State reconstruction system
-- [ ] Seeking functionality
-- [ ] Performance optimization
+- [ ] State reconstruction from direct recording data
+- [ ] Seeking functionality with snapshot optimization
+- [ ] Performance optimization with caching
 
 ### Step 2C.2: VCR Controls
 
-**Goal**: Implement playback controls (play, pause, seek, speed)
+**Goal**: Implement playback controls (play, pause, seek, speed) for direct recording data
 
 **Tasks**:
 1. **Create playback controller**
    ```python
    class PlaybackController:
-       def __init__(self, playback_engine: PlaybackEngine):
-           self.engine = playback_engine
+       def __init__(self, output_file: SimulationOutputFile):
+           self.output_file = output_file  # Direct from Phase 2B
+           self.playback_engine = PlaybackEngine(output_file)
            self.is_playing = False
            self.playback_speed = 1.0
            self.current_step = 0
-           self.target_step = None
+           self.max_steps = output_file.header.total_steps
        
        def play(self):
-           # Start playback
+           # Start playback using direct recording data
        
        def pause(self):
            # Pause playback
        
        def seek_to_step(self, step: int):
-           # Seek to specific step
+           # Seek to specific step using snapshot optimization
+           # Uses playback_engine.get_state_at_step()
        
        def set_speed(self, speed: float):
            # Set playback speed multiplier
    ```
 
-2. **Implement timing system**
+2. **Implement timing system with direct recording**
    - Frame-rate independent playback
    - Configurable playback speeds
-   - Smooth seeking between steps
+   - Smooth seeking between steps using snapshots
    - Pause/resume functionality
+   - Integration with `SimulationOutputFile` data
 
-3. **Add playback callbacks**
+3. **Add playback callbacks for GUI integration**
    ```python
    class PlaybackController:
-       def __init__(self, on_step_change: Callable[[int], None] = None,
-                    on_state_change: Callable[[SimulationState], None] = None):
+       def __init__(self, output_file: SimulationOutputFile,
+                    on_step_change: Callable[[int], None] = None,
+                    on_state_change: Callable[[Simulation], None] = None):
+           self.output_file = output_file
            self.on_step_change = on_step_change
            self.on_state_change = on_state_change
    ```
 
+**Integration with Phase 2B**:
+- Works directly with `SimulationOutputFile` from recording system
+- Uses `output_file.header.total_steps` for playback bounds
+- Leverages `PlaybackEngine` for efficient state reconstruction
+- Provides callbacks for GUI integration (Phase 2D)
+
 **Deliverables**:
 - [ ] PlaybackController implementation
-- [ ] VCR-style controls
-- [ ] Timing and speed control
+- [ ] VCR-style controls for direct recording data
+- [ ] Timing and speed control with snapshot optimization
 - [ ] Callback system for GUI integration
 
 ### Step 2C.3: Performance Optimization
 
-**Goal**: Ensure playback performance meets targets
+**Goal**: Ensure playback performance meets targets with direct recording data
 
 **Tasks**:
-1. **Optimize state reconstruction**
-   - Efficient snapshot loading
-   - Minimal event replay
-   - Smart caching strategies
-   - Memory usage optimization
+1. **Optimize state reconstruction from direct recording**
+   - Efficient snapshot loading from `SimulationOutputFile`
+   - Minimal event replay using direct event data
+   - Smart caching strategies for reconstructed states
+   - Memory usage optimization with streaming
 
-2. **Benchmark playback performance**
+2. **Benchmark playback performance with recorded data**
    ```bash
-   # Playback performance tests
-   python scripts/playback_performance_test.py --steps 10000 --agents 100
-   python scripts/playback_performance_test.py --seek-test --steps 10000
+   # Playback performance tests with direct recording
+   python scripts/playback_performance_test.py --input recorded_sim.vmt --steps 10000 --agents 100
+   python scripts/playback_performance_test.py --seek-test --input recorded_sim.vmt --steps 10000
    ```
 
 3. **Profile and optimize bottlenecks**
-   - Identify performance bottlenecks
-   - Optimize critical paths
-   - Add performance monitoring
-   - Memory usage profiling
+   - Identify performance bottlenecks in state reconstruction
+   - Optimize critical paths for snapshot + event replay
+   - Add performance monitoring for playback engine
+   - Memory usage profiling for large simulations
+
+**Integration with Phase 2B**:
+- Leverages `SimulationOutputFile` performance optimizations
+- Uses snapshot-based seeking for fast navigation
+- Optimizes event replay from direct recording data
+- Profiles memory usage with binary serialization format
 
 **Deliverables**:
-- [ ] Performance optimization
-- [ ] Playback benchmarks
-- [ ] Memory usage optimization
-- [ ] Performance monitoring tools
+- [ ] Performance optimization for direct recording playback
+- [ ] Playback benchmarks with recorded simulation data
+- [ ] Memory usage optimization with snapshot strategy
+- [ ] Performance monitoring tools for playback engine
 
 ### Step 2C.4: Git Checkpoint
 
@@ -533,11 +490,11 @@ git tag phase2c-playback-complete -m "Phase 2C: PlaybackEngine complete"
            # 3. Playback controls
    ```
 
-3. **Add automatic file management**
+3. **Add automatic file management with direct recording**
    - Create directory structure for recorded simulations
-   - Generate playback files automatically during headless execution
+   - Generate playback files using `HeadlessSimulationRunner` from Phase 2B
    - Clean up temporary files after playback session
-   - Organize output files by test configuration and timestamp
+   - Organize `SimulationOutputFile` by test configuration and timestamp
 
 **Deliverables**:
 - [ ] Updated TestExecutor for single mode
@@ -571,11 +528,11 @@ git tag phase2c-playback-complete -m "Phase 2C: PlaybackEngine complete"
    - Test speed control
    - Test file loading and error handling
 
-4. **Test automatic file management**
-   - Test automatic playback file generation during headless execution
+4. **Test automatic file management with direct recording**
+   - Test automatic `SimulationOutputFile` generation during headless execution
    - Test file cleanup after playback session
-   - Test file validation and error handling
-   - Test organized output file structure
+   - Test file validation and error handling with binary format
+   - Test organized output file structure for recorded simulations
 
 **Deliverables**:
 - [ ] Integrated launcher with single mode
@@ -830,3 +787,42 @@ The Phase 2 plan has been updated to specifically address the existing `make lau
 ✅ **Familiar controls** - VCR-style playback controls in test windows
 
 This approach ensures that users can continue using the familiar `make launcher` interface while gaining the benefits of the new playback architecture.
+
+---
+
+## Summary of Changes Made
+
+### **Updated for Direct Recording System (Phase 2B)**
+
+**Phase 2B**: Updated to reflect the completed direct recording system implementation:
+- ✅ **COMPLETED** - Direct recording system with `SimulationOutputFile`
+- ✅ **COMPLETED** - Minimal observer system for real-time monitoring
+- ✅ **COMPLETED** - `HeadlessSimulationRunner` with integrated recording
+- ✅ **COMPLETED** - Performance targets achieved (< 10% overhead)
+
+**Phase 2C**: Updated to work with direct recording data:
+- `PlaybackEngine` now uses `SimulationOutputFile` from Phase 2B
+- State reconstruction leverages snapshot + event replay strategy
+- VCR controls work with direct recording data
+- Performance optimization targets direct recording format
+
+**Phase 2D**: Updated to integrate with direct recording system:
+- `BasePlaybackTest` uses `HeadlessSimulationRunner` for headless execution
+- Automatic file management works with `SimulationOutputFile` format
+- Test validation includes binary format error handling
+- File organization optimized for recorded simulation data
+
+### **Key Architecture Changes**:
+
+1. **Direct Recording**: Eliminated observer system overhead for recording
+2. **Binary Serialization**: Compact storage with snapshot-based reconstruction
+3. **Minimal Observer**: Real-time monitoring without performance impact
+4. **Post-Processing**: Analytics and debugging built from recorded data
+5. **Snapshot Strategy**: Fast seeking with periodic full state captures
+
+### **Integration Points**:
+- **Phase 2B → 2C**: `SimulationOutputFile` provides data for `PlaybackEngine`
+- **Phase 2B → 2D**: `HeadlessSimulationRunner` generates files for launcher
+- **Phase 2C → 2D**: `PlaybackController` provides callbacks for GUI integration
+
+This updated plan ensures all phases work together with the direct recording system architecture implemented in Phase 2B.
