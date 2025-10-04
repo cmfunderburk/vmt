@@ -1,3 +1,58 @@
+# VMT EconSim Copilot Quickstart (AI Agents)
+
+Project: Educational microeconomic simulation with deterministic spatial agents (Python 3.11+, PyQt6, Pygame, NumPy). Determinism-first architecture; GUI decoupled via observers.
+
+## Architecture at a glance
+- Simulation core (`src/econsim/simulation/`): use `Simulation.from_config(SimConfig)` only. Key files: `world.py`, `agent.py`, `grid.py`, `config.py`, `trade.py`.
+- Step pipeline (fixed order): Movement → Collection → Trading → Metrics → Respawn in `simulation/execution/handlers/`.
+- Observer layer (`src/econsim/observability/`): events via `ObserverRegistry` (notify → flush_step → close). Observers: File, Educational, Performance, GUI.
+- GUI (`src/econsim/gui/` + `src/econsim/tools/launcher/`): subscribes to observers; simulation has no GUI imports.
+
+## Determinism rules (critical)
+- Always sort iteration (e.g., `Grid.iter_resources_sorted()`, `sorted(agents, key=lambda a: a.id)`).
+- All randomness through sanctioned RNG: `ext_rng` or `simulation._rng`; stable tie-breaks used throughout.
+- Determinism guards live in `tests/integration/test_determinism_*.py`.
+
+## Construction & example
+```python
+from econsim.simulation.config import SimConfig
+from econsim.simulation.world import Simulation
+config = SimConfig(seed=42, grid_size=(50, 50), num_agents=20)
+sim = Simulation.from_config(config)  # Mandatory factory
+```
+
+## Feature flags
+Env vars checked in `SimulationFeatures.from_environment()`: `ECONSIM_FORAGE_ENABLED`, `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXECUTION`, `ECONSIM_BILATERAL_ENABLED`. Tests reset flags in `tests/conftest.py`.
+
+## Preferences (pure O(1))
+- Implemented in `src/econsim/preferences/` and built via `factory.build_preference(type, **params)`.
+- Must implement: `utility(bundle)`, `serialize()`, `deserialize()`, `update_params(**kwargs)`; register in `factory.py:_REGISTRY`.
+- Validate rigorously; raise `PreferenceError` on invalid params.
+
+## Performance constraints
+- Per-step complexity O(agents + resources); avoid quadratic scans.
+- Use spatial index: `simulation._spatial_index.find_agents_in_radius()`.
+- Target 60 FPS; run `make perf`. Regression threshold: <5% slowdown acceptable.
+
+## Dev workflows
+- `make venv && source vmt-dev/bin/activate`
+- `make dev` (GUI) • `make launcher` (Enhanced test launcher)
+- `make test-unit` • `make lint format type` • `make perf`
+
+## Common pitfalls
+- Direct `Simulation(...)` instantiation (breaks hooks/RNG) → use factory.
+- Non-deterministic iteration over dict/set → always sorted.
+- GUI dependencies inside simulation → use observers only.
+- Multiple QTimers in GUI → single 16ms timer in `EmbeddedPygameWidget`.
+- Preference side effects → keep `utility()` pure.
+
+## Integration notes
+- Simulation → GUI: events recorded by `GUIEventObserver`; GUI uses `DataTranslator` for display.
+- Headless runs: loop `sim.step(sim._rng)`; no GUI required.
+
+## Refactor context
+- Canonical plan: `tmp_plans/CURRENT/CRITICAL/ACTIONABLE_REFACTORING_PLAN_V2.md`.
+- Git checkpoints: `refactor-pre-phase{N}` / `refactor-post-phase{N}`; GUI may break after Phase 1 (expected). Quarantine tests in `tests/QUARANTINE/`.
 # VMT EconSim Copilot Instructions
 
 **Project:** Educational microeconomic simulation with deterministic spatial agent behavior  
