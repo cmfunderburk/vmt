@@ -3,8 +3,7 @@
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from ...observability.registry import ObserverRegistry
+# Observer system removed - comprehensive delta system handles recording
 
 class AgentEventEmitter:
     """Handles all agent event emission with consistent error handling."""
@@ -17,42 +16,19 @@ class AgentEventEmitter:
         old_mode: str,
         new_mode: str,
         reason: str,
-        step_number: int,
-        observer_registry: Optional['ObserverRegistry'] = None
+        step_number: int
     ) -> None:
-        """Emit agent mode change event using raw data architecture."""
-        if observer_registry:
-            # Record mode change using raw data architecture
-            # Call record_mode_change() on all observers that support raw data recording
-            for observer in observer_registry._observers:
-                if hasattr(observer, 'record_mode_change'):
-                    observer.record_mode_change(
-                        step=step_number,
-                        agent_id=self.agent_id,
-                        old_mode=old_mode,
-                        new_mode=new_mode,
-                        reason=reason
-                    )
+        """Emit agent mode change event - observer system removed."""
+        # Observer system removed - comprehensive delta system handles recording
+        pass
     
     def emit_resource_collection(
         self,
         x: int,
         y: int,
         resource_type: str,
-        step: int,
-        observer_registry: Optional['ObserverRegistry'] = None
+        step: int
     ) -> None:
-        """Emit resource collection event using raw data architecture."""
-        if observer_registry:
-            # Record resource collection using raw data architecture
-            # Call record_resource_collection() on all observers that support raw data recording
-            for observer in observer_registry._observers:
-                if hasattr(observer, 'record_resource_collection'):
-                    observer.record_resource_collection(
-                        step=step,
-                        agent_id=self.agent_id,
-                        x=x,
-                        y=y,
-                        resource_type=resource_type,
-                        amount_collected=1
-                    )
+        """Emit resource collection event - observer system removed."""
+        # Observer system removed - comprehensive delta system handles recording
+        pass

@@ -1,6 +1,4 @@
-"""Agenif TYPE_CHECKING:
-    from ...observability.registry import ObserverRegistry
-    from .event_emitter import AgentEventEmitterde state machine with explicit transitions and validation."""
+"""Agent state machine with explicit transitions and validation."""
 
 from __future__ import annotations
 
@@ -8,8 +6,6 @@ import logging
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..observability.registry import ObserverRegistry
-    from ..observability.event_buffer import StepEventBuffer
     from .event_emitter import AgentEventEmitter
 
 # Import AgentMode from constants to avoid circular dependency
@@ -61,17 +57,15 @@ class AgentModeStateMachine:
         old_mode: str,
         new_mode: str,
         reason: str,
-        step_number: int,
-        observer_registry: Optional['ObserverRegistry'] = None
+        step_number: int
     ) -> bool:
-        """Validate transition and emit event if valid.
+        """Validate transition.
         
         Args:
             old_mode: Current mode (string)
             new_mode: Desired new mode (string)
             reason: Reason for mode change
             step_number: Current simulation step
-            observer_registry: Observer registry for event emission
             
         Returns:
             True if transition is valid, False otherwise
@@ -91,15 +85,7 @@ class AgentModeStateMachine:
         if not self.is_valid_transition(from_enum, to_enum):
             return False
         
-        # Emit event if event emitter is available
-        if self._event_emitter:
-            self._event_emitter.emit_mode_change(
-                old_mode=old_mode,
-                new_mode=new_mode,
-                reason=reason,
-                step_number=step_number,
-                observer_registry=observer_registry
-            )
+        # Observer system removed - comprehensive delta system handles recording
         
         return True
     

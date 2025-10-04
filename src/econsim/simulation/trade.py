@@ -66,8 +66,6 @@ def _emit_micro_delta_once(first_drop_delta: float) -> None:
             effective_threshold = _effective_min_trade_delta()
             # Record debug event with micro-delta threshold information using raw data
             message = f"Micro-delta threshold applied: {effective_threshold:.2e}, first_drop={first_drop_delta:.2e}"
-            for observer in logger.observer_registry._observers:
-                observer.record_debug_log(step=0, category="TRADE_MICRO_DELTA", message=message)
     except Exception:
         # Never allow logging issues to disrupt enumeration
         pass
@@ -382,8 +380,6 @@ def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Ag
                 
                 # Record debug event for trade execution using raw data
                 debug_msg = f"TRADE seller={intent.seller_id} buyer={intent.buyer_id} gave={intent.give_type} took={intent.take_type} utility_delta={combined_utility_delta:.3f}"
-                for observer in logger.observer_registry._observers:
-                    observer.record_debug_log(step=step or 0, category="trade", message=debug_msg)
         except Exception:  # pragma: no cover
             pass  # Graceful degradation when observer system not available
         

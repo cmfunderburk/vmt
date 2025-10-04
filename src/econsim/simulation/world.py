@@ -43,28 +43,14 @@ from .trade import (  # type: ignore
 )
 import os
 
-# Observer system imports (Phase 1.3: Observer Foundation)
-from ..observability.registry import ObserverRegistry
-# PHASE 5.1/5.2: Event classes removed - using raw data architecture
-# PHASE 4.1.2: Event buffer system removed - using direct observer.record_*() calls only
+# Observer system removed - replaced by comprehensive delta system
 
 
 def _debug_log_mode_change(agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str = "", 
-                          observer_registry: Optional[ObserverRegistry] = None, step: int = 0) -> None:
-    """Log agent mode transitions using raw data architecture."""
-    if observer_registry and observer_registry.has_observers():
-        # Record mode change using raw data architecture
-        # Call record_mode_change() on all observers that support raw data recording
-        for observer in observer_registry._observers:
-            if hasattr(observer, 'record_mode_change'):
-                observer.record_mode_change(
-                    step=step,
-                    agent_id=agent.id,
-                    old_mode=old_mode.value,
-                    new_mode=new_mode.value,
-                    reason=reason
-                )
-    # Note: Legacy fallback removed - observer system is now required for mode change logging
+                          step: int = 0) -> None:
+    """Log agent mode transitions - observer system removed."""
+    # Observer system removed - mode changes are now recorded by comprehensive delta system
+    pass
 
 
 @dataclass(slots=True)
@@ -92,9 +78,7 @@ class Simulation:
     _last_trade_highlight: tuple[int,int,int] | None = None  # (x,y,expire_step)
     # Performance tracking for debug logging
     _step_times: list[float] = field(default_factory=list)
-    # Observer system integration (Phase 1.3: Observer Foundation)  
-    _observer_registry: ObserverRegistry = field(default_factory=ObserverRegistry)
-    # Phase 4.1.2: Event buffer system removed - using direct observer.record_*() calls only
+    # Observer system removed - replaced by comprehensive delta system
     # Step execution system (Phase 2: Step Decomposition)
     _step_executor: Any = field(default=None)
     # Pre-step resource snapshot for collection metrics (not part of determinism hash)
@@ -108,11 +92,7 @@ class Simulation:
             seed = getattr(self.config, "seed", 0)
             self._rng = _random.Random(int(seed))
         
-        # Initialize global observer logger
-        from ..observability.observer_logger import initialize_global_observer_logger
-        initialize_global_observer_logger(self._observer_registry)
-        
-        # Economic logging setup removed - logging should be external to simulation
+        # Observer system removed - comprehensive delta system handles all recording
 
     def step(self, rng: random.Random) -> None:
         """Advance simulation by one step using decomposed handler system.
@@ -144,8 +124,7 @@ class Simulation:
             simulation=self,
             step_number=step_num,
             ext_rng=rng,
-            feature_flags=feature_flags,
-            observer_registry=self._observer_registry
+            feature_flags=feature_flags
         )
         
         # Phase 4.1.2: Direct observer.record_*() calls - no event buffering needed
@@ -177,8 +156,7 @@ class Simulation:
             if self._steps >= expire:
                 self._last_trade_highlight = None
 
-        # Flush observers at end-of-step (after all handlers)
-        self._observer_registry.flush_step(step_num)
+        # Observer system removed - comprehensive delta system handles all recording
 
         # Clear transient cross-handler scratch data
         if hasattr(self, '_transient_foraged_ids'):
@@ -262,22 +240,9 @@ class Simulation:
                     ) from exc
                 _pref_factory = lambda i: CobbDouglasPreference(alpha=0.5)  # type: ignore
 
-            # Available agent sprite types for random assignment
-            agent_sprite_types = [
-                "agent_explorer",
-                "agent_farmer", 
-                "agent_green",
-                "agent_miner",
-                "agent_purple",
-                "agent_trader"
-            ]
-            
             for idx, (x, y) in enumerate(agent_positions):
                 pref = _pref_factory(idx)  # type: ignore[misc]
-                # Randomly assign sprite type using config seed + agent index for determinism
-                sprite_rng = _random.Random(int(config.seed) + idx + 1000)  # offset to avoid conflicts
-                sprite_type = sprite_rng.choice(agent_sprite_types)
-                agents.append(Agent(id=idx, x=int(x), y=int(y), preference=pref, sprite_type=sprite_type))
+                agents.append(Agent(id=idx, x=int(x), y=int(y), preference=pref))
 
         sim = cls(grid=grid, agents=agents, config=config)
 
@@ -371,18 +336,7 @@ class Simulation:
                     f"Agent stagnated for {agent.trade_stagnation_steps} steps "
                     f"(threshold=100, last_improve={last_improve_step}, action=return_home, deposit=True)"
                 )
-                # Record agent decision using raw data architecture
-                for observer in self._observer_registry._observers:
-                    if hasattr(observer, 'record_agent_decision'):
-                        observer.record_agent_decision(
-                            step=self._steps,
-                            agent_id=agent.id,
-                            decision_type="stagnation_trigger",
-                            details=details,
-                            utility_before=0.0,  # Could calculate if needed
-                            utility_after=0.0,   # Could calculate if needed
-                            resources_involved={}
-                        )
+                # Observer system removed - comprehensive delta system handles recording
             except Exception:
                 pass  # Don't break simulation if logging fails
                 
@@ -394,7 +348,7 @@ class Simulation:
                     agent.clear_trade_partner()
             agent.force_deposit_once = True
             from .agent_mode_utils import set_agent_mode
-            set_agent_mode(agent, AgentMode.RETURN_HOME, "stagnation", step, self._observer_registry)
+            set_agent_mode(agent, AgentMode.RETURN_HOME, "stagnation", step)
             agent.target = (int(agent.home_x), int(agent.home_y))  # type: ignore[arg-type]
             # Reset counters so we don't repeatedly trigger before deposit occurs
             agent.trade_stagnation_steps = 0
@@ -546,9 +500,9 @@ class Simulation:
         for a in self.agents:
             if a.force_deposit_once:
                 from .agent_mode_utils import set_agent_mode
-                set_agent_mode(a, AgentMode.RETURN_HOME, "force_deposit_stagnation", step, self._observer_registry)
+                set_agent_mode(a, AgentMode.RETURN_HOME, "force_deposit_stagnation", step)
                 a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
-                a.maybe_deposit(self._observer_registry, step)
+                a.maybe_deposit(step)
                 continue
             if getattr(a, 'trade_partner_id', None) is not None:
                 # Already paired; movement handled in post-pass
@@ -563,7 +517,6 @@ class Simulation:
                 enable_trade=trade_enabled,
                 distance_scaling_factor=k,
                 step=step,
-                observer_registry=self._observer_registry,
             )
             if choice is None:
                 # No unified target found - try Leontief prospecting 
@@ -576,7 +529,7 @@ class Simulation:
                         if prospect is not None and prospect not in claimed_resources:
                             claimed_resources.add(prospect)
                             a.target = prospect
-                            a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step)
+                            a._set_mode(AgentMode.FORAGE, "resource_selection", step)
                             # Move one step toward prospect immediately
                             if (a.x, a.y) != prospect:
                                 tx, ty = prospect
@@ -597,7 +550,7 @@ class Simulation:
                             if fallback_target is not None:
                                 claimed_resources.add(fallback_target)
                                 a.target = fallback_target
-                                a._set_mode(AgentMode.FORAGE, "resource_selection_fallback", self._observer_registry, step)
+                                a._set_mode(AgentMode.FORAGE, "resource_selection_fallback", step)
                                 # Move one step toward fallback immediately
                                 tx, ty = fallback_target
                                 dx = tx - a.x; dy = ty - a.y
@@ -610,12 +563,12 @@ class Simulation:
                         pass
                 # No target found - fall back to deposit/idle logic
                 if a.carrying_total() > 0:
-                    a._set_mode(AgentMode.RETURN_HOME, "carrying_capacity_full", self._observer_registry, step)
+                    a._set_mode(AgentMode.RETURN_HOME, "carrying_capacity_full", step)
                     new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                     a._track_target_change(new_target, step)
                     a.target = new_target
                 else:
-                    a._set_mode(AgentMode.IDLE, "no_target_available", self._observer_registry, step)
+                    a._set_mode(AgentMode.IDLE, "no_target_available", step)
                     a._track_target_change(None, step)
                     a.target = None
                 continue
@@ -625,19 +578,19 @@ class Simulation:
                 if pos in claimed_resources:
                     # Already claimed; idle fallback
                     if a.carrying_total() > 0:
-                        a._set_mode(AgentMode.RETURN_HOME, "resource_claimed_fallback", self._observer_registry, step)
+                        a._set_mode(AgentMode.RETURN_HOME, "resource_claimed_fallback", step)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
                     else:
-                        a._set_mode(AgentMode.IDLE, "resource_claimed_fallback", self._observer_registry, step)
+                        a._set_mode(AgentMode.IDLE, "resource_claimed_fallback", step)
                         a._track_target_change(None, step)
                         a.target = None
                     continue
                 claimed_resources.add(pos)
                 a._track_target_change(pos, step)
                 a.target = pos
-                a._set_mode(AgentMode.FORAGE, "resource_selection", self._observer_registry, step)
+                a._set_mode(AgentMode.FORAGE, "resource_selection", step)
                 # Immediate attempt collect if already on cell
                 collected = a.collect(self.grid, step)
                 if collected:
@@ -646,7 +599,7 @@ class Simulation:
                     a.target = None
                     # After collecting, check if should return home
                     if a.carrying_total() > 0:
-                        a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step)
+                        a._set_mode(AgentMode.RETURN_HOME, "collected_resource", step)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
@@ -661,12 +614,12 @@ class Simulation:
                             a.y += 1 if dy > 0 else -1
                         # Collect if arrived
                         if a.target is not None and (a.x, a.y) == a.target and self.grid.has_resource(a.x, a.y):
-                            if a.collect(self.grid, step, self._observer_registry):
+                            if a.collect(self.grid, step):
                                 foraged_ids.add(a.id)
                                 a.target = None
                                 # After collecting, check if should return home
                                 if a.carrying_total() > 0:
-                                    a._set_mode(AgentMode.RETURN_HOME, "collected_resource", self._observer_registry, step)
+                                    a._set_mode(AgentMode.RETURN_HOME, "collected_resource", step)
                                     a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                 a.maybe_deposit()
             elif kind == "partner":
@@ -674,12 +627,12 @@ class Simulation:
                 if pid in claimed_partners:
                     # Partner already claimed; fallback
                     if a.carrying_total() > 0:
-                        a._set_mode(AgentMode.RETURN_HOME, "partner_claimed_fallback", self._observer_registry, step)
+                        a._set_mode(AgentMode.RETURN_HOME, "partner_claimed_fallback", step)
                         new_target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                         a._track_target_change(new_target, step)
                         a.target = new_target
                     else:
-                        a._set_mode(AgentMode.IDLE, "partner_claimed_fallback", self._observer_registry, step)
+                        a._set_mode(AgentMode.IDLE, "partner_claimed_fallback", step)
                         a._track_target_change(None, step)
                         a.target = None
                     continue
@@ -691,10 +644,10 @@ class Simulation:
                 # Set both agents to MOVE_TO_PARTNER mode and set targets to meeting point
                 from .constants import AgentMode
                 from .agent_mode_utils import set_agent_mode
-                set_agent_mode(a, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step, self._observer_registry)
+                set_agent_mode(a, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step)
                 a._track_target_change(a.meeting_point, step)
                 a.target = a.meeting_point
-                set_agent_mode(partner, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step, self._observer_registry)
+                set_agent_mode(partner, AgentMode.MOVE_TO_PARTNER, "paired_for_trade", step)
                 partner._track_target_change(partner.meeting_point, step)
                 partner.target = partner.meeting_point
                 # Initial convergence step
@@ -715,10 +668,10 @@ class Simulation:
                 if a.mode == _AM.FORAGE and a.target is None:
                     # Safety check: agents with cargo should return home first
                     if a.carrying_total() > 0 and not a.at_home():
-                        a._set_mode(_AM.RETURN_HOME, "no_target_available", self._observer_registry, step)
+                        a._set_mode(_AM.RETURN_HOME, "no_target_available", step)
                         a.target = (int(a.home_x), int(a.home_y))  # type: ignore[arg-type]
                     elif a.at_home():
-                        a._set_mode(_AM.IDLE, "idle_at_home", self._observer_registry, step)  # Only idle at home
+                        a._set_mode(_AM.IDLE, "idle_at_home", step)  # Only idle at home
                     # If no cargo and not at home, let them continue seeking or return home
         # Emit selection sample instrumentation (periodic)
         import os
@@ -760,15 +713,7 @@ class Simulation:
                     f"Top partners: {len(partner_candidates[:5])}"
                 )
                 
-                # Record simulation-level debug log using raw data architecture  
-                for observer in self._observer_registry._observers:
-                    if hasattr(observer, 'record_debug_log'):
-                        observer.record_debug_log(
-                            step=step,
-                            category="SELECTION_SAMPLE",
-                            message=message,
-                            agent_id=-1  # Simulation-level event
-                        )
+                # Observer system removed - comprehensive delta system handles recording
             except Exception:
                 pass  # Don't break simulation if logging fails
 
@@ -802,15 +747,7 @@ class Simulation:
                     f"Top agents with retargets: {min(len(retarget_data), 10)}"
                 )
                 
-                # Record simulation-level debug log using raw data architecture
-                for observer in self._observer_registry._observers:
-                    if hasattr(observer, 'record_debug_log'):
-                        observer.record_debug_log(
-                            step=step,
-                            category="TARGET_CHURN",
-                            message=message,
-                            agent_id=-1  # Simulation-level event
-                        )
+                # Observer system removed - comprehensive delta system handles recording
             except Exception:
                 pass  # Don't break simulation if logging fails
 

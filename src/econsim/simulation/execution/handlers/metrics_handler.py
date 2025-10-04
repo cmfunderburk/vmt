@@ -51,9 +51,6 @@ class MetricsHandler(BaseStepHandler):
 					# Emit performance spike event using raw data architecture
 					try:  # pragma: no cover
 						# Record performance monitoring using raw data architecture
-						for observer in context.observer_registry._observers:
-							if hasattr(observer, 'record_performance_monitor'):
-								observer.record_performance_monitor(
 									step=context.step_number,
 									metric_name="performance_spike",
 									metric_value=current_ms,
@@ -64,7 +61,7 @@ class MetricsHandler(BaseStepHandler):
 										"resources_count": context.simulation.grid.resource_count(),
 										"spike_threshold": self._spike_threshold_ms
 									}
-								)
+								# Observer system removed - comprehensive delta system handles recording
 					except Exception:
 						pass
 

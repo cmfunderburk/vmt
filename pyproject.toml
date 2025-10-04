@@ -21,7 +21,8 @@ classifiers = [
 dependencies = [
   "PyQt6>=6.5.0",
   "pygame>=2.5.0",
-  "numpy>=1.24.0"
+  "numpy>=1.24.0",
+  "msgpack>=1.0.0"
 ]
 
 [project.optional-dependencies]

@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..features import SimulationFeatures
-    from ...observability.registry import ObserverRegistry
     from ..world import Simulation
 
 
@@ -36,13 +35,11 @@ class StepContext:
         step_number: Current step number for temporal tracking  
         ext_rng: External RNG for legacy random movement mode
         feature_flags: Centralized feature flag configuration
-        observer_registry: Event notification system for direct raw data recording
     """
     simulation: 'Simulation'
     step_number: int
     ext_rng: random.Random
     feature_flags: 'SimulationFeatures'
-    observer_registry: 'ObserverRegistry'
     
     def __post_init__(self) -> None:
         """Validate context invariants."""

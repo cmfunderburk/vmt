@@ -66,8 +66,6 @@ class Agent:
     # Home position (could differ from spawn later; for now equals initial x,y unless provided)
     home_x: int | None = None  # set non-None in __post_init__
     home_y: int | None = None
-    # Sprite identifier for visual rendering (randomly assigned at creation)
-    sprite_type: str = "agent_explorer"  # default fallback
     # Mode & target
     mode: AgentMode = AgentMode.FORAGE
     target: Position | None = None
@@ -226,39 +224,17 @@ class Agent:
         self._trading_partner.partner_cooldowns = value
 
     def _debug_log_mode_change(self, old_mode: AgentMode, new_mode: AgentMode, reason: str = "") -> None:
-        """Log agent mode transitions for debugging via observer events."""
-        try:
-            from ..observability.observer_logger import get_global_observer_logger
-            
-            logger = get_global_observer_logger()
-            if logger is not None:
-                # Add context about agent state
-                carrying_count = sum(self.carrying.values()) 
-                capacity_info = f"carrying: {carrying_count}"  # VMT agents have unlimited carrying capacity
-                if self.target:
-                    target_info = f", target: {self.target}"
-                else:
-                    target_info = ""
-                context = f"{capacity_info}{target_info}"
-                if reason:
-                    context = f"({reason}), {context}"
-                
-                # Emit debug event for mode switch using raw data recording
-                debug_msg = f"MODE_SWITCH agent={self.id} {old_mode.value}->{new_mode.value} {context}"
-                if hasattr(logger, 'observer_registry') and logger.observer_registry:
-                    for observer in logger.observer_registry._observers:
-                        observer.record_debug_log(step=0, category="agent_mode", message=debug_msg)
-        except Exception:  # pragma: no cover
-            pass  # Graceful degradation when observer system not available
+        """Log agent mode transitions - observer system removed."""
+        # Observer system removed - comprehensive delta system handles recording
+        pass
 
-    def _set_mode(self, new_mode: AgentMode, reason: str = "", observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
+    def _set_mode(self, new_mode: AgentMode, reason: str = "", step_number: int = 0) -> None:
         """
-        Centralized mode setter with state machine validation and event emission.
+        Centralized mode setter with state machine validation.
         
         Args:
             new_mode: Target AgentMode
             reason: Brief description for analytics (e.g., "resource_found", "returned_home")
-            observer_registry: Event registry (optional, for testing - immediate mode)
             step_number: Current step for event context
         """
         if self.mode == new_mode:
@@ -268,7 +244,7 @@ class Agent:
         
         # Validate transition using state machine
         if not self._mode_state_machine.validate_and_emit_transition(
-            old_mode.value, new_mode.value, reason, step_number, observer_registry
+            old_mode.value, new_mode.value, reason, step_number
         ):
             # Invalid transition - log and reject
             self._debug_log_mode_change(old_mode, new_mode, f"REJECTED: {reason}")
@@ -336,7 +312,7 @@ class Agent:
         
         # Emit resource collection event
         self._event_emitter.emit_resource_collection(
-            self.x, self.y, rtype, step if step >= 0 else 0, observer_registry
+            self.x, self.y, rtype, step if step >= 0 else 0
         )
         
         # Invalidate caches when inventory changes
@@ -405,30 +381,30 @@ class Agent:
                 any_deposited = self.deposit()
                 if any_deposited:
                     self.force_deposit_once = False
-                self._set_mode(AgentMode.IDLE, "force_deposit", observer_registry, step_number)
+                self._set_mode(AgentMode.IDLE, "force_deposit", step_number)
             else:
                 # Normal deposit logic based on enabled behaviors
                 any_deposited = self.deposit()
                 if any_deposited:
                     if forage_enabled and exchange_enabled:
                         self.withdraw_all()
-                        self._set_mode(AgentMode.FORAGE, "deposited_goods", observer_registry, step_number)
+                        self._set_mode(AgentMode.FORAGE, "deposited_goods", step_number)
                     elif forage_enabled and not exchange_enabled:
-                        self._set_mode(AgentMode.FORAGE, "deposited_goods", observer_registry, step_number)
+                        self._set_mode(AgentMode.FORAGE, "deposited_goods", step_number)
                     elif not forage_enabled and exchange_enabled:
                         self.withdraw_all()
-                        self._set_mode(AgentMode.IDLE, "deposited_goods", observer_registry, step_number)
+                        self._set_mode(AgentMode.IDLE, "deposited_goods", step_number)
                     else:
-                        self._set_mode(AgentMode.IDLE, "deposited_goods", observer_registry, step_number)
+                        self._set_mode(AgentMode.IDLE, "deposited_goods", step_number)
                 else:
                     # No goods to deposit - transition to appropriate mode
                     if forage_enabled:
-                        self._set_mode(AgentMode.FORAGE, "phase_change", observer_registry, step_number)
+                        self._set_mode(AgentMode.FORAGE, "phase_change", step_number)
                     elif exchange_enabled:
                         self.withdraw_all()
-                        self._set_mode(AgentMode.IDLE, "phase_change", observer_registry, step_number)
+                        self._set_mode(AgentMode.IDLE, "phase_change", step_number)
                     else:
-                        self._set_mode(AgentMode.IDLE, "phase_change", observer_registry, step_number)
+                        self._set_mode(AgentMode.IDLE, "phase_change", step_number)
                 self.target = None
             return
 
@@ -443,7 +419,7 @@ class Agent:
             any_withdrawn = self.withdraw_all()
             if any_withdrawn:
                 # Transition to IDLE mode - will move randomly to find trading partners
-                self._set_mode(AgentMode.IDLE, "trade_ready", observer_registry, step_number)
+                self._set_mode(AgentMode.IDLE, "trade_ready", step_number)
                 self.target = None
 
     # --- Decision Logic -------------------------------------------
@@ -502,12 +478,12 @@ class Agent:
         
         if candidate is not None:
             self.target = candidate.position
-            self._set_mode(AgentMode.FORAGE, "resource_found", observer_registry, step_number)
+            self._set_mode(AgentMode.FORAGE, "resource_found", step_number)
         elif self.carrying_total() > 0:
-            self._set_mode(AgentMode.RETURN_HOME, "no_targets", observer_registry, step_number)
+            self._set_mode(AgentMode.RETURN_HOME, "no_targets", step_number)
             self.target = (int(self.home_x), int(self.home_y))  # type: ignore[arg-type]
         else:
-            self._set_mode(AgentMode.IDLE, "no_targets", observer_registry, step_number)
+            self._set_mode(AgentMode.IDLE, "no_targets", step_number)
             self.target = None
 
     # --- Unified / Shared Candidate Computation -----------------
@@ -637,7 +613,7 @@ class Agent:
         """
         # Select/refresh target if none or mode requires it
         if self.target is None or self.mode not in (AgentMode.FORAGE, AgentMode.MOVE_TO_PARTNER):
-            self.select_target(grid, observer_registry, step_number)
+            self.select_target(grid, step_number)
         # Movement toward target
         if self.target is not None and (self.x, self.y) != self.target:
             old_pos = (self.x, self.y)
@@ -686,9 +662,9 @@ class Agent:
                 and not grid.has_resource(self.x, self.y)
             ):
                 self.target = None
-                self.select_target(grid, observer_registry, step_number)
+                self.select_target(grid, step_number)
         # Deposit if arriving home
-        self.maybe_deposit(observer_registry, step_number)
+        self.maybe_deposit(step_number)
         return bool(collected)
 
     # --- Unified Target Selection --------------------------------

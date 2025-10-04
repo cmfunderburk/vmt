@@ -91,7 +91,6 @@ class Snapshot:
             else:  # fallback: use current position as home
                 hx = int(payload["x"])
                 hy = int(payload["y"])
-            sprite_type = payload.get("sprite_type", "agent_explorer")
             a = Agent(
                 id=int(payload["id"]),
                 x=int(payload["x"]),
@@ -99,7 +98,6 @@ class Snapshot:
                 preference=pref,
                 home_x=hx,
                 home_y=hy,
-                sprite_type=sprite_type,
             )
             # Restore inventories
             for k, v in payload.get("carrying", {}).items():  # type: ignore[index]
