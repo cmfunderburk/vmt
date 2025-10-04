@@ -146,30 +146,6 @@ class ComprehensiveDeltaRecorder:
         Returns:
             SimulationDelta containing all changes from previous step
         """
-        import os
-        
-        # Check if delta recording is disabled via environment variable
-        if os.environ.get("ECONSIM_DISABLE_DELTA_RECORDING") == "1":
-            # Still provide performance prints but skip all delta recording
-            print(f"🎬 Step {step}: Delta recording disabled (ECONSIM_DISABLE_DELTA_RECORDING=1)")
-            return SimulationDelta(
-                step=step,
-                visual_changes=VisualDelta(step=step, agent_moves=[], agent_state_changes=[], resource_changes=[]),
-                agent_moves=[],
-                agent_mode_changes=[],
-                agent_inventory_changes=[],
-                agent_target_changes=[],
-                agent_utility_changes=[],
-                resource_collections=[],
-                resource_spawns=[],
-                resource_depletions=[],
-                trade_events=[],
-                trade_intents=[],
-                economic_decisions=[],
-                performance_metrics=[],
-                debug_events=[]
-            )
-        
         # Single-pass agent processing for maximum efficiency
         visual_delta, agent_moves, agent_mode_changes, agent_inventory_changes, agent_target_changes, agent_utility_changes = self._record_agents_single_pass(simulation, step)
         

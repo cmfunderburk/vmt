@@ -65,7 +65,6 @@ class Simulation:
     agents: list[Agent]
     _steps: int = 0
     config: Optional[Any] = None  # SimConfig when available
-    _cached_feature_flags: Optional[Any] = None  # Cached feature flags to avoid recreating every step
     _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
     metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
