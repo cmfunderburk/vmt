@@ -53,6 +53,8 @@ class VisualState:
     agent_positions: dict[int, Tuple[int, int]]  # agent_id -> (x, y)
     agent_states: dict[int, bool]  # agent_id -> is_carrying
     resource_positions: dict[Tuple[int, int], str]  # (x, y) -> resource_type
+    grid_width: int = 20  # Default grid width
+    grid_height: int = 20  # Default grid height
     
     def get_agent_list(self) -> List[Tuple[int, int, int, bool]]:
         """Get agents as list of (id, x, y, carrying)."""

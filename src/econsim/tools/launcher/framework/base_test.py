@@ -461,7 +461,7 @@ class BaseManualTest(QWidget):
         # Initialize to step 0
         print("🔄 Initializing delta playback to step 0...")
         init_start = time.time()
-        self.delta_controller.seek_to_step(0)
+        # No seeking - start at step 1
         init_end = time.time()
         print(f"✅ Delta playback initialized in {init_end - init_start:.2f}s")
         
@@ -505,10 +505,9 @@ class BaseManualTest(QWidget):
     def playback_timer_tick(self):
         """Handle playback timer tick."""
         if self.delta_controller and self.delta_controller.current_state.is_playing:
-            self.delta_controller.step_forward()
-            
-            # Check if we've reached the end
-            if self.delta_controller.current_state.current_step >= self.delta_controller.current_state.total_steps:
+            # Try to step forward - returns False if at end
+            if not self.delta_controller.step_forward():
+                # Reached the end, pause playback
                 self.delta_controller.pause()
                 self.playback_timer.stop()
     
@@ -528,12 +527,14 @@ class BaseManualTest(QWidget):
     
     def rewind_playback(self):
         """Rewind playback to the beginning."""
-        self.delta_controller.seek_to_step(0)
+        # No seeking - start at step 1
     
     def fast_forward_playback(self):
         """Fast forward playback to the end."""
         total_steps = self.delta_controller.get_total_steps()
-        self.delta_controller.seek_to_step(total_steps)
+        # Fast forward to end (step by step)
+        while self.delta_controller.step_forward():
+            pass
     
     def on_playback_speed_changed(self, index: int):
         """Handle playback speed change."""

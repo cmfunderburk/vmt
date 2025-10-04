@@ -184,9 +184,9 @@ class EmbeddedPygameWidget(QWidget):
         """Render visual state to pygame surface using sprites."""
         w, h = self.SURFACE_SIZE
         
-        # Calculate cell size based on reasonable grid dimensions
-        grid_width = 20  # Default grid width
-        grid_height = 20  # Default grid height
+        # Use actual grid dimensions from the simulation
+        grid_width = visual_state.grid_width
+        grid_height = visual_state.grid_height
         
         # Determine cell size to fit grid in surface
         cell_w = max(2, w // grid_width)

@@ -51,8 +51,8 @@ class DeltaSerializer:
         # Convert dict back to SimulationDelta
         return self._dict_to_dataclass(delta_dict)
     
-    def serialize_deltas(self, deltas: List[SimulationDelta]) -> bytes:
-        """Serialize a list of SimulationDelta objects to MessagePack bytes."""
+    def serialize_deltas(self, deltas: List[SimulationDelta], initial_state: Optional[Any] = None) -> bytes:
+        """Serialize a list of SimulationDelta objects to MessagePack bytes with optional initial state."""
         # Convert all deltas to dicts
         delta_dicts = [self._dataclass_to_dict(delta) for delta in deltas]
         
@@ -67,6 +67,10 @@ class DeltaSerializer:
             },
             'deltas': delta_dicts
         }
+        
+        # Add initial state if provided
+        if initial_state is not None:
+            file_data['initial_state'] = self._dataclass_to_dict(initial_state)
         
         return msgpack.packb(file_data, use_bin_type=True)
     
@@ -91,12 +95,45 @@ class DeltaSerializer:
         
         return deltas
     
-    def save_to_file(self, deltas: List[SimulationDelta], filepath: Union[str, Path]) -> None:
-        """Save deltas to a MessagePack file."""
+    def load_from_file_with_initial_state(self, filepath: Union[str, Path]) -> tuple[List[SimulationDelta], Optional[Any]]:
+        """Load deltas and initial state from a MessagePack file."""
+        filepath = Path(filepath)
+        if not filepath.exists():
+            raise FileNotFoundError(f"Delta file not found: {filepath}")
+        
+        with open(filepath, 'rb') as f:
+            data = f.read()
+        
+        file_data = msgpack.unpackb(data, raw=False, strict_map_key=False)
+        
+        # Validate header
+        header = file_data.get('header', {})
+        if header.get('magic') != FILE_MAGIC.decode('ascii'):
+            raise ValueError("Invalid file format: missing or incorrect magic header")
+        
+        # Check schema version compatibility
+        file_version = header.get('schema_version', 'unknown')
+        if file_version != self.schema_version:
+            print(f"Warning: Schema version mismatch. File: {file_version}, Expected: {self.schema_version}")
+        
+        # Convert delta dicts back to SimulationDelta objects
+        deltas = []
+        for delta_dict in file_data.get('deltas', []):
+            deltas.append(self._dict_to_dataclass(delta_dict))
+        
+        # Load initial state if present
+        initial_state = None
+        if 'initial_state' in file_data:
+            initial_state = self._dict_to_dataclass(file_data['initial_state'])
+        
+        return deltas, initial_state
+    
+    def save_to_file(self, deltas: List[SimulationDelta], filepath: Union[str, Path], initial_state: Optional[Any] = None) -> None:
+        """Save deltas to a MessagePack file with optional initial state."""
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         
-        data = self.serialize_deltas(deltas)
+        data = self.serialize_deltas(deltas, initial_state)
         with open(filepath, 'wb') as f:
             f.write(data)
     
@@ -118,7 +155,30 @@ class DeltaSerializer:
             result = {}
             for field_name, field_value in asdict(obj).items():
                 if isinstance(field_value, list):
-                    result[field_name] = [self._dataclass_to_dict(item) for item in field_value]
+                    # Convert list items, handling tuples specially
+                    converted_list = []
+                    for item in field_value:
+                        if isinstance(item, tuple):
+                            # Convert tuple to list for MessagePack compatibility
+                            converted_list.append(list(item))
+                        elif hasattr(item, '__dataclass_fields__'):
+                            converted_list.append(self._dataclass_to_dict(item))
+                        else:
+                            converted_list.append(item)
+                    result[field_name] = converted_list
+                elif isinstance(field_value, tuple):
+                    # Convert tuple to list for MessagePack compatibility
+                    result[field_name] = list(field_value)
+                elif isinstance(field_value, dict):
+                    # Handle dictionaries with tuple keys
+                    converted_dict = {}
+                    for k, v in field_value.items():
+                        if isinstance(k, tuple):
+                            # Convert tuple key to string representation
+                            converted_dict[f"{k[0]},{k[1]}"] = v
+                        else:
+                            converted_dict[k] = v
+                    result[field_name] = converted_dict
                 elif hasattr(field_value, '__dataclass_fields__'):
                     result[field_name] = self._dataclass_to_dict(field_value)
                 else:
@@ -128,20 +188,29 @@ class DeltaSerializer:
             # Not a dataclass, return as-is
             return obj
     
-    def _dict_to_dataclass(self, data: Dict[str, Any]) -> SimulationDelta:
+    def _dict_to_dataclass(self, data: Dict[str, Any]) -> Any:
+        """Convert dictionary back to dataclass, handling list-to-tuple conversions."""
+        # Check if this is a SimulationDelta or VisualState
+        if 'visual_changes' in data:
+            # This is a SimulationDelta
+            return self._dict_to_simulation_delta(data)
+        elif 'agent_positions' in data:
+            # This is a VisualState
+            return self._dict_to_visual_state(data)
+        else:
+            # Unknown dataclass, try to reconstruct as SimulationDelta
+            return self._dict_to_simulation_delta(data)
+    
+    def _dict_to_simulation_delta(self, data: Dict[str, Any]) -> SimulationDelta:
         """Convert dictionary back to SimulationDelta dataclass."""
-        # This is a simplified implementation - in practice, you'd need
-        # more sophisticated reconstruction logic for nested dataclasses
-        # For now, we'll reconstruct the main SimulationDelta structure
-        
         # Handle visual_changes
         visual_data = data.get('visual_changes', {})
         from .data_structures import VisualDelta
         visual_changes = VisualDelta(
             step=visual_data.get('step', 0),
-            agent_moves=visual_data.get('agent_moves', []),
-            agent_state_changes=visual_data.get('agent_state_changes', []),
-            resource_changes=visual_data.get('resource_changes', [])
+            agent_moves=[tuple(move) if isinstance(move, list) else move for move in visual_data.get('agent_moves', [])],
+            agent_state_changes=[tuple(change) if isinstance(change, list) else change for change in visual_data.get('agent_state_changes', [])],
+            resource_changes=[tuple(change) if isinstance(change, list) else change for change in visual_data.get('resource_changes', [])]
         )
         
         # Create main SimulationDelta
@@ -162,6 +231,29 @@ class DeltaSerializer:
             economic_decisions=[],  # TODO: Reconstruct from data
             performance_metrics=None,  # TODO: Reconstruct from data
             debug_events=[]  # TODO: Reconstruct from data
+        )
+    
+    def _dict_to_visual_state(self, data: Dict[str, Any]) -> Any:
+        """Convert dictionary back to VisualState dataclass."""
+        from .data_structures import VisualState
+        
+        # Convert resource_positions string keys back to tuples
+        resource_positions = {}
+        for k, v in data.get('resource_positions', {}).items():
+            if isinstance(k, str) and ',' in k:
+                # Convert "x,y" string back to (x, y) tuple
+                x, y = k.split(',')
+                resource_positions[(int(x), int(y))] = v
+            else:
+                resource_positions[k] = v
+        
+        return VisualState(
+            step=data.get('step', 0),
+            agent_positions={int(k): tuple(v) if isinstance(v, list) else v for k, v in data.get('agent_positions', {}).items()},
+            agent_states={int(k): v for k, v in data.get('agent_states', {}).items()},
+            resource_positions=resource_positions,
+            grid_width=data.get('grid_width', 20),
+            grid_height=data.get('grid_height', 20)
         )
 
 

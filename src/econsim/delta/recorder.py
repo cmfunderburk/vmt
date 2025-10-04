@@ -98,7 +98,9 @@ class ComprehensiveDeltaRecorder:
             step=0,
             agent_positions=agent_positions,
             agent_states=agent_states,
-            resource_positions=resource_positions
+            resource_positions=resource_positions,
+            grid_width=simulation.grid.width,
+            grid_height=simulation.grid.height
         )
         
         # Initialize tracking state
@@ -554,8 +556,8 @@ class ComprehensiveDeltaRecorder:
         if not self._initial_state:
             raise RuntimeError("Cannot save deltas without initial state")
         
-        # Save using MessagePack serializer
-        self.serializer.save_to_file(self.deltas, self.output_path)
+        # Save using MessagePack serializer with initial state
+        self.serializer.save_to_file(self.deltas, self.output_path, self._initial_state)
         
         print(f"💾 Saved {len(self.deltas)} comprehensive deltas to {self.output_path}")
     

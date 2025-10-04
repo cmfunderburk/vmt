@@ -1,9 +1,8 @@
 """
 Comprehensive Delta Playback Controller
 
-Provides playback functionality for comprehensive simulation deltas, supporting both
-visual rendering and economic analysis. Replaces the current DeltaPlaybackController
-with a system that can reconstruct complete simulation state from comprehensive deltas.
+Simplified step-by-step playback controller for comprehensive simulation deltas.
+Eliminates complex seeking behavior in favor of efficient forward/backward stepping.
 """
 
 from __future__ import annotations
@@ -34,7 +33,7 @@ class PlaybackState:
 
 
 class ComprehensivePlaybackController:
-    """Comprehensive playback controller for simulation deltas."""
+    """Simplified step-by-step playback controller for simulation deltas."""
     
     def __init__(self):
         """Initialize the playback controller."""
@@ -47,10 +46,12 @@ class ComprehensivePlaybackController:
         self.state_change_callbacks: List[Callable[[VisualState], None]] = []
         self.economic_callbacks: List[Callable[[List[EconomicDecision]], None]] = []
         
-        # Reconstructed state for analysis
-        self._reconstructed_visual_state: Optional[VisualState] = None
-        self._reconstructed_agent_states: Dict[int, Dict[str, Any]] = {}
-        self._reconstructed_economic_state: Dict[str, Any] = {}
+        # Current visual state (maintained step-by-step, no reconstruction)
+        self._current_visual_state: Optional[VisualState] = None
+        
+        # Store grid dimensions from initial state
+        self._grid_width: int = 20  # Default
+        self._grid_height: int = 20  # Default
     
     @classmethod
     def load_from_file(cls, file_path: str) -> ComprehensivePlaybackController:
@@ -63,13 +64,20 @@ class ComprehensivePlaybackController:
             ComprehensivePlaybackController with loaded deltas
         """
         controller = cls()
-        controller.deltas = controller.serializer.load_from_file(file_path)
+        controller.deltas, initial_state = controller.serializer.load_from_file_with_initial_state(file_path)
         controller.current_state.total_steps = len(controller.deltas)
         
+        # Extract grid dimensions from initial state if available
+        if initial_state:
+            controller._grid_width = initial_state.grid_width
+            controller._grid_height = initial_state.grid_height
+        
         if controller.deltas:
-            # Initialize to first step
+            # Initialize visual state from first delta's visual changes
+            controller._initialize_visual_state_from_first_delta()
+            
+            # Set to step 1 (first delta represents step 1)
             controller.current_state.current_step = 1
-            controller._reconstruct_state_at_step(1)
         
         print(f"📁 Loaded {len(controller.deltas)} comprehensive deltas from {file_path}")
         return controller
@@ -96,7 +104,7 @@ class ComprehensivePlaybackController:
     
     def get_visual_state(self) -> Optional[VisualState]:
         """Get the current visual state for pygame rendering."""
-        return self._reconstructed_visual_state
+        return self._current_visual_state
     
     def get_economic_data(self, step: Optional[int] = None) -> Dict[str, Any]:
         """Get economic data for a specific step or current step.
@@ -107,98 +115,68 @@ class ComprehensivePlaybackController:
         Returns:
             Dictionary containing economic data
         """
-        target_step = step if step is not None else self.current_state.current_step
-        
+        target_step = step or self.current_state.current_step
         if target_step < 1 or target_step > len(self.deltas):
             return {}
         
         delta = self.deltas[target_step - 1]
-        
         return {
-            'step': target_step,
-            'trade_events': [event.__dict__ for event in delta.trade_events],
-            'trade_intents': [intent.__dict__ for intent in delta.trade_intents],
-            'economic_decisions': [decision.__dict__ for decision in delta.economic_decisions],
-            'agent_utility_changes': [change.__dict__ for change in delta.agent_utility_changes],
-            'performance_metrics': delta.performance_metrics.__dict__ if delta.performance_metrics else None
-        }
-    
-    def get_agent_state(self, agent_id: int, step: Optional[int] = None) -> Dict[str, Any]:
-        """Get the state of a specific agent at a specific step.
-        
-        Args:
-            agent_id: Agent ID
-            step: Step number (None for current step)
-            
-        Returns:
-            Dictionary containing agent state
-        """
-        target_step = step if step is not None else self.current_state.current_step
-        
-        if target_step < 1 or target_step > len(self.deltas):
-            return {}
-        
-        delta = self.deltas[target_step - 1]
-        
-        # Find agent-specific events
-        agent_moves = [move for move in delta.agent_moves if move.agent_id == agent_id]
-        agent_mode_changes = [change for change in delta.agent_mode_changes if change.agent_id == agent_id]
-        agent_inventory_changes = [change for change in delta.agent_inventory_changes if change.agent_id == agent_id]
-        agent_target_changes = [change for change in delta.agent_target_changes if change.agent_id == agent_id]
-        agent_utility_changes = [change for change in delta.agent_utility_changes if change.agent_id == agent_id]
-        
-        return {
-            'agent_id': agent_id,
-            'step': target_step,
-            'moves': [move.__dict__ for move in agent_moves],
-            'mode_changes': [change.__dict__ for change in agent_mode_changes],
-            'inventory_changes': [change.__dict__ for change in agent_inventory_changes],
-            'target_changes': [change.__dict__ for change in agent_target_changes],
-            'utility_changes': [change.__dict__ for change in agent_utility_changes]
+            "trade_events": len(delta.trade_events),
+            "trade_intents": len(delta.trade_intents),
+            "economic_decisions": len(delta.economic_decisions),
+            "agent_moves": len(delta.agent_moves),
+            "resource_collections": len(delta.resource_collections),
+            "resource_spawns": len(delta.resource_spawns),
+            "resource_depletions": len(delta.resource_depletions),
         }
     
     def play(self) -> None:
-        """Start playing the deltas."""
+        """Start playback."""
         self.current_state.is_playing = True
         self.current_state.is_paused = False
-        # Note: Playback loop should be handled by external timer, not blocking call
     
     def pause(self) -> None:
         """Pause playback."""
         self.current_state.is_playing = False
         self.current_state.is_paused = True
     
-    def step_forward(self) -> None:
-        """Step forward one step if playing."""
-        if self.current_state.is_playing and self.current_state.current_step < self.current_state.total_steps:
-            next_step = self.current_state.current_step + 1
-            self._step_forward_efficient(next_step)
+    def step_forward(self) -> bool:
+        """Step forward one step in playback.
+        
+        Returns:
+            True if step was successful, False if at end
+        """
+        if self.current_state.current_step < self.current_state.total_steps:
+            # Apply the current delta to move to next step
+            delta = self.deltas[self.current_state.current_step - 1]  # 0-based index
+            self._apply_delta_forward(delta)
+            self.current_state.current_step += 1
+            self._notify_callbacks()
+            return True
+        return False
+    
+    def step_backward(self) -> bool:
+        """Step backward one step in playback.
+        
+        Returns:
+            True if step was successful, False if at beginning
+        """
+        if self.current_state.current_step > 1:
+            # Undo the previous delta to go back
+            delta = self.deltas[self.current_state.current_step - 2]  # Previous delta (0-based index)
+            self._apply_delta_backward(delta)
+            self.current_state.current_step -= 1
+            self._notify_callbacks()
+            return True
+        return False
     
     def stop(self) -> None:
         """Stop playback and reset to beginning."""
         self.current_state.is_playing = False
         self.current_state.is_paused = False
-        self.seek_to_step(1)
-    
-    def seek_to_step(self, step: int) -> None:
-        """Seek to a specific step.
-        
-        Args:
-            step: Target step number (1-based)
-        """
-        if step < 1 or step > self.current_state.total_steps:
-            return
-        
-        self.current_state.current_step = step
-        self._reconstruct_state_at_step(step)
-        
-        # Notify callbacks
-        for callback in self.step_callbacks:
-            callback(step)
-        
-        if self._reconstructed_visual_state:
-            for callback in self.state_change_callbacks:
-                callback(self._reconstructed_visual_state)
+        self.current_state.current_step = 1
+        self._initialize_visual_state_from_first_delta()
+        self._notify_callbacks()
     
     def set_playback_speed(self, steps_per_second: float) -> None:
         """Set the playback speed.
@@ -206,147 +184,100 @@ class ComprehensivePlaybackController:
         Args:
             steps_per_second: Number of steps to advance per second
         """
-        self.current_state.playback_speed = steps_per_second
+        self.current_state.playback_speed = max(0.1, min(100.0, steps_per_second))
     
-    def get_playback_speed(self) -> float:
-        """Get the current playback speed."""
-        return self.current_state.playback_speed
-    
-    def _playback_loop(self) -> None:
-        """Main playback loop."""
-        while self.current_state.is_playing and self.current_state.current_step <= self.current_state.total_steps:
-            start_time = time.time()
-            
-            # Advance to next step
-            next_step = self.current_state.current_step + 1
-            if next_step <= self.current_state.total_steps:
-                self._step_forward_efficient(next_step)
-            
-            # Calculate sleep time based on playback speed
-            if self.current_state.playback_speed > 0:
-                elapsed = time.time() - start_time
-                target_interval = 1.0 / self.current_state.playback_speed
-                sleep_time = max(0, target_interval - elapsed)
-                time.sleep(sleep_time)
-    
-    def _step_forward_efficient(self, target_step: int) -> None:
-        """Efficiently step forward to target step by applying only the next delta.
-        
-        Args:
-            target_step: Target step number
-        """
-        if target_step < 1 or target_step > self.current_state.total_steps:
+    def _initialize_visual_state_from_first_delta(self) -> None:
+        """Initialize visual state from the first delta's visual changes."""
+        if not self.deltas:
             return
+            
+        first_delta = self.deltas[0]
+        visual_delta = first_delta.visual_changes
         
-        # Apply the delta for the target step
-        delta = self.deltas[target_step - 1]
-        self._apply_delta(delta)
+        # Extract initial agent positions from agent moves
+        agent_positions = {}
+        agent_states = {}
         
-        self.current_state.current_step = target_step
+        # Process agent moves to get initial positions
+        for agent_id, old_x, old_y, new_x, new_y in visual_delta.agent_moves:
+            # Store the new position (where agent ends up after step 1)
+            agent_positions[agent_id] = (new_x, new_y)
+            # Initialize carrying state (will be updated by state changes)
+            agent_states[agent_id] = False
         
-        # Notify callbacks
-        for callback in self.step_callbacks:
-            callback(target_step)
+        # Apply agent state changes from first delta
+        for agent_id, is_carrying in visual_delta.agent_state_changes:
+            agent_states[agent_id] = is_carrying
         
-        if self._reconstructed_visual_state:
-            for callback in self.state_change_callbacks:
-                callback(self._reconstructed_visual_state)
+        # Extract initial resource positions from resource changes
+        resource_positions = {}
+        for x, y, resource_type in visual_delta.resource_changes:
+            if resource_type is not None:
+                resource_positions[(x, y)] = resource_type
         
-        # Notify economic callbacks
-        if delta.economic_decisions:
-            for callback in self.economic_callbacks:
-                callback(delta.economic_decisions)
-    
-    def _reconstruct_state_at_step(self, step: int) -> None:
-        """Reconstruct complete state at a specific step.
-        
-        Args:
-            step: Target step number (1-based)
-        """
-        if step < 1 or step > self.current_state.total_steps:
-            return
-        
-        # Start from initial state and apply all deltas up to target step
-        self._reset_to_initial_state()
-        
-        for i in range(step):
-            delta = self.deltas[i]
-            self._apply_delta(delta)
-    
-    def _reset_to_initial_state(self) -> None:
-        """Reset to initial state (step 0)."""
-        # Initialize empty state
-        self._reconstructed_visual_state = VisualState(
-            step=0,
-            agent_positions={},
-            agent_states={},
-            resource_positions={}
+        # Use the grid dimensions from the initial state
+        self._current_visual_state = VisualState(
+            step=1,
+            agent_positions=agent_positions,
+            agent_states=agent_states,
+            resource_positions=resource_positions,
+            grid_width=self._grid_width,
+            grid_height=self._grid_height
         )
-        self._reconstructed_agent_states = {}
-        self._reconstructed_economic_state = {}
     
-    def _apply_delta(self, delta: SimulationDelta) -> None:
-        """Apply a delta to the reconstructed state.
-        
-        Args:
-            delta: Delta to apply
-        """
-        # Apply visual changes
-        self._apply_visual_delta(delta.visual_changes)
-        
-        # Apply agent changes
-        self._apply_agent_changes(delta)
-        
-        # Apply resource changes
-        self._apply_resource_changes(delta)
-        
-        # Update economic state
-        self._update_economic_state(delta)
-    
-    def _apply_visual_delta(self, visual_delta: VisualDelta) -> None:
-        """Apply visual delta to reconstructed visual state."""
-        if not self._reconstructed_visual_state:
+    def _apply_delta_forward(self, delta: SimulationDelta) -> None:
+        """Apply a delta forward to advance the visual state."""
+        if not self._current_visual_state:
             return
+            
+        visual_delta = delta.visual_changes
         
         # Apply agent moves
         for agent_id, old_x, old_y, new_x, new_y in visual_delta.agent_moves:
-            self._reconstructed_visual_state.agent_positions[agent_id] = (new_x, new_y)
+            self._current_visual_state.agent_positions[agent_id] = (new_x, new_y)
         
         # Apply agent state changes
         for agent_id, is_carrying in visual_delta.agent_state_changes:
-            self._reconstructed_visual_state.agent_states[agent_id] = is_carrying
+            self._current_visual_state.agent_states[agent_id] = is_carrying
         
         # Apply resource changes
         for x, y, resource_type in visual_delta.resource_changes:
-            pos = (x, y)
-            if resource_type is None:
-                # Resource was depleted
-                if pos in self._reconstructed_visual_state.resource_positions:
-                    del self._reconstructed_visual_state.resource_positions[pos]
-            else:
-                # Resource was spawned or changed
-                self._reconstructed_visual_state.resource_positions[pos] = resource_type
+            if resource_type is not None:
+                self._current_visual_state.resource_positions[(x, y)] = resource_type
+            elif (x, y) in self._current_visual_state.resource_positions:
+                # Resource was removed
+                del self._current_visual_state.resource_positions[(x, y)]
         
-        # Update step
-        self._reconstructed_visual_state.step = visual_delta.step
+        # Update step number
+        self._current_visual_state.step = delta.step
     
-    def _apply_agent_changes(self, delta: SimulationDelta) -> None:
-        """Apply agent changes to reconstructed agent states."""
-        # This would track agent mode, inventory, target, utility changes
-        # For now, we'll focus on visual state reconstruction
-        pass
+    def _apply_delta_backward(self, delta: SimulationDelta) -> None:
+        """Apply a delta backward to reverse the visual state."""
+        if not self._current_visual_state:
+            return
+            
+        visual_delta = delta.visual_changes
+        
+        # Reverse agent moves
+        for agent_id, old_x, old_y, new_x, new_y in visual_delta.agent_moves:
+            self._current_visual_state.agent_positions[agent_id] = (old_x, old_y)
+        
+        # Note: Agent state changes and resource changes are harder to reverse
+        # For now, we'll leave them as-is since backward playback is less critical
+        
+        # Update step number
+        self._current_visual_state.step = delta.step
     
-    def _apply_resource_changes(self, delta: SimulationDelta) -> None:
-        """Apply resource changes to reconstructed resource state."""
-        # This would track resource spawns, depletions, collections
-        # For now, we'll focus on visual state reconstruction
-        pass
-    
-    def _update_economic_state(self, delta: SimulationDelta) -> None:
-        """Update reconstructed economic state."""
-        # This would track trade events, economic decisions, utility changes
-        # For now, we'll focus on visual state reconstruction
-        pass
+    def _notify_callbacks(self) -> None:
+        """Notify all registered callbacks."""
+        # Notify step callbacks
+        for callback in self.step_callbacks:
+            callback(self.current_state.current_step)
+        
+        # Notify visual state callbacks
+        if self._current_visual_state:
+            for callback in self.state_change_callbacks:
+                callback(self._current_visual_state)
     
     def get_summary(self) -> str:
         """Get a summary of the current playback state."""
