@@ -31,11 +31,9 @@ from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS, AgentMode
 from .grid import Grid
 
 if TYPE_CHECKING:
-    from .components.event_emitter import AgentEventEmitter
     from .components.inventory import AgentInventory
     from .components.trading_partner import TradingPartner
     from .components.target_selection import ResourceTargetStrategy
-    from .components.mode_state_machine import AgentModeStateMachine
 
 Position = tuple[int, int]
 
@@ -81,11 +79,9 @@ class Agent:
     trade_stagnation_steps: int = field(default=0, init=False, repr=False)
     
     # Refactored components (initialized in __post_init__)
-    _event_emitter: 'AgentEventEmitter | None' = field(default=None, init=False, repr=False)
     _inventory: 'AgentInventory | None' = field(default=None, init=False, repr=False)
     _trading_partner: 'TradingPartner | None' = field(default=None, init=False, repr=False)
     _target_selection: 'ResourceTargetStrategy | None' = field(default=None, init=False, repr=False)
-    _mode_state_machine: 'AgentModeStateMachine | None' = field(default=None, init=False, repr=False)
     force_deposit_once: bool = field(default=False, init=False, repr=False)
     # Target churn tracking for instrumentation
     _recent_retargets: list[int] = field(default_factory=list, init=False, repr=False)  # Steps when target changed
@@ -141,9 +137,6 @@ class Agent:
         from .components.movement import AgentMovement
         self._movement = AgentMovement(self.id)
         
-        from .components.event_emitter import AgentEventEmitter
-        object.__setattr__(self, "_event_emitter", AgentEventEmitter(self.id))
-        
         from .components.inventory import AgentInventory
         self._inventory = AgentInventory(self.preference)
         # CRITICAL: Set up aliases (not copies!)
@@ -158,11 +151,6 @@ class Agent:
         # Initialize target selection component
         from .components.target_selection import ResourceTargetStrategy
         self._target_selection = ResourceTargetStrategy()
-        
-        # Initialize mode state machine component
-        from .components.mode_state_machine import AgentModeStateMachine
-        object.__setattr__(self, "_mode_state_machine", AgentModeStateMachine(self.id))
-        self._mode_state_machine.set_event_emitter(self._event_emitter)
     
     # Trading partner properties that delegate to component
     @property
@@ -234,15 +222,6 @@ class Agent:
             
         old_mode = self.mode
         
-        # Validate transition using state machine
-        if not self._mode_state_machine.validate_and_emit_transition(
-            old_mode.value, new_mode.value, reason, step_number
-        ):
-            # Invalid transition - log and reject
-            self._debug_log_mode_change(old_mode, new_mode, f"REJECTED: {reason}")
-            return
-            
-        self._debug_log_mode_change(old_mode, new_mode, reason)
         self.mode = new_mode
 
     # --- Movement --------------------------------------------------
@@ -256,7 +235,7 @@ class Agent:
         self._invalidate_partner_selection_cache()
 
     # --- Resource Interaction -------------------------------------
-    def collect(self, grid: Grid, step: int = -1, observer_registry: Optional['ObserverRegistry'] = None) -> bool:
+    def collect(self, grid: Grid, step: int = -1, observer_registry=None) -> bool:
         """Collect resource at current position if foraging enabled.
         
         Maps resource types: A→good1, B→good2. Tracks acquisition for 
@@ -302,10 +281,7 @@ class Agent:
             except Exception:
                 pass  # Don't break simulation if logging fails
         
-        # Emit resource collection event
-        self._event_emitter.emit_resource_collection(
-            self.x, self.y, rtype, step if step >= 0 else 0
-        )
+        # Event emitter removed - delta system handles recording
         
         # Invalidate caches when inventory changes
         self._invalidate_target_selection_cache()
@@ -346,7 +322,7 @@ class Agent:
             self._invalidate_partner_selection_cache()
         return result
 
-    def maybe_deposit(self, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
+    def maybe_deposit(self, observer_registry=None, step_number: int = 0) -> None:
         """Deposit carried goods at home and transition to appropriate mode.
         
         Behavioral transitions after deposit:
@@ -400,7 +376,7 @@ class Agent:
                 self.target = None
             return
 
-    def maybe_withdraw_for_trading(self, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
+    def maybe_withdraw_for_trading(self, observer_registry=None, step_number: int = 0) -> None:
         """Withdraw home inventory when at home for bilateral exchange mode.
         
         Args:
@@ -427,7 +403,7 @@ class Agent:
         """
         return self._inventory.current_bundle()
 
-    def select_target(self, grid: Grid, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> None:
+    def select_target(self, grid: Grid, observer_registry=None, step_number: int = 0) -> None:
         """Select movement target based on current mode and available resources.
         
         RETURN_HOME: Target home position
@@ -591,7 +567,7 @@ class Agent:
         self._cached_partner_positions = None
         self._cached_partner_bundles = None
 
-    def step_decision(self, grid: Grid, observer_registry: Optional['ObserverRegistry'] = None, step_number: int = 0) -> bool:
+    def step_decision(self, grid: Grid, observer_registry=None, step_number: int = 0) -> bool:
         """Perform one decision+movement+interaction step (without RNG).
 
         Returns True if the agent actively foraged (collected a resource this tick),
@@ -669,7 +645,7 @@ class Agent:
         enable_trade: bool,
         distance_scaling_factor: float,
         step: int,
-        observer_registry: Optional['ObserverRegistry'] = None,
+        observer_registry=None,
     ) -> tuple[str, object] | None:
         """Unified target selection with distance-discounted utility scoring.
         
