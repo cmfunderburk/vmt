@@ -33,8 +33,9 @@ def main():
     
     sim = Simulation.from_config(config, agent_positions=[(0, 0), (7, 7), (3, 3)])
     
-    # Create widget with simulation
-    widget = EmbeddedPygameWidget(simulation=sim)
+    # Create widget without simulation dependency (Phase 1B decoupling)
+    widget = EmbeddedPygameWidget()
+    # TODO: Phase 2 - widget will receive simulation state via observers
     widget.setWindowTitle("VMT Sprite Test - Agents (Blue) & Resources (Food/Stone)")
     widget.resize(400, 400)
     widget.show()

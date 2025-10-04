@@ -23,7 +23,7 @@ import logging
 from .utils import format_agent_id
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .simulation_controller import SimulationController
+    pass
 
 
 class _SimulationProto(Protocol):  # pragma: no cover - typing helper only
@@ -40,28 +40,22 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
     def __init__(
         self,
         parent: QWidget | None = None,
-        simulation: _SimulationProto | None = None,
         *,
         drive_simulation: bool = True,
     ) -> None:
         super().__init__(parent)
-        # Optional injected simulation (Gate 3). Avoid hard dependency to keep
-        # earlier tests stable. If provided, it must expose step(rng) with a
-        # deterministic RNG argument. We'll internally manage a Random instance.
-        self._simulation: _SimulationProto | None = simulation
-        self._sim_rng = None  # set in first tick if simulation provided
-        self.controller: "SimulationController | None" = None
+        # TODO: Phase 2 - widget will receive simulation state via observers
+        # For now, widget is render-only with no simulation dependency
+        self._simulation: _SimulationProto | None = None
+        self._sim_rng = None  # TODO: Phase 2 - will be removed when using observers
+        # self.controller: "SimulationController | None" = None  # TODO: Phase 1B - remove simulation controller coupling
         
         # Control whether widget drives simulation or only renders
         # When False, widget is render-only (simulation driven externally)
         self._drive_simulation = drive_simulation
         
-        # Get viewport size from simulation config, fallback to 320x320
+        # Get viewport size, fallback to 320x320 (TODO: Phase 2 - will come from observers)
         viewport_size = 320
-        if simulation is not None:
-            config = getattr(simulation, 'config', None)
-            if config is not None:
-                viewport_size = getattr(config, 'viewport_size', 320)
         self.SURFACE_SIZE = (viewport_size, viewport_size)
         # Decision system is always enabled (legacy mode removed)
         # Set SDL video driver for headless environments before pygame.init()
@@ -172,57 +166,14 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         # Early exit if widget already closed or surface released (prevents race during teardown in test suite).
         if getattr(self, "_closed", False):
             return
-        # Defensive: allow simulation stepping even if pygame uninitialized (prior tests may have called pygame.quit()).
+        # TODO: Phase 2 - will receive simulation state via observers
+        # For now, just trigger repaint of static scene
+        # Defensive: allow rendering even if pygame uninitialized (prior tests may have called pygame.quit()).
         try:  # pragma: no cover - guard path
             import pygame as _pg_guard
             _pg_guard_initted = _pg_guard.get_init()
         except Exception:  # pragma: no cover - guard path
             _pg_guard_initted = False
-        # Step simulation first (if present AND widget drives it) using a lazily-created RNG.
-        if self._simulation is not None and self._drive_simulation:
-            import random
-
-            if self._sim_rng is None:
-                # Seed RNG deterministically from simulation config seed for parity with
-                # controller manual stepping in legacy mode. Fallback to 0 when absent.
-                try:
-                    cfg = getattr(self._simulation, "config", None)
-                    seed = int(getattr(cfg, "seed", 0)) if cfg is not None else 0
-                except Exception:
-                    seed = 0
-                self._sim_rng = random.Random(seed)
-            # If a SimulationController is attached (parent chain), check pause state
-            controller = self.controller
-            if controller is None:
-                controller = getattr(self, "_controller_ref", None)
-                if controller is not None:
-                    self.controller = controller  # legacy attachment shim
-            paused = False
-            if controller is not None:
-                try:
-                    paused = controller.is_paused()  # type: ignore[attr-defined]
-                except Exception:
-                    paused = False
-            if not paused:
-                # Playback throttle: consult controller if it provides scheduling hints.
-                do_step = True
-                if controller is not None and hasattr(controller, "_should_step_now"):
-                    try:
-                        from time import perf_counter as _pc
-                        now = _pc()
-                        do_step = bool(controller._should_step_now(now))  # type: ignore[attr-defined]
-                    except Exception:
-                        do_step = True
-                if do_step:
-                    try:
-                        self._simulation.step(self._sim_rng)
-                        if controller is not None:
-                            try:
-                                controller._record_step_timestamp()  # type: ignore[attr-defined]
-                            except Exception:
-                                pass
-                    except Exception as exc:  # pragma: no cover - defensive
-                        logging.getLogger(__name__).warning("Simulation step error: %s", exc)
         # Skip scene update if surface already nulled (post-close) to avoid native segfault.
         if getattr(self, "_surface", None) is not None:
             self._update_scene()
@@ -231,23 +182,15 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 self.update()  # trigger paintEvent
         self._frame += 1
         
-        # Reset frame step counter for frame-based turn pacing
-        controller = getattr(self, "_controller", None)
-        if controller is not None and hasattr(controller, "reset_frame_step_counter"):
-            try:
-                controller.reset_frame_step_counter()  # type: ignore[attr-defined]
-            except Exception:
-                pass
+        # TODO: Phase 2 - controller integration will be rebuilt with observer pattern
         now = perf_counter()
         if now - self._fps_last_report >= 1.0:
             # Use structured performance logging instead of print statements
             import os as _os_dbg
             if _os_dbg.environ.get("ECONSIM_DEBUG_FPS") == "1":
                 fps = self._frame / (now - self._start)
-                # GUI performance logging removed - will be rebuilt with current architecture if needed
-                
-                # Minimal stdout emission required by test_fps_logging_gate ([FPS] token presence)
-                agent_count = len(getattr(self._simulation, 'agents', []))
+                # TODO: Phase 2 - agent count will come from observers
+                agent_count = 0  # placeholder for now
                 try:
                     print(f"[FPS] {fps:.2f} agents={agent_count}")
                 except Exception:
@@ -287,12 +230,10 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             pygame.draw.rect(
                 surf, (255 - phase, 200, phase), pygame.Rect(x, y, rect_w, rect_h)
             )
-        # Overlay simulation elements if a compatible simulation is attached (Gate 4 visual aid)
-        sim = self._simulation
-        if sim is not None:
-            grid = getattr(sim, "grid", None)
-            agents = getattr(sim, "agents", None)
-            if grid is not None and agents is not None and hasattr(grid, "iter_resources"):
+        # TODO: Phase 2 - will receive simulation state via observers
+        # For now, render static scene without simulation data
+        sim = None  # placeholder - will be replaced with observer data in Phase 2
+        if False:  # disabled simulation rendering until Phase 2
                 # Scaling: map simulation grid to surface; simple uniform scale (integer) or fallback 1.
                 gw = getattr(grid, "width", 1)
                 gh = getattr(grid, "height", 1)
@@ -643,18 +584,10 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
             except Exception:
                 pass
 
-        # PAUSED watermark (educational clarity): rendered last so it overlays simulation.
-        # Only draw if a controller reference exists and indicates paused.
-        controller = self.controller
-        if controller is None:
-            controller = getattr(self, "_controller_ref", None)
-            if controller is not None:
-                self.controller = controller
-        try:
-            is_paused = bool(controller is not None and controller.is_paused())  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover - defensive
-            is_paused = False
-        if is_paused:
+        # TODO: Phase 2 - pause state will come from observers
+        # For now, no pause watermark since widget is decoupled from simulation control
+        is_paused = False  # placeholder until Phase 2 observer integration
+        if False:  # disabled pause watermark until Phase 2
             try:
                 # Use a separate larger font cache to avoid mutating the small overlay font size.
                 if not hasattr(self, "_paused_font") or self._paused_font is None:  # type: ignore[attr-defined]
@@ -687,6 +620,7 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                 surf.blit(overlay, (cx, cy))
             except Exception:  # pragma: no cover - defensive
                 pass
+        # End of disabled simulation rendering - Phase 2 will restore this with observers
 
     # --- Paint Path ------------------------------------------------------
     def paintEvent(self, event):  # type: ignore[override]

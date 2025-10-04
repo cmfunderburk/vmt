@@ -124,9 +124,9 @@ class BaseManualTest(QWidget):
             # Create pygame widget in RENDER-ONLY mode (test framework drives simulation)
             from econsim.gui.embedded_pygame import EmbeddedPygameWidget
             self.pygame_widget = EmbeddedPygameWidget(
-                simulation=self.simulation,
                 drive_simulation=False  # Render only - framework drives simulation
             )
+            # TODO: Phase 2 - widget will receive simulation state via observers
             self.pygame_widget.setFixedSize(self.config.viewport_size, self.config.viewport_size)
             
             # Replace placeholder in layout
