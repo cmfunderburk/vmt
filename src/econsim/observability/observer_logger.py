@@ -365,7 +365,7 @@ class ObserverLogger:
     def build_phase_transition(self, phase: int, turn: int, description: str) -> Tuple[str, Dict[str, Any], str]:
         """Build phase transition data (compatibility method).
         
-        Returns tuple format expected by legacy code but creates observer event.
+        Returns tuple format for compatibility while creating observer events.
         
         Args:
             phase: Phase number

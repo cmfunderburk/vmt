@@ -67,7 +67,7 @@ class EducationalObserver(BaseObserver, RawDataObserver):
         
         self.output_dir = output_dir
         
-        # Legacy compatibility - kept for backward compatibility
+        # Configuration parameters for educational analysis windows
         self._behavioral_window = behavioral_window
         self._correlation_window = correlation_window
         

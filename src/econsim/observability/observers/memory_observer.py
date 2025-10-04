@@ -90,7 +90,7 @@ class MemoryObserver(BaseObserver, RawDataObserver):
         
         This method now uses the raw data recording architecture for zero-overhead
         performance. Events are stored as raw dictionaries with no processing.
-        Legacy storage is maintained for backward compatibility.
+        Events are stored as raw data dictionaries for efficient access.
         
         Args:
             event: The simulation event to log
