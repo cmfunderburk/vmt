@@ -43,6 +43,15 @@ perf:
 		$(PYTHON) tests/performance/baseline_capture.py --steps 1000 --warmup 100; \
 	fi
 
+deltatest:
+	@echo "⚡ VMT EconSim Delta-Free Performance Test"
+	@echo "Running baseline scenario without delta recording overhead..."
+	@if [ -d "vmt-dev" ]; then \
+		. vmt-dev/bin/activate && $(PYTHON) tests/performance/delta_free_performance.py --steps 1000 --warmup 100; \
+	else \
+		$(PYTHON) tests/performance/delta_free_performance.py --steps 1000 --warmup 100; \
+	fi
+
 # Phase 0 Refactor Baseline Capture
 .PHONY: baseline-capture phase0-capture
 baseline-capture: phase0-capture

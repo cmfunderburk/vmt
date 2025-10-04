@@ -154,31 +154,7 @@ class Simulation:
         
         self._step_executor = OptimizedStepExecutor(self)
     
-    def _initialize_step_executor(self) -> None:
-        """Initialize the step executor with ordered handlers (legacy mode).
-        
-        Handler order is critical for deterministic behavior.
-        Do not reorder without updating validation tests.
-        
-        Note: This method is kept for testing and fallback purposes.
-        The optimized executor should be used in production.
-        """
-        from .execution import StepExecutor
-        from .execution.handlers.movement_handler import MovementHandler
-        from .execution.handlers.collection_handler import CollectionHandler
-        from .execution.handlers.trading_handler import TradingHandler
-        from .execution.handlers.metrics_handler import MetricsHandler
-        from .execution.handlers.respawn_handler import RespawnHandler
-        
-        handlers = [
-            MovementHandler(),      # Agent movement and mode transitions
-            CollectionHandler(),    # Resource collection events
-            TradingHandler(),      # Bilateral trading system
-            MetricsHandler(),      # Performance and behavioral metrics
-            RespawnHandler(),      # Resource respawn cycles
-        ]
-        
-        self._step_executor = StepExecutor(handlers)
+    # Legacy handler architecture removed - OptimizedStepExecutor is the only execution path
 
 
     @property

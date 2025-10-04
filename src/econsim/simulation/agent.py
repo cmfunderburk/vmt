@@ -31,7 +31,6 @@ from .constants import EPSILON_UTILITY, default_PERCEPTION_RADIUS, AgentMode
 from .grid import Grid
 
 if TYPE_CHECKING:
-    from ..observability.registry import ObserverRegistry
     from .components.event_emitter import AgentEventEmitter
     from .components.inventory import AgentInventory
     from .components.trading_partner import TradingPartner
@@ -118,14 +117,7 @@ class Agent:
             if len(self._recent_retargets) > 100:
                 self._recent_retargets = self._recent_retargets[-100:]
             
-            # Track retargeting for behavioral analysis using observer pattern
-            try:
-                from ..observability.observer_logger import get_global_observer_logger
-                logger = get_global_observer_logger()
-                if logger:
-                    logger.track_agent_retargeting(step, self.id)
-            except Exception:
-                pass  # Don't break simulation if logging fails
+            # Observer system removed - comprehensive delta system handles all recording
     # Unified target selection metadata (resource vs partner) for GUI/testing
     current_unified_task: tuple[str, object] | None = field(default=None, init=False, repr=False)
     # Unified selection commitment tracking:

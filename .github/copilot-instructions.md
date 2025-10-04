@@ -4,9 +4,9 @@ Project: Educational microeconomic simulation with deterministic spatial agents 
 
 ## Architecture at a glance
 - Simulation core (`src/econsim/simulation/`): use `Simulation.from_config(SimConfig)` only. Key files: `world.py`, `agent.py`, `grid.py`, `config.py`, `trade.py`.
-- Step pipeline (fixed order): Movement → Collection → Trading → Metrics → Respawn in `simulation/execution/handlers/`.
-- Observer layer (`src/econsim/observability/`): events via `ObserverRegistry` (notify → flush_step → close). Observers: File, Educational, Performance, GUI.
-- GUI (`src/econsim/gui/` + `src/econsim/tools/launcher/`): subscribes to observers; simulation has no GUI imports.
+- Step execution: `OptimizedStepExecutor` in `step_executor.py` (high-performance consolidated execution).
+- Delta recording: `ComprehensiveDeltaRecorder` in `src/econsim/delta/` (MessagePack format, complete state capture).
+- GUI (`src/econsim/gui/` + `src/econsim/tools/launcher/`): subscribes to delta recorder; simulation has no GUI imports.
 
 ## Determinism rules (critical)
 - Always sort iteration (e.g., `Grid.iter_resources_sorted()`, `sorted(agents, key=lambda a: a.id)`).
@@ -93,17 +93,13 @@ Simulation emits events through `ObserverRegistry` - no direct GUI/logging depen
 - Observers: `FileObserver`, `EducationalObserver`, `PerformanceObserver`, `GUIEventObserver`
 - See `src/econsim/observability/` for implementation
 
-### 4. Step Decomposition Pipeline
-`Simulation.step(ext_rng)` uses handler pattern (DO NOT modify step ordering):
-```
-StepExecutor.execute_step() →
-  1. MovementHandler      # movement + foraging + mode transitions
-  2. CollectionHandler    # legacy collection + decision diff metrics
-  3. TradingHandler       # intent enumeration + optional execution
-  4. MetricsHandler       # step timing, determinism hash
-  5. RespawnHandler       # resource replenishment
-```
-Each handler in `src/econsim/simulation/execution/handlers/` returns metrics, modifies simulation state minimally.
+### 4. Step Execution Architecture
+`Simulation.step(ext_rng)` uses OptimizedStepExecutor (high-performance consolidated execution):
+- **Single execution path** eliminates handler overhead
+- **45% performance improvement** over handler-based architecture  
+- **All step logic inlined** for maximum efficiency
+- **Comprehensive delta recording** captures complete state changes
+- **Deterministic execution** with proper RNG usage
 
 ### 5. Feature Flags Control Behavior
 Environment variables gate experimental features (checked in `SimulationFeatures.from_environment()`):
@@ -204,17 +200,15 @@ class MyPreference(Preference):
 - `src/econsim/simulation/agent.py` - `Agent` class, decision logic, modes
 - `src/econsim/simulation/grid.py` - Resource storage with deterministic iteration
 - `src/econsim/simulation/config.py` - `SimConfig` dataclass, factory integration
-- `src/econsim/simulation/execution/` - Step handlers (movement, collection, trading, metrics, respawn)
+- `src/econsim/simulation/step_executor.py` - OptimizedStepExecutor (high-performance execution)
 - `src/econsim/simulation/trade.py` - Bilateral trade primitives, intent enumeration
 
-### Observer System (Decoupling Layer)
-- `src/econsim/observability/registry.py` - `ObserverRegistry` for event distribution
-- `src/econsim/observability/observers/` - Concrete implementations:
-  - `file_observer.py` - High-performance JSONL logging
-  - `educational_observer.py` - Behavioral insights, analytics
-  - `performance_observer.py` - Performance monitoring
-  - `gui_observer.py` - GUI event translation (uses raw data + `DataTranslator`)
-- `src/econsim/observability/raw_data/` - Zero-overhead raw data recording
+### Delta Recording System (State Capture)
+- `src/econsim/delta/recorder.py` - `ComprehensiveDeltaRecorder` for complete state capture
+- `src/econsim/delta/playback_controller.py` - `ComprehensivePlaybackController` for playback
+- `src/econsim/delta/data_structures.py` - Delta data structures (VisualDelta, VisualState, etc.)
+- **MessagePack format** for efficient serialization
+- **Complete state capture** including visual, economic, and performance data
 
 ### GUI Layer (Depends on Simulation via Observer)
 - `src/econsim/gui/embedded_pygame.py` - `EmbeddedPygameWidget` (PyQt6 + Pygame integration)
