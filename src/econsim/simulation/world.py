@@ -34,7 +34,6 @@ from .agent import Agent
 from .constants import AgentMode
 from .grid import Grid
 from .respawn import RespawnScheduler  # type: ignore
-from .metrics import MetricsCollector  # type: ignore
 from .trade import (  # type: ignore
     enumerate_intents_for_cell,
     TradeEnumerationStats,
@@ -68,7 +67,6 @@ class Simulation:
     _cached_feature_flags: Optional[Any] = None  # Cached feature flags to avoid recreating every step
     _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
-    metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
     _respawn_interval: int | None = 1       # How frequently to invoke respawn (1 => every step default; None/<=0 => disabled)
     # Draft trade intents (feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
@@ -96,17 +94,17 @@ class Simulation:
         # Observer system removed - comprehensive delta system handles all recording
 
     def step(self, rng: random.Random) -> None:
-        """Advance simulation by one step using decomposed handler system.
+        """Advance simulation by one step using optimized step executor.
 
-        Orchestrates step execution through focused handlers while maintaining
-        deterministic behavior and performance characteristics.
+        Uses OptimizedStepExecutor to eliminate handler dispatch overhead while
+        maintaining deterministic behavior and performance characteristics.
 
         Args:
             rng: External RNG for backward compatibility with existing code patterns
         """
-        # Initialize step executor on first use
+        # Initialize optimized step executor on first use
         if self._step_executor is None:
-            self._initialize_step_executor()
+            self._initialize_optimized_step_executor()
         
         # Snapshot pre-step resource count for collection metrics (decision/unified modes)
         try:
@@ -114,36 +112,14 @@ class Simulation:
         except Exception:
             self.pre_step_resource_count = None
 
-        # Create step context for handlers
-        from .features import SimulationFeatures
-        from .execution import StepContext
-        
-        step_num = self._steps + 1
-        feature_flags = SimulationFeatures.from_environment()
-        
-        context = StepContext(
-            simulation=self,
-            step_number=step_num,
-            ext_rng=rng,
-            feature_flags=feature_flags
-        )
-        
-        # Phase 4.1.2: Direct observer.record_*() calls - no event buffering needed
-        
-        # Execute step through handler system
-        step_metrics = self._step_executor.execute_step(context)
+        # Execute step through optimized executor (no context creation overhead)
+        step_metrics = self._step_executor.execute_step(rng)
         
         # Raw data architecture: Events are recorded directly by handlers via observer.record_*() calls
         # No event buffer needed - zero overhead recording during simulation
         self.last_step_metrics = step_metrics  # store for tests/analytics (excluded from hash logic)
 
-        # Update determinism metrics/hash (must occur before step counter increment to preserve historical ordering semantics)
-        try:
-            if self.metrics_collector is not None:
-                # Use step_num (current logical step about to be committed)
-                self.metrics_collector.record(step_num, self)
-        except Exception:  # pragma: no cover - defensive; avoid breaking simulation loop on metrics failure
-            pass
+        # MetricsCollector removed - determinism tracking will be handled by delta recorder in future
 
         # Update step counter (handlers assume previous self._steps during execution)
         self._steps += 1
@@ -168,28 +144,17 @@ class Simulation:
         # Reset snapshot for next step
         self.pre_step_resource_count = None
     
-    def _initialize_step_executor(self) -> None:
-        """Initialize the step executor with ordered handlers.
+    def _initialize_optimized_step_executor(self) -> None:
+        """Initialize the optimized step executor for high performance.
         
-        Handler order is critical for deterministic behavior.
-        Do not reorder without updating validation tests.
+        Uses OptimizedStepExecutor to eliminate handler dispatch overhead
+        while maintaining exact behavioral compatibility.
         """
-        from .execution import StepExecutor
-        from .execution.handlers.movement_handler import MovementHandler
-        from .execution.handlers.collection_handler import CollectionHandler
-        from .execution.handlers.trading_handler import TradingHandler
-        from .execution.handlers.metrics_handler import MetricsHandler
-        from .execution.handlers.respawn_handler import RespawnHandler
+        from .step_executor import OptimizedStepExecutor
         
-        handlers = [
-            MovementHandler(),      # Agent movement and mode transitions
-            CollectionHandler(),    # Resource collection events
-            TradingHandler(),      # Bilateral trading system
-            MetricsHandler(),      # Performance and behavioral metrics
-            RespawnHandler(),      # Resource respawn cycles
-        ]
-        
-        self._step_executor = StepExecutor(handlers)
+        self._step_executor = OptimizedStepExecutor(self)
+    
+    # Legacy handler architecture removed - OptimizedStepExecutor is the only execution path
 
 
     @property
@@ -257,9 +222,8 @@ class Simulation:
                 max_spawn_per_tick=int(config.max_spawn_per_tick),
                 respawn_rate=float(config.respawn_rate),
             )
-        if getattr(config, "enable_metrics", False):
-            sim.metrics_collector = MetricsCollector()
-
+        # MetricsCollector removed - will be replaced by delta recorder
+        
         return sim
 
     # --- Runtime Configuration -------------------------------------------
@@ -371,7 +335,7 @@ class Simulation:
                 partner.is_trading = True
                 
                 # Attempt a trade - if no beneficial trade, clear partnership and search again
-                trade_occurred = agent.attempt_trade_with_partner(partner, self.metrics_collector, self._steps)
+                trade_occurred = agent.attempt_trade_with_partner(partner, None, self._steps)
                 if not trade_occurred:
                     # No more beneficial trades possible, end trading session with cooldowns
                     agent.end_trading_session(partner)

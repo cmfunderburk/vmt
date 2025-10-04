@@ -3,7 +3,6 @@ from econsim.simulation.world import Simulation
 from econsim.simulation.grid import Grid
 from econsim.simulation.agent import Agent
 from econsim.preferences.cobb_douglas import CobbDouglasPreference
-from econsim.simulation.metrics import MetricsCollector
 
 
 def build_two(sim_seed=0):  # type: ignore[no-untyped-def]
@@ -13,7 +12,6 @@ def build_two(sim_seed=0):  # type: ignore[no-untyped-def]
     a1.carrying['good1'] = 5
     a2.carrying['good2'] = 5
     sim = Simulation(grid=Grid(4,4,[]), agents=[a1,a2])
-    sim.metrics_collector = MetricsCollector()
     return sim
 
 

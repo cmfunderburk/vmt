@@ -97,3 +97,4 @@ gui_logs/compact/
 economic_analysis_logs/*
 !economic_analysis_logs/README.md
 
+*.backup

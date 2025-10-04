@@ -57,15 +57,11 @@ def _emit_micro_delta_once(first_drop_delta: float) -> None:
         return
     _micro_delta_threshold_emitted = True
     try:
-        # Emit observer event for debugging transparency
-        from ..observability.observer_logger import get_global_observer_logger
-        
-        logger = get_global_observer_logger()
-        if logger is not None:
-            # Use effective threshold (including any test override)
-            effective_threshold = _effective_min_trade_delta()
-            # Record debug event with micro-delta threshold information using raw data
-            message = f"Micro-delta threshold applied: {effective_threshold:.2e}, first_drop={first_drop_delta:.2e}"
+        # Observer system removed - comprehensive delta system handles all recording
+        # Use effective threshold (including any test override)
+        effective_threshold = _effective_min_trade_delta()
+        # Record debug event with micro-delta threshold information using raw data
+        message = f"Micro-delta threshold applied: {effective_threshold:.2e}, first_drop={first_drop_delta:.2e}"
     except Exception:
         # Never allow logging issues to disrupt enumeration
         pass
@@ -367,19 +363,15 @@ def execute_single_intent(intents: List[TradeIntent], agents_by_id: dict[int, Ag
         seller_utility_after = seller.current_utility()
         buyer_utility_after = buyer.current_utility()
         
-        # Emit observer events for utility changes and trade execution
+        # Observer system removed - comprehensive delta system handles all recording
         try:
-            from ..observability.observer_logger import get_global_observer_logger
+            # Log individual utility changes via debug events
+            seller_delta = seller_utility_after - seller_utility_before
+            buyer_delta = buyer_utility_after - buyer_utility_before
+            combined_utility_delta = seller_delta + buyer_delta
             
-            logger = get_global_observer_logger()
-            if logger is not None:
-                # Log individual utility changes via debug events
-                seller_delta = seller_utility_after - seller_utility_before
-                buyer_delta = buyer_utility_after - buyer_utility_before
-                combined_utility_delta = seller_delta + buyer_delta
-                
-                # Record debug event for trade execution using raw data
-                debug_msg = f"TRADE seller={intent.seller_id} buyer={intent.buyer_id} gave={intent.give_type} took={intent.take_type} utility_delta={combined_utility_delta:.3f}"
+            # Record debug event for trade execution using raw data
+            debug_msg = f"TRADE seller={intent.seller_id} buyer={intent.buyer_id} gave={intent.give_type} took={intent.take_type} utility_delta={combined_utility_delta:.3f}"
         except Exception:  # pragma: no cover
             pass  # Graceful degradation when observer system not available
         
