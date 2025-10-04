@@ -96,17 +96,17 @@ class Simulation:
         # Observer system removed - comprehensive delta system handles all recording
 
     def step(self, rng: random.Random) -> None:
-        """Advance simulation by one step using decomposed handler system.
+        """Advance simulation by one step using optimized step executor.
 
-        Orchestrates step execution through focused handlers while maintaining
-        deterministic behavior and performance characteristics.
+        Uses OptimizedStepExecutor to eliminate handler dispatch overhead while
+        maintaining deterministic behavior and performance characteristics.
 
         Args:
             rng: External RNG for backward compatibility with existing code patterns
         """
-        # Initialize step executor on first use
+        # Initialize optimized step executor on first use
         if self._step_executor is None:
-            self._initialize_step_executor()
+            self._initialize_optimized_step_executor()
         
         # Snapshot pre-step resource count for collection metrics (decision/unified modes)
         try:
@@ -114,24 +114,8 @@ class Simulation:
         except Exception:
             self.pre_step_resource_count = None
 
-        # Create step context for handlers
-        from .features import SimulationFeatures
-        from .execution import StepContext
-        
-        step_num = self._steps + 1
-        feature_flags = SimulationFeatures.from_environment()
-        
-        context = StepContext(
-            simulation=self,
-            step_number=step_num,
-            ext_rng=rng,
-            feature_flags=feature_flags
-        )
-        
-        # Phase 4.1.2: Direct observer.record_*() calls - no event buffering needed
-        
-        # Execute step through handler system
-        step_metrics = self._step_executor.execute_step(context)
+        # Execute step through optimized executor (no context creation overhead)
+        step_metrics = self._step_executor.execute_step(rng)
         
         # Raw data architecture: Events are recorded directly by handlers via observer.record_*() calls
         # No event buffer needed - zero overhead recording during simulation
@@ -168,11 +152,24 @@ class Simulation:
         # Reset snapshot for next step
         self.pre_step_resource_count = None
     
+    def _initialize_optimized_step_executor(self) -> None:
+        """Initialize the optimized step executor for high performance.
+        
+        Uses OptimizedStepExecutor to eliminate handler dispatch overhead
+        while maintaining exact behavioral compatibility.
+        """
+        from .step_executor import OptimizedStepExecutor
+        
+        self._step_executor = OptimizedStepExecutor(self)
+    
     def _initialize_step_executor(self) -> None:
-        """Initialize the step executor with ordered handlers.
+        """Initialize the step executor with ordered handlers (legacy mode).
         
         Handler order is critical for deterministic behavior.
         Do not reorder without updating validation tests.
+        
+        Note: This method is kept for testing and fallback purposes.
+        The optimized executor should be used in production.
         """
         from .execution import StepExecutor
         from .execution.handlers.movement_handler import MovementHandler
