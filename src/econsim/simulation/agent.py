@@ -66,8 +66,6 @@ class Agent:
     # Home position (could differ from spawn later; for now equals initial x,y unless provided)
     home_x: int | None = None  # set non-None in __post_init__
     home_y: int | None = None
-    # Sprite identifier for visual rendering (randomly assigned at creation)
-    sprite_type: str = "agent_explorer"  # default fallback
     # Mode & target
     mode: AgentMode = AgentMode.FORAGE
     target: Position | None = None

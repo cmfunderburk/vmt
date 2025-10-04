@@ -5,6 +5,8 @@ Simplified pygame widget that uses visual deltas for rendering instead of comple
 
 from __future__ import annotations
 
+import os
+import random
 import pygame
 from PyQt6.QtCore import QRect, QTimer
 from PyQt6.QtGui import QImage, QPainter
@@ -37,8 +39,15 @@ class EmbeddedPygameWidget(QWidget):
         self._frame = 0
         self._last_rendered_step = -1
         
+        # Sprite management
+        self._sprites: dict[str, pygame.Surface] = {}
+        self._agent_sprite_map: dict[int, str] = {}  # agent_id -> sprite_key
+        
         # Initialize pygame if needed
         self._init_pygame()
+        
+        # Load sprites
+        self._load_sprites()
         
         # Create surface
         self._surface = pygame.Surface(self.SURFACE_SIZE, pygame.SRCALPHA)
@@ -52,6 +61,69 @@ class EmbeddedPygameWidget(QWidget):
         """Initialize pygame if not already initialized."""
         if not pygame.get_init():
             pygame.init()
+            # Set a video mode to avoid "No video mode has been set" errors
+            pygame.display.set_mode((1, 1), pygame.HIDDEN)
+    
+    def _load_sprites(self) -> None:
+        """Load sprite images for agents and resources."""
+        # Get the project root directory (assuming we're in src/econsim/gui/)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        
+        # Load resource sprites
+        resource_sprites = {
+            'A': ('vmt_sprites_pack_1', 'resource_food_64.png'),    # Resource A = Food
+            'B': ('vmt_sprites_pack_2', 'resource_tools_64.png')    # Resource B = Tools
+        }
+        
+        for resource_type, (pack, sprite_file) in resource_sprites.items():
+            sprite_path = os.path.join(project_root, pack, sprite_file)
+            try:
+                sprite = pygame.image.load(sprite_path)
+                # Convert to RGBA for transparency support
+                sprite = sprite.convert_alpha()
+                self._sprites[f'resource_{resource_type}'] = sprite
+                print(f"✅ Loaded resource sprite: {sprite_file} for type {resource_type}")
+            except Exception as e:
+                print(f"❌ Failed to load resource sprite {sprite_file}: {e}")
+        
+        # Load agent sprites from pack 2
+        agent_sprite_files = [
+            'agent_explorer_64.png',
+            'agent_farmer_64.png', 
+            'agent_green_64.png',
+            'agent_miner_64.png',
+            'agent_purple_64.png',
+            'agent_trader_64.png'
+        ]
+        
+        for sprite_file in agent_sprite_files:
+            sprite_path = os.path.join(project_root, 'vmt_sprites_pack_2', sprite_file)
+            try:
+                sprite = pygame.image.load(sprite_path)
+                # Convert to RGBA for transparency support
+                sprite = sprite.convert_alpha()
+                sprite_key = sprite_file.replace('_64.png', '')
+                self._sprites[sprite_key] = sprite
+                print(f"✅ Loaded agent sprite: {sprite_file}")
+            except Exception as e:
+                print(f"❌ Failed to load agent sprite {sprite_file}: {e}")
+        
+        print(f"📊 Loaded {len(self._sprites)} sprites total")
+    
+    def _assign_agent_sprites(self, visual_state: VisualState) -> None:
+        """Assign truly random sprites to agents at playback time (visual concern only)."""
+        agent_sprite_keys = [key for key in self._sprites.keys() if key.startswith('agent_')]
+        
+        # Only assign sprites if we have agent sprites loaded
+        if not agent_sprite_keys:
+            return
+        
+        for agent_id, x, y, carrying in visual_state.get_agent_list():
+            if agent_id not in self._agent_sprite_map:
+                # Assign a truly random sprite to this agent (independent of simulation)
+                sprite_key = random.choice(agent_sprite_keys)
+                self._agent_sprite_map[agent_id] = sprite_key
+                print(f"🎭 Assigned random sprite {sprite_key} to agent {agent_id}")
     
     def _on_tick(self) -> None:
         """Handle timer tick for frame updates."""
@@ -108,7 +180,7 @@ class EmbeddedPygameWidget(QWidget):
         self._frame += 1
     
     def _render_visual_state(self, surf, visual_state: VisualState) -> None:
-        """Render visual state to pygame surface."""
+        """Render visual state to pygame surface using sprites."""
         w, h = self.SURFACE_SIZE
         
         # Calculate cell size based on reasonable grid dimensions
@@ -121,31 +193,69 @@ class EmbeddedPygameWidget(QWidget):
         cell_size = min(cell_w, cell_h)
         cell_w = cell_h = cell_size
         
-        # Resource color map
-        RES_COLORS = {
-            "A": (240, 240, 60),  # yellowish
-            "B": (60, 200, 255),  # cyan
-        }
+        # Assign sprites to agents if needed
+        self._assign_agent_sprites(visual_state)
         
-        # Draw resources
+        # Draw resources using sprites
         for x, y, resource_type in visual_state.get_resource_list():
             if resource_type:
-                color = RES_COLORS.get(str(resource_type), (200, 200, 200))
-                pygame.draw.rect(surf, color, pygame.Rect(x * cell_w, y * cell_h, cell_w, cell_h))
+                sprite_key = f'resource_{resource_type}'
+                if sprite_key in self._sprites:
+                    # Use sprite
+                    sprite = self._sprites[sprite_key]
+                    # Scale sprite to fit cell size
+                    scaled_sprite = pygame.transform.scale(sprite, (cell_w, cell_h))
+                    surf.blit(scaled_sprite, (x * cell_w, y * cell_h))
+                else:
+                    # Fallback to colored rectangle
+                    fallback_colors = {
+                        "A": (240, 240, 60),  # yellowish for food
+                        "B": (160, 160, 160), # grey for tools
+                    }
+                    color = fallback_colors.get(str(resource_type), (200, 200, 200))
+                    pygame.draw.rect(surf, color, pygame.Rect(x * cell_w, y * cell_h, cell_w, cell_h))
         
-        # Draw agents
+        # Draw agents using sprites
         for agent_id, x, y, carrying in visual_state.get_agent_list():
-            # Agent color based on carrying items
-            if carrying:
-                agent_color = (100, 255, 100)  # Green when carrying
+            sprite_key = self._agent_sprite_map.get(agent_id)
+            if sprite_key and sprite_key in self._sprites:
+                # Use assigned sprite (no tinting)
+                sprite = self._sprites[sprite_key]
+                
+                # Scale sprite to fit cell size
+                scaled_sprite = pygame.transform.scale(sprite, (cell_w, cell_h))
+                surf.blit(scaled_sprite, (x * cell_w, y * cell_h))
             else:
-                agent_color = (100, 100, 255)  # Blue when empty
+                # Fallback to colored circle (blue for all agents)
+                agent_color = (100, 100, 255)  # Blue for all agents
+                
+                center_x = x * cell_w + cell_w // 2
+                center_y = y * cell_h + cell_h // 2
+                radius = max(2, min(cell_w, cell_h) // 3)
+                pygame.draw.circle(surf, agent_color, (center_x, center_y), radius)
             
-            # Draw agent as circle
-            center_x = x * cell_w + cell_w // 2
-            center_y = y * cell_h + cell_h // 2
-            radius = max(2, min(cell_w, cell_h) // 3)
-            pygame.draw.circle(surf, agent_color, (center_x, center_y), radius)
+            # Draw agent ID label
+            font_size = max(8, cell_size // 8)  # Scale font size with cell size
+            try:
+                font = pygame.font.Font(None, font_size)
+                text_surface = font.render(str(agent_id), True, (255, 255, 255))  # White text
+                
+                # Position label at bottom-right of cell
+                text_x = x * cell_w + cell_w - font_size
+                text_y = y * cell_h + cell_h - font_size
+                
+                # Add black outline for better visibility
+                outline_surface = font.render(str(agent_id), True, (0, 0, 0))  # Black outline
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        if dx != 0 or dy != 0:  # Skip center pixel
+                            surf.blit(outline_surface, (text_x + dx, text_y + dy))
+                
+                # Draw the white text on top
+                surf.blit(text_surface, (text_x, text_y))
+            except Exception:
+                # Fallback if font rendering fails
+                pass
     
     def _trigger_update(self) -> None:
         """Force an immediate update of the pygame rendering."""

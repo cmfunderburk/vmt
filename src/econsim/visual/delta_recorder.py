@@ -45,7 +45,10 @@ class VisualDeltaRecorder:
         # Record initial agent positions and states
         for agent in simulation.agents:
             agent_positions[agent.id] = (agent.x, agent.y)
-            agent_states[agent.id] = getattr(agent, 'carrying', False)
+            # Check if agent is actually carrying anything (not just empty dict)
+            carrying_dict = getattr(agent, 'carrying', {})
+            is_carrying = any(count > 0 for count in carrying_dict.values()) if carrying_dict else False
+            agent_states[agent.id] = is_carrying
         
         # Record initial resource positions
         try:
@@ -86,7 +89,9 @@ class VisualDeltaRecorder:
         for agent in simulation.agents:
             agent_id = agent.id
             current_pos = (agent.x, agent.y)
-            current_carrying = getattr(agent, 'carrying', False)
+            # Check if agent is actually carrying anything (not just empty dict)
+            carrying_dict = getattr(agent, 'carrying', {})
+            current_carrying = any(count > 0 for count in carrying_dict.values()) if carrying_dict else False
             
             # Check for position changes
             if agent_id in self._last_agent_positions:

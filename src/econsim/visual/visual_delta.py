@@ -56,6 +56,7 @@ class VisualState:
             for agent_id, (x, y) in self.agent_positions.items()
         ]
     
+    
     def get_resource_list(self) -> List[Tuple[int, int, str]]:
         """Get resources as list of (x, y, resource_type)."""
         return [

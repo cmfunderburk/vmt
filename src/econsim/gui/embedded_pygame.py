@@ -401,28 +401,19 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     ax = getattr(agent, "x", 0)
                     ay = getattr(agent, "y", 0)
                     
-                    # Get agent's specific sprite type
-                    agent_sprite_type = getattr(agent, "sprite_type", "agent_explorer")
-                    if agent_sprite_type in self._sprites:
-                        # Use agent's specific sprite
-                        sprite = self._sprites[agent_sprite_type]
-                        # Scale sprite to fit cell size
-                        scaled_sprite = pygame.transform.scale(sprite, (cell_w, cell_h))
-                        surf.blit(scaled_sprite, (ax * cell_w, ay * cell_h))
-                    else:
-                        # Fallback to colored rectangle with inventory-based coloring
-                        inv = getattr(agent, "carrying", {})
-                        g1 = float(inv.get("good1", 0))
-                        g2 = float(inv.get("good2", 0))
-                        total = g1 + g2 + 1e-6
-                        mix = g1 / total
-                        r = int(255 * (1 - mix))
-                        b = int(255 * mix)
-                        agent_color = (r, 40, b)
-                        rect = pygame.Rect(ax * cell_w, ay * cell_h, cell_w, cell_h)
-                        pygame.draw.rect(surf, agent_color, rect)
-                        # Outline for visibility
-                        pygame.draw.rect(surf, (20, 20, 20), rect, 1)
+                    # Use fallback colored rectangle (sprites are now handled in delta system)
+                    inv = getattr(agent, "carrying", {})
+                    g1 = float(inv.get("good1", 0))
+                    g2 = float(inv.get("good2", 0))
+                    total = g1 + g2 + 1e-6
+                    mix = g1 / total
+                    r = int(255 * (1 - mix))
+                    b = int(255 * mix)
+                    agent_color = (r, 40, b)
+                    rect = pygame.Rect(ax * cell_w, ay * cell_h, cell_w, cell_h)
+                    pygame.draw.rect(surf, agent_color, rect)
+                    # Outline for visibility
+                    pygame.draw.rect(surf, (20, 20, 20), rect, 1)
                 
                 # Highlight selected agent with light green border
                 self._draw_selected_agent_highlight(sorted_agents, cell_w, cell_h)
