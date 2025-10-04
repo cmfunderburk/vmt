@@ -50,7 +50,7 @@ class MovementHandler(BaseStepHandler):
                 try:
                     collected = agent.step_decision(
                         context.simulation.grid, 
-                        context.observer_registry, 
+                         
                         context.step_number
                     )
                     if collected:
@@ -59,7 +59,7 @@ class MovementHandler(BaseStepHandler):
                 except TypeError:
                     agent.step_decision(
                         context.simulation.grid, 
-                        context.observer_registry, 
+                         
                         context.step_number
                     )
                     agents_moved += 1
@@ -113,7 +113,7 @@ class MovementHandler(BaseStepHandler):
                 # Execute movement step
                 agent.step_decision(
                     context.simulation.grid, 
-                    context.observer_registry, 
+                     
                     context.step_number
                 )
         else:
@@ -146,7 +146,7 @@ class MovementHandler(BaseStepHandler):
                         try:
                             agent.step_decision(
                                 context.simulation.grid, 
-                                context.observer_registry, 
+                                 
                                 context.step_number
                             )
                         except Exception:
@@ -170,23 +170,10 @@ class MovementHandler(BaseStepHandler):
             new_mode=new_mode,
             reason=reason,
             step=context.step_number,
-            observer_registry=context.observer_registry
+            
         )
     
     def _notify_mode_change(self, context: StepContext, agent: Agent, old_mode: AgentMode, new_mode: AgentMode, reason: str) -> None:
         """DEPRECATED: Use _set_agent_mode instead."""
         
-        if context.observer_registry.has_observers():
-            # Record mode change using raw data architecture
-            # Call record_mode_change() on all observers that support raw data recording
-            for observer in context.observer_registry._observers:
-                if hasattr(observer, 'record_mode_change'):
-                    observer.record_mode_change(
-                        step=context.step_number,
-                        agent_id=agent.id,
-                        old_mode=old_mode.value,
-                        new_mode=new_mode.value,
-                        reason=reason
-                    )
-
     # NOTE: execute override removed; transient assignment handled inside _execute_impl

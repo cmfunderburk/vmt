@@ -153,15 +153,7 @@ class TradingHandler(BaseStepHandler):
 					f"Executed: {executed_count}, "
 					f"Max delta U: {funnel_stats.max_delta_u:.3f}"
 				)
-				# Record debug log using raw data architecture
-				for observer in context.observer_registry._observers:
-					if hasattr(observer, 'record_debug_log'):
-						observer.record_debug_log(
-							step=context.step_number,
-							category="TRADE_FUNNEL", 
-							message=message,
-							agent_id=-1  # Not agent-specific
-						)
+				# Observer system removed - comprehensive delta system handles recording
 			except Exception:
 				pass
 
@@ -185,39 +177,9 @@ class TradingHandler(BaseStepHandler):
 					pass
 
 	def _notify_trade_execution_event(self, context: StepContext, executed_intent) -> None:
-		"""Record trade execution event using raw data architecture."""
-		if context.observer_registry.has_observers():
-			# Calculate utility changes (approximation for now)
-			seller_delta_u = getattr(executed_intent, "delta_utility", 0.0)
-			buyer_delta_u = seller_delta_u  # Legacy parity approximation
-			
-			# Get trade location if available
-			trade_x, trade_y = -1, -1
-			try:
-				# Try to get seller agent position as trade location
-				sim = context.simulation
-				agents_by_id = {a.id: a for a in sim.agents}
-				seller_agent = agents_by_id.get(executed_intent.seller_id)
-				if seller_agent:
-					trade_x, trade_y = seller_agent.x, seller_agent.y
-			except Exception:
-				pass  # Keep default -1, -1
-			
-			# Record trade execution using raw data architecture
-			# Call record_trade() on all observers that support raw data recording
-			for observer in context.observer_registry._observers:
-				if hasattr(observer, 'record_trade'):
-					observer.record_trade(
-						step=context.step_number,
-						seller_id=executed_intent.seller_id,
-						buyer_id=executed_intent.buyer_id,
-						give_type=executed_intent.give_type,
-						take_type=executed_intent.take_type,
-						delta_u_seller=seller_delta_u,
-						delta_u_buyer=buyer_delta_u,
-						trade_location_x=trade_x,
-						trade_location_y=trade_y
-					)
+		"""Record trade execution event - observer system removed."""
+		# Observer system removed - comprehensive delta system handles recording
+		pass
 
 	def _cleanup_pairings(self, sim, executed: TradeIntent | None) -> None:
 		try:

@@ -18,22 +18,19 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..agent import Agent
     from ..constants import AgentMode
-    from ...observability.registry import ObserverRegistry
 
 
 def set_agent_mode(agent: 'Agent', new_mode: 'AgentMode', reason: str = "", 
-                   step: int = 0, observer_registry: 'ObserverRegistry' = None) -> None:
-    """Set agent mode with observer event emission.
+                   step: int = 0) -> None:
+    """Set agent mode - observer system removed.
     
-    Centralized method for changing agent modes that ensures observer
-    events are emitted for all mode transitions.
+    Centralized method for changing agent modes.
     
     Args:
         agent: Agent to modify
         new_mode: New mode to set
         reason: Reason for mode change (for logging)
         step: Current step number
-        observer_registry: Observer registry for event emission (optional)
     """
-    # Use the agent's centralized _set_mode() helper to ensure consistent event emission
-    agent._set_mode(new_mode, reason, observer_registry, step)
+    # Observer system removed - comprehensive delta system handles recording
+    agent._set_mode(new_mode, reason, step)

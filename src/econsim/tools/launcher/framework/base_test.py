@@ -25,7 +25,6 @@ from .phase_manager import PhaseManager
 from .simulation_factory import SimulationFactory
 
 # Phase 2 imports - Comprehensive Delta system
-from econsim.recording import HeadlessSimulationRunner
 from econsim.delta import ComprehensiveDeltaRecorder, ComprehensivePlaybackController
 from econsim.gui.economic_analysis_widget import EconomicAnalysisWidget
 
@@ -211,21 +210,6 @@ class BaseManualTest(QWidget):
                     steps_per_sec = (len(self.simulation._step_times) - 1) / time_window
                     frame_ms = (time_window / (len(self.simulation._step_times) - 1)) * 1000
             
-            # Log performance metrics via observer system instead of console
-            if hasattr(self.simulation, '_observer_registry'):
-                for observer in self.simulation._observer_registry._observers:
-                    if hasattr(observer, 'record_performance_monitor'):
-                        observer.record_performance_monitor(
-                            step=self.current_turn,
-                            metric_name='launcher_performance_summary',
-                            metric_value=steps_per_sec,
-                            details=f'{steps_per_sec:.1f} steps/sec, {frame_ms:.1f}ms/frame, {agent_count} agents, {resource_count} resources, Phase {self.phase}',
-                            frame_ms=frame_ms,
-                            agent_count=agent_count,
-                            resource_count=resource_count,
-                            phase=self.phase
-                        )
-            
             # Resource flow analysis
             resource_by_type = {"good1": 0, "good2": 0}
             for resource in self.simulation.grid.iter_resources():
@@ -240,22 +224,6 @@ class BaseManualTest(QWidget):
                     total_carrying[res_type] = total_carrying.get(res_type, 0) + count
                 for res_type, count in agent.home_inventory.items():
                     total_home_inventory[res_type] = total_home_inventory.get(res_type, 0) + count
-            
-            # Log economics data via observer system instead of console
-            if hasattr(self.simulation, '_observer_registry'):
-                for observer in self.simulation._observer_registry._observers:
-                    if hasattr(observer, 'record_economic_decision'):
-                        observer.record_economic_decision(
-                            step=self.current_turn,
-                            agent_id=-1,  # System-level economic analysis
-                            decision_type='economic_summary',
-                            decision_context=f'Grid: good1={resource_by_type["good1"]}, good2={resource_by_type["good2"]} | Carrying: good1={total_carrying["good1"]}, good2={total_carrying["good2"]} | Home: good1={total_home_inventory["good1"]}, good2={total_home_inventory["good2"]}',
-                            grid_resources=resource_by_type,
-                            agent_carrying=total_carrying,
-                            agent_home_inventory=total_home_inventory,
-                            agent_count=agent_count,
-                            category='economic_flow_analysis'
-                        )
             
             # Spatial analytics (legacy debug logging removed - observer system handles structured logging)
             agent_positions = [(agent.x, agent.y) for agent in self.simulation.agents]
@@ -279,32 +247,11 @@ class BaseManualTest(QWidget):
                 
                 avg_inter_distance = sum(inter_distances) / len(inter_distances) if inter_distances else 0
                 
-                # Log spatial analytics via observer system instead of console
-                if hasattr(self.simulation, '_observer_registry'):
-                    for observer in self.simulation._observer_registry._observers:
-                        if hasattr(observer, 'record_debug_log'):
-                            observer.record_debug_log(
-                                step=self.current_turn,
-                                category='spatial_analytics',
-                                message=f'Spatial T{self.current_turn}: Center: ({center_x:.1f}, {center_y:.1f}) | Avg distance from center: {avg_distance_from_center:.1f} | Avg inter-agent distance: {avg_inter_distance:.1f}',
-                                agent_id=-1,  # System-level spatial analysis
-                                center_x=center_x,
-                                center_y=center_y,
-                                avg_distance_from_center=avg_distance_from_center,
-                                avg_inter_agent_distance=avg_inter_distance,
-                                agent_count=len(agent_positions)
-                            )
-        
         # Check if we just completed the final turn
         total_turns = self.get_total_turns()
         if self.current_turn >= total_turns:
             self.step_timer.stop()
             
-            # Close all observers to write raw data to disk
-            if self.simulation and hasattr(self.simulation, '_observer_registry'):
-                print("🔧 Closing observers to write raw data to disk...")
-                self.simulation._observer_registry.close_all()
-                print("✅ Observer cleanup complete - raw data written to disk")
             
             print("🔧 Test logging session complete (observer system)")
             
@@ -395,9 +342,6 @@ class BaseManualTest(QWidget):
         # Generate delta file path (MessagePack format)
         with tempfile.NamedTemporaryFile(suffix='.msgpack', delete=False) as tmp_file:
             self.delta_file_path = tmp_file.name
-        
-        # Convert TestConfiguration to SimConfig
-        sim_config = self._convert_to_sim_config()
         
         # Generate agent positions
         agent_positions = self._generate_agent_positions()
@@ -645,25 +589,6 @@ class BaseManualTest(QWidget):
             is_playing = self.delta_controller.current_state.is_playing
             playback_controls.update_progress(current_step, total_steps, is_playing)
     
-    def _convert_to_sim_config(self):
-        """Convert TestConfiguration to SimConfig for HeadlessSimulationRunner."""
-        from econsim.simulation.config import SimConfig
-        
-        # Generate resources using existing factory logic
-        resources = SimulationFactory._generate_resources(self.config)
-        
-        return SimConfig(
-            grid_size=self.config.grid_size,
-            initial_resources=resources,
-            seed=self.config.seed,
-            enable_respawn=True,
-            enable_metrics=True,
-            perception_radius=self.config.perception_radius,
-            respawn_target_density=self.config.resource_density,
-            respawn_rate=0.25,
-            distance_scaling_factor=getattr(self.config, 'distance_scaling_factor', 0.0),
-            viewport_size=self.config.viewport_size
-        )
     
     def _generate_agent_positions(self):
         """Generate agent positions for the simulation."""
@@ -701,21 +626,6 @@ class StandardPhaseTest(BaseManualTest):
         if transition:
             self.phase = transition.new_phase
             
-            # Log phase transition via observer system instead of console
-            if hasattr(self.simulation, '_observer_registry'):
-                for observer in self.simulation._observer_registry._observers:
-                    if hasattr(observer, 'record_debug_log'):
-                        observer.record_debug_log(
-                            step=self.current_turn,
-                            category='phase_transition',
-                            message=f'Phase Transition: Phase {transition.new_phase} at turn {self.current_turn} - {transition.description}',
-                            agent_id=-1,  # System-level event
-                            phase_number=transition.new_phase,
-                            forage_enabled=transition.forage_enabled,
-                            trade_enabled=transition.trade_enabled,
-                            phase_description=transition.description
-                        )
-    
     def get_total_turns(self) -> int:
         """Get the total number of turns from phase manager."""
         return self.phase_manager.get_total_turns()
@@ -737,17 +647,3 @@ class CustomPhaseTest(BaseManualTest):
         if transition:
             self.phase = transition.new_phase
             
-            # Log phase transition via observer system instead of console
-            if hasattr(self.simulation, '_observer_registry'):
-                for observer in self.simulation._observer_registry._observers:
-                    if hasattr(observer, 'record_debug_log'):
-                        observer.record_debug_log(
-                            step=self.current_turn,
-                            category='phase_transition',
-                            message=f'Phase Transition: Phase {transition.new_phase} at turn {self.current_turn} - {transition.description}',
-                            agent_id=-1,  # System-level event
-                            phase_number=transition.new_phase,
-                            forage_enabled=transition.forage_enabled,
-                            trade_enabled=transition.trade_enabled,
-                            phase_description=transition.description
-                        )
