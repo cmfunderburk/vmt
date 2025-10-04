@@ -13,12 +13,13 @@ from pathlib import Path
 from econsim.recording import (
     SimulationOutputFile,
     HeadlessSimulationRunner,
-    MinimalObserver,
+    SimulationCallbacks,
     create_simulation_output,
     load_simulation_output
 )
-from econsim.simulation.factory import SimulationFactory
+from econsim.simulation.world import Simulation
 from econsim.simulation.config import SimConfig
+from econsim.tools.launcher.framework.test_configs import TEST_3_HIGH_DENSITY
 
 
 class TestSimulationOutputFile:
@@ -80,59 +81,52 @@ class TestSimulationOutputFile:
                 load_simulation_output(invalid_path)
 
 
-class TestMinimalObserver:
-    """Test MinimalObserver functionality."""
+class TestSimulationCallbacks:
+    """Test SimulationCallbacks functionality."""
     
-    def test_observer_creation(self):
-        """Test creating minimal observer."""
-        observer = MinimalObserver(
-            progress_interval=100,
-            enable_debugging=True,
-            enable_performance_monitoring=True
-        )
+    def test_callbacks_creation(self):
+        """Test creating simulation callbacks."""
+        callbacks = SimulationCallbacks()
         
-        assert observer is not None
-        assert observer.progress_interval == 100
-        assert observer.enable_debugging is True
-        assert observer.enable_performance_monitoring is True
-        assert observer.enabled is True
+        assert callbacks is not None
+        assert callbacks.is_enabled() is True
+        assert len(callbacks.step_callbacks) == 0
+        assert len(callbacks.error_callbacks) == 0
+        assert len(callbacks.progress_callbacks) == 0
     
     def test_monitoring_stats(self):
         """Test monitoring statistics."""
-        observer = MinimalObserver()
+        callbacks = SimulationCallbacks()
         
         # Start monitoring
-        observer.start_monitoring(1000)
+        callbacks.start_monitoring(1000)
         
         # Simulate some steps
         for step in range(1, 101):
-            observer.flush_step(step)
+            callbacks.notify_step(step)
         
-        stats = observer.get_monitoring_stats()
+        stats = callbacks.finish_monitoring()
         
-        assert stats['current_step'] == 100
-        assert stats['total_steps'] == 1000
-        assert stats['progress_percentage'] == 10.0
-        assert stats['elapsed_time'] > 0
+        assert stats['total_steps'] == 100
+        assert stats['duration_seconds'] > 0
+        assert stats['steps_per_second'] > 0
+        assert stats['enabled'] is True
     
     def test_performance_monitoring(self):
         """Test performance monitoring capabilities."""
-        observer = MinimalObserver(
-            enable_performance_monitoring=True,
-            enable_debugging=False
-        )
+        callbacks = SimulationCallbacks()
         
-        observer.start_monitoring(100)
+        callbacks.start_monitoring(100)
         
         # Simulate steps with varying performance
         for step in range(1, 11):
-            observer.flush_step(step)
+            callbacks.notify_step(step)
             time.sleep(0.001)  # Simulate some processing time
         
-        stats = observer.get_monitoring_stats()
+        stats = callbacks.finish_monitoring()
         
-        assert stats['average_step_time'] > 0
-        assert stats['performance_monitoring_enabled'] is True
+        assert stats['duration_seconds'] > 0
+        assert stats['steps_per_second'] > 0
 
 
 class TestHeadlessRunner:
@@ -141,10 +135,8 @@ class TestHeadlessRunner:
     def test_runner_creation(self):
         """Test creating headless runner."""
         config = SimConfig(
-            world_width=10,
-            world_height=10,
-            num_agents=5,
-            steps=100
+            grid_size=(10, 10),
+            initial_resources=[(5, 5), (3, 3), (7, 7)]
         )
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -166,10 +158,8 @@ class TestHeadlessRunner:
     def test_runner_without_recording(self):
         """Test headless runner without recording."""
         config = SimConfig(
-            world_width=5,
-            world_height=5,
-            num_agents=3,
-            steps=10
+            grid_size=(5, 5),
+            initial_resources=[(2, 2), (3, 3)]
         )
         
         runner = HeadlessSimulationRunner(
@@ -188,12 +178,35 @@ class TestHeadlessRunner:
     
     @pytest.mark.slow
     def test_runner_with_recording(self):
-        """Test headless runner with recording."""
+        """Test headless runner with recording using High Density Local baseline."""
+        # Use TEST_3_HIGH_DENSITY as baseline configuration
+        test_config = TEST_3_HIGH_DENSITY
+        
+        # Generate resources using the same logic as SimulationFactory
+        import random
+        random.seed(test_config.seed)
+        resources = []
+        for _ in range(int(test_config.grid_size[0] * test_config.grid_size[1] * test_config.resource_density)):
+            x = random.randint(0, test_config.grid_size[0] - 1)
+            y = random.randint(0, test_config.grid_size[1] - 1)
+            resources.append((x, y))
+        
+        # Generate agent positions
+        agent_positions = []
+        for i in range(test_config.agent_count):
+            x = random.randint(0, test_config.grid_size[0] - 1)
+            y = random.randint(0, test_config.grid_size[1] - 1)
+            agent_positions.append((x, y))
+        
         config = SimConfig(
-            world_width=10,
-            world_height=10,
-            num_agents=5,
-            steps=50
+            grid_size=test_config.grid_size,
+            initial_resources=resources,
+            perception_radius=test_config.perception_radius,
+            seed=test_config.seed,
+            enable_respawn=True,
+            enable_metrics=True,
+            respawn_target_density=test_config.resource_density,
+            respawn_rate=0.25
         )
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -207,7 +220,7 @@ class TestHeadlessRunner:
             )
             
             # Run simulation with recording
-            metrics = runner.run(steps=50)
+            metrics = runner.run(steps=50, agent_positions=agent_positions)
             
             assert metrics['total_steps_run'] == 50
             assert metrics['recording_enabled'] is True
@@ -222,17 +235,33 @@ class TestHeadlessRunner:
             # Load and verify the recorded file
             loaded_file = load_simulation_output(output_path)
             assert loaded_file.header.total_steps == 50
-            assert loaded_file.header.agent_count == 5
-            assert loaded_file.header.grid_width == 10
-            assert loaded_file.header.grid_height == 10
+            assert loaded_file.header.agent_count == test_config.agent_count
+            assert loaded_file.header.grid_width == test_config.grid_size[0]
+            assert loaded_file.header.grid_height == test_config.grid_size[1]
     
     def test_runner_performance(self):
-        """Test runner performance meets targets."""
+        """Test runner performance meets targets using High Density Local baseline."""
+        # Use TEST_3_HIGH_DENSITY as baseline configuration
+        test_config = TEST_3_HIGH_DENSITY
+        
+        # Generate resources using the same logic as SimulationFactory
+        import random
+        random.seed(test_config.seed)
+        resources = []
+        for _ in range(int(test_config.grid_size[0] * test_config.grid_size[1] * test_config.resource_density)):
+            x = random.randint(0, test_config.grid_size[0] - 1)
+            y = random.randint(0, test_config.grid_size[1] - 1)
+            resources.append((x, y))
+        
         config = SimConfig(
-            world_width=20,
-            world_height=20,
-            num_agents=10,
-            steps=100
+            grid_size=test_config.grid_size,
+            initial_resources=resources,
+            perception_radius=test_config.perception_radius,
+            seed=test_config.seed,
+            enable_respawn=True,
+            enable_metrics=True,
+            respawn_target_density=test_config.resource_density,
+            respawn_rate=0.25
         )
         
         runner = HeadlessSimulationRunner(
@@ -310,10 +339,8 @@ class TestRecordingPerformance:
     def test_file_size_targets(self):
         """Test that file sizes meet performance targets."""
         config = SimConfig(
-            world_width=10,
-            world_height=10,
-            num_agents=5,
-            steps=100
+            grid_size=(10, 10),
+            initial_resources=[(5, 5), (3, 3), (7, 7), (2, 8), (8, 2)]
         )
         
         with tempfile.TemporaryDirectory() as temp_dir:

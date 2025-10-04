@@ -38,7 +38,7 @@ from .simulation_output import (
     load_simulation_output
 )
 
-from .minimal_observer import MinimalObserver
+from .callbacks import SimulationCallbacks, create_simple_progress_callback, create_performance_callback
 from .headless_runner import (
     HeadlessSimulationRunner,
     run_headless_simulation,
@@ -51,7 +51,9 @@ __all__ = [
     'SnapshotRecord',
     'create_simulation_output',
     'load_simulation_output',
-    'MinimalObserver',
+    'SimulationCallbacks',
+    'create_simple_progress_callback',
+    'create_performance_callback',
     'HeadlessSimulationRunner',
     'run_headless_simulation',
     'run_headless_simulation_no_recording'

@@ -92,7 +92,7 @@ git tag phase2a-prototype-complete -m "Phase 2A: Prototype & benchmark complete"
 
 ## Phase 2B: Recording System Implementation ✅ COMPLETED
 
-**Status**: ✅ **COMPLETED** - Direct recording system implemented with minimal observer approach
+**Status**: ✅ **COMPLETED** - Direct recording system implemented with simple callback approach
 
 ### What Was Implemented:
 
@@ -101,16 +101,20 @@ git tag phase2a-prototype-complete -m "Phase 2A: Prototype & benchmark complete"
 - Direct state capture without event emission overhead
 - Snapshot-based strategy with periodic full state captures
 - Incremental event recording between snapshots
+- Internal state tracking for agent movements and grid changes
 
-**✅ Minimal Observer System**
-- `MinimalObserver` for real-time monitoring only
+**✅ Simple Callback System (Observer System Eliminated)**
+- `SimulationCallbacks` for lightweight real-time monitoring
+- No complex inheritance or circular import issues
 - Progress reporting, performance warnings, error detection
-- Zero overhead for non-critical events
-- Development debugging support when enabled
+- Simple callback registration and execution
+- Built-in progress and performance monitoring callbacks
 
 **✅ Headless Simulation Runner**
 - `HeadlessSimulationRunner` with integrated recording
 - Direct recording without observer system overhead
+- Support for agent position specification
+- Callback-based monitoring during simulation execution
 - Performance monitoring and progress reporting
 - Clean separation from GUI components
 
@@ -161,7 +165,7 @@ git tag phase2a-prototype-complete -m "Phase 2A: Prototype & benchmark complete"
 
 **Goal**: Build system to reconstruct simulation state from direct recording data
 
-**Architecture**: Works with `SimulationOutputFile` from Phase 2B direct recording system
+**Architecture**: Works with `SimulationOutputFile` from Phase 2B direct recording system and `SimulationCallbacks` for real-time monitoring
 
 **Tasks**:
 1. **Create PlaybackEngine class**
@@ -180,18 +184,22 @@ git tag phase2a-prototype-complete -m "Phase 2A: Prototype & benchmark complete"
            self.current_step = 0
            self.current_state: Simulation = None
            self.snapshot_cache: Dict[int, Snapshot] = {}
+           self.callbacks = SimulationCallbacks()  # For playback monitoring
        
        def load_snapshot(self, step: int) -> Simulation:
            # Load nearest snapshot and replay events to target step
            # Uses output_file.get_state_at_step() from Phase 2B
+           # Notifies callbacks of playback progress
        
        def get_state_at_step(self, step: int) -> Simulation:
            # Get complete simulation state at specific step
            # Leverages SimulationOutputFile.snapshots and events
+           # Uses internal state tracking from Phase 2B
        
        def get_events_for_step(self, step: int) -> List[Dict[str, Any]]:
            # Get all events for a specific step
            # Uses output_file.get_events_for_step() from Phase 2B
+           # Includes agent movements and inventory changes from internal tracking
    ```
 
 3. **Implement efficient seeking with snapshot strategy**
@@ -352,10 +360,31 @@ git tag phase2c-playback-complete -m "Phase 2C: PlaybackEngine complete"
            self.playback_controller: PlaybackController = None
            self.current_output_file: SimulationOutputFile = None
            self.output_file_path: str = None
+           self.monitoring_callbacks: SimulationCallbacks = None
            
            # Initially shows "Start Test" button (like current BaseManualTest)
            # After simulation completes, loads output file for playback
            self.setup_playback_ui()
+       
+       def start_test(self):
+           """Run headless simulation with callback monitoring, then load for playback."""
+           # Phase 1: Run headless simulation with callback monitoring
+           self.run_headless_simulation_with_callbacks()
+           
+           # Phase 2: Load output file for playback
+           self.load_playback_file()
+       
+       def run_headless_simulation_with_callbacks(self):
+           """Run simulation headless with callback-based monitoring."""
+           # Create monitoring callbacks for real-time updates
+           self.monitoring_callbacks = SimulationCallbacks()
+           self.monitoring_callbacks.on_progress(self.update_progress_ui)
+           self.monitoring_callbacks.on_error(self.show_error_message)
+           
+           # Run headless simulation with recording
+           runner = HeadlessSimulationRunner(self.config, output_path=self.get_output_path())
+           runner.run(steps=self.config.steps, agent_positions=self.get_agent_positions())
+           self.output_file_path = runner.output_file_path
    ```
 
 3. **Integrate with existing launcher system**
@@ -378,16 +407,15 @@ git tag phase2c-playback-complete -m "Phase 2C: PlaybackEngine complete"
 1. **Create BasePlaybackTest class**
    ```python
    class BasePlaybackTest(BaseManualTest):
-       def __init__(self, config: TestConfiguration, playback_file: str):
+       def __init__(self, config: TestConfiguration):
            super().__init__(config)
-           self.playback_file = playback_file
            self.playback_controller: PlaybackController = None
            self.current_output_file: SimulationOutputFile = None
+           self.monitoring_callbacks: SimulationCallbacks = None
+           self.output_file_path: str = None
            
-           # Load playback file instead of creating simulation
-           self.load_playback_file()
-           
-           # Override UI setup for playback controls
+           # Initially shows "Start Test" button
+           # After simulation completes, loads output file for playback
            self.setup_playback_ui()
    ```
 
@@ -466,6 +494,7 @@ git tag phase2c-playback-complete -m "Phase 2C: PlaybackEngine complete"
            config = self.get_test_config(test_name)
            
            # Always launch BasePlaybackTest (replaces BaseManualTest)
+           # BasePlaybackTest handles: headless simulation → callback monitoring → playback
            from .framework.playback_test import BasePlaybackTest
            test_window = BasePlaybackTest(config)
            
@@ -792,37 +821,60 @@ This approach ensures that users can continue using the familiar `make launcher`
 
 ## Summary of Changes Made
 
+### **Updated for Observer System Elimination (Latest)**
+
+**Observer System Completely Eliminated**:
+- ❌ **REMOVED** - Complex observer inheritance hierarchies (`BaseObserver`, `MinimalObserver`)
+- ❌ **REMOVED** - Circular import conflicts between observer modules
+- ❌ **REMOVED** - Complex event emission and observer registration systems
+- ✅ **REPLACED** - Simple `SimulationCallbacks` for lightweight real-time monitoring
+- ✅ **REPLACED** - Direct recording without observer overhead
+- ✅ **REPLACED** - Clean callback registration and execution
+- ✅ **REPLACED** - Internal state tracking for agent movements and grid changes
+
+**Benefits Achieved**:
+- 🚀 **Simplified Architecture** - No more complex inheritance or circular imports
+- 🚀 **Better Performance** - Direct recording without observer event overhead
+- 🚀 **Easier Maintenance** - Simple callback system is much easier to understand and debug
+- 🚀 **Working Test Suite** - Recording system now works with 30 agents as expected
+- 🚀 **Clean Separation** - Clear distinction between recording and monitoring concerns
+
 ### **Updated for Direct Recording System (Phase 2B)**
 
 **Phase 2B**: Updated to reflect the completed direct recording system implementation:
 - ✅ **COMPLETED** - Direct recording system with `SimulationOutputFile`
-- ✅ **COMPLETED** - Minimal observer system for real-time monitoring
-- ✅ **COMPLETED** - `HeadlessSimulationRunner` with integrated recording
+- ✅ **COMPLETED** - Simple callback system replacing observer system
+- ✅ **COMPLETED** - `HeadlessSimulationRunner` with integrated recording and callback monitoring
 - ✅ **COMPLETED** - Performance targets achieved (< 10% overhead)
 
-**Phase 2C**: Updated to work with direct recording data:
+**Phase 2C**: Updated to work with direct recording data and callback system:
 - `PlaybackEngine` now uses `SimulationOutputFile` from Phase 2B
 - State reconstruction leverages snapshot + event replay strategy
 - VCR controls work with direct recording data
 - Performance optimization targets direct recording format
+- `SimulationCallbacks` integration for playback monitoring
 
-**Phase 2D**: Updated to integrate with direct recording system:
+**Phase 2D**: Updated to integrate with direct recording system and callback monitoring:
 - `BasePlaybackTest` uses `HeadlessSimulationRunner` for headless execution
+- `SimulationCallbacks` for real-time progress updates during headless execution
 - Automatic file management works with `SimulationOutputFile` format
 - Test validation includes binary format error handling
 - File organization optimized for recorded simulation data
 
 ### **Key Architecture Changes**:
 
-1. **Direct Recording**: Eliminated observer system overhead for recording
-2. **Binary Serialization**: Compact storage with snapshot-based reconstruction
-3. **Minimal Observer**: Real-time monitoring without performance impact
-4. **Post-Processing**: Analytics and debugging built from recorded data
-5. **Snapshot Strategy**: Fast seeking with periodic full state captures
+1. **Observer System Elimination**: Completely removed complex observer inheritance hierarchies
+2. **Simple Callback System**: Lightweight `SimulationCallbacks` for real-time monitoring
+3. **Direct Recording**: Eliminated observer system overhead for recording
+4. **Binary Serialization**: Compact storage with snapshot-based reconstruction
+5. **Internal State Tracking**: Agent movements and grid changes tracked internally
+6. **Post-Processing**: Analytics and debugging built from recorded data
+7. **Snapshot Strategy**: Fast seeking with periodic full state captures
 
 ### **Integration Points**:
 - **Phase 2B → 2C**: `SimulationOutputFile` provides data for `PlaybackEngine`
 - **Phase 2B → 2D**: `HeadlessSimulationRunner` generates files for launcher
 - **Phase 2C → 2D**: `PlaybackController` provides callbacks for GUI integration
+- **Callback System**: `SimulationCallbacks` used throughout for monitoring and progress updates
 
-This updated plan ensures all phases work together with the direct recording system architecture implemented in Phase 2B.
+This updated plan ensures all phases work together with the simplified callback-based recording system architecture implemented in Phase 2B, eliminating the complex observer system entirely.

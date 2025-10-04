@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..simulation.world import Simulation
-from .minimal_observer import MinimalObserver
+from .callbacks import SimulationCallbacks, create_simple_progress_callback, create_performance_callback
 from .simulation_output import SimulationOutputFile
 
 try:
@@ -74,6 +74,7 @@ class HeadlessSimulationRunner:
                  snapshot_interval: int = 100,
                  config_hash: str = "",
                  enable_recording: bool = True,
+                 progress_interval: int = 1000,
                  log_level: int = logging.INFO):
         """Initialize headless simulation runner.
         
@@ -83,6 +84,7 @@ class HeadlessSimulationRunner:
             snapshot_interval: Steps between snapshots (default 100)
             config_hash: Configuration hash for validation
             enable_recording: Whether to enable recording (default True)
+            progress_interval: Steps between progress reports (default 1000)
             log_level: Logging level (default INFO)
         """
         self.config = config
@@ -90,11 +92,12 @@ class HeadlessSimulationRunner:
         self.snapshot_interval = snapshot_interval
         self.config_hash = config_hash
         self.enable_recording = enable_recording
+        self.progress_interval = progress_interval
         
         # Simulation state
         self.simulation: Optional[Simulation] = None
         self.output_file: Optional[SimulationOutputFile] = None
-        self.monitoring_observer: Optional[MinimalObserver] = None
+        self.monitoring_callbacks: Optional[SimulationCallbacks] = None
         self.output_file_path: Optional[Path] = None
         
         # Performance tracking
@@ -120,12 +123,13 @@ class HeadlessSimulationRunner:
         if self.snapshot_interval <= 0:
             raise ValueError("Snapshot interval must be positive")
     
-    def run(self, steps: int, seed: Optional[int] = None) -> Dict[str, Any]:
+    def run(self, steps: int, seed: Optional[int] = None, agent_positions: Optional[List[tuple[int, int]]] = None) -> Dict[str, Any]:
         """Run simulation with recording.
         
         Args:
             steps: Number of simulation steps to run
             seed: Optional random seed for deterministic execution
+            agent_positions: Optional list of (x, y) positions for agents
             
         Returns:
             Dictionary with execution results and performance metrics
@@ -142,7 +146,7 @@ class HeadlessSimulationRunner:
         
         try:
             # Create simulation
-            self.simulation = self._create_simulation(seed)
+            self.simulation = self._create_simulation(seed, agent_positions)
             
             # Setup recording and monitoring
             self._setup_recording_and_monitoring()
@@ -168,12 +172,12 @@ class HeadlessSimulationRunner:
         finally:
             self._cleanup()
     
-    def _create_simulation(self, seed: Optional[int]) -> Simulation:
+    def _create_simulation(self, seed: Optional[int], agent_positions: Optional[List[tuple[int, int]]] = None) -> Simulation:
         """Create simulation instance."""
         self.logger.info("Creating simulation instance")
         
-        # Use Simulation.from_config to create simulation
-        simulation = Simulation.from_config(self.config)
+        # Use Simulation.from_config to create simulation with agent positions
+        simulation = Simulation.from_config(self.config, agent_positions=agent_positions)
         
         # Set seed if provided
         if seed is not None:
@@ -201,30 +205,26 @@ class HeadlessSimulationRunner:
             self.output_file_path = self.output_path
             self.logger.info(f"Direct recording enabled: {self.output_path}")
         
-        # Setup minimal monitoring observer
-        self.logger.info("Setting up minimal monitoring")
+        # Setup simple callback monitoring
+        self.logger.info("Setting up simple callback monitoring")
         
-        self.monitoring_observer = MinimalObserver(
-            progress_interval=1000,  # Report every 1000 steps
-            enable_debugging=False,  # Disable detailed debugging for performance
-            enable_performance_monitoring=True,
-            enabled=True
-        )
+        self.monitoring_callbacks = SimulationCallbacks()
         
-        # Register with simulation
-        if self.simulation:
-            self.simulation._observer_registry.register(self.monitoring_observer)
+        # Register progress and performance callbacks
+        if self.progress_interval > 0:
+            self.monitoring_callbacks.on_step(create_simple_progress_callback(self.progress_interval))
+            self.monitoring_callbacks.on_step(create_performance_callback(self.progress_interval))
         
         # Start monitoring (will be updated when we know total steps)
-        self.monitoring_observer.start_monitoring(0)
+        self.monitoring_callbacks.start_monitoring(0)
     
     def _run_simulation_steps(self, steps: int) -> None:
         """Run simulation steps with progress monitoring."""
         self.logger.info(f"Running {steps} simulation steps")
         
         # Update monitoring with correct total steps
-        if self.monitoring_observer:
-            self.monitoring_observer.start_monitoring(steps)
+        if self.monitoring_callbacks:
+            self.monitoring_callbacks.start_monitoring(steps)
         
         # Import RNG for simulation stepping
         import random
@@ -242,6 +242,12 @@ class HeadlessSimulationRunner:
                 # Record step directly if recording enabled
                 if self.output_file:
                     self.output_file.record_step(self.simulation, step)
+                
+                # Notify monitoring callbacks
+                if self.monitoring_callbacks:
+                    self.monitoring_callbacks.notify_step(step)
+                    if step % progress_interval == 0:
+                        self.monitoring_callbacks.notify_progress(step, steps)
         
         self.logger.info(f"Completed {self.total_steps_run} simulation steps")
     
@@ -288,12 +294,13 @@ class HeadlessSimulationRunner:
             })
         
         # Add monitoring metrics if available
-        if self.monitoring_observer:
-            monitoring_stats = self.monitoring_observer.get_monitoring_stats()
+        if self.monitoring_callbacks:
+            monitoring_stats = self.monitoring_callbacks.finish_monitoring()
             metrics.update({
-                'error_count': monitoring_stats.get('error_count', 0),
-                'warning_count': monitoring_stats.get('warning_count', 0),
-                'average_step_time': monitoring_stats.get('average_step_time', 0)
+                'monitoring_time_seconds': monitoring_stats.get('duration_seconds', 0),
+                'monitoring_steps': monitoring_stats.get('total_steps', 0),
+                'monitoring_steps_per_second': monitoring_stats.get('steps_per_second', 0),
+                'monitoring_enabled': monitoring_stats.get('enabled', False)
             })
         
         return metrics
@@ -303,9 +310,9 @@ class HeadlessSimulationRunner:
         if self.output_file:
             self.output_file = None
         
-        if self.monitoring_observer:
-            self.monitoring_observer.close()
-            self.monitoring_observer = None
+        if self.monitoring_callbacks:
+            self.monitoring_callbacks.close()
+            self.monitoring_callbacks = None
         
         self.simulation = None
     
@@ -334,10 +341,10 @@ class HeadlessSimulationRunner:
         Returns:
             Dictionary with monitoring performance metrics
         """
-        if not self.monitoring_observer:
+        if not self.monitoring_callbacks:
             return {}
         
-        return self.monitoring_observer.get_monitoring_stats()
+        return self.monitoring_callbacks.finish_monitoring()
     
     def is_recording_enabled(self) -> bool:
         """Check if recording is enabled.

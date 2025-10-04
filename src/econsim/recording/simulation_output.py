@@ -177,6 +177,10 @@ class SimulationOutputFile:
         # Performance tracking
         self._recording_start_time = 0.0
         self._current_step = 0
+        
+        # State tracking for event capture
+        self._previous_grid_states: Dict[int, Dict[str, Any]] = {}  # step -> grid_state
+        self._previous_agent_states: Dict[int, Dict[str, Any]] = {}  # step -> agent_states
     
     # ============================================================================
     # FILE CREATION AND LOADING
@@ -308,10 +312,19 @@ class SimulationOutputFile:
         events = []
         
         # Capture agent movements and inventory changes
+        current_agent_states = {}
         for agent in simulation.agents:
-            # Check for position changes (simplified - in practice would compare with previous state)
-            if hasattr(agent, '_previous_x') and hasattr(agent, '_previous_y'):
-                if agent.x != agent._previous_x or agent.y != agent._previous_y:
+            current_agent_states[agent.id] = {
+                'x': agent.x,
+                'y': agent.y,
+                'carrying': dict(agent.carrying),
+                'home_inventory': dict(agent.home_inventory)
+            }
+            
+            # Check for position changes
+            if step - 1 in self._previous_agent_states:
+                prev_state = self._previous_agent_states[step - 1].get(agent.id)
+                if prev_state and (agent.x != prev_state['x'] or agent.y != prev_state['y']):
                     events.append({
                         'type': 'agent_move',
                         'step': step,
@@ -320,14 +333,9 @@ class SimulationOutputFile:
                         'y': agent.y,
                         'timestamp': time.time()
                     })
-            
-            # Store current position for next step comparison
-            agent._previous_x = agent.x
-            agent._previous_y = agent.y
-            
-            # Capture inventory changes (simplified)
-            if hasattr(agent, '_previous_carrying'):
-                if agent.carrying != agent._previous_carrying:
+                
+                # Check for inventory changes
+                if prev_state and (agent.carrying != prev_state['carrying'] or agent.home_inventory != prev_state['home_inventory']):
                     events.append({
                         'type': 'inventory_change',
                         'step': step,
@@ -336,26 +344,25 @@ class SimulationOutputFile:
                         'home_inventory': dict(agent.home_inventory),
                         'timestamp': time.time()
                     })
-            
-            # Store current inventories for next step comparison
-            agent._previous_carrying = dict(agent.carrying)
-            agent._previous_home_inventory = dict(agent.home_inventory)
+        
+        # Store current agent states for next step comparison
+        self._previous_agent_states[step] = current_agent_states
         
         # Capture resource changes in grid
-        if hasattr(simulation, '_previous_grid_state'):
-            current_grid_state = self._capture_grid_state(simulation.grid)
-            if current_grid_state != simulation._previous_grid_state:
+        current_grid_state = self._capture_grid_state(simulation.grid)
+        
+        if step - 1 in self._previous_grid_states:
+            previous_grid_state = self._previous_grid_states[step - 1]
+            if current_grid_state != previous_grid_state:
                 events.append({
                     'type': 'grid_change',
                     'step': step,
                     'grid_state': current_grid_state,
                     'timestamp': time.time()
                 })
-            
-            simulation._previous_grid_state = current_grid_state
-        else:
-            # First step - initialize grid state tracking
-            simulation._previous_grid_state = self._capture_grid_state(simulation.grid)
+        
+        # Store current grid state for next step comparison
+        self._previous_grid_states[step] = current_grid_state
         
         # Capture trade highlights if present
         if hasattr(simulation, '_last_trade_highlight') and simulation._last_trade_highlight:
@@ -381,19 +388,14 @@ class SimulationOutputFile:
         Returns:
             Simplified grid state representation
         """
-        # Capture resource positions and types
+        # Capture resource positions and types using Grid API
         resources = []
-        for x in range(grid.width):
-            for y in range(grid.height):
-                cell = grid.get_cell(x, y)
-                if cell and cell.resources:
-                    for resource_type, quantity in cell.resources.items():
-                        resources.append({
-                            'x': x,
-                            'y': y,
-                            'type': resource_type,
-                            'quantity': quantity
-                        })
+        for x, y, resource_type in grid.iter_resources():
+            resources.append({
+                'x': x,
+                'y': y,
+                'type': resource_type
+            })
         
         return {
             'width': grid.width,
