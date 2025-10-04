@@ -43,8 +43,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..simulation.world import Simulation
-from ..simulation.factory import SimulationFactory
-from .recording_observer import RecordingObserver
+from .minimal_observer import MinimalObserver
 from .simulation_output import SimulationOutputFile
 
 try:
@@ -94,7 +93,8 @@ class HeadlessSimulationRunner:
         
         # Simulation state
         self.simulation: Optional[Simulation] = None
-        self.recording_observer: Optional[RecordingObserver] = None
+        self.output_file: Optional[SimulationOutputFile] = None
+        self.monitoring_observer: Optional[MinimalObserver] = None
         self.output_file_path: Optional[Path] = None
         
         # Performance tracking
@@ -144,16 +144,14 @@ class HeadlessSimulationRunner:
             # Create simulation
             self.simulation = self._create_simulation(seed)
             
-            # Setup recording if enabled
-            if self.enable_recording:
-                self._setup_recording()
+            # Setup recording and monitoring
+            self._setup_recording_and_monitoring()
             
             # Run simulation steps
             self._run_simulation_steps(steps)
             
             # Finalize recording
-            if self.enable_recording:
-                self._finalize_recording()
+            self._finalize_recording()
             
             # Calculate performance metrics
             self.end_time = time.time()
@@ -174,42 +172,59 @@ class HeadlessSimulationRunner:
         """Create simulation instance."""
         self.logger.info("Creating simulation instance")
         
-        # Use SimulationFactory to create simulation
-        factory = SimulationFactory()
-        simulation = factory.create_simulation(self.config, seed=seed)
+        # Use Simulation.from_config to create simulation
+        simulation = Simulation.from_config(self.config)
+        
+        # Set seed if provided
+        if seed is not None:
+            import random
+            simulation._rng = random.Random(seed)
         
         self.logger.info(f"Simulation created: {len(simulation.agents)} agents, "
                         f"{simulation.grid.width}x{simulation.grid.height} grid")
         
         return simulation
     
-    def _setup_recording(self) -> None:
-        """Setup recording observer."""
-        if not self.enable_recording:
-            return
+    def _setup_recording_and_monitoring(self) -> None:
+        """Setup direct recording and minimal monitoring."""
+        # Setup direct recording if enabled
+        if self.enable_recording:
+            self.logger.info("Setting up direct recording")
+            
+            # Create simulation output file for direct recording
+            self.output_file = SimulationOutputFile.create(
+                self.output_path,
+                snapshot_interval=self.snapshot_interval,
+                config_hash=self.config_hash
+            )
+            
+            self.output_file_path = self.output_path
+            self.logger.info(f"Direct recording enabled: {self.output_path}")
         
-        self.logger.info("Setting up recording observer")
+        # Setup minimal monitoring observer
+        self.logger.info("Setting up minimal monitoring")
         
-        # Create recording observer
-        self.recording_observer = RecordingObserver(
-            output_path=self.output_path,
-            snapshot_interval=self.snapshot_interval,
-            config_hash=self.config_hash,
+        self.monitoring_observer = MinimalObserver(
+            progress_interval=1000,  # Report every 1000 steps
+            enable_debugging=False,  # Disable detailed debugging for performance
+            enable_performance_monitoring=True,
             enabled=True
         )
         
         # Register with simulation
-        self.simulation._observer_registry.register(self.recording_observer)
+        if self.simulation:
+            self.simulation._observer_registry.register(self.monitoring_observer)
         
-        # Start recording
-        self.recording_observer.start_recording(self.simulation)
-        
-        self.output_file_path = self.output_path
-        self.logger.info(f"Recording enabled: {self.output_path}")
+        # Start monitoring (will be updated when we know total steps)
+        self.monitoring_observer.start_monitoring(0)
     
     def _run_simulation_steps(self, steps: int) -> None:
         """Run simulation steps with progress monitoring."""
         self.logger.info(f"Running {steps} simulation steps")
+        
+        # Update monitoring with correct total steps
+        if self.monitoring_observer:
+            self.monitoring_observer.start_monitoring(steps)
         
         # Import RNG for simulation stepping
         import random
@@ -220,32 +235,32 @@ class HeadlessSimulationRunner:
         
         for step in range(1, steps + 1):
             # Run single step
-            self.simulation.step(rng)
-            self.total_steps_run = step
-            
-            # Progress reporting
-            if step % progress_interval == 0:
-                progress = (step / steps) * 100
-                self.logger.info(f"Progress: {progress:.1f}% ({step}/{steps} steps)")
+            if self.simulation:
+                self.simulation.step(rng)
+                self.total_steps_run = step
+                
+                # Record step directly if recording enabled
+                if self.output_file:
+                    self.output_file.record_step(self.simulation, step)
         
         self.logger.info(f"Completed {self.total_steps_run} simulation steps")
     
     def _finalize_recording(self) -> None:
         """Finalize recording and write to disk."""
-        if not self.recording_observer:
+        if not self.output_file:
             return
         
         self.logger.info("Finalizing recording")
         
-        # Finalize recording observer
-        self.recording_observer.finalize_recording()
+        # Finalize simulation output file
+        self.output_file.finalize_recording()
         
         # Get recording statistics
-        stats = self.recording_observer.get_recording_stats()
+        file_info = self.output_file.get_file_info()
         
-        self.logger.info(f"Recording finalized: {stats['file_size_bytes']} bytes, "
-                        f"{stats['snapshot_count']} snapshots, "
-                        f"{stats['event_count']} events")
+        self.logger.info(f"Recording finalized: {file_info['file_size_bytes']} bytes, "
+                        f"{file_info['snapshot_count']} snapshots, "
+                        f"{file_info['event_count']} events")
     
     def _calculate_metrics(self) -> Dict[str, Any]:
         """Calculate performance metrics."""
@@ -262,23 +277,35 @@ class HeadlessSimulationRunner:
         }
         
         # Add recording metrics if available
-        if self.recording_observer:
-            recording_stats = self.recording_observer.get_recording_stats()
+        if self.output_file:
+            file_info = self.output_file.get_file_info()
             metrics.update({
-                'recording_time_seconds': recording_stats.get('recording_time_seconds', 0),
-                'file_size_bytes': recording_stats.get('file_size_bytes', 0),
-                'snapshot_count': recording_stats.get('snapshot_count', 0),
-                'event_count': recording_stats.get('event_count', 0),
-                'snapshot_interval': recording_stats.get('snapshot_interval', 0)
+                'recording_time_seconds': file_info.get('recording_duration', 0),
+                'file_size_bytes': file_info.get('file_size_bytes', 0),
+                'snapshot_count': file_info.get('snapshot_count', 0),
+                'event_count': file_info.get('event_count', 0),
+                'snapshot_interval': file_info.get('snapshot_interval', 0)
+            })
+        
+        # Add monitoring metrics if available
+        if self.monitoring_observer:
+            monitoring_stats = self.monitoring_observer.get_monitoring_stats()
+            metrics.update({
+                'error_count': monitoring_stats.get('error_count', 0),
+                'warning_count': monitoring_stats.get('warning_count', 0),
+                'average_step_time': monitoring_stats.get('average_step_time', 0)
             })
         
         return metrics
     
     def _cleanup(self) -> None:
         """Clean up resources."""
-        if self.recording_observer:
-            self.recording_observer.close()
-            self.recording_observer = None
+        if self.output_file:
+            self.output_file = None
+        
+        if self.monitoring_observer:
+            self.monitoring_observer.close()
+            self.monitoring_observer = None
         
         self.simulation = None
     
@@ -296,10 +323,21 @@ class HeadlessSimulationRunner:
         Returns:
             Dictionary with recording performance metrics
         """
-        if not self.recording_observer:
+        if not self.output_file:
             return {}
         
-        return self.recording_observer.get_recording_stats()
+        return self.output_file.get_file_info()
+    
+    def get_monitoring_stats(self) -> Dict[str, Any]:
+        """Get monitoring statistics.
+        
+        Returns:
+            Dictionary with monitoring performance metrics
+        """
+        if not self.monitoring_observer:
+            return {}
+        
+        return self.monitoring_observer.get_monitoring_stats()
     
     def is_recording_enabled(self) -> bool:
         """Check if recording is enabled.
@@ -307,7 +345,7 @@ class HeadlessSimulationRunner:
         Returns:
             True if recording is enabled
         """
-        return self.enable_recording and self.recording_observer is not None
+        return self.enable_recording and self.output_file is not None
     
     def __repr__(self) -> str:
         """String representation of runner."""

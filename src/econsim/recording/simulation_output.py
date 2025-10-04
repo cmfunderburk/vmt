@@ -254,12 +254,12 @@ class SimulationOutputFile:
     # RECORDING METHODS
     # ============================================================================
     
-    def record_step(self, simulation: Simulation, events: List[Dict[str, Any]]) -> None:
-        """Record a single simulation step.
+    def record_step(self, simulation: Simulation, step_number: int) -> None:
+        """Record a single simulation step with direct state capture.
         
         Args:
             simulation: Current simulation state
-            events: List of events that occurred this step
+            step_number: Current step number
         """
         if not self._write_mode:
             raise RuntimeError("Cannot record to file opened in read mode")
@@ -268,31 +268,138 @@ class SimulationOutputFile:
             raise RuntimeError("File not initialized for recording")
         
         # Update header with simulation info
-        if self._current_step == 0:
+        if step_number == 1:
             self.header.agent_count = len(simulation.agents)
             self.header.grid_width = simulation.grid.width
             self.header.grid_height = simulation.grid.height
         
-        # Record events
-        self.events.extend(events)
-        self._current_step = simulation.steps
+        # Capture essential state changes directly from simulation
+        step_events = self._capture_step_events(simulation, step_number)
+        self.events.extend(step_events)
+        self._current_step = step_number
         
         # Take snapshot if interval reached
-        if (self._current_step % self.header.snapshot_interval == 0 or 
-            self._current_step == 1):  # Always snapshot first step
+        if (step_number % self.header.snapshot_interval == 0 or 
+            step_number == 1):  # Always snapshot first step
             
             snapshot = take_snapshot(simulation)
             record = SnapshotRecord(
-                step=self._current_step,
+                step=step_number,
                 snapshot=snapshot,
-                event_count_before=len(self.events) - len(events)
+                event_count_before=len(self.events) - len(step_events)
             )
             self.snapshot_records.append(record)
             self.header.snapshot_count += 1
         
         # Update header
-        self.header.total_steps = self._current_step
+        self.header.total_steps = step_number
         self.header.event_count = len(self.events)
+    
+    def _capture_step_events(self, simulation: Simulation, step: int) -> List[Dict[str, Any]]:
+        """Capture essential state changes directly from simulation state.
+        
+        Args:
+            simulation: Current simulation state
+            step: Current step number
+            
+        Returns:
+            List of events representing state changes
+        """
+        events = []
+        
+        # Capture agent movements and inventory changes
+        for agent in simulation.agents:
+            # Check for position changes (simplified - in practice would compare with previous state)
+            if hasattr(agent, '_previous_x') and hasattr(agent, '_previous_y'):
+                if agent.x != agent._previous_x or agent.y != agent._previous_y:
+                    events.append({
+                        'type': 'agent_move',
+                        'step': step,
+                        'agent_id': agent.id,
+                        'x': agent.x,
+                        'y': agent.y,
+                        'timestamp': time.time()
+                    })
+            
+            # Store current position for next step comparison
+            agent._previous_x = agent.x
+            agent._previous_y = agent.y
+            
+            # Capture inventory changes (simplified)
+            if hasattr(agent, '_previous_carrying'):
+                if agent.carrying != agent._previous_carrying:
+                    events.append({
+                        'type': 'inventory_change',
+                        'step': step,
+                        'agent_id': agent.id,
+                        'carrying': dict(agent.carrying),
+                        'home_inventory': dict(agent.home_inventory),
+                        'timestamp': time.time()
+                    })
+            
+            # Store current inventories for next step comparison
+            agent._previous_carrying = dict(agent.carrying)
+            agent._previous_home_inventory = dict(agent.home_inventory)
+        
+        # Capture resource changes in grid
+        if hasattr(simulation, '_previous_grid_state'):
+            current_grid_state = self._capture_grid_state(simulation.grid)
+            if current_grid_state != simulation._previous_grid_state:
+                events.append({
+                    'type': 'grid_change',
+                    'step': step,
+                    'grid_state': current_grid_state,
+                    'timestamp': time.time()
+                })
+            
+            simulation._previous_grid_state = current_grid_state
+        else:
+            # First step - initialize grid state tracking
+            simulation._previous_grid_state = self._capture_grid_state(simulation.grid)
+        
+        # Capture trade highlights if present
+        if hasattr(simulation, '_last_trade_highlight') and simulation._last_trade_highlight:
+            x, y, expire_step = simulation._last_trade_highlight
+            if step <= expire_step:
+                events.append({
+                    'type': 'trade_highlight',
+                    'step': step,
+                    'position_x': x,
+                    'position_y': y,
+                    'expire_step': expire_step,
+                    'timestamp': time.time()
+                })
+        
+        return events
+    
+    def _capture_grid_state(self, grid) -> Dict[str, Any]:
+        """Capture essential grid state for change detection.
+        
+        Args:
+            grid: Simulation grid
+            
+        Returns:
+            Simplified grid state representation
+        """
+        # Capture resource positions and types
+        resources = []
+        for x in range(grid.width):
+            for y in range(grid.height):
+                cell = grid.get_cell(x, y)
+                if cell and cell.resources:
+                    for resource_type, quantity in cell.resources.items():
+                        resources.append({
+                            'x': x,
+                            'y': y,
+                            'type': resource_type,
+                            'quantity': quantity
+                        })
+        
+        return {
+            'width': grid.width,
+            'height': grid.height,
+            'resources': resources
+        }
     
     def finalize_recording(self) -> None:
         """Finalize recording and write to disk.

@@ -38,7 +38,7 @@ from .simulation_output import (
     load_simulation_output
 )
 
-from .recording_observer import RecordingObserver
+from .minimal_observer import MinimalObserver
 from .headless_runner import (
     HeadlessSimulationRunner,
     run_headless_simulation,
@@ -51,7 +51,7 @@ __all__ = [
     'SnapshotRecord',
     'create_simulation_output',
     'load_simulation_output',
-    'RecordingObserver',
+    'MinimalObserver',
     'HeadlessSimulationRunner',
     'run_headless_simulation',
     'run_headless_simulation_no_recording'
