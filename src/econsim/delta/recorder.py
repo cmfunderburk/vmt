@@ -368,12 +368,34 @@ class ComprehensiveDeltaRecorder:
             self._last_agent_bundles[agent_id] = current_bundle
             self._last_agent_states[agent_id] = any(count > 0 for count in carrying.values()) if carrying else False
         
-        # Create visual delta
+        # Track resource changes for visual playback
+        resource_changes = []
+        current_resources = {}
+        try:
+            for x, y, resource_type in simulation.grid.iter_resources():
+                current_resources[(x, y)] = str(resource_type)
+        except Exception:
+            pass
+        
+        # Find resource changes (additions, removals, type changes)
+        all_resource_positions = set(self._last_resources.keys()) | set(current_resources.keys())
+        for pos in all_resource_positions:
+            old_type = self._last_resources.get(pos)
+            new_type = current_resources.get(pos)
+            
+            if old_type != new_type:
+                # Record change: (x, y, new_type_or_None)
+                resource_changes.append((pos[0], pos[1], new_type))
+        
+        # Update tracking state for next step
+        self._last_resources = current_resources
+        
+        # Create visual delta with resource changes included
         visual_delta = VisualDelta(
             step=step,
             agent_moves=visual_moves,
             agent_state_changes=visual_state_changes,
-            resource_changes=[]  # Resource changes are handled separately
+            resource_changes=resource_changes
         )
         
         return visual_delta, agent_moves, agent_mode_changes, agent_inventory_changes, agent_target_changes, agent_utility_changes
