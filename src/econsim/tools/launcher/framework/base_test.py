@@ -7,11 +7,14 @@ Provides common functionality extracted from existing tests.
 import sys
 import os
 import random
+import tempfile
+import time
+from pathlib import Path
 
 # Add src to Python path  
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from PyQt6.QtCore import QTimer
 
 from .test_configs import TestConfiguration
@@ -19,6 +22,10 @@ from .ui_components import TestLayout
 from .debug_orchestrator import DebugOrchestrator
 from .phase_manager import PhaseManager
 from .simulation_factory import SimulationFactory
+
+# Phase 2 imports - Delta system
+from econsim.recording import HeadlessSimulationRunner
+from econsim.visual import VisualDeltaRecorder, DeltaPlaybackController
 
 
 class BaseManualTest(QWidget):
@@ -43,6 +50,10 @@ class BaseManualTest(QWidget):
         self.setup_debug_orchestrator() 
         self.setup_timers()
         
+        # Phase 2: Delta system state
+        self.delta_controller: DeltaPlaybackController = None
+        self.delta_file_path: str = None
+        
         # Store batch mode flag for use in showEvent
         import os
         self.batch_mode = os.environ.get('ECONSIM_BATCH_UNLIMITED_SPEED') == '1'
@@ -57,7 +68,10 @@ class BaseManualTest(QWidget):
         
         # Create main layout using TestLayout component
         self.test_layout = TestLayout(self.config)
-        self.setLayout(self.test_layout)
+        # TestLayout is now a QWidget, so we need to add it as a widget, not set it as a layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.test_layout)
+        self.setLayout(layout)
         
         # Connect control panel signals
         self.test_layout.control_panel.start_button.clicked.connect(self.start_test)
@@ -67,13 +81,12 @@ class BaseManualTest(QWidget):
         """Configure debug logging for this test."""
         self.debug_orchestrator = DebugOrchestrator(self.config)
         
-    def setup_timers(self):
-        """Setup simulation and debug update timers."""
-        # Timer for simulation steps
-        self.step_timer = QTimer()
-        self.step_timer.timeout.connect(self.simulation_step)
-        
         # Debug timer is handled by the debug panel
+        
+    def setup_timers(self):
+        """Setup timers for playback controls."""
+        # No continuous timer needed - updates happen on step changes via callbacks
+        pass
         
     def showEvent(self, event):
         """Override showEvent to auto-start in batch mode after GUI is visible."""
@@ -116,58 +129,25 @@ class BaseManualTest(QWidget):
             traceback.print_exc()
         
     def start_test(self):
-        """Initialize and start the test simulation."""
+        """Run headless simulation with delta recording, then load for playback."""
         try:
-            # Create simulation using factory
-            self.simulation = SimulationFactory.create_simulation(self.config)
+            # Phase 1: Run headless simulation with delta recording
+            self.log_status("🚀 Starting headless simulation with delta recording...")
+            self.run_headless_simulation_with_deltas()
             
-            # Create pygame widget in RENDER-ONLY mode (test framework drives simulation)
-            from econsim.gui.embedded_pygame import EmbeddedPygameWidget
-            self.pygame_widget = EmbeddedPygameWidget(
-                drive_simulation=False  # Render only - framework drives simulation
-            )
-            # TODO: Phase 2 - widget will receive simulation state via observers
-            self.pygame_widget.setFixedSize(self.config.viewport_size, self.config.viewport_size)
+            # Phase 2: Load delta file for playback
+            self.log_status("📁 Loading visual deltas...")
+            self.load_delta_file()
             
-            # Replace placeholder in layout
-            self.test_layout.replace_viewport(self.pygame_widget)
+            # Phase 3: Setup playback controls
+            self.log_status("🎮 Setting up playback controls...")
+            self.setup_playback_controls()
             
-            # Reset counters
-            self.current_turn = 0
-            self.phase = 1
-            
-            # Reset turn rate tracking
-            from time import perf_counter
-            self.turn_rate_start_time = perf_counter()
-            self.turn_rate_start_turn = 0
-            self.current_turn_rate = 0.0
-            
-            # Update UI
-            self.test_layout.control_panel.start_button.setText("Test Running...")
-            self.test_layout.control_panel.start_button.setEnabled(False)
-            self.update_display()
-            
-            # Start timer with selected speed (or unlimited if in batch mode)
-            from .test_utils import get_timer_interval
-            import os
-            
-            # Check if running in batch mode with unlimited speed
-            if os.environ.get('ECONSIM_BATCH_UNLIMITED_SPEED') == '1':
-                # Force unlimited speed for batch processing
-                speed_index = 4  # Unlimited speed index
-                self.test_layout.control_panel.speed_combo.setCurrentIndex(4)
-                print("🚀 Batch mode detected - running at unlimited speed for efficiency")
-            else:
-                speed_index = self.test_layout.control_panel.speed_combo.currentIndex()
-            
-            self.step_timer.start(get_timer_interval(speed_index))
-            
-            print(f"✅ Test {self.config.id} started! Simulation created with {len(self.simulation.agents)} agents")
-            print("Phase 1: Both foraging and exchange enabled (turns 1-200)")
-            print("🎮 Watch the pygame viewport to observe agent behavior!")
+            print(f"✅ Test {self.config.id} completed! Headless simulation → Delta playback ready")
+            print("🎮 Use playback controls to watch recorded simulation!")
             
         except Exception as e:
-            print(f"❌ Error starting test: {e}")
+            print(f"❌ Error in test workflow: {e}")
             import traceback
             traceback.print_exc()
     
@@ -402,6 +382,228 @@ class BaseManualTest(QWidget):
         
         # Update status display to reflect new speed
         self.update_display()
+    
+    def run_headless_simulation_with_deltas(self):
+        """Run simulation headless with visual delta recording."""
+        # Generate delta file path
+        with tempfile.NamedTemporaryFile(suffix='.delta', delete=False) as tmp_file:
+            self.delta_file_path = tmp_file.name
+        
+        # Convert TestConfiguration to SimConfig
+        sim_config = self._convert_to_sim_config()
+        
+        # Generate agent positions
+        agent_positions = self._generate_agent_positions()
+        
+        # Create visual delta recorder
+        delta_recorder = VisualDeltaRecorder(self.delta_file_path)
+        
+        # Create simulation using the factory
+        simulation = SimulationFactory.create_simulation(self.config)
+        
+        # Record initial state
+        delta_recorder.record_initial_state(simulation)
+        
+        # Run simulation with delta recording
+        total_turns = self.get_total_turns()
+        start_time = time.time()
+        
+        print(f"🎬 Recording visual deltas for {total_turns} steps...")
+        
+        for step in range(1, total_turns + 1):
+            # Step simulation
+            simulation.step(random.Random(self.config.seed + step))
+            
+            # Record visual delta
+            delta_recorder.record_step(simulation, step)
+            
+            # Progress update
+            if step % 100 == 0:
+                print(f"  📊 Step {step}/{total_turns}")
+        
+        # Save deltas
+        delta_recorder.save_deltas()
+        
+        end_time = time.time()
+        print(f"✅ Headless simulation with delta recording completed: {end_time - start_time:.2f}s")
+        print(f"📁 Visual deltas saved to: {self.delta_file_path}")
+    
+    def load_delta_file(self):
+        """Load visual deltas for playback."""
+        if not self.delta_file_path or not Path(self.delta_file_path).exists():
+            raise RuntimeError("No visual delta file found")
+        
+        # Prevent multiple loads
+        if hasattr(self, 'delta_controller') and self.delta_controller:
+            print("📁 Delta file already loaded, skipping...")
+            return
+        
+        print(f"📁 Loading delta file: {self.delta_file_path}")
+        print(f"📊 File size: {os.path.getsize(self.delta_file_path)} bytes")
+        
+        # Load delta controller
+        print("🔄 Loading DeltaPlaybackController...")
+        load_start = time.time()
+        self.delta_controller = DeltaPlaybackController.load_from_file(self.delta_file_path)
+        load_end = time.time()
+        print(f"✅ DeltaPlaybackController loaded in {load_end - load_start:.2f}s")
+        
+        # Initialize to step 0
+        print("🔄 Initializing delta playback to step 0...")
+        init_start = time.time()
+        self.delta_controller.seek_to_step(0)
+        init_end = time.time()
+        print(f"✅ Delta playback initialized in {init_end - init_start:.2f}s")
+        
+        # Create pygame widget for delta rendering (only if not already created)
+        if not hasattr(self, 'pygame_widget') or not self.pygame_widget:
+            from econsim.gui.embedded_pygame_delta import EmbeddedPygameWidget
+            self.pygame_widget = EmbeddedPygameWidget(
+                delta_controller=self.delta_controller
+            )
+            self.pygame_widget.setFixedSize(self.config.viewport_size, self.config.viewport_size)
+            
+            # Replace placeholder in layout
+            self.test_layout.replace_viewport(self.pygame_widget)
+        else:
+            # Update existing widget's delta controller
+            self.pygame_widget.delta_controller = self.delta_controller
+        
+        print(f"📁 Loaded delta file: {self.delta_controller.get_total_steps()} steps")
+    
+    def setup_playback_controls(self):
+        """Setup VCR-style playback controls."""
+        # Show the playback controls beneath the pygame window
+        self.test_layout.show_playback_controls()
+        
+        # Connect playback control buttons
+        playback_controls = self.test_layout.playback_controls
+        playback_controls.play_button.clicked.connect(self.toggle_playback)
+        playback_controls.rewind_button.clicked.connect(self.rewind_playback)
+        playback_controls.fast_forward_button.clicked.connect(self.fast_forward_playback)
+        playback_controls.speed_combo.currentIndexChanged.connect(self.on_playback_speed_changed)
+        
+        # Connect delta controller callbacks to update GUI
+        self.delta_controller.add_step_callback(self.on_delta_step_changed)
+        self.delta_controller.add_state_change_callback(self.on_delta_state_changed)
+        
+        # Update display to show playback state
+        self.update_playback_display()
+        
+        print("🎮 Playback controls ready - use VCR controls to watch simulation")
+    
+    def toggle_playback(self):
+        """Toggle playback play/pause."""
+        if self.delta_controller.is_playing():
+            self.delta_controller.pause()
+        else:
+            self.delta_controller.play()
+    
+    def rewind_playback(self):
+        """Rewind playback to the beginning."""
+        self.delta_controller.seek_to_step(0)
+    
+    def fast_forward_playback(self):
+        """Fast forward playback to the end."""
+        total_steps = self.delta_controller.get_total_steps()
+        self.delta_controller.seek_to_step(total_steps)
+    
+    def on_playback_speed_changed(self, index: int):
+        """Handle playback speed change."""
+        speed_map = [2.0, 8.0, 20.0, 0]  # 0 = unlimited
+        speed = speed_map[index]
+        self.delta_controller.set_playback_speed(speed)
+        
+        # Update status
+        speed_names = ["2 steps/sec", "8 steps/sec", "20 steps/sec", "Unlimited"]
+        print(f"🎬 Playback speed changed to: {speed_names[index]}")
+    
+    def on_delta_step_changed(self, step: int, visual_state):
+        """Called when playback advances to a new step."""
+        # Update pygame widget for this specific step
+        if hasattr(self, 'pygame_widget') and self.pygame_widget:
+            self.pygame_widget.update_for_step(step)
+        
+        # Update the UI display
+        self.update_playback_display()
+    
+    def on_delta_state_changed(self, state):
+        """Called when playback state changes (play/pause/stop)."""
+        # Update playback controls display
+        playback_controls = self.test_layout.playback_controls
+        current_step = self.delta_controller.get_current_step()
+        total_steps = self.delta_controller.get_total_steps()
+        playback_controls.update_progress(current_step, total_steps, state.is_playing)
+        
+        # Update display
+        self.update_playback_display()
+    
+    def update_playback_display(self):
+        """Update UI display with current playback state."""
+        if not self.delta_controller:
+            return
+            
+        current_step = self.delta_controller.get_current_step()
+        total_steps = self.delta_controller.get_total_steps()
+        progress = (current_step / max(1, total_steps)) * 100 if total_steps > 0 else 0
+        
+        # Update control panel with playback state
+        self.test_layout.control_panel.update_display(
+            turn=current_step,
+            phase=1,  # Phase tracking would need to be reconstructed from playback
+            agent_count=self.config.agent_count,  # Static from config
+            resource_count=0,  # Would need to be reconstructed from playback
+            phase_manager=None,
+            turn_rate=0.0  # Playback rate, not simulation rate
+        )
+        
+        # Update status text
+        status = f"Playback: Step {current_step}/{total_steps} ({progress:.1f}%)"
+        self.test_layout.control_panel.status_text.setText(status)
+        
+        # Update playback controls progress
+        if hasattr(self.test_layout, 'playback_controls'):
+            playback_controls = self.test_layout.playback_controls
+            is_playing = self.delta_controller.is_playing()
+            playback_controls.update_progress(current_step, total_steps, is_playing)
+    
+    def _convert_to_sim_config(self):
+        """Convert TestConfiguration to SimConfig for HeadlessSimulationRunner."""
+        from econsim.simulation.config import SimConfig
+        
+        # Generate resources using existing factory logic
+        resources = SimulationFactory._generate_resources(self.config)
+        
+        return SimConfig(
+            grid_size=self.config.grid_size,
+            initial_resources=resources,
+            seed=self.config.seed,
+            enable_respawn=True,
+            enable_metrics=True,
+            perception_radius=self.config.perception_radius,
+            respawn_target_density=self.config.resource_density,
+            respawn_rate=0.25,
+            distance_scaling_factor=getattr(self.config, 'distance_scaling_factor', 0.0),
+            viewport_size=self.config.viewport_size
+        )
+    
+    def _generate_agent_positions(self):
+        """Generate agent positions for the simulation."""
+        agent_positions = []
+        rng = random.Random(self.config.seed)
+        
+        for i in range(self.config.agent_count):
+            x = rng.randint(0, self.config.grid_size[0] - 1)
+            y = rng.randint(0, self.config.grid_size[1] - 1)
+            agent_positions.append((x, y))
+        
+        return agent_positions
+    
+    def log_status(self, message: str):
+        """Log status message and update UI."""
+        print(message)
+        if hasattr(self, 'test_layout') and hasattr(self.test_layout, 'control_panel'):
+            self.test_layout.control_panel.status_text.setText(message)
 
 
 class StandardPhaseTest(BaseManualTest):

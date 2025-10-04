@@ -71,7 +71,7 @@ class PlaybackEngine:
             current_step=0,
             total_steps=output_file.header.total_steps,
             is_playing=False,
-            playback_speed=1.0,
+            playback_speed=2.0,  # Default to 2 steps per second
             is_at_end=False
         )
         
@@ -87,6 +87,10 @@ class PlaybackEngine:
         
         # Performance tracking
         self._last_step_time = 0.0
+        
+        # Cached simulation state for efficient incremental playback
+        self._cached_simulation: Optional[Simulation] = None
+        self._cached_step: int = 0
         self._step_times: list[float] = []
         
     @classmethod
@@ -147,6 +151,10 @@ class PlaybackEngine:
             old_step = self.state.current_step
             self.state.current_step = step
             self.state.is_at_end = (step == self.state.total_steps)
+            
+            # Cache the simulation state for efficient playback
+            self._cached_simulation = simulation
+            self._cached_step = step
             
             # Notify callbacks
             self._notify_step_callbacks(step, simulation)
@@ -249,24 +257,27 @@ class PlaybackEngine:
             while not self._stop_playback.is_set() and not self.state.is_at_end:
                 loop_start = time.time()
                 
-                # Step forward
+                # Step forward efficiently without expensive reconstruction
                 try:
-                    self.seek_to_step(self.state.current_step + 1)
+                    self._step_forward_efficient()
                 except ValueError:
                     # Reached the end
                     break
                 
                 # Calculate sleep time based on playback speed
-                target_step_duration = 1.0 / self.state.playback_speed  # seconds per step
-                elapsed = time.time() - loop_start
-                sleep_time = max(0, target_step_duration - elapsed)
-                
-                if sleep_time > 0 and not self._stop_playback.wait(sleep_time):
-                    # Sleep completed normally
-                    continue
-                else:
-                    # Sleep was interrupted or no sleep needed
-                    break
+                # For unlimited speed, only sleep if speed is limited
+                if self.state.playback_speed > 0:
+                    target_step_duration = 1.0 / self.state.playback_speed
+                    elapsed = time.time() - loop_start
+                    sleep_time = max(0, target_step_duration - elapsed)
+                    
+                    if sleep_time > 0 and not self._stop_playback.wait(sleep_time):
+                        # Sleep completed normally
+                        continue
+                    else:
+                        # Sleep was interrupted or no sleep needed
+                        break
+                # For unlimited speed (playback_speed <= 0), don't sleep at all
                     
         except Exception as e:
             self._notify_error_callbacks(f"Playback error: {e}")
@@ -275,6 +286,45 @@ class PlaybackEngine:
             with self._playback_lock:
                 self.state.is_playing = False
                 self._notify_state_change_callbacks()
+    
+    def _step_forward_efficient(self) -> None:
+        """Step forward efficiently by caching reconstruction results."""
+        if self.state.is_at_end:
+            raise ValueError("Already at the end of simulation")
+        
+        next_step = self.state.current_step + 1
+        
+        # Check if we can use cached result
+        if (self._cached_simulation and 
+            self._cached_step == self.state.current_step and 
+            next_step <= self.state.total_steps):
+            
+            # We already have the simulation state for current step
+            # Just do a quick reconstruction for the next step
+            try:
+                # Use the reconstructor but with caching
+                simulation, _ = self.reconstructor.reconstruct_state_at_step(next_step)
+                
+                # Update state
+                self.state.current_step = next_step
+                self.state.is_at_end = (next_step == self.state.total_steps)
+                
+                # Cache the new simulation state
+                self._cached_simulation = simulation
+                self._cached_step = next_step
+                
+                # Notify callbacks
+                self._notify_step_callbacks(next_step, simulation)
+                self._notify_state_change_callbacks()
+                
+                return
+                
+            except Exception:
+                # Fall back to full seek_to_step if reconstruction fails
+                pass
+        
+        # Fall back to full reconstruction (this will also cache the result)
+        self.seek_to_step(next_step)
     
     def _notify_step_callbacks(self, step: int, simulation: Simulation) -> None:
         """Notify step callbacks of a step change."""

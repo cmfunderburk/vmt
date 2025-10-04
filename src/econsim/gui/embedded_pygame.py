@@ -21,6 +21,8 @@ from PyQt6.QtWidgets import QWidget
 import logging
 
 from .utils import format_agent_id
+from ..visual.delta_controller import DeltaPlaybackController
+from ..visual.visual_delta import VisualState
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -42,12 +44,13 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         parent: QWidget | None = None,
         *,
         drive_simulation: bool = True,
+        delta_controller: DeltaPlaybackController = None,
     ) -> None:
         super().__init__(parent)
-        # TODO: Phase 2 - widget will receive simulation state via observers
-        # For now, widget is render-only with no simulation dependency
+        # Store delta controller for visual playback
+        self.delta_controller: DeltaPlaybackController = delta_controller
         self._simulation: _SimulationProto | None = None
-        self._sim_rng = None  # TODO: Phase 2 - will be removed when using observers
+        self._sim_rng = None
         # self.controller: "SimulationController | None" = None  # TODO: Phase 1B - remove simulation controller coupling
         
         # Control whether widget drives simulation or only renders
@@ -197,6 +200,17 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
                     pass
             self._fps_last_report = now
 
+    def _trigger_update(self) -> None:
+        """Force an immediate update of the pygame rendering."""
+        # Clear the last rendered step to force a refresh
+        if hasattr(self, '_last_rendered_step'):
+            delattr(self, '_last_rendered_step')
+        # Clear cached simulation to force fresh data from playback controller
+        if hasattr(self, '_cached_simulation'):
+            delattr(self, '_cached_simulation')
+        # Force immediate repaint
+        self.update()
+    
     def _update_scene(self) -> None:
         # Skip rendering if widget closed, surface gone, or pygame torn down (prevents race in mass test runs).
         if getattr(self, "_closed", False):
@@ -233,7 +247,100 @@ class EmbeddedPygameWidget(QWidget):  # pragma: no cover (GUI, smoke tested sepa
         # TODO: Phase 2 - will receive simulation state via observers
         # For now, render static scene without simulation data
         sim = None  # placeholder - will be replaced with observer data in Phase 2
-        if False:  # disabled simulation rendering until Phase 2
+        
+        # Handle delta controller if available
+        if self.delta_controller:
+            try:
+                # Get current step to check if we need to update
+                current_step = self.delta_controller.get_current_step()
+                
+                # Only update simulation state if step changed (avoid expensive reconstruction)
+                if not hasattr(self, '_last_rendered_step') or self._last_rendered_step != current_step:
+                    # Get current visual state from delta controller
+                    visual_state = self.delta_controller.get_visual_state()
+                    if visual_state:
+                        self._last_rendered_step = current_step
+                        # Render visual state directly
+                        self._render_visual_state(surf, visual_state)
+                    # Enable rendering for playback - copy simulation rendering logic
+                    # Scaling: map simulation grid to surface; simple uniform scale (integer) or fallback 1.
+                    grid = getattr(sim, "grid", None)
+                    if grid:
+                        gw = getattr(grid, "width", 1)
+                        gh = getattr(grid, "height", 1)
+                        # Determine provisional cell size (fit entire grid height/width independently), then
+                        # enforce square cells by taking the smaller dimension to avoid stretching.
+                        # This preserves determinism (pure arithmetic) and avoids reallocating the surface.
+                        cell_w = max(2, w // max(1, gw))
+                        cell_h = max(2, h // max(1, gh))
+                        cell_size = min(cell_w, cell_h)
+                        cell_w = cell_h = cell_size
+                        # Note: This may leave un-used margin on one axis; we keep it blank (no centering) to
+                        # minimize per-frame math and preserve existing coordinate mapping semantics.
+                        # Optional grid lines - phase out legacy flag in favor of overlay_state.show_grid
+                        overlay_state = getattr(self, "overlay_state", None)
+                        use_grid = False
+                        if overlay_state is not None:
+                            use_grid = getattr(overlay_state, "show_grid", False)
+                        else:
+                            use_grid = getattr(self, "show_grid_lines", False)
+                        if use_grid:
+                            line_color = (40, 40, 40)
+                            # Vertical lines
+                            for gx in range(gw + 1):
+                                x_pix = gx * cell_w
+                                pygame.draw.line(surf, line_color, (x_pix, 0), (x_pix, gh * cell_h), 1)
+                            # Horizontal lines
+                            for gy in range(gh + 1):
+                                y_pix = gy * cell_h
+                                pygame.draw.line(surf, line_color, (0, y_pix), (gw * cell_w, y_pix), 1)
+                        # Resource color map
+                        RES_COLORS = {
+                            "A": (240, 240, 60),  # yellowish
+                            "B": (60, 200, 255),  # cyan
+                        }
+                        # Draw resources
+                        try:
+                            for rx, ry, rtype in grid.iter_resources():  # type: ignore[attr-defined]
+                                sprite_key = f"resource_{rtype}"
+                                if sprite_key in self._sprites:
+                                    # Use sprite
+                                    sprite = self._sprites[sprite_key]
+                                    # Scale sprite to fit cell size
+                                    scaled_sprite = pygame.transform.scale(sprite, (cell_w, cell_h))
+                                    surf.blit(scaled_sprite, (rx * cell_w, ry * cell_h))
+                                else:
+                                    # Fallback to colored rectangle
+                                    color = RES_COLORS.get(str(rtype), (200, 200, 200))
+                                    pygame.draw.rect(surf, color, pygame.Rect(rx * cell_w, ry * cell_h, cell_w, cell_h))
+                        except Exception as e:
+                            print(f"Warning: Error drawing resources: {e}")
+                        
+                        # Draw agents
+                        try:
+                            for agent in getattr(sim, "agents", []):
+                                ax, ay = agent.x, agent.y
+                                # Agent color based on carrying items
+                                if hasattr(agent, 'carrying') and agent.carrying:
+                                    # Agent carrying something - green tint
+                                    agent_color = (100, 255, 100)
+                                else:
+                                    # Empty agent - blue tint
+                                    agent_color = (100, 100, 255)
+                                
+                                # Draw agent as circle
+                                center_x = ax * cell_w + cell_w // 2
+                                center_y = ay * cell_h + cell_h // 2
+                                radius = min(cell_w, cell_h) // 3
+                                pygame.draw.circle(surf, agent_color, (center_x, center_y), radius)
+                        except Exception as e:
+                            print(f"Warning: Error drawing agents: {e}")
+            except Exception as e:
+                print(f"Warning: Error getting playback simulation state: {e}")
+                # Fall back to disabled rendering
+                pass  # No rendering for playback errors
+        else:
+            if False:  # disabled simulation rendering until Phase 2
                 # Scaling: map simulation grid to surface; simple uniform scale (integer) or fallback 1.
                 gw = getattr(grid, "width", 1)
                 gh = getattr(grid, "height", 1)

@@ -149,25 +149,156 @@ class ControlPanel(QWidget):
         self.status_text.setText(status)
 
 
-class TestLayout(QHBoxLayout):
-    """Two-panel layout: viewport + controls (debug panel removed)."""
+class PlaybackControlPanel(QWidget):
+    """VCR-style playback controls for simulation playback."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Create playback control layout."""
+        layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel("🎮 Playback Controls")
+        title.setStyleSheet("font-weight: bold; font-size: 14px; color: #4CAF50;")
+        layout.addWidget(title)
+        
+        # Control buttons
+        button_layout = QHBoxLayout()
+        
+        # Rewind button
+        self.rewind_button = QPushButton("⏪ Rewind")
+        self.rewind_button.setEnabled(False)
+        self.rewind_button.setStyleSheet("QPushButton { padding: 8px 12px; }")
+        button_layout.addWidget(self.rewind_button)
+        
+        # Play/Pause button
+        self.play_button = QPushButton("▶️ Play")
+        self.play_button.setEnabled(False)
+        self.play_button.setStyleSheet("QPushButton { padding: 8px 12px; background-color: #4CAF50; color: white; font-weight: bold; }")
+        button_layout.addWidget(self.play_button)
+        
+        # Fast Forward button
+        self.fast_forward_button = QPushButton("⏩ Fast Forward")
+        self.fast_forward_button.setEnabled(False)
+        self.fast_forward_button.setStyleSheet("QPushButton { padding: 8px 12px; }")
+        button_layout.addWidget(self.fast_forward_button)
+        
+        layout.addLayout(button_layout)
+        
+        # Speed control
+        speed_layout = QHBoxLayout()
+        speed_layout.addWidget(QLabel("Playback Speed:"))
+        
+        self.speed_combo = QComboBox()
+        self.speed_combo.addItems([
+            "🐌 2 steps/sec",
+            "🚶 8 steps/sec", 
+            "🏃 20 steps/sec",
+            "💨 Unlimited"
+        ])
+        self.speed_combo.setCurrentIndex(0)  # Default to 2 steps/sec
+        speed_layout.addWidget(self.speed_combo)
+        layout.addLayout(speed_layout)
+        
+        # Progress display
+        self.progress_label = QLabel("Step: 0 / 0 (0%)")
+        self.progress_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        layout.addWidget(self.progress_label)
+        
+        # Status display
+        self.status_label = QLabel("Ready for playback")
+        self.status_label.setStyleSheet("color: #888888;")
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
+        
+        self.setLayout(layout)
+        self.setFixedWidth(300)
+    
+    def update_progress(self, current_step: int, total_steps: int, is_playing: bool = False):
+        """Update progress display."""
+        progress = (current_step / total_steps * 100) if total_steps > 0 else 0
+        self.progress_label.setText(f"Step: {current_step} / {total_steps} ({progress:.1f}%)")
+        
+        # Update status
+        if is_playing:
+            self.status_label.setText("🎬 Playing...")
+            self.play_button.setText("⏸️ Pause")
+        else:
+            self.status_label.setText("⏸️ Paused")
+            self.play_button.setText("▶️ Play")
+    
+    def set_enabled(self, enabled: bool):
+        """Enable or disable all controls."""
+        self.rewind_button.setEnabled(enabled)
+        self.play_button.setEnabled(enabled)
+        self.fast_forward_button.setEnabled(enabled)
+        self.speed_combo.setEnabled(enabled)
+    
+    def set_playback_mode(self, is_playback: bool):
+        """Set controls to playback mode (different from test mode)."""
+        if is_playback:
+            self.status_label.setText("🎮 Playback mode ready")
+        else:
+            self.status_label.setText("Ready for playback")
+
+
+class TestLayout(QWidget):
+    """Layout with pygame viewport, playback controls, and test controls."""
 
     def __init__(self, test_config: TestConfiguration):
         super().__init__()
         self.config = test_config
+        self.setup_ui()
 
-        # Pygame viewport placeholder (left now)
+    def setup_ui(self):
+        """Setup the complete UI layout."""
+        # Main horizontal layout
+        main_layout = QHBoxLayout()
+        
+        # Left side: pygame viewport and playback controls
+        left_layout = QVBoxLayout()
+        
+        # Pygame viewport placeholder
         self.pygame_placeholder = QLabel("Pygame viewport will appear here when test starts")
-        self.pygame_placeholder.setFixedSize(test_config.viewport_size, test_config.viewport_size)
+        self.pygame_placeholder.setFixedSize(self.config.viewport_size, self.config.viewport_size)
         self.pygame_placeholder.setStyleSheet("border: 1px solid #555555; background: #2a2a2a; color: #ffffff;")
-        self.addWidget(self.pygame_placeholder)
-
-        # Control panel (right)
-        self.control_panel = ControlPanel(test_config)
-        self.addWidget(self.control_panel)
+        left_layout.addWidget(self.pygame_placeholder)
+        
+        # Playback controls beneath pygame window
+        self.playback_controls = PlaybackControlPanel()
+        self.playback_controls.setVisible(False)  # Hidden until playback is ready
+        left_layout.addWidget(self.playback_controls)
+        
+        main_layout.addLayout(left_layout)
+        
+        # Right side: test control panel
+        self.control_panel = ControlPanel(self.config)
+        main_layout.addWidget(self.control_panel)
+        
+        self.setLayout(main_layout)
 
     def replace_viewport(self, pygame_widget):
         """Replace placeholder with actual pygame widget."""
-        self.replaceWidget(self.pygame_placeholder, pygame_widget)
+        # Replace the placeholder with the actual pygame widget
+        layout = self.layout()
+        left_layout = layout.itemAt(0).layout()  # Get the left VBoxLayout
+        
+        # Remove placeholder and add pygame widget
+        left_layout.removeWidget(self.pygame_placeholder)
         self.pygame_placeholder.hide()
+        
+        left_layout.insertWidget(0, pygame_widget)  # Insert at position 0
         pygame_widget.show()
+    
+    def show_playback_controls(self):
+        """Show the playback controls."""
+        self.playback_controls.setVisible(True)
+        self.playback_controls.set_enabled(True)
+        self.playback_controls.set_playback_mode(True)
+    
+    def hide_playback_controls(self):
+        """Hide the playback controls."""
+        self.playback_controls.setVisible(False)
