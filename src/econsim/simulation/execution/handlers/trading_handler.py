@@ -96,29 +96,7 @@ class TradingHandler(BaseStepHandler):
 						sim._steps + 12,
 					)
 
-		# Metrics collector integration
-		if sim.metrics_collector is not None:
-			try:
-				mc = sim.metrics_collector  # type: ignore[attr-defined]
-				mc.trade_intents_generated += len(intents)  # type: ignore[attr-defined]
-				if exec_enabled:
-					if executed is not None:
-						seller_delta_u = getattr(executed, "delta_utility", 0.0)
-						buyer_delta_u = seller_delta_u  # approximation placeholder (legacy parity)
-						mc.register_executed_trade(  # type: ignore[attr-defined]
-							step=sim._steps,
-							agent1_id=executed.seller_id,
-							agent2_id=executed.buyer_id,
-							agent1_give=executed.give_type,
-							agent1_take=executed.take_type,
-							agent1_delta_u=seller_delta_u,
-							agent2_delta_u=buyer_delta_u,
-							realized_utility_gain=seller_delta_u,
-						)
-					else:
-						mc.no_trade_ticks += 1  # type: ignore[attr-defined]
-			except Exception:  # pragma: no cover - defensive
-				pass
+		# MetricsCollector removed - trade metrics will be handled by delta recorder in future
 
 		# Parity debug snapshots (optional)
 		if executed is not None and os.environ.get("ECONSIM_DEBUG_TRADE_PARITY") == "1":  # pragma: no cover

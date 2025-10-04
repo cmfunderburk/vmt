@@ -34,7 +34,6 @@ from .agent import Agent
 from .constants import AgentMode
 from .grid import Grid
 from .respawn import RespawnScheduler  # type: ignore
-from .metrics import MetricsCollector  # type: ignore
 from .trade import (  # type: ignore
     enumerate_intents_for_cell,
     TradeEnumerationStats,
@@ -68,7 +67,6 @@ class Simulation:
     _cached_feature_flags: Optional[Any] = None  # Cached feature flags to avoid recreating every step
     _rng: _random.Random | None = None      # Internal RNG (hooks, future stochastic systems)
     respawn_scheduler: Any | None = None    # Optional RespawnScheduler (factory attaches if enabled)
-    metrics_collector: Any | None = None    # Optional MetricsCollector (factory attaches if enabled)
     _respawn_interval: int | None = 1       # How frequently to invoke respawn (1 => every step default; None/<=0 => disabled)
     # Draft trade intents (feature-flagged). Populated when ECONSIM_TRADE_DRAFT=1; cleared each step.
     # Populated only when ECONSIM_TRADE_DRAFT=1; otherwise kept as empty list for simpler typing.
@@ -121,13 +119,7 @@ class Simulation:
         # No event buffer needed - zero overhead recording during simulation
         self.last_step_metrics = step_metrics  # store for tests/analytics (excluded from hash logic)
 
-        # Update determinism metrics/hash (must occur before step counter increment to preserve historical ordering semantics)
-        try:
-            if self.metrics_collector is not None:
-                # Use step_num (current logical step about to be committed)
-                self.metrics_collector.record(step_num, self)
-        except Exception:  # pragma: no cover - defensive; avoid breaking simulation loop on metrics failure
-            pass
+        # MetricsCollector removed - determinism tracking will be handled by delta recorder in future
 
         # Update step counter (handlers assume previous self._steps during execution)
         self._steps += 1
@@ -254,9 +246,8 @@ class Simulation:
                 max_spawn_per_tick=int(config.max_spawn_per_tick),
                 respawn_rate=float(config.respawn_rate),
             )
-        if getattr(config, "enable_metrics", False):
-            sim.metrics_collector = MetricsCollector()
-
+        # MetricsCollector removed - will be replaced by delta recorder
+        
         return sim
 
     # --- Runtime Configuration -------------------------------------------
@@ -368,7 +359,7 @@ class Simulation:
                 partner.is_trading = True
                 
                 # Attempt a trade - if no beneficial trade, clear partnership and search again
-                trade_occurred = agent.attempt_trade_with_partner(partner, self.metrics_collector, self._steps)
+                trade_occurred = agent.attempt_trade_with_partner(partner, None, self._steps)
                 if not trade_occurred:
                     # No more beneficial trades possible, end trading session with cooldowns
                     agent.end_trading_session(partner)

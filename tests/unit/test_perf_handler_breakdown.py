@@ -3,7 +3,6 @@ import random, statistics
 from econsim.simulation.world import Simulation
 from econsim.simulation.grid import Grid
 from econsim.simulation.agent import Agent
-from econsim.simulation.metrics import MetricsCollector
 from econsim.simulation.respawn import RespawnScheduler
 from econsim.preferences.cobb_douglas import CobbDouglasPreference
 
@@ -38,7 +37,7 @@ def capture(sim: Simulation):
 def test_handler_breakdown_snapshot():  # not a strict assertion; prints for investigation
     base = build()
     enhanced = build()
-    enhanced.metrics_collector = MetricsCollector()
+    # MetricsCollector removed - determinism testing will be handled by delta recorder in future
     enhanced.respawn_scheduler = RespawnScheduler(target_density=0.18, max_spawn_per_tick=40, respawn_rate=0.5)
     base_t = capture(base)
     enh_t = capture(enhanced)

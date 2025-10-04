@@ -5,7 +5,6 @@ import pytest
 
 from econsim.simulation.config import SimConfig
 from econsim.simulation.world import Simulation
-from econsim.simulation.metrics import MetricsCollector
 from econsim.simulation.respawn import RespawnScheduler
 
 # Helper preference (reuse default via factory when not provided)
@@ -35,7 +34,7 @@ def test_factory_attaches_hooks_when_enabled():
     cfg = build_config(True, True, seed=42)
     sim = Simulation.from_config(cfg, agent_positions=[(0, 0), (2, 1)])
     assert isinstance(sim.respawn_scheduler, RespawnScheduler)
-    assert isinstance(sim.metrics_collector, MetricsCollector)
+    # MetricsCollector removed - no longer tested here
     # Behavior-based check: run a few steps and ensure respawn can act (resources grow toward density)
     before = sim.grid.resource_count()
     step_n(sim, 5)
@@ -47,7 +46,7 @@ def test_factory_skips_hooks_when_disabled():
     cfg = build_config(False, False, seed=1)
     sim = Simulation.from_config(cfg, agent_positions=[(0, 0)])
     assert sim.respawn_scheduler is None
-    assert sim.metrics_collector is None
+    # MetricsCollector removed - no longer tested here
 
 
 def test_initial_resources_loaded():
@@ -106,17 +105,12 @@ def test_metrics_hash_parity_manual_vs_factory():
             max_spawn_per_tick=m_cfg.max_spawn_per_tick,
             respawn_rate=m_cfg.respawn_rate,
         )
-    if m_cfg.enable_metrics:
-        manual.metrics_collector = MetricsCollector()
+    # MetricsCollector removed - determinism testing will be handled by delta recorder in future
 
     step_n(f_sim, 15)
     step_n(manual, 15)
 
-    if f_sim.metrics_collector and manual.metrics_collector:
-        assert (
-            f_sim.metrics_collector.determinism_hash()
-            == manual.metrics_collector.determinism_hash()
-        )
+    # Determinism hash checking removed - will be replaced by delta recorder
 
 
 if __name__ == "__main__":  # pragma: no cover

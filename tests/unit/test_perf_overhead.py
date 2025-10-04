@@ -14,7 +14,6 @@ from econsim.simulation.world import Simulation
 from econsim.simulation.grid import Grid
 from econsim.simulation.agent import Agent
 from econsim.simulation.respawn import RespawnScheduler
-from econsim.simulation.metrics import MetricsCollector
 from econsim.preferences.cobb_douglas import CobbDouglasPreference
 
 # Performance limits calibrated based on current system performance (Oct 2, 2025)
@@ -107,7 +106,7 @@ def test_dynamic_systems_overhead():
     enhanced.respawn_scheduler = RespawnScheduler(
         target_density=0.8, max_spawn_per_tick=20, respawn_rate=0.5
     )
-    enhanced.metrics_collector = MetricsCollector()
+    # MetricsCollector removed - no longer tested
     enhanced_time, enhanced_handler_samples = _run_with_metrics(enhanced)
     
     # Calculate handler timing averages
@@ -134,7 +133,7 @@ def test_handler_performance_breakdown():
     sim.respawn_scheduler = RespawnScheduler(
         target_density=0.8, max_spawn_per_tick=20, respawn_rate=0.5
     )
-    sim.metrics_collector = MetricsCollector()
+    # MetricsCollector removed - no longer tested
     
     _, handler_samples = _run_with_metrics(sim)
     averages = _calculate_averages(handler_samples)
@@ -176,7 +175,7 @@ def test_movement_handler_performance():
     sim.respawn_scheduler = RespawnScheduler(
         target_density=0.8, max_spawn_per_tick=20, respawn_rate=0.5
     )
-    sim.metrics_collector = MetricsCollector()
+    # MetricsCollector removed - no longer tested
     
     _, handler_samples = _run_with_metrics(sim)
     averages = _calculate_averages(handler_samples)
@@ -198,7 +197,7 @@ def test_total_system_performance():
     sim.respawn_scheduler = RespawnScheduler(
         target_density=0.8, max_spawn_per_tick=20, respawn_rate=0.5
     )
-    sim.metrics_collector = MetricsCollector()
+    # MetricsCollector removed - no longer tested
     
     total_time, handler_samples = _run_with_metrics(sim)
     averages = _calculate_averages(handler_samples)

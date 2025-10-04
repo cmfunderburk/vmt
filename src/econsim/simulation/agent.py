@@ -953,6 +953,7 @@ class Agent:
         self._invalidate_partner_selection_cache()
 
     def attempt_trade_with_partner(self, other_agent: "Agent", metrics_collector: Any = None, current_step: int = 0) -> bool:
+        # Note: metrics_collector parameter kept for backward compatibility but unused (will be removed in future)
         """Deprecated trade execution path - no longer executes trades.
         
         Trade execution now handled by unified intent enumeration pipeline.
