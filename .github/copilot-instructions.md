@@ -1,377 +1,190 @@
-# VMT EconSim Copilot Quickstart (AI Agents)
+# VMT EconSim Architecture Migration Instructions
 
-Project: Educational microeconomic simulation with deterministic spatial agents (Python 3.11+, PyQt6, Pygame, NumPy). Determinism-first architecture; GUI decoupled via observers.
+This codebase is undergoing a comprehensive architecture restructure from `src/` to `source/` directory structure. The migration follows a phased approach with strict validation requirements to maintain deterministic behavior and performance.
 
-## Architecture at a glance
-- Simulation core (`src/econsim/simulation/`): use `Simulation.from_config(SimConfig)` only. Key files: `world.py`, `agent.py`, `grid.py`, `config.py`, `trade.py`.
-- Step execution: `OptimizedStepExecutor` in `step_executor.py` (high-performance consolidated execution).
-- Delta recording: `ComprehensiveDeltaRecorder` in `src/econsim/delta/` (MessagePack format, complete state capture).
-- GUI (`src/econsim/gui/` + `src/econsim/tools/launcher/`): subscribes to delta recorder; simulation has no GUI imports.
+## Migration Overview
 
-## Determinism rules (critical)
-- Always sort iteration (e.g., `Grid.iter_resources_sorted()`, `sorted(agents, key=lambda a: a.id)`).
-- All randomness through sanctioned RNG: `ext_rng` or `simulation._rng`; stable tie-breaks used throughout.
-- Determinism guards live in `tests/integration/test_determinism_*.py`.
+**Current State**: Organic growth pattern with mixed concerns (GUI/simulation intertwined)
+**Target State**: Clean domain-driven architecture with clear boundaries
+**Approach**: Create new `source/` structure in parallel, validate each phase, then replace
 
-## Construction & example
-```python
-from econsim.simulation.config import SimConfig
-from econsim.simulation.world import Simulation
-config = SimConfig(seed=42, grid_size=(50, 50), num_agents=20)
-sim = Simulation.from_config(config)  # Mandatory factory
+## Target Directory Structure
+
+```
+source/econsim/
+├── gui/                    # All GUI components (from src/econsim/{gui,tools/launcher})
+│   ├── launcher/           # Test launcher GUI
+│   ├── widgets/            # Reusable GUI widgets  
+│   ├── analysis/           # Economic analysis displays
+│   └── embedded/           # Embedded pygame components
+└── simulation/             # Core simulation domain
+    ├── agent/              # Agent behavior and decision-making
+    │   ├── core.py         # Main Agent class (from agent.py)
+    │   ├── decision.py     # Unified selection pass logic
+    │   ├── preferences/    # Agent utility functions (from src/econsim/preferences/)
+    │   ├── components/     # Agent sub-components
+    │   │   ├── inventory/
+    │   │   ├── trading_partner/
+    │   │   ├── target_selection/
+    │   │   │   ├── bilateral.py    # Renamed from trade.py
+    │   │   │   ├── forage.py
+    │   │   │   └── idle.py
+    │   │   └── movement/
+    │   └── modes.py        # Agent mode management (from agent_mode_utils.py)
+    ├── world/              # Grid and spatial systems
+    │   ├── grid.py         # Grid data structure
+    │   ├── spatial.py      # Spatial indexing
+    │   ├── respawn.py      # Resource respawn logic
+    │   └── coordinates.py  # Position utilities
+    ├── logging/            # Recording and delta systems
+    │   ├── delta/          # Delta system (from src/econsim/delta/)
+    │   ├── recorder.py     # Recording interfaces
+    │   ├── playback.py     # Playback engines
+    │   └── snapshot.py     # Simulation snapshots
+    ├── executor.py         # StepExecutor (renamed from step_executor.py)
+    ├── coordinator.py      # Simulation coordinator (renamed from world.py)
+    ├── config.py           # Simulation configuration
+    ├── features.py         # Feature flags
+    └── constants.py        # Simulation constants
 ```
 
-## Feature flags
-Env vars checked in `SimulationFeatures.from_environment()`: `ECONSIM_FORAGE_ENABLED`, `ECONSIM_TRADE_DRAFT`, `ECONSIM_TRADE_EXECUTION`, `ECONSIM_BILATERAL_ENABLED`. Tests reset flags in `tests/conftest.py`.
+## Migration Phases
 
-## Preferences (pure O(1))
-- Implemented in `src/econsim/preferences/` and built via `factory.build_preference(type, **params)`.
-- Must implement: `utility(bundle)`, `serialize()`, `deserialize()`, `update_params(**kwargs)`; register in `factory.py:_REGISTRY`.
-- Validate rigorously; raise `PreferenceError` on invalid params.
+### Phase 1: Infrastructure Setup
+- Create `source/econsim/` directory structure
+- Initialize all `__init__.py` files with proper imports
+- Configure `pyproject.toml` for dual source paths
+- Establish import compatibility layer
 
-## Performance constraints
-- Per-step complexity O(agents + resources); avoid quadratic scans.
-- Use spatial index: `simulation._spatial_index.find_agents_in_radius()`.
-- Target 60 FPS; run `make perf`. Regression threshold: <5% slowdown acceptable.
+### Phase 2: Core Simulation Migration
+**Critical**: Must maintain exact behavioral compatibility
 
-## Dev workflows
-- `make venv && source vmt-dev/bin/activate`
-- `make dev` (GUI) • `make launcher` (Enhanced test launcher)
-- `make test-unit` • `make lint format type` • `make perf`
+#### Key Renames and Moves:
+- `world.py` → `coordinator.py` (class: `Simulation` → `SimulationCoordinator`)
+- `agent.py` → `agent/core.py`
+- `preferences/` → `agent/preferences/`
+- `trade.py` → `agent/components/target_selection/bilateral.py`
+- `step_executor.py` → `executor.py`
 
-## Common pitfalls
-- Direct `Simulation(...)` instantiation (breaks hooks/RNG) → use factory.
-- Non-deterministic iteration over dict/set → always sorted.
-- GUI dependencies inside simulation → use observers only.
-- Multiple QTimers in GUI → single 16ms timer in `EmbeddedPygameWidget`.
-- Preference side effects → keep `utility()` pure.
+### Phase 3: Logging System Migration
+- `src/econsim/delta/` → `source/econsim/simulation/logging/delta/`
+- `snapshot.py` → `logging/snapshot.py`
+- Maintain exact same MessagePack recording format
 
-## Integration notes
-- Simulation → GUI: events recorded by `GUIEventObserver`; GUI uses `DataTranslator` for display.
-- Headless runs: loop `sim.step(sim._rng)`; no GUI required.
+### Phase 4: GUI System Migration
+- `src/econsim/tools/launcher/` → `source/econsim/gui/launcher/`
+- `src/econsim/gui/` → `source/econsim/gui/{analysis,embedded}/`
 
-## Refactor context
-- Canonical plan: `tmp_plans/CURRENT/CRITICAL/ACTIONABLE_REFACTORING_PLAN_V2.md`.
-- Git checkpoints: `refactor-pre-phase{N}` / `refactor-post-phase{N}`; GUI may break after Phase 1 (expected). Quarantine tests in `tests/QUARANTINE/`.
-# VMT EconSim Copilot Instructions
+## Critical Migration Requirements
 
-**Project:** Educational microeconomic simulation with deterministic spatial agent behavior  
-**Stack:** Python 3.11+, PyQt6, Pygame, NumPy  
-**Status:** Post-refactor (October 2025) - Observer pattern established, GUILogger eliminated
-
----
-
-## Critical Architecture Principles
-
-### 1. Determinism is Sacred
-- **Never** introduce non-deterministic iteration (dict keys, set ordering)
-- Use `Grid.iter_resources_sorted()` for resource iteration, `sorted()` for agent pairs
-- All randomness goes through sanctioned RNG: `ext_rng` parameter or `simulation._rng`
-- Tie-breaking uses stable keys: `(-delta_utility, distance, x, y)` or `(seller_id, buyer_id, give_type, take_type)`
-- Hash validation in `MetricsCollector.record()` excludes trade/debug metrics
-- See `tests/integration/test_determinism_*.py` for regression guards
-
-### 2. Factory Construction is Mandatory
-**Always** use `Simulation.from_config(config)` - **never** direct instantiation:
+### Determinism Preservation
 ```python
-# ✅ CORRECT
-from econsim.simulation.config import SimConfig
-config = SimConfig(seed=42, grid_size=(50, 50), num_agents=20)
-sim = Simulation.from_config(config)
+# MUST maintain exact execution order
+# MUST preserve RNG seeding patterns
+# MUST keep tie-breaking consistent: (-utility_delta, distance, x, y)
 
-# ❌ NEVER DO THIS
-sim = Simulation(grid=grid, agents=agents)  # Breaks determinism, skips hook attachment
+# Example: When migrating agent decision logic
+def select_target(self, candidates, rng):
+    # Preserve exact sorting order
+    return sorted(candidates, key=lambda c: (-c.utility_delta, c.distance, c.x, c.y))
 ```
 
-Factory ensures: RNG initialization, observer registry, respawn scheduler, metrics collector, spatial index.
+### Performance Requirements
+- **No O(n²) introductions**: Maintain O(n) per-step complexity
+- **Preserve spatial indexing**: Keep `grid.spatial_index` optimizations
+- **Benchmark validation**: Run `make perf` after each phase
 
-### 3. Observer Pattern for Decoupling
-Simulation emits events through `ObserverRegistry` - no direct GUI/logging dependencies in `src/econsim/simulation/`:
-- **Record events:** `observer.record_mode_change()`, `record_trade()`, `record_collection()` (raw data architecture)
-- **Zero overhead:** Events stored as dicts, formatting deferred to GUI/analysis layers
-- **Event lifecycle:** `notify(event)` → `flush_step(step)` → `close()`
-- Observers: `FileObserver`, `EducationalObserver`, `PerformanceObserver`, `GUIEventObserver`
-- See `src/econsim/observability/` for implementation
+### Interface Compatibility
+```python
+# OLD import (during transition)
+from econsim.simulation.agent import Agent
 
-### 4. Step Execution Architecture
-`Simulation.step(ext_rng)` uses OptimizedStepExecutor (high-performance consolidated execution):
-- **Single execution path** eliminates handler overhead
-- **45% performance improvement** over handler-based architecture  
-- **All step logic inlined** for maximum efficiency
-- **Comprehensive delta recording** captures complete state changes
-- **Deterministic execution** with proper RNG usage
+# NEW import (post-migration)
+from econsim.simulation.agent.core import Agent
 
-### 5. Feature Flags Control Behavior
-Environment variables gate experimental features (checked in `SimulationFeatures.from_environment()`):
-- `ECONSIM_FORAGE_ENABLED=1` (default: foraging active)
-- `ECONSIM_TRADE_DRAFT=1` (enumerate trade intents)
-- `ECONSIM_TRADE_EXECUTION=1` (actually execute trades)
-- `ECONSIM_BILATERAL_ENABLED=1` (overall bilateral trade system)
-- Tests use `conftest.py` fixtures to clear flags between runs
+# MIGRATION: Use compatibility imports initially
+# source/econsim/simulation/agent/__init__.py
+from .core import Agent  # Maintains import compatibility
+```
 
-### 6. Preference System (Pure Functions)
-Preferences are **stateless, O(1) utility calculators** in `src/econsim/preferences/`:
-- Factory pattern: `build_preference('cobb_douglas', alpha=0.6)`
-- Must implement: `utility(bundle)`, `serialize()`, `deserialize(data)`, `update_params(**kwargs)`
-- Validation raises `PreferenceError` on invalid params
-- No side effects, no external dependencies, no I/O
-- Register new types in `factory.py:_REGISTRY`
+## Validation Commands
 
-### 7. Performance Constraints
-- **Per-step complexity:** O(agents + resources) - avoid quadratic scans
-- **Target:** 60 FPS in GUI (≤16ms per step)
-- Movement handler budget: ≤3ms average
-- Run `make perf` to capture baselines: `tests/performance/baseline_capture.py`
-- Regression threshold: <5% slowdown acceptable, >5% requires investigation
-
----
-
-## Developer Workflows
-
-### Daily Development Commands
+### Pre-Migration Baseline Capture
 ```bash
-make venv                    # Create vmt-dev environment (first time only)
-source vmt-dev/bin/activate  # Activate environment
-make dev                     # Launch GUI with new observer architecture
-make launcher                # Launch enhanced test launcher (RECOMMENDED)
-make test-unit              # Run 210+ unit/integration tests (~10s)
-make lint format type       # Code quality checks
-make perf                   # Capture performance baselines
+make phase0-capture          # Capture performance/determinism baselines
+make test-unit              # Ensure all 210+ tests pass
 ```
+
+### Migration Validation (Per Phase)
+```bash
+make test-unit              # All tests must still pass
+make perf                   # Performance within 5% of baseline
+pytest tests/integration/test_refactor_safeguards.py -v
+```
+
+### Determinism Validation
+```bash
+# Compare simulation outcomes between old and new structure
+python tests/performance/determinism_capture.py --compare
+```
+
+## File Migration Patterns
+
+### Component Migration Template
+```python
+# 1. Copy file to new location
+# 2. Update internal imports to use new structure
+# 3. Maintain exact same public interface
+# 4. Add compatibility import in old location
+# 5. Validate with tests
+
+# Example: Migrating agent.py → agent/core.py
+# OLD: src/econsim/simulation/agent.py
+# NEW: source/econsim/simulation/agent/core.py
+# COMPAT: from .core import Agent  # In agent/__init__.py
+```
+
+### Import Path Updates
+```python
+# During migration, update imports systematically:
+# OLD: from .agent import Agent
+# NEW: from .agent.core import Agent
+
+# For external imports:
+# OLD: from econsim.simulation.world import Simulation  
+# NEW: from econsim.simulation.coordinator import SimulationCoordinator
+```
+
+## Risk Mitigation
+
+### Rollback Strategy
+- Migration occurs on separate branch (`arch_rework`)
+- Old structure remains untouched until complete validation
+- Each phase validated before proceeding to next
 
 ### Testing Strategy
-- **Unit tests:** `tests/unit/` - 210+ tests, ~10 seconds, runs on every commit
-- **Integration tests:** `tests/integration/` - determinism guards, observer validation
-- **Performance tests:** `tests/performance/` - baseline capture, regression detection
-- **Manual tests:** `MANUAL_TESTS/` - 7 educational scenarios (900 turns each, phase-based)
-  - Launch via `make launcher` → Gallery tab → select test card
-  - Tests validate agent behavior across phase transitions (forage/trade/idle combinations)
-- **Quarantine:** `tests/QUARANTINE/` - tests under review during refactoring (should be empty post-refactor)
+- Run full test suite after each file migration
+- Compare delta recordings between old/new structure
+- Performance regression detection with 5% tolerance
+- Determinism hash validation
 
-### Git Workflow for Refactoring
-**CRITICAL:** Follow git checkpoint strategy from `ACTIONABLE_REFACTORING_PLAN_V2.md`:
+### Branch Safety
 ```bash
-# Before starting any phase
-git tag refactor-pre-phase0 -m "Before observer system cleanup"
+# Work exclusively in arch_rework branch
+git checkout arch_rework
 
-# After phase complete and stable
-git tag refactor-post-phase0 -m "Observer system clean"
-
-# Rollback if needed
-git checkout refactor-post-phase0  # Go to last stable checkpoint
+# Never merge until complete migration validated
+# Use automated tests to catch regressions early
 ```
 
-**Checkpoint discipline:**
-- Tag BEFORE any major breaking change
-- Test thoroughly before creating "post" tag
-- Never create "post" tag if tests failing
-- Document all checkpoints in CHANGELOG.md
+## Success Criteria
 
-### Adding New Preferences
-1. Create `src/econsim/preferences/my_type.py`:
-```python
-from .base import Preference, PreferenceError
+- [ ] All 210+ unit/integration tests pass
+- [ ] Performance within 5% of baseline (`make perf`)
+- [ ] GUI launcher works identically (`make launcher`)
+- [ ] Delta recording/playback maintains compatibility
+- [ ] Determinism hashes match baseline
+- [ ] Import paths updated throughout codebase
+- [ ] Documentation updated for new structure
 
-class MyPreference(Preference):
-    TYPE_NAME = "my_type"
-    
-    def __init__(self, param: float):
-        if param <= 0:
-            raise PreferenceError(f"param must be positive, got {param}")
-        self.param = param
-    
-    def utility(self, bundle) -> float:
-        x, y = self._normalize_bundle(bundle)
-        return self.param * (x + y)
-    
-    def serialize(self) -> dict:
-        return {"type": self.TYPE_NAME, "params": {"param": self.param}}
-```
-2. Register in `factory.py:_REGISTRY["my_type"] = MyPreference`
-3. Add tests: `tests/unit/test_my_preference.py` (validation, utility, round-trip serialization)
-4. Run: `make test-unit lint type`
-
----
-
-## File Organization & Key Paths
-
-### Simulation Core (No GUI Dependencies)
-- `src/econsim/simulation/world.py` - `Simulation` dataclass, step orchestration
-- `src/econsim/simulation/agent.py` - `Agent` class, decision logic, modes
-- `src/econsim/simulation/grid.py` - Resource storage with deterministic iteration
-- `src/econsim/simulation/config.py` - `SimConfig` dataclass, factory integration
-- `src/econsim/simulation/step_executor.py` - OptimizedStepExecutor (high-performance execution)
-- `src/econsim/simulation/trade.py` - Bilateral trade primitives, intent enumeration
-
-### Delta Recording System (State Capture)
-- `src/econsim/delta/recorder.py` - `ComprehensiveDeltaRecorder` for complete state capture
-- `src/econsim/delta/playback_controller.py` - `ComprehensivePlaybackController` for playback
-- `src/econsim/delta/data_structures.py` - Delta data structures (VisualDelta, VisualState, etc.)
-- **MessagePack format** for efficient serialization
-- **Complete state capture** including visual, economic, and performance data
-
-### GUI Layer (Depends on Simulation via Observer)
-- `src/econsim/gui/embedded_pygame.py` - `EmbeddedPygameWidget` (PyQt6 + Pygame integration)
-- `src/econsim/gui/controller.py` - `SimulationController` (pause, speed, feature toggles)
-- `src/econsim/gui/panels/` - UI panels (agent inspector, metrics, overlays)
-- `src/econsim/tools/launcher/` - Modern test launcher architecture
-  - `app_window.py` - Main window with tabbed interface
-  - `gallery.py` - Test gallery with visual cards
-  - `framework/test_configuration.py` - Educational scenario definitions
-
-### Testing & Analysis
-- `tests/unit/` - Fast unit tests (preferences, agent, grid, handlers)
-- `tests/integration/` - Determinism guards, observer validation
-- `tests/performance/` - `baseline_capture.py` (7 scenarios), regression detection
-- `MANUAL_TESTS/` - Educational scenarios (`test_1.py` through `test_7.py`)
-- `baselines/` - Performance baselines, determinism hashes
-
----
-
-## Common Pitfalls & How to Avoid
-
-### ❌ Direct Simulation Instantiation
-```python
-sim = Simulation(grid=my_grid, agents=my_agents)  # Breaks everything
-```
-✅ **Always use factory:** `sim = Simulation.from_config(config)`
-
-### ❌ Non-Deterministic Iteration
-```python
-for agent in agents_dict.values():  # Dict ordering is not guaranteed
-for (x, y) in grid._resources:     # Set ordering is random
-```
-✅ **Use sorted iteration:** `for agent in sorted(agents, key=lambda a: a.id):`
-
-### ❌ GUI Dependencies in Simulation
-```python
-# In simulation/world.py
-from econsim.gui.widgets import StatusPanel  # NEVER
-```
-✅ **Use observer pattern:** Simulation emits events, GUI subscribes
-
-### ❌ Adding New Timers to GUI
-```python
-self.my_timer = QTimer()
-self.my_timer.timeout.connect(self._my_method)
-self.my_timer.start(100)  # Creates second simulation loop
-```
-✅ **Single QTimer:** GUI uses ONE 16ms timer in `EmbeddedPygameWidget`, calls `simulation.step()`
-
-### ❌ Mutating State in Preferences
-```python
-def utility(self, bundle):
-    self.call_count += 1  # Preferences must be pure
-    return self.alpha * x
-```
-✅ **Pure functions:** No side effects, no instance mutation in `utility()`
-
-### ❌ Ignoring Performance Budget
-```python
-# In handler
-for agent in simulation.agents:
-    for other_agent in simulation.agents:  # O(n²) - FORBIDDEN
-        compute_interaction(agent, other_agent)
-```
-✅ **Use spatial index:** `simulation._spatial_index.find_agents_in_radius()`
-
----
-
-## Integration Points
-
-### Simulation → GUI (via Observers)
-1. Simulation calls `observer_registry.notify(event)`
-2. `GUIEventObserver` records raw data (zero overhead)
-3. GUI requests formatted data via `DataTranslator.translate_*()` (deferred processing)
-4. DisplayUpdateBatcher batches GUI updates for performance
-
-### CLI → Simulation (Headless Execution)
-```python
-from econsim.simulation import Simulation
-from econsim.simulation.config import SimConfig
-
-config = SimConfig(seed=42, grid_size=(50, 50), num_agents=20, max_steps=1000)
-sim = Simulation.from_config(config)
-
-for step in range(1000):
-    sim.step(sim._rng)  # Headless execution
-```
-
-### Test Launcher → Simulation
-- `framework/test_configuration.py` defines `TestConfiguration` objects
-- `executor.py` launches tests with config via `EmbeddedPygameWidget`
-- Phase-based scenarios control feature flags dynamically (see `phase_config_editor.py`)
-
----
-
-## Active Refactoring Plan (CRITICAL)
-
-**CANONICAL REFERENCE:** `tmp_plans/CURRENT/CRITICAL/ACTIONABLE_REFACTORING_PLAN_V2.md`  
-**Status:** Clean Architecture Edition - Execution in Progress (October 2025)  
-**Approach:** No backward compatibility, git checkpoints for safety, aggressive decoupling
-
-### Current Phase Status
-- **Phase 0 (IN PROGRESS):** Observer system cleanup - MUST complete before Phase 2
-- **Phase 1 (PLANNED):** GUI/simulation decoupling - GUI WILL BREAK (expected and acceptable)
-- **Phase 2 (PLANNED):** Output/playback architecture - rebuild GUI on clean foundation
-- **Phases 3-6 (PLANNED):** Test cleanup, MANUAL_TESTS consolidation, preference extensions, docs
-
-### Critical Refactoring Principles
-1. **No backward compatibility** - All old saved outputs will be invalidated
-2. **Git checkpoints** - `refactor-pre-phase{N}` and `refactor-post-phase{N}` tags for rollback
-3. **Temporary breakage acceptable** - GUI will be non-functional after Phase 1 until Phase 2 complete
-4. **Clean architecture over convenience** - Building on solid foundation worth short-term disruption
-5. **Schema unstable during refactor** - Output schema marked "dev", can change freely
-
-### When Working on Refactor
-- Check `tmp_plans/CURRENT/CRITICAL/ACTIONABLE_REFACTORING_PLAN_V2.md` for detailed step-by-step instructions
-- Create git checkpoints BEFORE starting new phases
-- Phase 0 must complete before Phase 2 (output architecture depends on clean observers)
-- If GUI is broken, check which phase is active (expected after Phase 1)
-- Use quarantine workflow in `tests/QUARANTINE/` for uncertain test decisions
-
----
-
-## Code Style & Conventions
-
-- **Python 3.11+**, Black (line length 100), Ruff linting, MyPy type hints
-- Type hints encouraged, avoid `Any` unless necessary
-- Dataclasses with `slots=True` for simulation core
-- Import guards: `if TYPE_CHECKING:` for circular dependencies
-- Comments explain "why", not "what" (code should be self-documenting)
-- Apache 2.0 license headers required for files >30 lines
-
-### Commit Messages
-- Imperative mood: "Add feature X" not "Added feature X"
-- Reference plan docs when applicable: "launcher: extract gallery panel (Part2-G12)"
-- Keep diffs minimal and focused
-
----
-
-## Quick Reference
-
-### Run Simulation
-```bash
-make dev              # GUI with observer pattern
-make launcher         # Enhanced test launcher (modern interface)
-```
-
-### Testing
-```bash
-make test-unit        # All unit tests
-pytest tests/unit/test_specific.py -v  # Single test file
-make perf             # Performance baseline capture
-```
-
----
-
-## Getting Help
-
-- **🔥 REFACTORING CONTEXT (CRITICAL):** `tmp_plans/CURRENT/CRITICAL/ACTIONABLE_REFACTORING_PLAN_V2.md` - **CANONICAL** development path
-- **Architecture questions:** Check `README.md` and `src/econsim/simulation/README.md`
-- **Performance issues:** Review `baselines/` and `tests/performance/`
-- **Test failures:** Check `tests/QUARANTINE/README.md` for test review process
-- **Observer system:** Read `src/econsim/observability/__init__.py` docstrings
-- **Quarantine workflow:** `tests/QUARANTINE/QUARANTINE_NOTES.md` for uncertain test decisions
-
-**Educational focus:** This is a teaching platform. Code clarity and deterministic behavior matter more than micro-optimizations. When in doubt, prioritize understandability and reproducibility.
+This migration maintains zero downtime through parallel development and comprehensive validation at each phase.
