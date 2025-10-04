@@ -36,7 +36,7 @@ def test_simulation_widget_perf():
     ]
     sim = Simulation(grid, agents)
 
-    w = EmbeddedPygameWidget(simulation=sim)
+    w = EmbeddedPygameWidget()  # No longer takes simulation parameter
     w.show()
 
     start = time.perf_counter()

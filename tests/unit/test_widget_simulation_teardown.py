@@ -35,7 +35,8 @@ def test_widget_teardown_with_simulation():
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
     app = QApplication.instance() or QApplication([])
     sim = _build_sim()
-    widget = EmbeddedPygameWidget(simulation=sim)
+    # TODO: Phase 2 - widget will receive simulation state via observers
+    widget = EmbeddedPygameWidget()  # No longer takes simulation parameter
     widget.show()
 
     # Process event cycles allowing QTimer (~16ms) to fire; break early if a frame appears
