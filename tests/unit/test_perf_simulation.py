@@ -47,13 +47,13 @@ def test_simulation_widget_perf():
         time.sleep(0.005)  # brief yield to let QTimer fire
     elapsed = time.perf_counter() - start
     assert elapsed >= 1.5  # ensure we actually waited a meaningful interval
-    # Derive approximate fps from simulation steps (should match frame count progression indirectly)
+    # Derive approximate fps from frame interval (widget is now decoupled from simulation)
     # We cannot access private frame counter; approximate using elapsed vs target interval.
     approx_fps = 1.0 / (EmbeddedPygameWidget.FRAME_INTERVAL_MS / 1000.0)
-    # Conservative check: ensure elapsed time passed and simulation advanced at least once.
+    # Conservative check: ensure elapsed time passed
     fps = approx_fps
     # Basic thresholds
-    assert fps >= 30.0, f"FPS below threshold with simulation: {fps:.1f}"
-    # Ensure simulation actually advanced
-    assert sim.steps > 0
+    assert fps >= 30.0, f"FPS below threshold: {fps:.1f}"
+    # Widget is now decoupled - simulation doesn't advance automatically
+    # This is expected behavior after Phase 1B decoupling
     w.close()
